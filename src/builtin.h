@@ -3,6 +3,6 @@
 
 #include "nexp.h"
 
-nexp_t *run_builtin_operator(nexp_t *input, char *operation);
+nexp_t *builtin(nexp_t *, char *);
 
 #endif

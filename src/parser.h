@@ -4,6 +4,6 @@
 #include "includes/mpc.h"
 #include "nexp.h"
 
-nexp_t *read_expr(mpc_ast_t *ast);
+nexp_t *parse_expr(mpc_ast_t *ast);
 
 #endif
