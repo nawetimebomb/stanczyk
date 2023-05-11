@@ -3,6 +3,6 @@
 
 #include "nexp.h"
 
-nexp_t *builtin(nexp_t *, char *);
+void init_builtins(scope_t *);
 
 #endif
