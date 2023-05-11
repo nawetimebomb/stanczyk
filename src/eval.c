@@ -2,7 +2,7 @@
 #include "nexp.h"
 #include "builtin.h"
 
-static nexp_t *eval_sexpr(nexp_t *nexp) {
+static nexp_t *eval_Sexpr(nexp_t *nexp) {
     // Evaluate all children
     for (u32 i = 0; i < nexp->count; i++)
         nexp->children[i] = eval_nexp(nexp->children[i]);
@@ -20,18 +20,18 @@ static nexp_t *eval_sexpr(nexp_t *nexp) {
     // Make sure the first element is always a symbol
     nexp_t *found = nexp_pop(nexp, 0);
     if (found->type != NEXP_TYPE_SYMBOL) {
-        delete_nexp(found);
-        delete_nexp(nexp);
+        nexp_delete(found);
+        nexp_delete(nexp);
         return nexp_new_error("expression is not a symbol");
     }
 
-    nexp_t *result = run_builtin_operator(nexp, found->symbol);
-    delete_nexp(found);
+    nexp_t *result = builtin(nexp, found->symbol);
+    nexp_delete(found);
     return result;
 }
 
 nexp_t *eval_nexp(nexp_t *nexp) {
     // Only act over S-expressions. Otherwise, just return the same.
-    if (nexp->type == NEXP_TYPE_SEXPR) return eval_sexpr(nexp);
+    if (nexp->type == NEXP_TYPE_SEXPR) return eval_Sexpr(nexp);
     return nexp;
 }
