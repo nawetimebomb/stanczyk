@@ -3,6 +3,7 @@
 #include "eval.h"
 #include "nexp.h"
 #include "intrinsics.h"
+#include "scope.h"
 
 // TODO: Add documentation
 
@@ -10,7 +11,7 @@
  *   <arguments>: Any type.
  *   Description: Modifies the input arguments and transform it into a B-expression.
  *   Example: (list 1 2 3 4) -> {1 2 3 4}                                               */
-static nexp_t *builtin_list(nexp_t *input) {
+static nexp_t *builtin_list(scope_t *scope, nexp_t *input) {
     nexp_t *output = input;
     output->type = NEXP_TYPE_BEXPR;
     return output;
@@ -20,7 +21,7 @@ static nexp_t *builtin_list(nexp_t *input) {
  *   <argument>: A B-expression with any type content.
  *   Description: Evaluates the content of a B-expression.
  *   Example: (eval { + 11 2 }) - > 13                                                  */
-static nexp_t *builtin_eval(nexp_t *input) {
+static nexp_t *builtin_eval(scope_t *scope, nexp_t *input) {
     NASSERT(input, input->count == 1,
             "(eval ...) can only have one argument");
     NASSERT(input, input->children[0]->type == NEXP_TYPE_BEXPR,
@@ -28,10 +29,10 @@ static nexp_t *builtin_eval(nexp_t *input) {
 
     nexp_t *result = nexp_take(input, 0);
     result->type = NEXP_TYPE_SEXPR;
-    return eval_nexp(result);
+    return eval_nexp(scope, result);
 }
 
-static nexp_t *builtin_plus(nexp_t *input) {
+static nexp_t *builtin_plus(scope_t *scope, nexp_t *input) {
     // Get the first child type, and match it with the other children.
     nexp_type_t eq_type = input->children[0]->type;
 
@@ -71,7 +72,7 @@ static nexp_t *builtin_plus(nexp_t *input) {
     return result;
 }
 
-static nexp_t *builtin_minus(nexp_t *input) {
+static nexp_t *builtin_minus(scope_t *scope, nexp_t *input) {
     for (u32 i = 0; i < input->count; i++) {
         if (input->children[i]->type != NEXP_TYPE_NUMBER) {
             nexp_delete(input);
@@ -90,7 +91,7 @@ static nexp_t *builtin_minus(nexp_t *input) {
     return result;
 }
 
-static nexp_t *builtin_star(nexp_t *input) {
+static nexp_t *builtin_star(scope_t *scope, nexp_t *input) {
     for (u32 i = 0; i < input->count; i++) {
         if (input->children[i]->type != NEXP_TYPE_NUMBER) {
             nexp_delete(input);
@@ -109,7 +110,7 @@ static nexp_t *builtin_star(nexp_t *input) {
     return result;
 }
 
-static nexp_t *builtin_slash(nexp_t *input) {
+static nexp_t *builtin_slash(scope_t *scope, nexp_t *input) {
     for (u32 i = 0; i < input->count; i++) {
         if (input->children[i]->type != NEXP_TYPE_NUMBER) {
             nexp_delete(input);
@@ -136,14 +137,19 @@ static nexp_t *builtin_slash(nexp_t *input) {
     return result;
 }
 
-nexp_t *builtin(nexp_t *input, char *func) {
-    if (strcmp("list", func) == 0) return builtin_list(input);
-    if (strcmp("eval", func) == 0) return builtin_eval(input);
-    if (strcmp("+",    func) == 0) return builtin_plus(input);
-    if (strcmp("-",    func) == 0) return builtin_minus(input);
-    if (strcmp("*",    func) == 0) return builtin_star(input);
-    if (strcmp("/",    func) == 0) return builtin_slash(input);
+static void add_builtin_proc(scope_t *scope, char *name, nexp_proc proc) {
+    nexp_t *expr = nexp_new_symbol(name);
+    nexp_t *value = nexp_new_proc(proc);
+    scope_put(scope, expr, value);
+    nexp_delete(expr);
+    nexp_delete(value);
+}
 
-    nexp_delete(input);
-    return nexp_new_error("S-expression (%s) is not a function on this scope", func);
+void init_builtins(scope_t *scope) {
+    add_builtin_proc(scope, "eval", builtin_eval);
+    add_builtin_proc(scope, "list", builtin_list);
+    add_builtin_proc(scope, "+",    builtin_plus);
+    add_builtin_proc(scope, "-",    builtin_minus);
+    add_builtin_proc(scope, "*",    builtin_star);
+    add_builtin_proc(scope, "/",    builtin_slash);
 }
