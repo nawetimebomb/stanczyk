@@ -14,13 +14,15 @@
 #endif
 
 int main() {
-    mpc_parser_t *number   = mpc_new("number");
-    mpc_parser_t *symbol   = mpc_new("symbol");
-    mpc_parser_t *string   = mpc_new("string");
-    mpc_parser_t *comment  = mpc_new("comment");
-    mpc_parser_t *Sexpr    = mpc_new("Sexpr");
-    mpc_parser_t *Bexpr    = mpc_new("Bexpr");
-    mpc_parser_t *expr     = mpc_new("expr");
+    init_parser();
+
+    mpc_parser_t *_number  = get_parser_type(NEXP_PARSER_TYPE_NUMBER);
+    mpc_parser_t *_symbol  = get_parser_type(NEXP_PARSER_TYPE_SYMBOL);
+    mpc_parser_t *_string  = get_parser_type(NEXP_PARSER_TYPE_STRING);
+    mpc_parser_t *_comment = get_parser_type(NEXP_PARSER_TYPE_COMMENT);
+    mpc_parser_t *_Sexpr   = get_parser_type(NEXP_PARSER_TYPE_SEXPR);
+    mpc_parser_t *_Bexpr   = get_parser_type(NEXP_PARSER_TYPE_BEXPR);
+    mpc_parser_t *_expr    = get_parser_type(NEXP_PARSER_TYPE_EXPR);
 
     mpca_lang(MPCA_LANG_DEFAULT,
               "                                                         \
@@ -32,7 +34,8 @@ int main() {
                   Bexpr   : '{' <expr>* '}' ;                           \
                   expr    : <number> | <symbol> | <string> | <comment>  \
                           | <Sexpr>  | <Bexpr> ;                        \
-              ", number, symbol, string, comment, Sexpr, Bexpr, expr);
+              ",
+              _number, _symbol, _string, _comment, _Sexpr, _Bexpr, _expr);
 
     puts("Nihilisp REPL v0.1");
     puts("Press Ctrl+C to Exit\n");
@@ -46,7 +49,7 @@ int main() {
 
         mpc_result_t r;
 
-        if (mpc_parse("<stdin>", input, Sexpr, &r)) {
+        if (mpc_parse("<stdin>", input, _Sexpr, &r)) {
             nexp_t *result = eval_nexp(scope, parse_expr(r.output));
             nexp_print(result);
             nexp_delete(result);
@@ -60,7 +63,7 @@ int main() {
     }
 
     scope_delete(scope);
-    mpc_cleanup(7, number, symbol, string, comment, Sexpr, Bexpr, expr);
+    mpc_cleanup(7, _number, _symbol, _string, _comment, _Sexpr, _Bexpr, _expr);
 
     return 0;
 }
