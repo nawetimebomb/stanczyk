@@ -13,7 +13,7 @@
     #include <editline/readline.h>
 #endif
 
-int main() {
+int main(int argc, char **argv) {
     init_parser();
 
     mpc_parser_t *_number  = get_parser_type(NEXP_PARSER_TYPE_NUMBER);
@@ -23,6 +23,7 @@ int main() {
     mpc_parser_t *_Sexpr   = get_parser_type(NEXP_PARSER_TYPE_SEXPR);
     mpc_parser_t *_Bexpr   = get_parser_type(NEXP_PARSER_TYPE_BEXPR);
     mpc_parser_t *_expr    = get_parser_type(NEXP_PARSER_TYPE_EXPR);
+    mpc_parser_t *_nexp    = get_parser_type(NEXP_PARSER_TYPE_NEXP);
 
     mpca_lang(MPCA_LANG_DEFAULT,
               "                                                         \
@@ -34,36 +35,46 @@ int main() {
                   Bexpr   : '{' <expr>* '}' ;                           \
                   expr    : <number> | <symbol> | <string> | <comment>  \
                           | <Sexpr>  | <Bexpr> ;                        \
+                  nexp    : /^/ <expr>* /$/ ;                           \
               ",
-              _number, _symbol, _string, _comment, _Sexpr, _Bexpr, _expr);
-
-    puts("Nihilisp REPL v0.1");
-    puts("Press Ctrl+C to Exit\n");
+              _number, _symbol, _string, _comment, _Sexpr, _Bexpr, _expr, _nexp);
 
     scope_t *scope = scope_new();
     init_builtins(scope);
 
-    while (1) {
-        char *input = readline("> ");
-        add_history(input);
+    if (argc == 1) {
+        puts("Nihilisp REPL v0.1");
+        puts("Press Ctrl+C to Exit\n");
 
-        mpc_result_t r;
+        while (1) {
+            char *input = readline("> ");
+            add_history(input);
 
-        if (mpc_parse("<stdin>", input, _Sexpr, &r)) {
-            nexp_t *result = eval_nexp(scope, parse_expr(r.output));
-            nexp_print(result);
-            nexp_delete(result);
-            mpc_ast_delete(r.output);
-        } else {
-            mpc_err_print(r.error);
-            mpc_err_delete(r.error);
+            mpc_result_t r;
+
+            if (mpc_parse("<stdin>", input, _Sexpr, &r)) {
+                nexp_t *result = eval_nexp(scope, parse_expr(r.output));
+                nexp_print(result);
+                nexp_delete(result);
+                mpc_ast_delete(r.output);
+            } else {
+                mpc_err_print(r.error);
+                mpc_err_delete(r.error);
+            }
+
+            free(input);
         }
-
-        free(input);
+    } else {
+        for (u32 i = 1; i < argc; i++) {
+            nexp_t *files = nexp_add(nexp_new_Sexpr(), nexp_new_string(argv[i]));
+            nexp_t *result = load_from_file(scope, files);
+            if (result->type == NEXP_TYPE_ERROR) nexp_print(result);
+            nexp_delete(result);
+        }
     }
 
     scope_delete(scope);
-    mpc_cleanup(7, _number, _symbol, _string, _comment, _Sexpr, _Bexpr, _expr);
+    mpc_cleanup(8, _number, _symbol, _string, _comment, _Sexpr, _Bexpr, _expr, _nexp);
 
     return 0;
 }

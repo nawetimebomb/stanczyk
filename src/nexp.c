@@ -38,7 +38,7 @@ static void nexp_print_(nexp_t *nexp) {
         } break;
         case NEXP_TYPE_PROC: {
             if (nexp->internal) {
-                printf("<internal procedure>");
+                printf("<native procedure>");
             } else {
                 printf("<procedure> ");
                 nexp_print_(nexp->arguments);
@@ -59,6 +59,10 @@ static void nexp_print_expr(nexp_t *nexp, char open, char close) {
         if (i != (nexp->count-1)) putchar(' ');
     }
     putchar(close);
+}
+
+void nexp_print_b(nexp_t *nexp) {
+    nexp_print_(nexp);
 }
 
 void nexp_print(nexp_t *nexp) {
@@ -175,14 +179,14 @@ nexp_t *nexp_copy(nexp_t *orig) {
 
 char *nexp_describe_type(nexp_type_t type) {
     switch (type) {
-        case NEXP_TYPE_COUNT: break;
-        case NEXP_TYPE_BEXPR: return "{} B-expression";
-        case NEXP_TYPE_SEXPR: return "() S-expression";
-        case NEXP_TYPE_NUMBER: return "Number literal";
-        case NEXP_TYPE_STRING: return "String literal";
-        case NEXP_TYPE_PROC: return "<Procedure>";
-        case NEXP_TYPE_SYMBOL: return "Symbol literal";
-        case NEXP_TYPE_ERROR: return "Error";
+        case NEXP_TYPE_COUNT:  break;
+        case NEXP_TYPE_BEXPR:  return "<{} B-expression>";
+        case NEXP_TYPE_SEXPR:  return "<() S-expression>";
+        case NEXP_TYPE_NUMBER: return "<Number literal>";
+        case NEXP_TYPE_STRING: return "<String literal>";
+        case NEXP_TYPE_PROC:   return "<Procedure>";
+        case NEXP_TYPE_SYMBOL: return "<Symbol literal>";
+        case NEXP_TYPE_ERROR:  return "<Error>";
     }
 
     return "Not implemented";
@@ -199,9 +203,9 @@ nexp_t *nexp_new_error(const char *format, ...) {
     nexp_t *result = new_nexp();
     va_list args;
     result->type = NEXP_TYPE_ERROR;
-    result->error = malloc(1024);
+    result->error = malloc(256);
     va_start(args, format);
-    vsnprintf(result->error, 1024, format, args);
+    vsnprintf(result->error, 256, format, args);
     result->error = realloc(result->error, strlen(result->error) + 1);
     va_end(args);
     return result;
