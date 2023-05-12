@@ -11,7 +11,8 @@ typedef enum {
     NEXP_PARSER_TYPE_COMMENT,
     NEXP_PARSER_TYPE_SEXPR,
     NEXP_PARSER_TYPE_BEXPR,
-    NEXP_PARSER_TYPE_EXPR
+    NEXP_PARSER_TYPE_EXPR,
+    NEXP_PARSER_TYPE_NEXP
 } parser_type_t;
 
 void init_parser();

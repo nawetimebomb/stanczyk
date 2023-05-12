@@ -20,28 +20,28 @@ static u8 is_expr_immediate(nexp_t *nexp) {
 // the user. I.e. when calling said function.
 static nexp_t *eval_Sexpr(scope_t *scope, nexp_t *nexp) {
     // Evaluate all children
-    for (u32 i = 0; i < nexp->count; i++) {
-        // Check if expression is the declaration of a variable or function.
-        if (is_expr_a_variable_declaration(nexp)) {
-            // Only evaluate the value of variables
-            if (nexp->children[i]->type == NEXP_TYPE_SEXPR) {
-                nexp->children[i] = eval_nexp(scope, nexp->children[i]);
-            } else {
+        for (u32 i = 0; i < nexp->count; i++) {
+            // Check if expression is the declaration of a variable or function.
+            if (is_expr_a_variable_declaration(nexp)) {
+                // Only evaluate the value of variables
+                if (nexp->children[i]->type == NEXP_TYPE_SEXPR) {
+                    nexp->children[i] = eval_nexp(scope, nexp->children[i]);
+                } else {
+                    continue;
+                }
+            } else if (is_expr_a_proc_declaration(nexp) || is_expr_immediate(nexp)) {
                 continue;
+            } else {
+                nexp->children[i] = eval_nexp(scope, nexp->children[i]);
             }
-        } else if (is_expr_a_proc_declaration(nexp) || is_expr_immediate(nexp)) {
-            continue;
-        } else {
-            nexp->children[i] = eval_nexp(scope, nexp->children[i]);
         }
-    }
 
-    // Report found errors.
-    // TODO: This is not a good implementation because it reports the first error found.
-    // It can be frustrating if the user gets more than 1 error and it has fix one-by-one instead
-    // of fixing the batch. Fix this so it can report all errors at once.
-    for (u32 i = 0; i < nexp->count; i++)
-        if (nexp->children[i]->type == NEXP_TYPE_ERROR) return nexp_take(nexp, i);
+        // Report found errors.
+        // TODO: This is not a good implementation because it reports the first error found.
+        // It can be frustrating if the user gets more than 1 error and it has fix one-by-one instead
+        // of fixing the batch. Fix this so it can report all errors at once.
+        for (u32 i = 0; i < nexp->count; i++)
+            if (nexp->children[i]->type == NEXP_TYPE_ERROR) return nexp_take(nexp, i);
 
     if (nexp->count == 0) return nexp;
     if (nexp->count == 1) return nexp_take(nexp, 0);
@@ -49,10 +49,9 @@ static nexp_t *eval_Sexpr(scope_t *scope, nexp_t *nexp) {
     // Make sure the first element is always a symbol
     nexp_t *found = nexp_pop(nexp, 0);
     if (found->type != NEXP_TYPE_PROC) {
-        char *symbol = found->symbol;
         nexp_delete(nexp);
         nexp_delete(found);
-        return nexp_new_error("expression '%s' is not a procedure", symbol);
+        return nexp_new_error("expression is not a procedure");
     }
 
     nexp_t *result = call_proc(scope, found, nexp);

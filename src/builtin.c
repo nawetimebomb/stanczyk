@@ -22,27 +22,18 @@ static nexp_t *b_list(scope_t *scope, nexp_t *input) {
     return output;
 }
 
-/* Usage: (eval <argument>)
- *   <argument>: A B-expression with any type content.
- *   Description: Evaluates the content of a B-expression.
- *   Example: (eval { + 11 2 }) - > 13                                                  */
-static nexp_t *b_eval(scope_t *scope, nexp_t *input) {
-    nexp_type_t child_type = input->children[0]->type;
-
-    NASSERT(input, input->count == 1,
-            "(eval ...) too many arguments.\n"
-            "\t-> Given: %i.\n"
-            "\t-> Expected: %i",
-            input->count, 1);
-    NASSERT(input, child_type == NEXP_TYPE_BEXPR,
-            "(eval ...) argument can only be a B-expression\n"
-            "\t-> Given: %s\n"
-            "\t-> Expected: %s",
-            nexp_describe_type(child_type), nexp_describe_type(NEXP_TYPE_BEXPR));
-
-    nexp_t *result = nexp_take(input, 0);
-    result->type = NEXP_TYPE_SEXPR;
-    return eval_nexp(scope, result);
+// Gets a B-expression of multiple S-expressions
+// (eval {(print (+ 1 2)) (print (+ 3 4))})
+static nexp_t*b_eval(scope_t *scope, nexp_t *input) {
+    for (u32 i = 0; i < input->count; i++) {
+        NASSERT(input, input->children[i]->type == NEXP_TYPE_SEXPR,
+                "eval got incorrect argument", NULL);
+    }
+    nexp_t *result;
+    while (input->count)
+        result = eval_nexp(scope, nexp_pop(input, 0));
+    nexp_delete(input);
+    return result;
 }
 
 static nexp_t *b_load(scope_t *scope, nexp_t *input) {
@@ -61,13 +52,13 @@ static nexp_t *b_load(scope_t *scope, nexp_t *input) {
     mpc_result_t r;
 
     if (mpc_parse_contents(input->children[0]->string,
-                           get_parser_type(NEXP_PARSER_TYPE_SEXPR),
+                           get_parser_type(NEXP_PARSER_TYPE_NEXP),
                            &r)) {
         nexp_t *expr = parse_expr(r.output);
         mpc_ast_delete(r.output);
 
         while (expr->count) {
-            nexp_t *result = eval_nexp(scope, nexp_pop(expr, 0));
+            nexp_t *result = eval_nexp(scope, nexp_add(nexp_new_Sexpr(), nexp_pop(expr, 0)));
             if (result->type == NEXP_TYPE_ERROR) { nexp_print(result); }
             nexp_delete(result);
         }
@@ -88,20 +79,33 @@ static nexp_t *b_load(scope_t *scope, nexp_t *input) {
     }
 }
 
-static nexp_t *b_do(scope_t *scope, nexp_t *input) {
-    // TODO: Check types and error
-    // Removing the expression (do itself.
-    nexp_pop(input, 0);
-    nexp_t *body = nexp_new_Bexpr();
-
-    while (input->count) {
-        nexp_t *sexpr = nexp_new_Sexpr();
-        sexpr = nexp_add(sexpr, nexp_pop(input, 0));
-        body = nexp_join(body, sexpr);
+static nexp_t *b_print(scope_t *scope, nexp_t *input) {
+    for (u32 i = 0; i < input->count; i++) {
+        nexp_print_b(input->children[i]);
+        putchar(' ');
     }
-
+    putchar('\n');
     nexp_delete(input);
-    return b_eval(scope, nexp_add(nexp_new_Sexpr(), nexp_copy(body)));
+    return nexp_new_Sexpr();
+}
+
+static nexp_t *b_debug(scope_t *scope, nexp_t *input) {
+    for (u32 i = 0; i < input->count; i++) {
+        printf("%s ", nexp_describe_type(input->children[i]->type));
+        nexp_print_b(input->children[i]);
+        putchar(' ');
+    }
+    putchar('\n');
+    nexp_delete(input);
+    return nexp_new_Sexpr();
+}
+
+static nexp_t *b_do(scope_t *scope, nexp_t *input) {
+    nexp_t *body = nexp_new_Bexpr();
+    while (input->count)
+        body = nexp_add(body, nexp_pop(input, 0));
+    nexp_delete(input);
+    return b_eval(scope, nexp_copy(body));
 }
 
 static nexp_t *b_plus(scope_t *scope, nexp_t *input) {
@@ -443,27 +447,29 @@ static void add_builtin_internal(scope_t *scope, char *name,
     nexp_delete(value);
 }
 
-nexp_t *call_proc(scope_t *scope, nexp_t *found, nexp_t *input) {
-    if (found->internal) return found->internal(scope, input);
+nexp_t *call_proc(scope_t *scope, nexp_t *procedure, nexp_t *input) {
+    if (procedure->internal) return procedure->internal(scope, input);
+
+    u32 num_of_arguments = procedure->arguments->count;
 
     while (input->count) {
-        nexp_t *expr = nexp_pop(found->arguments, 0);
+        nexp_t *expr = nexp_pop(procedure->arguments, 0);
 
         // Checking for variable arguments
         if (strcmp(expr->symbol, "&") == 0) {
-            NASSERT(input, found->arguments->count == 1,
+            NASSERT(input, procedure->arguments->count == 1,
                     "invalid arguments on procedure.\n"
                     "Symbol '&' not followed by a single symbol.", NULL);
 
-            nexp_t *rest = nexp_pop(found->arguments, 0);
-            scope_put(found->scope, rest, b_list(scope, input));
+            nexp_t *rest = nexp_pop(procedure->arguments, 0);
+            scope_put(procedure->scope, rest, b_list(scope, input));
             nexp_delete(expr);
             nexp_delete(rest);
             break;
         }
 
         nexp_t *value  = nexp_pop(input, 0);
-        scope_put(found->scope, expr, value);
+        scope_put(procedure->scope, expr, value);
         nexp_delete(expr);
         nexp_delete(value);
     }
@@ -471,55 +477,64 @@ nexp_t *call_proc(scope_t *scope, nexp_t *found, nexp_t *input) {
     nexp_delete(input);
 
     // If the user didn't provide any variable arguments, then add empty B-expression
-    if (found->arguments->count > 0 &&
-        strcmp(found->arguments->children[0]->symbol, "&") == 0) {
-        NASSERT(input, found->arguments->count == 2,
+    if (procedure->arguments->count > 0 &&
+        strcmp(procedure->arguments->children[0]->symbol, "&") == 0) {
+        NASSERT(input, procedure->arguments->count == 2,
                 "invalid arguments on procedure.\n"
                 "Symbol '&' not followed by a single symbol.", NULL);
 
-        nexp_delete(nexp_pop(found->arguments, 0));
-        nexp_t *expr = nexp_pop(found->arguments, 0);
+        nexp_delete(nexp_pop(procedure->arguments, 0));
+        nexp_t *expr = nexp_pop(procedure->arguments, 0);
         nexp_t *value = nexp_new_Bexpr();
 
-        scope_put(found->scope, expr, value);
+        scope_put(procedure->scope, expr, value);
         nexp_delete(expr);
         nexp_delete(value);
     }
 
     // If no argument bindings are left, then success.
-    if (found->arguments->count == 0) {
-        found->scope->parent = scope;
+    if (procedure->arguments->count == 0) {
+        procedure->scope->parent = scope;
 
-        return b_eval(found->scope, nexp_add(nexp_new_Sexpr(), nexp_copy(found->body)));
+        return b_eval(procedure->scope, nexp_copy(procedure->body));
     } else {
-        return nexp_copy(found);
+        return nexp_new_error("mismatch number of arguments\n"
+                              "\t->Given: %d\n"
+                              "\t->Expected: %d",
+                              input->count, num_of_arguments);
     }
+}
+
+nexp_t *load_from_file(scope_t *scope, nexp_t *input) {
+    return b_load(scope, input);
 }
 
 void init_builtins(scope_t *scope) {
     // Native functions
-    add_builtin_internal(scope, "eval", b_eval,         NEXP_MODE_DEFAULT);
-    add_builtin_internal(scope, "list", b_list,         NEXP_MODE_DEFAULT);
-    add_builtin_internal(scope, "load", b_load,         NEXP_MODE_DEFAULT);
-    add_builtin_internal(scope, "do",   b_do,           NEXP_MODE_IMMEDIATE);
+    add_builtin_internal(scope, "eval",  b_eval,         NEXP_MODE_DEFAULT);
+    add_builtin_internal(scope, "list",  b_list,         NEXP_MODE_DEFAULT);
+    add_builtin_internal(scope, "load",  b_load,         NEXP_MODE_DEFAULT);
+    add_builtin_internal(scope, "print", b_print,        NEXP_MODE_DEFAULT);
+    add_builtin_internal(scope, "debug", b_debug,        NEXP_MODE_DEFAULT);
+    add_builtin_internal(scope, "do",    b_do,           NEXP_MODE_IMMEDIATE);
 
     // Arithmetic operators
-    add_builtin_internal(scope, "+",    b_plus,         NEXP_MODE_DEFAULT);
-    add_builtin_internal(scope, "-",    b_minus,        NEXP_MODE_DEFAULT);
-    add_builtin_internal(scope, "*",    b_star,         NEXP_MODE_DEFAULT);
-    add_builtin_internal(scope, "/",    b_slash,        NEXP_MODE_DEFAULT);
+    add_builtin_internal(scope, "+",     b_plus,         NEXP_MODE_DEFAULT);
+    add_builtin_internal(scope, "-",     b_minus,        NEXP_MODE_DEFAULT);
+    add_builtin_internal(scope, "*",     b_star,         NEXP_MODE_DEFAULT);
+    add_builtin_internal(scope, "/",     b_slash,        NEXP_MODE_DEFAULT);
 
     // Ordering and comparing
-    add_builtin_internal(scope, "<",    b_less,         NEXP_MODE_DEFAULT);
-    add_builtin_internal(scope, "<=",   b_less_equal,   NEXP_MODE_DEFAULT);
-    add_builtin_internal(scope, ">",    b_more,         NEXP_MODE_DEFAULT);
-    add_builtin_internal(scope, ">=",   b_more_equal,   NEXP_MODE_DEFAULT);
-    add_builtin_internal(scope, "==",   b_equal,        NEXP_MODE_DEFAULT);
-    add_builtin_internal(scope, "!=",   b_not_equal,    NEXP_MODE_DEFAULT);
-    add_builtin_internal(scope, "if",   b_if,           NEXP_MODE_IMMEDIATE);
+    add_builtin_internal(scope, "<",     b_less,         NEXP_MODE_DEFAULT);
+    add_builtin_internal(scope, "<=",    b_less_equal,   NEXP_MODE_DEFAULT);
+    add_builtin_internal(scope, ">",     b_more,         NEXP_MODE_DEFAULT);
+    add_builtin_internal(scope, ">=",    b_more_equal,   NEXP_MODE_DEFAULT);
+    add_builtin_internal(scope, "==",    b_equal,        NEXP_MODE_DEFAULT);
+    add_builtin_internal(scope, "!=",    b_not_equal,    NEXP_MODE_DEFAULT);
+    add_builtin_internal(scope, "if",    b_if,           NEXP_MODE_IMMEDIATE);
 
     // Declaration and definition
-    add_builtin_internal(scope, ":",    b_define,       NEXP_MODE_VAR_DECLARATION);
-    add_builtin_internal(scope, "::",   b_define_const, NEXP_MODE_CONST_DECLARATION);
-    add_builtin_internal(scope, "proc", b_define_proc,  NEXP_MODE_PROC_DECLARATION);
+    add_builtin_internal(scope, ":",     b_define,       NEXP_MODE_VAR_DECLARATION);
+    add_builtin_internal(scope, "::",    b_define_const, NEXP_MODE_CONST_DECLARATION);
+    add_builtin_internal(scope, "proc",  b_define_proc,  NEXP_MODE_PROC_DECLARATION);
 }

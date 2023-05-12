@@ -60,8 +60,9 @@ nexp_t *nexp_join(nexp_t *, nexp_t *);
 nexp_t *nexp_pop(nexp_t *, u32);
 nexp_t *nexp_take(nexp_t *, u32);
 void   nexp_print(nexp_t *);
+void   nexp_print_b(nexp_t *);
 void   nexp_delete(nexp_t *);
 nexp_t *nexp_copy(nexp_t *);
-char *nexp_describe_type(nexp_type_t);
+char   *nexp_describe_type(nexp_type_t);
 
 #endif
