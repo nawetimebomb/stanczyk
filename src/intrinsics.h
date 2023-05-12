@@ -1,7 +1,12 @@
 #ifndef NLISP_INTRIRNSICS_H
 #define NLISP_INTRIRNSICS_H
 
-#define NASSERT(args, cond, error) \
-    if (!(cond)) { nexp_delete(args); return nexp_new_error(error); }
+// TODO: Improve assertion for checking types, values, number of expressions, etc.
+#define NASSERT(args, cond, format, ...)                                \
+    if (!(cond)) {                                                      \
+        nexp_t *error = nexp_new_error(format, ##__VA_ARGS__);          \
+        nexp_delete(args);                                              \
+        return error;                                                   \
+    }
 
 #endif

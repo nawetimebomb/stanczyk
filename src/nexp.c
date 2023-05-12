@@ -1,7 +1,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
+#include "includes/mpc.h"
 #include "nexp.h"
+#include "scope.h"
 
 static void nexp_print_(nexp_t *);
 static void nexp_print_expr(nexp_t *, char, char);
@@ -27,7 +29,23 @@ static void nexp_print_(nexp_t *nexp) {
         case NEXP_TYPE_NUMBER: printf("%li", nexp->value); break;
         case NEXP_TYPE_ERROR: printf("Error: %s", nexp->error); break;
         case NEXP_TYPE_SYMBOL: printf("%s", nexp->symbol); break;
-        case NEXP_TYPE_PROC: printf("<proc>"); break;
+        case NEXP_TYPE_STRING: {
+            char *escaped_string = new_string(nexp->string);
+            strcpy(escaped_string, nexp->string);
+            escaped_string = mpcf_escape(escaped_string);
+            printf("\"%s\"", escaped_string);
+            free(escaped_string);
+        } break;
+        case NEXP_TYPE_PROC: {
+            if (nexp->internal) {
+                printf("<internal procedure>");
+            } else {
+                printf("<procedure> ");
+                nexp_print_(nexp->arguments);
+                putchar(' ');
+                nexp_print_(nexp->body);
+            }
+        } break;
         case NEXP_TYPE_SEXPR: nexp_print_expr(nexp, '(', ')'); break;
         case NEXP_TYPE_BEXPR: nexp_print_expr(nexp, '{', '}'); break;
         case NEXP_TYPE_COUNT: break;
@@ -54,11 +72,18 @@ void nexp_delete(nexp_t *nexp) {
 
         // No specific field dealloc
         case NEXP_TYPE_NUMBER: break;
-        case NEXP_TYPE_PROC: break;
+        case NEXP_TYPE_PROC: {
+            if (!nexp->internal) {
+                scope_delete(nexp->scope);
+                nexp_delete(nexp->arguments);
+                nexp_delete(nexp->body);
+            }
+        } break;
 
         // Deallocate strings from errors and symbols
         case NEXP_TYPE_ERROR: free(nexp->error); break;
         case NEXP_TYPE_SYMBOL: free(nexp->symbol); break;
+        case NEXP_TYPE_STRING: free(nexp->string); break;
 
         // S-Expression need deallocation of its children and the dynamic array
         case NEXP_TYPE_SEXPR:
@@ -107,14 +132,26 @@ nexp_t *nexp_take(nexp_t *nexp, u32 i) {
 nexp_t *nexp_copy(nexp_t *orig) {
     nexp_t *copy = new_nexp();
     copy->type = orig->type;
+    copy->mode = orig->mode;
 
     switch (copy->type) {
         case NEXP_TYPE_COUNT: break;
         case NEXP_TYPE_NUMBER: {
             copy->value = orig->value;
         } break;
+        case NEXP_TYPE_STRING: {
+            copy->string = new_string(orig->string);
+            strcpy(copy->string, orig->string);
+        } break;
         case NEXP_TYPE_PROC: {
-            copy->proc = orig->proc;
+            if (orig->internal) {
+                copy->internal = orig->internal;
+            } else {
+                copy->internal = NULL;
+                copy->scope = scope_copy(orig->scope);
+                copy->arguments = nexp_copy(orig->arguments);
+                copy->body = nexp_copy(orig->body);
+            }
         } break;
         case NEXP_TYPE_ERROR: {
             copy->error = new_string(orig->error);
@@ -136,6 +173,21 @@ nexp_t *nexp_copy(nexp_t *orig) {
     return copy;
 }
 
+char *nexp_describe_type(nexp_type_t type) {
+    switch (type) {
+        case NEXP_TYPE_COUNT: break;
+        case NEXP_TYPE_BEXPR: return "{} B-expression";
+        case NEXP_TYPE_SEXPR: return "() S-expression";
+        case NEXP_TYPE_NUMBER: return "Number literal";
+        case NEXP_TYPE_STRING: return "String literal";
+        case NEXP_TYPE_PROC: return "<Procedure>";
+        case NEXP_TYPE_SYMBOL: return "Symbol literal";
+        case NEXP_TYPE_ERROR: return "Error";
+    }
+
+    return "Not implemented";
+}
+
 nexp_t *nexp_new_number(i64 value) {
     nexp_t *result = new_nexp();
     result->type = NEXP_TYPE_NUMBER;
@@ -147,9 +199,10 @@ nexp_t *nexp_new_error(const char *format, ...) {
     nexp_t *result = new_nexp();
     va_list args;
     result->type = NEXP_TYPE_ERROR;
-    result->error = new_string(format);
+    result->error = malloc(1024);
     va_start(args, format);
-    vsprintf(result->error, format, args);
+    vsnprintf(result->error, 1024, format, args);
+    result->error = realloc(result->error, strlen(result->error) + 1);
     va_end(args);
     return result;
 }
@@ -162,10 +215,28 @@ nexp_t *nexp_new_symbol(const char *name) {
     return result;
 }
 
-nexp_t *nexp_new_proc(nexp_proc proc) {
+nexp_t *nexp_new_string(const char *value) {
+    nexp_t *result = new_nexp();
+    result->type = NEXP_TYPE_STRING;
+    result->string = new_string(value);
+    strcpy(result->string, value);
+    return result;
+}
+
+nexp_t *nexp_new_internal(nexp_internal internal) {
     nexp_t *result = new_nexp();
     result->type = NEXP_TYPE_PROC;
-    result->proc = proc;
+    result->internal = internal;
+    return result;
+}
+
+nexp_t *nexp_new_proc(nexp_t *arguments, nexp_t *body) {
+    nexp_t *result = new_nexp();
+    result->type = NEXP_TYPE_PROC;
+    result->internal = NULL;
+    result->scope = scope_new();
+    result->arguments = arguments;
+    result->body = body;
     return result;
 }
 
