@@ -6,6 +6,7 @@
 scope_t *scope_new() {
     scope_t *result = malloc(sizeof(scope_t));
     result->count = 0;
+    result->parent = NULL;
     result->symbols = NULL;
     result->values = NULL;
     return result;
@@ -47,5 +48,25 @@ nexp_t *scope_get(scope_t *scope, nexp_t *nexp) {
             return nexp_copy(scope->values[i]);
     }
 
-    return nexp_new_error("symbol %s not found in scope", nexp->symbol);
+    if (scope->parent) {
+        return scope_get(scope->parent, nexp);
+    } else {
+        return nexp_new_error("symbol %s not found in scope", nexp->symbol);
+    }
+}
+
+scope_t *scope_copy(scope_t *orig) {
+    scope_t *copy = malloc(sizeof(scope_t));
+    copy->parent = orig->parent;
+    copy->count = orig->count;
+    copy->symbols = malloc(sizeof(char *) * copy->count);
+    copy->values = malloc(sizeof(nexp_t *) * copy->count);
+
+    for (u32 i = 0; i < orig->count; i++) {
+        copy->symbols[i] = malloc(strlen(orig->symbols[i]) + 1);
+        strcpy(copy->symbols[i], orig->symbols[i]);
+        copy->values[i] = nexp_copy(orig->values[i]);
+    }
+
+    return copy;
 }

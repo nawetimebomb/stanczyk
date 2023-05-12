@@ -16,18 +16,23 @@
 int main() {
     mpc_parser_t *number   = mpc_new("number");
     mpc_parser_t *symbol   = mpc_new("symbol");
+    mpc_parser_t *string   = mpc_new("string");
+    mpc_parser_t *comment  = mpc_new("comment");
     mpc_parser_t *Sexpr    = mpc_new("Sexpr");
     mpc_parser_t *Bexpr    = mpc_new("Bexpr");
     mpc_parser_t *expr     = mpc_new("expr");
 
     mpca_lang(MPCA_LANG_DEFAULT,
               "                                                         \
-                  number    : /-?[0-9]+/ ;                              \
-                  symbol    : /[a-zA-Z0-9_+\\-*\\/\\\\=<>!&:]+/ ;        \
-                  Sexpr     : '(' <expr>* ')' ;                         \
-                  Bexpr     : '{' <expr>* '}' ;                         \
-                  expr      : <number> | <symbol> | <Sexpr> | <Bexpr> ; \
-              ", number, symbol, Sexpr, Bexpr, expr);
+                  number  : /-?[0-9]+/ ;                                \
+                  symbol  : /[a-zA-Z0-9_+\\-*\\/\\\\=<>!&:]+/ ;         \
+                  string  : /\"(\\\\.|[^\"])*\"/ ;                      \
+                  comment : /;[^\\r\\n]*/ ;                             \
+                  Sexpr   : '(' <expr>* ')' ;                           \
+                  Bexpr   : '{' <expr>* '}' ;                           \
+                  expr    : <number> | <symbol> | <string> | <comment>  \
+                          | <Sexpr>  | <Bexpr> ;                        \
+              ", number, symbol, string, comment, Sexpr, Bexpr, expr);
 
     puts("Nihilisp REPL v0.1");
     puts("Press Ctrl+C to Exit\n");
@@ -45,6 +50,7 @@ int main() {
             nexp_t *result = eval_nexp(scope, parse_expr(r.output));
             nexp_print(result);
             nexp_delete(result);
+            mpc_ast_delete(r.output);
         } else {
             mpc_err_print(r.error);
             mpc_err_delete(r.error);
@@ -54,7 +60,7 @@ int main() {
     }
 
     scope_delete(scope);
-    mpc_cleanup(5, number, symbol, Sexpr, Bexpr, expr);
+    mpc_cleanup(7, number, symbol, string, comment, Sexpr, Bexpr, expr);
 
     return 0;
 }
