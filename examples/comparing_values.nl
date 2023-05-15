@@ -9,3 +9,7 @@
 ;; 1 > 6 = false    ;;                ;;
 ;; !false = true    ;;                ;;
 ;;             true == true           ;;
+
+;; String equality
+"is equal" "is equal"  ==  ;; true
+"different" "is equal" == ;; false

@@ -2,6 +2,7 @@
 #define NLISP_VM_H
 
 #include "chunk.h"
+#include "table.h"
 #include "value.h"
 
 #define STACK_MAX 256
@@ -11,6 +12,8 @@ typedef struct {
     uint8_t *ip;
     value_t stack[STACK_MAX];
     value_t *stack_top;
+    table_t strings;
+    obj_t *objects;
 } VM_t;
 
 typedef enum {
