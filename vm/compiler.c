@@ -180,6 +180,10 @@ static void number() {
     emit_constant(NUMBER_VAL(value));
 }
 
+static void string() {
+    emit_constant(OBJ_VAL(copy_string(parser.previous.start + 1, parser.previous.length - 2)));
+}
+
 static void unary() {
     token_type_t operator_type = parser.previous.type;
     parse_precedence(PREC_UNARY);
@@ -212,7 +216,7 @@ parse_rule_t rules[] = {
     [TOKEN_LESS]          = {NULL,        binary,     PREC_EQUALITY},
     [TOKEN_LESS_EQUAL]    = {NULL,        binary,     PREC_EQUALITY},
     [TOKEN_SYMBOL]        = {NULL,        NULL,       PREC_NONE},
-    [TOKEN_STRING]        = {NULL,        NULL,       PREC_NONE},
+    [TOKEN_STRING]        = {string,      string,     PREC_EXPRESSION},
     [TOKEN_NUMBER]        = {number,      number,     PREC_EXPRESSION},
     [TOKEN_AND]           = {NULL,        NULL,       PREC_NONE},
     [TOKEN_FALSE]         = {literal,     literal,    PREC_EXPRESSION},
