@@ -26,6 +26,10 @@ static bool is_alpha(char c) {
     return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
 }
 
+static bool is_allowed_char(char c) {
+    return (c == '-');
+}
+
 static bool is_at_eof() {
     return *scanner.current == '\0';
 }
@@ -101,6 +105,7 @@ static token_type_t check_keyword(int start, int length, const char *rest, token
 static token_type_t symbol_type() {
     switch (scanner.start[0]) {
         case 'a': return check_keyword(1, 2, "nd", TOKEN_AND);
+        case 'd': return check_keyword(1, 3, "rop", TOKEN_DROP);
         case 'f': {
             if (scanner.current - scanner.start > 1) {
                 switch (scanner.start[1]) {
@@ -113,6 +118,7 @@ static token_type_t symbol_type() {
         case 'n': return check_keyword(1, 2, "il", TOKEN_NIL);
         case 'o': return check_keyword(1, 1, "r", TOKEN_OR);
         case 'p': return check_keyword(1, 4, "rint", TOKEN_PRINT);
+        case 'r': return check_keyword(1, 2, "et", TOKEN_RET);
         case 't': return check_keyword(1, 3, "rue", TOKEN_TRUE);
     }
 
@@ -121,7 +127,7 @@ static token_type_t symbol_type() {
 
 static token_t symbol() {
     // TODO: Add special characters we want to allow in symbol's names
-    while (is_alpha(peek()) || is_digit(peek())) advance();
+    while (is_alpha(peek()) || is_digit(peek()) || is_allowed_char(peek())) advance();
 
     return make_token(symbol_type());
 }

@@ -52,6 +52,7 @@ static void concatenate() {
 void init_VM() {
     reset_stack();
     VM.objects = NULL;
+    init_table(&VM.symbols);
     init_table(&VM.strings);
 }
 
@@ -64,6 +65,7 @@ static interpret_result_t run() {
 
 #define READ_BYTE() (*VM.ip++)
 #define READ_CONSTANT() (VM.chunk->constants.values[READ_BYTE()])
+#define READ_STRING()   AS_STRING(READ_CONSTANT())
 #define BINARY_OP(value_type, op)                           \
     do {                                                    \
         if (!IS_NUMBER(peek(0)) || !IS_NUMBER(peek(1))) {   \
@@ -97,6 +99,21 @@ static interpret_result_t run() {
             case OP_NIL:      push(NIL_VAL); break;
             case OP_TRUE:     push(BOOL_VAL(true)); break;
             case OP_FALSE:    push(BOOL_VAL(false)); break;
+            case OP_GET_SYMBOL: {
+                string_t *name = READ_STRING();
+                value_t value;
+                if (!table_get(&VM.symbols, name, &value)) {
+                    runtime_error("undefined variable '%s'.", name->chars);
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                push(value);
+            } break;
+            case OP_DEFINE_SYMBOL: {
+                string_t *name = READ_STRING();
+                table_set(&VM.symbols, name, peek(0));
+                pop();
+                break;
+            } break;
             case OP_EQUAL: {
                 value_t b = pop();
                 value_t a = pop();
@@ -127,9 +144,12 @@ static interpret_result_t run() {
                 }
                 push(NUMBER_VAL(-AS_NUMBER(pop())));
             } break;
-            case OP_RETURN: {
+            case OP_PRINT: {
                 print_value(pop());
                 printf("\n");
+            } break;
+            case OP_DROP: pop(); break;
+            case OP_RETURN: {
                 return INTERPRET_OK;
             }
         }
@@ -137,6 +157,7 @@ static interpret_result_t run() {
 
 #undef READ_BYTE
 #undef READ_CONSTANT
+#undef READ_STRING
 #undef BINARY_OP
 }
 
