@@ -12,7 +12,8 @@ typedef struct {
     uint8_t *ip;
     value_t stack[STACK_MAX];
     value_t *stack_top;
-    table_t strings;
+    table_t symbols; // These are global variables
+    table_t strings; // and these, strings stored in memory.
     obj_t *objects;
 } VM_t;
 

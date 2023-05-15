@@ -9,6 +9,8 @@ typedef enum {
     OP_NIL,
     OP_TRUE,
     OP_FALSE,
+    OP_GET_SYMBOL,
+    OP_DEFINE_SYMBOL,
     OP_EQUAL,
     OP_GREATER,
     OP_LESS,
@@ -18,6 +20,8 @@ typedef enum {
     OP_DIVIDE,
     OP_NOT,
     OP_NEGATE,
+    OP_PRINT,
+    OP_DROP,
     OP_RETURN
 } op_code_t;
 

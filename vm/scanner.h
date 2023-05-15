@@ -36,7 +36,9 @@ typedef enum {
   TOKEN_NIL,
   TOKEN_OR,
   TOKEN_PRINT,
+  TOKEN_DROP,
   TOKEN_TRUE,
+  TOKEN_RET,
 
   // Special
   TOKEN_ERROR,
