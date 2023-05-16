@@ -96,7 +96,7 @@ bool table_delete(table_t *table, string_t *key) {
     return true;
 }
 
-void table_and_all(table_t *from, table_t *to) {
+void table_add_all(table_t *from, table_t *to) {
     for (int i = 0; i < from->capacity; i++) {
         entry_t *entry = &from->entries[i];
         if (entry->key != NULL) {

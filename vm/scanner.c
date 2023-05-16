@@ -105,7 +105,15 @@ static token_type_t check_keyword(int start, int length, const char *rest, token
 static token_type_t symbol_type() {
     switch (scanner.start[0]) {
         case 'a': return check_keyword(1, 2, "nd", TOKEN_AND);
-        case 'd': return check_keyword(1, 3, "rop", TOKEN_DROP);
+        case 'd': {
+            if (scanner.current - scanner.start > 1) {
+                if (scanner.start[1] == 'o') return TOKEN_DO;
+                switch(scanner.start[1]) {
+                    case 'r': return check_keyword(2, 2, "op", TOKEN_DROP);
+                    case 'u': return check_keyword(2, 1, "p", TOKEN_DUP);
+                }
+            }
+        }
         case 'f': {
             if (scanner.current - scanner.start > 1) {
                 switch (scanner.start[1]) {
@@ -118,7 +126,6 @@ static token_type_t symbol_type() {
         case 'n': return check_keyword(1, 2, "il", TOKEN_NIL);
         case 'o': return check_keyword(1, 1, "r", TOKEN_OR);
         case 'p': return check_keyword(1, 4, "rint", TOKEN_PRINT);
-        case 'r': return check_keyword(1, 2, "et", TOKEN_RET);
         case 't': return check_keyword(1, 3, "rue", TOKEN_TRUE);
     }
 
@@ -170,7 +177,7 @@ token_t scan_token() {
         case ')': return make_token(TOKEN_RIGHT_PAREN);
         case '{': return make_token(TOKEN_LEFT_BRACKET);
         case '}': return make_token(TOKEN_RIGHT_BRACKET);
-        case ':': return make_token(match(':') ? TOKEN_COLON_COLON : TOKEN_COLON);
+        case ':': return make_token(TOKEN_COLON);
         case ',': return make_token(TOKEN_COMMA);
         case '.': return make_token(TOKEN_DOT);
         case '-': return make_token(TOKEN_MINUS);
@@ -178,10 +185,7 @@ token_t scan_token() {
         case '/': return make_token(TOKEN_SLASH);
         case '*': return make_token(TOKEN_STAR);
         case '!': return make_token(match('=') ? TOKEN_BANG_EQUAL : TOKEN_BANG);
-        case '=': {
-            if (match('='))
-                return make_token(TOKEN_EQUAL_EQUAL);
-        } break;
+        case '=': return make_token(match('=') ? TOKEN_EQUAL_EQUAL : TOKEN_EQUAL);
         case '<': return make_token(match('=') ? TOKEN_LESS_EQUAL : TOKEN_LESS);
         case '>': return make_token(match('=') ? TOKEN_GREATER_EQUAL : TOKEN_GREATER);
         case '"': return string();
