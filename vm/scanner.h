@@ -2,7 +2,7 @@
 #define NLISP_SCANNER_H
 
 typedef enum {
-  // Single character tokens
+  // Single & double character tokens
   TOKEN_LEFT_PAREN,
   TOKEN_RIGHT_PAREN,
   TOKEN_LEFT_BRACKET,
@@ -12,7 +12,7 @@ typedef enum {
   TOKEN_MINUS,
   TOKEN_PLUS,
   TOKEN_COLON,
-  TOKEN_COLON_COLON,
+  TOKEN_EQUAL,
   TOKEN_SLASH,
   TOKEN_STAR,
   TOKEN_BANG,
@@ -30,15 +30,16 @@ typedef enum {
 
   // Keywords
   TOKEN_AND,
+  TOKEN_DO,
+  TOKEN_DROP,
+  TOKEN_DUP,
   TOKEN_FALSE,
   TOKEN_FOR,
   TOKEN_IF,
   TOKEN_NIL,
   TOKEN_OR,
   TOKEN_PRINT,
-  TOKEN_DROP,
   TOKEN_TRUE,
-  TOKEN_RET,
 
   // Special
   TOKEN_ERROR,
