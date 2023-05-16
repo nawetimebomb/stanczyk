@@ -1,0 +1,17 @@
+name: CI
+on:   [push, pull_request]
+jobs:
+    builds:
+        runs-on: ubuntu-22.04
+        steps:
+            - uses: actions/checkout@v1
+            - name: install dependencies
+              run: |
+                   sudo apt-get update
+                   sudo apt-get install -qq gcc
+            - uses: actions/test@v2
+              with:
+                architecture: x64
+            - name: run tests
+              run |
+                  sh ./test.sh
