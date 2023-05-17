@@ -8,6 +8,7 @@
 #include "debug.h"
 #include "object.h"
 #include "memory.h"
+#include "value.h"
 #include "vm.h"
 
 VM_t VM;
@@ -63,6 +64,7 @@ void free_VM() {
 static interpret_result_t run() {
 
 #define READ_BYTE() (*VM.ip++)
+#define READ_SHORT() (VM.ip += 2, (uint16_t)((VM.ip[-2] << 8) | VM.ip[-1]))
 #define READ_CONSTANT() (VM.chunk->constants.values[READ_BYTE()])
 #define READ_STRING()   AS_STRING(READ_CONSTANT())
 #define BINARY_OP(value_type, op)                           \
@@ -93,7 +95,6 @@ static interpret_result_t run() {
             case OP_CONSTANT: {
                 value_t constant = READ_CONSTANT();
                 push(constant);
-                printf("\n");
             } break;
             case OP_NIL:      push(NIL_VAL); break;
             case OP_TRUE:     push(BOOL_VAL(true)); break;
@@ -138,6 +139,26 @@ static interpret_result_t run() {
             } break;
             case OP_GREATER:  BINARY_OP(BOOL_VAL, >); break;
             case OP_LESS:     BINARY_OP(BOOL_VAL, <); break;
+            case OP_AND: {
+                if (IS_BOOL(peek(0)) && IS_BOOL(peek(1))) {
+                    bool b = AS_BOOL(pop());
+                    bool a = AS_BOOL(pop());
+                    push(BOOL_VAL(a && b));
+                } else {
+                    runtime_error("operands must be booleans.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+            } break;
+            case OP_OR: {
+                if (IS_BOOL(peek(0)) && IS_BOOL(peek(1))) {
+                    bool b = AS_BOOL(pop());
+                    bool a = AS_BOOL(pop());
+                    push(BOOL_VAL(a || b));
+                } else {
+                    runtime_error("operands must be booleans.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+            } break;
             case OP_ADD: {
                 if (IS_STRING(peek(0)) && IS_STRING(peek(1))) {
                     concatenate();
@@ -166,6 +187,18 @@ static interpret_result_t run() {
                 printf("\n");
             } break;
             case OP_DROP: pop(); break;
+            case OP_JUMP_IF_FALSE: {
+                uint16_t offset = READ_SHORT();
+                if (is_falsey(peek(0))) VM.ip += offset;
+            } break;
+            case OP_JUMP: {
+                uint16_t offset = READ_SHORT();
+                VM.ip += offset;
+            } break;
+            case OP_LOOP: {
+                uint16_t offset = READ_SHORT();
+                VM.ip -= offset;
+            } break;
             case OP_RETURN: {
                 return INTERPRET_OK;
             }
@@ -173,6 +206,7 @@ static interpret_result_t run() {
     }
 
 #undef READ_BYTE
+#undef READ_SHORT
 #undef READ_CONSTANT
 #undef READ_STRING
 #undef BINARY_OP
