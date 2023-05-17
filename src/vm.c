@@ -195,6 +195,14 @@ static interpret_result_t run() {
                 uint16_t offset = READ_SHORT();
                 VM.ip += offset;
             } break;
+            case OP_QUIT: {
+                if (!IS_BOOL(peek(0))) {
+                    runtime_error("'quit' needs a boolean on the stack");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                uint16_t offset = READ_SHORT();
+                if (!is_falsey(peek(0))) VM.ip += offset;
+            } break;
             case OP_LOOP: {
                 uint16_t offset = READ_SHORT();
                 VM.ip -= offset;
