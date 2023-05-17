@@ -258,8 +258,24 @@ static void block() {
     consume(TOKEN_DOT, "expect '.' to end block");
 }
 
+static void unary() {
+    token_type_t operator_type = parser.previous.type;
+    parse_precedence(PREC_UNARY);
+
+    switch (operator_type) {
+        case TOKEN_BANG: emit_byte(OP_NOT);     break;
+        case TOKEN_MINUS: emit_byte(OP_NEGATE); break;
+        default: return;
+    }
+}
+
 static void binary() {
     token_type_t operator_type = parser.previous.type;
+
+    if (operator_type == TOKEN_MINUS && check(TOKEN_NUMBER)) {
+        unary();
+        return;
+    }
 
     switch (operator_type) {
         case TOKEN_BANG_EQUAL:
@@ -329,17 +345,6 @@ static void symbol() {
     named_symbol(parser.previous, false);
 }
 
-static void unary() {
-    token_type_t operator_type = parser.previous.type;
-    parse_precedence(PREC_UNARY);
-
-    switch (operator_type) {
-        case TOKEN_BANG: emit_byte(OP_NOT);     break;
-        case TOKEN_MINUS: emit_byte(OP_NEGATE); break;
-        default: return;
-    }
-}
-
 static void statement()  {
     token_type_t statement_type = parser.previous.type;
 
@@ -364,6 +369,7 @@ static void declaration() {
         symbol = parse_symbol("expect symbol name after \":=\"");
     } else {
         error("failed to declare symbol due to missing \"=\"");
+        return;
     }
 
     if (match(TOKEN_DOT)) {
@@ -480,20 +486,26 @@ static void _loop() {
     // Parse body of loop
     while (!check(TOKEN_DOT) && !check(TOKEN_EOF)) {
         expression();
-        // TODO: the quit token works but if we get into an "if" statement,
-        // this block will not be able to parse it. We need to come up with
-        // a better idea for processing it.
-        if (match(TOKEN_QUIT))
-            quit_jump = emit_jump(OP_JUMP);
+        if (match(TOKEN_QUIT)) {
+            // Emits the quit jump that only works on loops, but also, it drops the
+            // previous expression because we want to allow quit only if the stack has
+            // a boolean value.
+            quit_jump = emit_jump(OP_QUIT);
+            emit_byte(OP_DROP);
+        }
     }
-    end_scope();
     consume(TOKEN_DOT, "expect '.' after loop");
+    end_scope();
 
     emit_loop(loop_start);
     patch_jump(exit_jump);
     if (quit_jump != -1)
         patch_jump(quit_jump);
     emit_byte(OP_DROP);
+}
+
+static void _quit() {
+    error("cannot 'quit' on this context");
 }
 
 parse_rule_t rules[] = {
@@ -517,7 +529,7 @@ parse_rule_t rules[] = {
     [TOKEN_LESS_EQUAL]    = {NULL,        binary,     PREC_EQUALITY},
     [TOKEN_SYMBOL]        = {symbol,      symbol,     PREC_EXPRESSION},
     [TOKEN_STRING]        = {string,      string,     PREC_EXPRESSION},
-    [TOKEN_NUMBER]        = {number,      number,     PREC_EXPRESSION},
+    [TOKEN_NUMBER]        = {number,      number,     PREC_NONE},
     [TOKEN_FALSE]         = {literal,     literal,    PREC_EXPRESSION},
     [TOKEN_TRUE]          = {literal,     literal,    PREC_EXPRESSION},
     [TOKEN_NIL]           = {literal,     literal,    PREC_EXPRESSION},
@@ -528,7 +540,7 @@ parse_rule_t rules[] = {
     [TOKEN_DO]            = {statement,   NULL,       PREC_NONE},
     [TOKEN_PRINT]         = {statement,   NULL,       PREC_NONE},
     [TOKEN_DROP]          = {statement,   NULL,       PREC_NONE},
-    [TOKEN_QUIT]          = {NULL,        NULL,       PREC_NONE},
+    [TOKEN_QUIT]          = {_quit,       NULL,       PREC_NONE},
     [TOKEN_DUP]           = {NULL,        NULL,       PREC_NONE},
     [TOKEN_ERROR]         = {NULL,        NULL,       PREC_NONE},
     [TOKEN_DOT]           = {NULL,        NULL,       PREC_NONE},

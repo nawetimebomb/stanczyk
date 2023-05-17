@@ -115,7 +115,7 @@ static token_type_t symbol_type() {
             }
         }
         case 'e': return check_keyword(1, 3, "lse", TOKEN_ELSE);
-        case 'f': return check_keyword(1, 3, "alse", TOKEN_FALSE);
+        case 'f': return check_keyword(1, 4, "alse", TOKEN_FALSE);
         case 'i': return check_keyword(1, 1, "f", TOKEN_IF);
         case 'n': return check_keyword(1, 2, "il", TOKEN_NIL);
         case 'o': return check_keyword(1, 1, "r", TOKEN_OR);
