@@ -1,3 +1,4 @@
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -30,8 +31,7 @@ typedef enum {
   PREC_TERM,        // + -
   PREC_FACTOR,      // * /
   PREC_UNARY,       // ! -
-  PREC_CALL,        // . ()
-  PREC_END,         // ret
+  PREC_CALL,        // if, else? do?
   PREC_PRIMARY
 } precedence_t;
 
@@ -157,6 +157,8 @@ static int resolve_local(compiler_t *compiler, token_t *name) {
     for (int i = compiler->local_count - 1; i >= 0; i--) {
         local_t *local = &compiler->locals[i];
         if (symbols_are_equal(name, &local->name)) {
+            if (local->depth == -1)
+                error("local symbol has not been initialized");
             return i;
         }
     }
@@ -171,7 +173,7 @@ static void add_local(token_t name) {
 
     local_t *local = &current->locals[current->local_count++];
     local->name = name;
-    local->depth = current->scope_depth;
+    local->depth = -1;
 }
 
 static void declare_symbol() {
@@ -191,7 +193,10 @@ static void declare_symbol() {
 
 static void define_symbol(uint8_t global) {
     //  We exit from here if the symbol is local
-    if (current->scope_depth > 0) return;
+    if (current->scope_depth > 0) {
+        current->locals[current->local_count - 1].depth = current->scope_depth;
+        return;
+    }
 
     emit_bytes(OP_DEFINE_GLOBAL, global);
 }
@@ -373,10 +378,6 @@ static void declaration() {
     define_symbol(symbol);
 }
 
-// TODO: This function has a bug because it's treating all assignment as local
-// assignment when I'm on a block.
-// Inside a block, a statement like = my-global-var 13 . should treat that value
-// as global, not local
 static void assignment() {
     consume(TOKEN_SYMBOL, "expect symbol name after \"=\"");
     token_t name = parser.previous;
@@ -393,10 +394,112 @@ static void assignment() {
     named_symbol(name, true);
 }
 
+static int emit_jump(uint8_t instruction) {
+    emit_byte(instruction);
+    emit_byte(0xff);
+    emit_byte(0xff);
+    return current_chunk()->count - 2;
+}
+
+static void patch_jump(int offset) {
+    int jump = current_chunk()->count - offset - 2;
+
+    if (jump > UINT16_MAX)
+        error("too much code to make the jump");
+
+    current_chunk()->code[offset] = (jump >> 8) & 0xff;
+    current_chunk()->code[offset + 1] = jump & 0xff;
+}
+
+static void _if() {
+    int else_jump, then_jump;
+    then_jump = emit_jump(OP_JUMP_IF_FALSE);
+    emit_byte(OP_DROP);
+
+    begin_scope();
+    while (!check(TOKEN_DOT) && !check(TOKEN_ELSE) && !check(TOKEN_EOF))
+        expression();
+
+    end_scope();
+
+    else_jump = emit_jump(OP_JUMP);
+    patch_jump(then_jump);
+    emit_byte(OP_DROP);
+
+    if (match(TOKEN_ELSE)) {
+        begin_scope();
+        while (!match(TOKEN_DOT) && !match(TOKEN_EOF))
+            expression();
+        end_scope();
+    } else {
+        consume(TOKEN_DOT, "expect '.' after if block");
+    }
+    patch_jump(else_jump);
+}
+
+static void _logical() {
+    token_type_t operator_type = parser.previous.type;
+
+    switch (operator_type) {
+        case TOKEN_AND: emit_byte(OP_AND); break;
+        case TOKEN_OR:  emit_byte(OP_OR); break;
+        default: return;
+    }
+}
+
+static void emit_loop(int loop_start) {
+    emit_byte(OP_LOOP);
+
+    int offset = current_chunk()->count - loop_start + 2;
+    if (offset > UINT16_MAX) error("loop body is too large.");
+
+    emit_byte((offset >> 8) & 0xff);
+    emit_byte(offset & 0xff);
+}
+
+static void _loop() {
+    int exit_jump, loop_start, quit_jump;
+
+    begin_scope();
+    loop_start = current_chunk()->count;
+    quit_jump = -1;
+
+    if (match(TOKEN_RIGHT_BRACKET)) {
+        // implicit true for infinite loops
+        emit_byte(OP_TRUE);
+    } else {
+        expression();
+        consume(TOKEN_RIGHT_BRACKET, "expect '}' at the end of conditionals for loop");
+    }
+
+    consume(TOKEN_DO, "expect 'do' at the start of the loop");
+
+    exit_jump = emit_jump(OP_JUMP_IF_FALSE);
+    emit_byte(OP_DROP);
+
+    // Parse body of loop
+    while (!check(TOKEN_DOT) && !check(TOKEN_EOF)) {
+        expression();
+        // TODO: the quit token works but if we get into an "if" statement,
+        // this block will not be able to parse it. We need to come up with
+        // a better idea for processing it.
+        if (match(TOKEN_QUIT))
+            quit_jump = emit_jump(OP_JUMP);
+    }
+    end_scope();
+    consume(TOKEN_DOT, "expect '.' after loop");
+
+    emit_loop(loop_start);
+    patch_jump(exit_jump);
+    if (quit_jump != -1)
+        patch_jump(quit_jump);
+    emit_byte(OP_DROP);
+}
+
 parse_rule_t rules[] = {
     [TOKEN_LEFT_PAREN]    = {grouping,    NULL,       PREC_NONE},
     [TOKEN_RIGHT_PAREN]   = {NULL,        NULL,       PREC_NONE},
-    [TOKEN_LEFT_BRACKET]  = {NULL,        NULL,       PREC_NONE},
+    [TOKEN_LEFT_BRACKET]  = {_loop,       NULL,       PREC_NONE},
     [TOKEN_RIGHT_BRACKET] = {NULL,        NULL,       PREC_NONE},
     [TOKEN_COMMA]         = {NULL,        NULL,       PREC_NONE},
     [TOKEN_EQUAL]         = {assignment,  NULL,       PREC_DECLARATION},
@@ -415,19 +518,20 @@ parse_rule_t rules[] = {
     [TOKEN_SYMBOL]        = {symbol,      symbol,     PREC_EXPRESSION},
     [TOKEN_STRING]        = {string,      string,     PREC_EXPRESSION},
     [TOKEN_NUMBER]        = {number,      number,     PREC_EXPRESSION},
-    [TOKEN_AND]           = {NULL,        NULL,       PREC_NONE},
     [TOKEN_FALSE]         = {literal,     literal,    PREC_EXPRESSION},
     [TOKEN_TRUE]          = {literal,     literal,    PREC_EXPRESSION},
     [TOKEN_NIL]           = {literal,     literal,    PREC_EXPRESSION},
-    [TOKEN_FOR]           = {NULL,        NULL,       PREC_NONE},
-    [TOKEN_IF]            = {NULL,        NULL,       PREC_NONE},
-    [TOKEN_OR]            = {NULL,        NULL,       PREC_NONE},
+    [TOKEN_IF]            = {_if,         NULL,       PREC_NONE},
+    [TOKEN_ELSE]          = {NULL,        NULL,       PREC_NONE},
+    [TOKEN_AND]           = {NULL,        _logical,   PREC_AND},
+    [TOKEN_OR]            = {NULL,        _logical,   PREC_OR},
+    [TOKEN_DO]            = {statement,   NULL,       PREC_NONE},
     [TOKEN_PRINT]         = {statement,   NULL,       PREC_NONE},
     [TOKEN_DROP]          = {statement,   NULL,       PREC_NONE},
-    [TOKEN_DO]            = {statement,   NULL,       PREC_NONE},
+    [TOKEN_QUIT]          = {NULL,        NULL,       PREC_NONE},
     [TOKEN_DUP]           = {NULL,        NULL,       PREC_NONE},
-    [TOKEN_DOT]           = {NULL,        NULL,       PREC_NONE},
     [TOKEN_ERROR]         = {NULL,        NULL,       PREC_NONE},
+    [TOKEN_DOT]           = {NULL,        NULL,       PREC_NONE},
     [TOKEN_EOF]           = {NULL,        NULL,       PREC_NONE}
 };
 
