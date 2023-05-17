@@ -1,0 +1,6 @@
+10 3 + print
+20 7 - print
+-10 23 + print
+13 1 * print
+-13 -1 * print
+1337 100 / print

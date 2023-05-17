@@ -1,0 +1,6 @@
+nil
+CAPS
+true
+13
+string
+not nil
