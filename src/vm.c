@@ -15,22 +15,66 @@ VM_t VM;
 
 static void reset_stack() {
     VM.stack_top = VM.stack;
+    VM.frame_count = 0;
 }
 
 static void runtime_error(const char *format, ...) {
     va_list args;
-    size_t instruction = VM.ip - VM.chunk->code - 1;
-    int line = VM.chunk->lines[instruction];
-    fprintf(stderr, COLOR_RED "\n[line %d] ", line);
+
     va_start(args, format);
     vfprintf(stderr, format, args);
     va_end(args);
     fputs("\n", stderr);
+
+    // Printing the stack trace on error
+    for (int i = VM.frame_count - 1; i >= 0; i--) {
+        callframe_t *frame = &VM.frames[i];
+        procedure_t *procedure = frame->procedure;
+        size_t instruction = frame->ip - procedure->chunk.code - 1;
+        fprintf(stderr, COLOR_RED"[line %d] in ", procedure->chunk.lines[instruction]);
+
+        if (procedure->name == NULL)
+            fprintf(stderr, "program\n");
+        else
+            fprintf(stderr, "%s()\n", procedure->name->chars);
+    }
+
     reset_stack();
 }
 
 static value_t peek(int distance) {
     return VM.stack_top[-1 - distance];
+}
+
+static bool call(procedure_t *procedure, int arg_count) {
+    if (arg_count != procedure->arity) {
+        runtime_error("expected %d arguments but got %d.", procedure->arity, arg_count);
+        return false;
+    }
+
+    if (VM.frame_count == FRAMES_MAX) {
+        runtime_error("Stack overflow.");
+        return false;
+    }
+
+    callframe_t *frame = &VM.frames[VM.frame_count++];
+    frame->procedure = procedure;
+    frame->ip = procedure->chunk.code;
+    frame->slots = VM.stack_top - arg_count - 1;
+    return true;
+}
+
+static bool call_value(value_t callee, int arg_count) {
+    if (IS_OBJ(callee)) {
+        switch (OBJ_TYPE(callee)) {
+            case OBJ_PROCEDURE:
+                return call(AS_PROCEDURE(callee), arg_count);
+            default: break;
+        }
+    }
+
+    runtime_error("can only call procedures.");
+    return false;
 }
 
 static bool is_falsey(value_t value) {
@@ -62,10 +106,11 @@ void free_VM() {
 }
 
 static interpret_result_t run() {
+    callframe_t *frame = &VM.frames[VM.frame_count - 1];
 
-#define READ_BYTE() (*VM.ip++)
-#define READ_SHORT() (VM.ip += 2, (uint16_t)((VM.ip[-2] << 8) | VM.ip[-1]))
-#define READ_CONSTANT() (VM.chunk->constants.values[READ_BYTE()])
+#define READ_BYTE() (*frame->ip++)
+#define READ_SHORT() (frame->ip += 2, (uint16_t)((frame->ip[-2] << 8) | frame->ip[-1]))
+#define READ_CONSTANT() (frame->procedure->chunk.constants.values[READ_BYTE()])
 #define READ_STRING()   AS_STRING(READ_CONSTANT())
 #define BINARY_OP(value_type, op)                           \
     do {                                                    \
@@ -87,7 +132,8 @@ static interpret_result_t run() {
             printf(" ]");
         }
         printf("\n");
-        disassemble_instruction(VM.chunk, (int)(VM.ip - VM.chunk->code));
+        disassemble_instruction(&frame->procedure->chunk,
+                                (int)(frame->ip - frame->procedure->chunk.code));
 #endif
 
         uint8_t instruction;
@@ -101,12 +147,12 @@ static interpret_result_t run() {
             case OP_FALSE:    push(BOOL_VAL(false)); break;
             case OP_GET_LOCAL: {
                 uint8_t slot = READ_BYTE();
-                push(VM.stack[slot]);
+                push(frame->slots[slot]);
                 break;
             } break;
             case OP_SET_LOCAL: {
                 uint8_t slot = READ_BYTE();
-                VM.stack[slot] = peek(0);
+                frame->slots[slot] = peek(0);
             } break;
             case OP_GET_GLOBAL: {
                 string_t *name = READ_STRING();
@@ -174,26 +220,29 @@ static interpret_result_t run() {
             case OP_SUBTRACT: BINARY_OP(NUMBER_VAL, -); break;
             case OP_MULTIPLY: BINARY_OP(NUMBER_VAL, *); break;
             case OP_DIVIDE:   BINARY_OP(NUMBER_VAL, /); break;
-            case OP_NOT:      push(BOOL_VAL(is_falsey(pop()))); break;
             case OP_NEGATE: {
-                if (!IS_NUMBER(peek(0))) {
-                    runtime_error("operand must be a number.");
+                if (IS_NUMBER(peek(0))) {
+                    push(NUMBER_VAL(-AS_NUMBER(pop())));
+                } else if (IS_BOOL(peek(0)) || IS_NIL(peek(0))) {
+                    push(BOOL_VAL(is_falsey(pop()))); break;
+                } else {
+                    runtime_error("operand must be a number or a boolean.");
                     return INTERPRET_RUNTIME_ERROR;
                 }
-                push(NUMBER_VAL(-AS_NUMBER(pop())));
             } break;
             case OP_PRINT: {
                 print_value(pop());
                 printf("\n");
             } break;
             case OP_DROP: pop(); break;
+            case OP_DUP: push(peek(0)); break;
             case OP_JUMP_IF_FALSE: {
                 uint16_t offset = READ_SHORT();
-                if (is_falsey(peek(0))) VM.ip += offset;
+                if (is_falsey(peek(0))) frame->ip += offset;
             } break;
             case OP_JUMP: {
                 uint16_t offset = READ_SHORT();
-                VM.ip += offset;
+                frame->ip += offset;
             } break;
             case OP_QUIT: {
                 if (!IS_BOOL(peek(0))) {
@@ -201,15 +250,30 @@ static interpret_result_t run() {
                     return INTERPRET_RUNTIME_ERROR;
                 }
                 uint16_t offset = READ_SHORT();
-                if (!is_falsey(peek(0))) VM.ip += offset;
+                if (!is_falsey(peek(0))) frame->ip += offset;
             } break;
             case OP_LOOP: {
                 uint16_t offset = READ_SHORT();
-                VM.ip -= offset;
+                frame->ip -= offset;
+            } break;
+            case OP_CALL: {
+                int arg_count = READ_BYTE();
+                if (!call_value(peek(arg_count), arg_count))
+                    return INTERPRET_RUNTIME_ERROR;
+                frame = &VM.frames[VM.frame_count - 1];
             } break;
             case OP_RETURN: {
-                return INTERPRET_OK;
-            }
+                value_t result = pop();
+                VM.frame_count--;
+                if (VM.frame_count == 0) {
+                    pop();
+                    return INTERPRET_OK;
+                }
+
+                VM.stack_top = frame->slots;
+                push(result);
+                frame = &VM.frames[VM.frame_count - 1];
+            } break;
         }
     }
 
@@ -231,19 +295,11 @@ value_t pop() {
 }
 
 interpret_result_t interpret(const char *source) {
-    chunk_t chunk;
-    init_chunk(&chunk);
+    procedure_t *procedure = compile(source);
+    if (procedure == NULL) return INTERPRET_COMPILE_ERROR;
 
-    if (!compile(source, &chunk)) {
-        free_chunk(&chunk);
-        return INTERPRET_COMPILE_ERROR;
-    }
-
-    VM.chunk = &chunk;
-    VM.ip = VM.chunk->code;
-
-    interpret_result_t result = run();
-
-    free_chunk(&chunk);
-    return result;
+    push(OBJ_VAL(procedure));
+    call(procedure, 0);
+    // TODO: Main procedure can be handled here.
+    return run();
 }

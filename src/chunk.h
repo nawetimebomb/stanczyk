@@ -23,14 +23,15 @@ typedef enum {
     OP_SUBTRACT,
     OP_MULTIPLY,
     OP_DIVIDE,
-    OP_NOT,
     OP_NEGATE,
     OP_PRINT,
     OP_DROP,
+    OP_DUP,
     OP_JUMP_IF_FALSE,
     OP_JUMP,
     OP_QUIT,
     OP_LOOP,
+    OP_CALL,
     OP_RETURN
 } op_code_t;
 

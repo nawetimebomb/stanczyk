@@ -2,14 +2,24 @@
 #define NLISP_VM_H
 
 #include "chunk.h"
+#include "common.h"
 #include "table.h"
+#include "object.h"
 #include "value.h"
 
-#define STACK_MAX 256
+#define FRAMES_MAX 64
+#define STACK_MAX  (FRAMES_MAX * UINT8_COUNT)
 
 typedef struct {
-    chunk_t *chunk;
+    procedure_t *procedure;
     uint8_t *ip;
+    value_t *slots;
+} callframe_t;
+
+typedef struct {
+    callframe_t frames[FRAMES_MAX];
+    int frame_count;
+
     value_t stack[STACK_MAX];
     value_t *stack_top;
     table_t symbols; // These are global variables
