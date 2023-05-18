@@ -44,12 +44,8 @@ else
     echo -e "$GREEN"
 fi
 
-T=$TOTAL
-S=$SUCCESS
-F=$FAIL
-
-echo -e "${BOLD}┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓"
-echo -e "┃  TOTAL: $T = Success: $S Fails: $F    ┃"
-echo -e "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛${RESET}"
+printf "${BOLD}┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n"
+printf "┃  TOTAL %03d :: Success %3d | Fails %3d  ┃\n" $TOTAL $SUCCESS $FAIL
+printf "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛${RESET}\n"
 
 exit $FAIL

@@ -146,3 +146,122 @@ do
 ;; We cleared the local symbols as soon as we exit the scope, so when we
 ;; print the symbol again, we will get the global definition.
 declared-symbol print     ;; "Hello, Stańczyk"
+
+;; Now that we have had a look into blocks of code, we can learn more about them.
+;; Blocks are not also an abstract thing, we use them in other statements like for
+;; control flows (if, else) and loops.
+
+;; In control flows, `if` and `else` are the block delimiters, the block ends with a
+;; `.` (dot). In loops, `do` acts as the block delimiter which, you guessed it, also
+;; ends with a `.` (dot).
+;; For the if/else example below:
+1 2 == if
+  "it's an if!"
+else
+  "no, it's actually an else!"
+.
+
+print    ;; "no, it's actually an else!"
+
+;; In the previous example, we print after leaving the if/else because we have the value
+;; on the stack. Don't forget to handle your stack values! (more advance stack manipulation
+;; technicques are coming, don't worry)
+
+;; Loops are a little bit different. Stańczyk has infinite and finite loops. You can exit
+;; the loop whenever you want with the keyword `quit` (which has to be preceded by a Boolean)
+;; The following is an infinite loop that quits at the end.
+{} do
+    "print me" print
+    true quit
+.
+
+;; Wow, all that and we just printed "print me" once.
+;; The Boolean before quit can come from an evaluation, but `quit` can only be used in the
+;; main body of the loop. That means, it cannot be used in other blocks (even if/else).
+;; So if you want to do an operation 3 times you will have to do something like:
+:= reps 0 .
+
+{} do
+    "testing" print
+    = reps reps 1 + .
+    reps 3 >= quit
+.
+
+;; The above prints:
+;; "testing"
+;; "testing"
+;; "testing"
+
+;; But you could have done it a little bit different if you already knew you wanted a finite
+;; loop. Maybe:
+:= index 0 .
+
+{index 3 <} do
+    "finite loop" print
+    = index index 1 + .
+.
+
+;; And the above prints:
+;; "finite loop"
+;; "finite loop"
+;; "finite loop"
+
+;; To make it one sentence: If the statement inside the `{` and `}` brackets evaluates to true
+;; then `do`.
+;; In the empty brackets `{}` example, the compiler will take that as an implicit `true`, but
+;; you could actually write `{true} do` if you want.
+
+
+;;   ___                       _   _
+;;  / _ \ _ __   ___ _ __ __ _| |_(_) ___  _ __  ___
+;; | | | | '_ \ / _ \ '__/ _` | __| |/ _ \| '_ \/ __|
+;; | |_| | |_) |  __/ | | (_| | |_| | (_) | | | \__ \
+;;  \___/| .__/ \___|_|  \__,_|\__|_|\___/|_| |_|___/
+;;       |_|
+
+
+;; Apart from variables, operations are really useful in programming languages. Stańczyk's
+;; standards, with its postfix notations, are pretty simple to understand. Most operations
+;; are defined after its operands. We have seen the example of doing a sum of 2 operands. What
+;; happens if we want to sum 3?
+2 3 + 8 + print    ;; 13
+
+;; I know what you are thinking: "wait, didn't you say 2 operands???". Well, if we take a look
+;; at the stack, we do have to operands here. This is doing the following:
+;; put 2 on the stack
+;; put 3 on the stack
+;; do sum (+). This takes the first and second element of the stack and does the sum. 2 + 3 =
+;; put 5 on the stack (the result of the operation)
+;; Now that we have 5 on the stack, we can add a second operand.
+;; put 8 on the stack
+;; do sum(+). 5 + 8 = 13
+
+;; And this works for any operation. You just have to think it in that way. And if you, you will
+;; never need parenthesis!
+;; Note: In fact, this is how most calculator works!
+;; (https://en.wikipedia.org/wiki/Reverse_Polish_notation#Implementations)
+
+;; So let's translate regular arithmetics to RPN:
+;; Given the following: ((2 + 1) * 3) = 9
+2 1 + 3 * print
+
+;; And: (1 + 2) * 3 + 4 = 13
+1 2 + 3 * 4 + print
+
+;; And: (4 + (13 / 5)) = 6.6
+13 5 / 4 + print
+
+;; Lastly: (2 / 4) * (5 - 6) = -0.5
+2 4 / 5 6 - * print
+
+;; You just have to think about it a little bit differenly, but anything can be done.
+
+;; As we talked about before, most Stańczyk operations are binary. But not all of them! Let's
+;; learn more about some unary ones.
+;; The first one we are going to learn about is the `neg` operation. neg means negate.
+neg 1 print ;; -1
+
+;; This unary operation goes before the expression that is going to affect. This is because it
+;; makes it easier to read in long concatenated operations.
+;; For example:
+neg (1 2 + 5 + 2 3 + + neg 1 *) print   ;; you guessed it! 13

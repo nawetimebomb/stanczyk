@@ -1,6 +1,7 @@
 #include <stdlib.h>
 
 #include "memory.h"
+#include "object.h"
 #include "vm.h"
 
 extern VM_t VM;
@@ -31,12 +32,16 @@ void *reallocate(void *pointer, size_t prev_size, size_t new_size) {
 
 static void free_object(obj_t *object) {
     switch (object->type) {
+        case OBJ_PROCEDURE: {
+            procedure_t *procedure = (procedure_t *)object;
+            free_chunk(&procedure->chunk);
+            FREE(procedure_t, object);
+        } break;
         case OBJ_STRING: {
             string_t *string = (string_t *)object;
             FREE_ARRAY(char, string->chars, string->length + 1);
             FREE(string_t, object);
-            break;
-        }
+        } break;
     }
 }
 

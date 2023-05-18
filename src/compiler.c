@@ -7,6 +7,7 @@
 #include "common.h"
 #include "compiler.h"
 #include "debug.h"
+#include "object.h"
 #include "scanner.h"
 
 #ifdef DEBUG_PRINT_CODE
@@ -22,7 +23,6 @@ typedef struct {
 
 typedef enum {
   PREC_NONE,
-  PREC_DECLARATION, // declaration
   PREC_EXPRESSION,  // expression literals
   PREC_OR,          // or
   PREC_AND,         // and
@@ -31,7 +31,7 @@ typedef enum {
   PREC_TERM,        // + -
   PREC_FACTOR,      // * /
   PREC_UNARY,       // ! -
-  PREC_CALL,        // if, else? do?
+  PREC_CALL,        // ()
   PREC_PRIMARY
 } precedence_t;
 
@@ -48,18 +48,26 @@ typedef struct {
     int depth;
 } local_t;
 
-typedef struct {
+typedef enum { TYPE_PROCEDURE, TYPE_PROGRAM } procedure_type_t;
+
+typedef struct compiler_t compiler_t;
+
+struct compiler_t {
+    compiler_t *enclosing;
+    procedure_t *procedure;
+    procedure_type_t type;
+
     local_t locals[UINT8_COUNT];
     int local_count;
     int scope_depth;
-} compiler_t;
+};
 
 parser_t parser;
 compiler_t *current = NULL;
 chunk_t *compiling_chunk;
 
 static chunk_t *current_chunk() {
-    return compiling_chunk;
+    return &current->procedure->chunk;
 }
 
 static void error_at(token_t *token, const char *message) {
@@ -127,6 +135,7 @@ static void emit_bytes(uint8_t b1, uint8_t b2) {
 }
 
 static void emit_return() {
+    emit_byte(OP_NIL);
     emit_byte(OP_RETURN);
 }
 
@@ -167,7 +176,7 @@ static int resolve_local(compiler_t *compiler, token_t *name) {
 
 static void add_local(token_t name) {
     if (current->local_count == UINT8_COUNT) {
-        error("stack overflow. Too many local symbols declared in function.");
+        error("stack overflow. Too many local symbols declared in scope.");
         return;
     }
 
@@ -212,20 +221,36 @@ static uint8_t parse_symbol(const char *error_message) {
     return symbol_constant(&parser.previous);
 }
 
-static void init_compiler(compiler_t *compiler) {
+static void init_compiler(compiler_t *compiler, procedure_type_t type) {
+    compiler->enclosing = current;
+    compiler->procedure = NULL;
+    compiler->type = type;
+    compiler->procedure = new_procedure();
     compiler->local_count = 0;
     compiler->scope_depth = 0;
     current = compiler;
+
+    if (type != TYPE_PROGRAM)
+        current->procedure->name = copy_string(parser.previous.start, parser.previous.length);
+
+    local_t *local = &current->locals[current->local_count++];
+    local->depth = 0;
+    local->name.start = "";
+    local->name.length = 0;
 }
 
-static void end_compiler() {
+static procedure_t *end_compiler() {
     emit_return();
+    procedure_t *procedure = current->procedure;
 
 #ifdef DEBUG_PRINT_CODE
-    if (!parser.erred) {
-        disassemble_chunk(current_chunk(), "code");
-    }
+    if (!parser.erred)
+        disassemble_chunk(current_chunk(),
+                          procedure->name != NULL ? procedure->name->chars : "<PROGRAM>");
 #endif
+
+    current = current->enclosing;
+    return procedure;
 }
 
 static void begin_scope() {
@@ -258,38 +283,50 @@ static void block() {
     consume(TOKEN_DOT, "expect '.' to end block");
 }
 
-static void unary() {
-    token_type_t operator_type = parser.previous.type;
-    parse_precedence(PREC_UNARY);
+static void procedure(procedure_type_t type) {
+    compiler_t compiler;
+    init_compiler(&compiler, type);
+    begin_scope();
 
-    switch (operator_type) {
-        case TOKEN_BANG: emit_byte(OP_NOT);     break;
-        case TOKEN_MINUS: emit_byte(OP_NEGATE); break;
-        default: return;
+    consume(TOKEN_LEFT_PAREN, "expect '(' after procedure name.");
+    if (!check(TOKEN_RIGHT_PAREN)) {
+        do {
+            current->procedure->arity++;
+            if (current->procedure->arity > 255)
+                error_at_current("cannot have more than 255 parameters.");
+            uint8_t symbol = parse_symbol("expect parameter name.");
+            define_symbol(symbol);
+        } while (match(TOKEN_COMMA));
     }
+    consume(TOKEN_RIGHT_PAREN, "expect ')' after parameters.");
+    consume(TOKEN_DO, "expect 'do' before procedure body.");
+    block();
+
+    procedure_t *procedure = end_compiler();
+    emit_bytes(OP_CONSTANT, make_constant(OBJ_VAL(procedure)));
+}
+
+static void _unary() {
+    parse_precedence(PREC_UNARY);
+    emit_byte(OP_NEGATE);
 }
 
 static void binary() {
     token_type_t operator_type = parser.previous.type;
 
-    if (operator_type == TOKEN_MINUS && check(TOKEN_NUMBER)) {
-        unary();
-        return;
-    }
-
     switch (operator_type) {
         case TOKEN_BANG_EQUAL:
-            emit_bytes(OP_EQUAL, OP_NOT); break;
+            emit_bytes(OP_EQUAL, OP_NEGATE); break;
         case TOKEN_EQUAL_EQUAL:
             emit_byte(OP_EQUAL); break;
         case TOKEN_GREATER:
             emit_byte(OP_GREATER); break;
         case TOKEN_GREATER_EQUAL:
-            emit_bytes(OP_LESS, OP_NOT); break;
+            emit_bytes(OP_LESS, OP_NEGATE); break;
         case TOKEN_LESS:
             emit_byte(OP_LESS); break;
         case TOKEN_LESS_EQUAL:
-            emit_bytes(OP_GREATER, OP_NOT); break;
+            emit_bytes(OP_GREATER, OP_NEGATE); break;
         case TOKEN_PLUS:
             emit_byte(OP_ADD); break;
         case TOKEN_MINUS:
@@ -312,7 +349,8 @@ static void literal() {
 }
 
 static void grouping() {
-    expression();
+    while (!check(TOKEN_RIGHT_PAREN) && !check(TOKEN_EOF))
+        expression();
     consume(TOKEN_RIGHT_PAREN, "Expect ')' after expression.");
 }
 
@@ -345,12 +383,13 @@ static void symbol() {
     named_symbol(parser.previous, false);
 }
 
-static void statement()  {
+static void _stmt()  {
     token_type_t statement_type = parser.previous.type;
 
     switch (statement_type) {
         case TOKEN_PRINT: emit_byte(OP_PRINT); break;
         case TOKEN_DROP:  emit_byte(OP_DROP);  break;
+        case TOKEN_DUP:   emit_byte(OP_DUP);   break;
         case TOKEN_DO: {
             begin_scope();
             block();
@@ -360,17 +399,8 @@ static void statement()  {
     }
 }
 
-static void declaration() {
-    uint8_t symbol;
-
-    // TODO: Add static type declaration
-    // := does type inference
-    if (match(TOKEN_EQUAL)) {
-        symbol = parse_symbol("expect symbol name after \":=\"");
-    } else {
-        error("failed to declare symbol due to missing \"=\"");
-        return;
-    }
+static void _symbol_declare() {
+    uint8_t symbol = parse_symbol("expect symbol name after ':='");
 
     if (match(TOKEN_DOT)) {
         emit_byte(OP_NIL);
@@ -382,6 +412,26 @@ static void declaration() {
     }
 
     define_symbol(symbol);
+}
+
+static void _procedure_declare() {
+    uint8_t symbol = parse_symbol("expect procedure name after '::'");
+    // TODO: Figure out if I need to mark it mark_initialized();
+    procedure(TYPE_PROCEDURE);
+    define_symbol(symbol);
+}
+
+static void _declare() {
+    if (match(TOKEN_EQUAL)) {
+        // variable declaration with type inference
+        _symbol_declare();
+    } else if (match(TOKEN_COLON)) {
+        _procedure_declare();
+    } else {
+        error("failed to declare symbol or procedure.");
+        error("missing `=` or `:`.");
+        return;
+    }
 }
 
 static void assignment() {
@@ -509,19 +559,53 @@ static void _quit() {
     error("cannot 'quit' on this context");
 }
 
+static uint8_t argument_list() {
+    uint8_t arg_count = 0;
+    if (!check(TOKEN_RIGHT_PAREN)) {
+        do {
+            while (!check(TOKEN_COMMA) && !check(TOKEN_EOF) && !check(TOKEN_RIGHT_PAREN))
+                expression();
+
+            if (arg_count == 255)
+                error("cannot have more than 255 arguments");
+
+            arg_count++;
+
+            if (check(TOKEN_EOF)) {
+                error("incomplete procedure.");
+                break;
+            }
+        } while (match(TOKEN_COMMA));
+    }
+
+    consume(TOKEN_RIGHT_PAREN, "expect ')' after arguments.");
+    return arg_count;
+}
+
+static void _call() {
+    uint8_t arg_count = argument_list();
+    emit_bytes(OP_CALL, arg_count);
+}
+
+static void _return() {
+    if (current->type == TYPE_PROGRAM)
+        error("cannot return value in this context.");
+
+    emit_byte(OP_RETURN);
+}
+
 parse_rule_t rules[] = {
-    [TOKEN_LEFT_PAREN]    = {grouping,    NULL,       PREC_NONE},
+    [TOKEN_LEFT_PAREN]    = {grouping,    _call,      PREC_CALL},
     [TOKEN_RIGHT_PAREN]   = {NULL,        NULL,       PREC_NONE},
     [TOKEN_LEFT_BRACKET]  = {_loop,       NULL,       PREC_NONE},
     [TOKEN_RIGHT_BRACKET] = {NULL,        NULL,       PREC_NONE},
     [TOKEN_COMMA]         = {NULL,        NULL,       PREC_NONE},
-    [TOKEN_EQUAL]         = {assignment,  NULL,       PREC_DECLARATION},
-    [TOKEN_COLON]         = {declaration, NULL,       PREC_DECLARATION},
-    [TOKEN_MINUS]         = {unary,       binary,     PREC_TERM},
+    [TOKEN_EQUAL]         = {assignment,  NULL,       PREC_NONE},
+    [TOKEN_COLON]         = {_declare,    NULL,       PREC_NONE},
+    [TOKEN_MINUS]         = {NULL,        binary,     PREC_TERM},
     [TOKEN_PLUS]          = {NULL,        binary,     PREC_TERM},
     [TOKEN_SLASH]         = {NULL,        binary,     PREC_FACTOR},
     [TOKEN_STAR]          = {NULL,        binary,     PREC_FACTOR},
-    [TOKEN_BANG]          = {unary,       unary,      PREC_UNARY},
     [TOKEN_BANG_EQUAL]    = {NULL,        binary,     PREC_EQUALITY},
     [TOKEN_EQUAL_EQUAL]   = {NULL,        binary,     PREC_EQUALITY},
     [TOKEN_GREATER]       = {NULL,        binary,     PREC_EQUALITY},
@@ -538,11 +622,13 @@ parse_rule_t rules[] = {
     [TOKEN_ELSE]          = {NULL,        NULL,       PREC_NONE},
     [TOKEN_AND]           = {NULL,        _logical,   PREC_AND},
     [TOKEN_OR]            = {NULL,        _logical,   PREC_OR},
-    [TOKEN_DO]            = {statement,   NULL,       PREC_NONE},
-    [TOKEN_PRINT]         = {statement,   NULL,       PREC_NONE},
-    [TOKEN_DROP]          = {statement,   NULL,       PREC_NONE},
+    [TOKEN_DO]            = {_stmt,       NULL,       PREC_NONE},
+    [TOKEN_PRINT]         = {_stmt,       NULL,       PREC_NONE},
+    [TOKEN_DROP]          = {_stmt,       NULL,       PREC_NONE},
+    [TOKEN_DUP]           = {_stmt,       NULL,       PREC_NONE},
+    [TOKEN_BANG]          = {NULL,        _return,    PREC_CALL},
+    [TOKEN_NEG]           = {_unary,      NULL,       PREC_NONE},
     [TOKEN_QUIT]          = {_quit,       NULL,       PREC_NONE},
-    [TOKEN_DUP]           = {NULL,        NULL,       PREC_NONE},
     [TOKEN_ERROR]         = {NULL,        NULL,       PREC_NONE},
     [TOKEN_DOT]           = {NULL,        NULL,       PREC_NONE},
     [TOKEN_EOF]           = {NULL,        NULL,       PREC_NONE}
@@ -583,11 +669,10 @@ static void synchronize() {
     // Right now we disable panic after any statement.
 }
 
-bool compile(const char *source, chunk_t *chunk) {
+procedure_t *compile(const char *source) {
     compiler_t compiler;
     init_scanner(source);
-    init_compiler(&compiler);
-    compiling_chunk = chunk;
+    init_compiler(&compiler, TYPE_PROGRAM);
 
     parser.erred = false;
     parser.panic = false;
@@ -598,6 +683,6 @@ bool compile(const char *source, chunk_t *chunk) {
         if (parser.panic) synchronize();
     }
 
-    end_compiler();
-    return !parser.erred;
+    procedure_t *procedure = end_compiler();
+    return parser.erred ? NULL : procedure;
 }

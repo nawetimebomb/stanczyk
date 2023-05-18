@@ -20,6 +20,14 @@ static obj_t *allocate_object(size_t size, obj_type_t type) {
     return object;
 }
 
+procedure_t *new_procedure() {
+    procedure_t *procedure = ALLOCATE_OBJ(procedure_t, OBJ_PROCEDURE);
+    procedure->arity = 0;
+    procedure->name = NULL;
+    init_chunk(&procedure->chunk);
+    return procedure;
+}
+
 static string_t *allocate_string(char *chars, int length, uint32_t hash) {
     string_t *string = ALLOCATE_OBJ(string_t, OBJ_STRING);
     string->length = length;
@@ -58,8 +66,18 @@ string_t *copy_string(const char *chars, int length) {
     return allocate_string(heap, length, hash);
 }
 
+static void print_procedure(procedure_t *procedure) {
+    if (procedure->name == NULL) {
+        printf("<PROGRAM>");
+        return;
+    }
+
+    printf("<procedure %s>", procedure->name->chars);
+}
+
 void print_obj(value_t value) {
     switch (OBJ_TYPE(value)) {
+        case OBJ_PROCEDURE: print_procedure(AS_PROCEDURE(value)); break;
         case OBJ_STRING: printf("%s", AS_CSTRING(value)); break;
     }
 }
