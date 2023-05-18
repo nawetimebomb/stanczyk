@@ -1,0 +1,8 @@
+:: test-clock () do
+   {clock() 0.01 <} do
+       "clock works" print
+       true quit
+   .
+.
+
+test-clock()

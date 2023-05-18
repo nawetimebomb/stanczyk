@@ -7,14 +7,17 @@
 
 #define OBJ_TYPE(value)     (AS_OBJ(value)->type)
 #define IS_PROCEDURE(value) is_obj_type(value, OBJ_PROCEDURE)
+#define IS_NATIVE(value)    is_obj_type(value, OBJ_NATIVE)
 #define IS_STRING(value)    is_obj_type(value, OBJ_STRING)
 
 #define AS_PROCEDURE(value) ((procedure_t *)AS_OBJ(value))
+#define AS_NATIVE(value)    (((native_t *)AS_OBJ(value)))
 #define AS_STRING(value)    ((string_t *)AS_OBJ(value))
 #define AS_CSTRING(value)   (((string_t *)AS_OBJ(value))->chars)
 
 typedef enum {
     OBJ_PROCEDURE,
+    OBJ_NATIVE,
     OBJ_STRING
 } obj_type_t;
 
@@ -30,6 +33,14 @@ typedef struct {
     string_t *name;
 } procedure_t;
 
+typedef value_t (*native_proc_t)(int arg_count, value_t *args);
+
+typedef struct {
+    obj_t obj;
+    int arity;
+    native_proc_t call;
+} native_t;
+
 struct string_t {
     obj_t obj;
     int length;
@@ -38,9 +49,10 @@ struct string_t {
 };
 
 procedure_t *new_procedure();
-string_t *take_string(char *chars, int length);
-string_t *copy_string(const char *chars, int length);
-void print_obj(value_t value);
+native_t    *new_native(native_proc_t procedure, int arg_count);
+string_t    *take_string(char *chars, int length);
+string_t    *copy_string(const char *chars, int length);
+void         print_obj(value_t value);
 
 static inline bool is_obj_type(value_t value, obj_type_t type) {
     return IS_OBJ(value) && AS_OBJ(value)->type == type;
