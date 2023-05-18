@@ -1,0 +1,14 @@
+; -*- mode: Org; -*-
+
+#+TITLE: TODO
+
+This file contains new features I need to work on and also bugs that are reported.
+
+* Global symbols with text containing "if" "else" fail           :BUG:
+When using a global symbol like the one below, the code fails to compile
+#+BEGIN_SRC
+:= go_if "if" .
+#+END_SRC
+
+* Strings do not support escaped characters                    :FEATURE:
+* Add UTF-8 support to strings                                 :MAYBE:
