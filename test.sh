@@ -11,7 +11,6 @@ BOLD="\033[1m"
 
 echo -e $PURPLE
 base64 -d misc/logo.base64
-echo -e "${BOLD}Stańczyk Test Suite"
 echo -e $RESET
 
 
@@ -24,14 +23,13 @@ for FILE in tests/*.sk; do
         ./skc ${TEST_SRC}.sk > result.txt
 
         RESULT=$(diff ${TEST_SRC}.txt result.txt)
-
-        echo -e "${BOLD}-- $TEST_NAME${RESET}"
+        printf "${BOLD} ¤ %-56s${RESET}" $TEST_NAME
 
         if [ -z "$RESULT" ]; then
-            echo -e "${GREEN}\t✔ success ${RESET}"
+            echo -e "${GREEN}✔ success${RESET}"
             SUCCESS=$(($SUCCESS + 1))
         else
-            echo -e "${RED}\t✗ fail${RESET}"
+            echo -e "${RED}✗ fail${RESET}"
             echo $RESULT
             FAIL=$(($FAIL + 1))
         fi
@@ -45,6 +43,13 @@ if [[ "$FAIL" -gt 0 ]]; then
 else
     echo -e "$GREEN"
 fi
-echo -e "${BOLD}Total tests: $TOTAL"
-echo -e "Success: $SUCCESS // Failed: $FAIL${RESET}"
+
+T=$TOTAL
+S=$SUCCESS
+F=$FAIL
+
+echo -e "${BOLD}┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓"
+echo -e "┃  TOTAL: $T = Success: $S Fails: $F    ┃"
+echo -e "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛${RESET}"
+
 exit $FAIL
