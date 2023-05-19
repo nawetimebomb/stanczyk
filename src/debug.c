@@ -99,6 +99,8 @@ int disassemble_instruction(chunk_t *chunk, int offset) {
             return simple_instruction("OP_PRINT", offset);
         case OP_DROP:
             return simple_instruction("OP_DROP", offset);
+        case OP_DROPN:
+            return constant_instruction("OP_DROPN", chunk, offset);
         case OP_DUP:
             return simple_instruction("OP_DUP", offset);
         case OP_JUMP_IF_FALSE:
