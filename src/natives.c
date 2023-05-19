@@ -10,6 +10,14 @@
 #include "vm.h"
 #include "natives.h"
 
+static value_t _length(int argc, value_t *args) {
+    value_t value = args[0];
+    if (!IS_LIST(value) && !IS_STRING(value))
+        runtime_throw("length: only only list or strings.");
+
+    return INT_VAL((IS_LIST(value)) ? AS_LIST(value)->count : strlen(AS_CSTRING(value)));
+}
+
 static value_t _append(int argc, value_t *args) {
     if (!IS_LIST(args[0]))
         runtime_throw("first argument has to be a list.");
@@ -94,5 +102,5 @@ void register_natives(define_native_func define) {
     define("strtobuf", _strtobuf, 1);
     define("append",   _append,   2);
     define("delete",   _delete,   2);
-
+    define("length",   _length,   1);
 }
