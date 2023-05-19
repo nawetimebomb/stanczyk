@@ -6,6 +6,9 @@
 
 typedef enum {
     OP_CONSTANT,
+    OP_LIST_CREATE,
+    OP_LIST_GET_INDEX,
+    OP_LIST_STORE_INDEX,
     OP_NIL,
     OP_TRUE,
     OP_FALSE,

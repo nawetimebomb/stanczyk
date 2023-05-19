@@ -59,6 +59,12 @@ int disassemble_instruction(chunk_t *chunk, int offset) {
     switch (instruction) {
         case OP_CONSTANT:
             return constant_instruction("OP_CONSTANT", chunk, offset);
+        case OP_LIST_CREATE:
+            return byte_instruction("OP_LIST_CREATE", chunk, offset);
+        case OP_LIST_GET_INDEX:
+            return constant_instruction("OP_LIST_GET_INDEX", chunk, offset);
+        case OP_LIST_STORE_INDEX:
+            return constant_instruction("OP_LIST_STORE_INDEX", chunk, offset);
         case OP_NIL:
             return simple_instruction("OP_NIL", offset);
         case OP_TRUE:

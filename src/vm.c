@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdarg.h>
 #include <string.h>
 
@@ -42,6 +43,11 @@ static void runtime_error(const char *format, ...) {
     }
 
     reset_stack();
+}
+
+void runtime_throw(const char *format) {
+    runtime_error(format);
+    exit(2);
 }
 
 static void define_native(const char *name, native_proc_t procedure, int num_args) {
@@ -197,6 +203,57 @@ static interpret_result_t run() {
                 uint8_t slot = READ_BYTE();
                 push(frame->slots[slot]);
                 break;
+            } break;
+            case OP_LIST_CREATE: {
+                list_t *list = new_list();
+                uint8_t count = READ_BYTE();
+
+                push(OBJ_VAL(list));
+
+                for (int i = count ; i > 0; i--)
+                    list_append(list, peek(i));
+
+                pop();
+
+                // Clear stack after creating the list.
+                while (count-- > 0)
+                    pop();
+
+                push(OBJ_VAL(list));
+            } break;
+            case OP_LIST_GET_INDEX: {
+                if (!IS_INT(peek(0)) && !IS_LIST(peek(1))) {
+                    runtime_error("malformed list accessor.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                int index = AS_INT(pop());
+                list_t *list = AS_LIST(pop());
+
+                if (!list_is_valid_index(list, index)) {
+                    runtime_error("list index out of range.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+
+                push(list_get_index(list, index));
+            } break;
+            case OP_LIST_STORE_INDEX: {
+                // TODO: Add type check on lists.
+                value_t value = pop();
+
+                if (!IS_INT(peek(0)) && !IS_LIST(peek(1))) {
+                    runtime_error("malformed list accessor.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+
+                int index = AS_INT(pop());
+                list_t * list = AS_LIST(pop());
+
+                if (!list_is_valid_index(list, index)) {
+                    runtime_error("index %d is invalid.", index);
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+
+                list_put(list, index, value);
             } break;
             case OP_SET_LOCAL: {
                 uint8_t slot = READ_BYTE();

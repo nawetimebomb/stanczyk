@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include <time.h>
 
 #include "common.h"
@@ -8,6 +9,42 @@
 #include "value.h"
 #include "vm.h"
 #include "natives.h"
+
+static value_t _append(int argc, value_t *args) {
+    if (!IS_LIST(args[0]))
+        runtime_throw("first argument has to be a list.");
+    list_t *list = AS_LIST(args[0]);
+    value_t value = args[1];
+    return BOOL_VAL(list_append(list, value));
+}
+
+static value_t _delete(int argc, value_t *args) {
+    if (!IS_LIST(args[0]))
+        runtime_throw("first argument has to be a list.");
+    if (!IS_INT(args[1]))
+        runtime_throw("second argument has to be an int.");
+
+    list_t *list = AS_LIST(args[0]);
+    int index = AS_INT(args[1]);
+
+    if (!list_is_valid_index(list, index))
+        return BOOL_VAL(false);
+
+    return BOOL_VAL(list_delete(list, index));
+}
+
+static value_t _strtobuf(int argc, value_t *args) {
+    if (!IS_STRING(args[0]))
+        runtime_throw("argument needs to be a string.");
+    char *source = AS_CSTRING(args[0]);
+    list_t *result = new_list();
+
+    for (int i = 0; i < strlen(source); i++) {
+        list_append(result, OBJ_VAL(copy_string(&source[i], 1)));
+    }
+
+    return OBJ_VAL(result);
+}
 
 static value_t _fread(int argc, value_t *args) {
     char *path = AS_CSTRING(args[0]);
@@ -49,7 +86,13 @@ static value_t _clock(int argc, value_t *args) {
 }
 
 void register_natives(define_native_func define) {
-    define("clock",   _clock,   0);
-    define("fread",   _fread,   1);
+    // GENERAL
+    define("clock",    _clock,    0);
+    define("fread",    _fread,    1);
+
+    // LIST
+    define("strtobuf", _strtobuf, 1);
+    define("append",   _append,   2);
+    define("delete",   _delete,   2);
 
 }
