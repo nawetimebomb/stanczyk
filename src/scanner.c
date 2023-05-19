@@ -147,9 +147,10 @@ static token_t number() {
     if (peek() == '.' && is_digit(peek_next())) {
         advance();
         while (is_digit(peek())) advance();
+        return make_token(TOKEN_FLOAT);
+    } else {
+        return make_token(TOKEN_INT);
     }
-
-    return make_token(TOKEN_NUMBER);
 }
 
 static token_t string() {

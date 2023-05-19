@@ -139,15 +139,37 @@ static interpret_result_t run() {
 #define READ_SHORT() (frame->ip += 2, (uint16_t)((frame->ip[-2] << 8) | frame->ip[-1]))
 #define READ_CONSTANT() (frame->procedure->chunk.constants.values[READ_BYTE()])
 #define READ_STRING()   AS_STRING(READ_CONSTANT())
-#define BINARY_OP(value_type, op)                           \
+    // TODO: The below is not the best approach I can have but  I need something
+    // quick that works... Evaluating to double here will let me do both operations
+    // with the caveat that I lose a few bits of ints possible and I will overflow earlier.
+#define BINARY_OP(expect_type, op)                              \
+    do {                                                        \
+        if (!IS_NUMBER(peek(0)) || !IS_NUMBER(peek(1))) {       \
+            runtime_error("operands must be numbers.");         \
+            return INTERPRET_RUNTIME_ERROR;                     \
+        }                                                       \
+        value_type_t transform = expect_type;                   \
+        transform = (IS_FLOAT(peek(0)) || IS_FLOAT(peek(1)))    \
+            ? VAL_FLOAT : VAL_INT;                              \
+        double b = IS_FLOAT(peek(0)) ?                          \
+            AS_FLOAT(pop()) : (double)AS_INT(pop());            \
+        double a = IS_FLOAT(peek(0)) ?                          \
+            AS_FLOAT(pop()) : (double)AS_INT(pop());            \
+        value_t result = (transform == VAL_FLOAT) ?             \
+            FLOAT_VAL(a op b) : INT_VAL((long)a op (long)b);    \
+        push(result);                                           \
+    } while (false)
+#define BINARY_OP_BOOL(op)                                  \
     do {                                                    \
         if (!IS_NUMBER(peek(0)) || !IS_NUMBER(peek(1))) {   \
             runtime_error("operands must be numbers.");     \
             return INTERPRET_RUNTIME_ERROR;                 \
         }                                                   \
-        double b = AS_NUMBER(pop());                        \
-        double a = AS_NUMBER(pop());                        \
-        push (value_type(a op b));                          \
+        double b = IS_FLOAT(peek(0)) ?                      \
+            AS_FLOAT(pop()) : (double)AS_INT(pop());        \
+        double a = IS_FLOAT(peek(0)) ?                      \
+            AS_FLOAT(pop()) : (double)AS_INT(pop());        \
+        push(BOOL_VAL(a op b));                             \
     } while (false)
 
     for (;;) {
@@ -210,8 +232,22 @@ static interpret_result_t run() {
                 value_t a = pop();
                 push(BOOL_VAL(values_equal(a, b)));
             } break;
-            case OP_GREATER:  BINARY_OP(BOOL_VAL, >); break;
-            case OP_LESS:     BINARY_OP(BOOL_VAL, <); break;
+            case OP_GREATER: {
+                if (IS_NUMBER(peek(0)) && IS_NUMBER(peek(1))) {
+                    BINARY_OP_BOOL(>);
+                } else {
+                    runtime_error("operands are not the same type.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+            } break;
+            case OP_LESS: {
+                if (IS_NUMBER(peek(0)) && IS_NUMBER(peek(1))) {
+                    BINARY_OP_BOOL(<);
+                } else {
+                    runtime_error("operands are not the same type.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+            } break;
             case OP_AND: {
                 if (IS_BOOL(peek(0)) && IS_BOOL(peek(1))) {
                     bool b = AS_BOOL(pop());
@@ -236,20 +272,43 @@ static interpret_result_t run() {
                 if (IS_STRING(peek(0)) && IS_STRING(peek(1))) {
                     concatenate();
                 } else if (IS_NUMBER(peek(0)) && IS_NUMBER(peek(1))) {
-                    double b = AS_NUMBER(pop());
-                    double a = AS_NUMBER(pop());
-                    push(NUMBER_VAL(a + b));
+                    BINARY_OP(VAL_INT, +);
                 } else {
-                    runtime_error("operands must be same type and can only be numbers or strings.");
+                    runtime_error("operands must be int, float or string.");
                     return INTERPRET_RUNTIME_ERROR;
                 }
             } break;
-            case OP_SUBTRACT: BINARY_OP(NUMBER_VAL, -); break;
-            case OP_MULTIPLY: BINARY_OP(NUMBER_VAL, *); break;
-            case OP_DIVIDE:   BINARY_OP(NUMBER_VAL, /); break;
+            case OP_SUBTRACT: {
+                if (IS_NUMBER(peek(0)) && IS_NUMBER(peek(1))) {
+                    BINARY_OP(VAL_INT, -);
+                } else {
+                    runtime_error("operands must be int or float.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+            } break;
+            case OP_MULTIPLY: {
+                if (IS_NUMBER(peek(0)) && IS_NUMBER(peek(1))) {
+                    BINARY_OP(VAL_INT, *);
+                } else {
+                    runtime_error("operands must be int or float.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+            } break;
+            case OP_DIVIDE: {
+                if (IS_NUMBER(peek(0)) && IS_NUMBER(peek(1))) {
+                    BINARY_OP(VAL_INT, /);
+                } else {
+                    runtime_error("operands must be int or float.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+            } break;
             case OP_NEGATE: {
                 if (IS_NUMBER(peek(0))) {
-                    push(NUMBER_VAL(-AS_NUMBER(pop())));
+                    if (IS_INT(peek(0))) {
+                        push(INT_VAL(-AS_INT(pop())));
+                    } else {
+                        push(FLOAT_VAL(-AS_FLOAT(pop())));
+                    }
                 } else if (IS_BOOL(peek(0)) || IS_NIL(peek(0))) {
                     push(BOOL_VAL(is_falsey(pop()))); break;
                 } else {
@@ -309,6 +368,7 @@ static interpret_result_t run() {
 #undef READ_CONSTANT
 #undef READ_STRING
 #undef BINARY_OP
+#undef BINARY_OP_BOOL
 }
 
 void push(value_t value) {
