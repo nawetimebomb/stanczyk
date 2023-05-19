@@ -33,6 +33,7 @@ typedef enum {
     INTERPRET_RUNTIME_ERROR
 } interpret_result_t;
 
+void runtime_throw(const char *format);
 void init_VM();
 void free_VM();
 void push(value_t value);

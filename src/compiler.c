@@ -643,7 +643,31 @@ static void _return() {
 }
 
 static void _list() {
+    int count = 0;
 
+    if (!check(TOKEN_RIGHT_BRACKET)) {
+        do {
+            while (!check(TOKEN_COMMA) && !check(TOKEN_EOF) && !check(TOKEN_RIGHT_BRACKET))
+                expression();
+
+            if (count == 255)
+                error("cannot have more than 255 items");
+
+            count++;
+        } while (match(TOKEN_COMMA));
+    }
+
+    consume(TOKEN_RIGHT_BRACKET, "expect ']' after list literal.");
+    emit_bytes(OP_LIST_CREATE, count);
+}
+
+static void _access() {
+    while (!check(TOKEN_EOF) && !check(TOKEN_RIGHT_BRACKET))
+        expression();
+
+    consume(TOKEN_RIGHT_BRACKET, "expect ']' after index.");
+
+    emit_byte(OP_LIST_GET_INDEX);
 }
 
 parse_rule_t rules[] = {
@@ -651,7 +675,7 @@ parse_rule_t rules[] = {
     [TOKEN_RIGHT_PAREN]   = {NULL,        NULL,       PREC_NONE},
     [TOKEN_LEFT_BRACE]    = {_loop,       NULL,       PREC_NONE},
     [TOKEN_RIGHT_BRACE]   = {NULL,        NULL,       PREC_NONE},
-    [TOKEN_LEFT_BRACKET]  = {_list,       NULL,       PREC_NONE},
+    [TOKEN_LEFT_BRACKET]  = {_list,       _access,    PREC_PRIMARY},
     [TOKEN_RIGHT_BRACKET] = {NULL,        NULL,       PREC_NONE},
     [TOKEN_COMMA]         = {NULL,        NULL,       PREC_NONE},
     [TOKEN_EQUAL]         = {_assign,     NULL,       PREC_NONE},
