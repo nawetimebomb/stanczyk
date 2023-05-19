@@ -64,12 +64,23 @@ struct compiler_t {
 
 parser_t parser;
 compiler_t *current = NULL;
-chunk_t *compiling_chunk;
 
+/*
+ *    __ __    __
+ *   / // /__ / /__  ___ _______
+ *  / _  / -_) / _ \/ -_) __(_-<
+ * /_//_/\__/_/ .__/\__/_/ /___/
+ *         /_/
+ * Functions that change the state of the compiler. Move through the
+ * parsed code, open/close compiler instances and erroring.
+ */
+
+// Returns the chunk of code from the procedure that is compiling at this time.
 static chunk_t *current_chunk() {
     return &current->procedure->chunk;
 }
 
+// Throws an error at a specific column in the code.
 static void error_at(token_t *token, const char *message) {
     if (parser.panic) return;
     parser.panic = true;
@@ -87,14 +98,17 @@ static void error_at(token_t *token, const char *message) {
     parser.erred = true;
 }
 
+// Helper function to error out on the specific token to be compiled
 static void error(const char *message) {
     error_at(&parser.previous, message);
 }
 
+// Helper function to error out on the next token to be compiled.
 static void error_at_current(const char *message) {
     error_at(&parser.current, message);
 }
 
+// Move through the code and get the token from the scanner.
 static void advance() {
     parser.previous = parser.current;
 
@@ -106,6 +120,9 @@ static void advance() {
     }
 }
 
+// If the next token in the code matches the argument `type`, consume it and
+// continue. If it doesn't match, throw an error.
+// Used in expected tokens (E.g. `.` at the end of a block statement).
 static void consume(token_type_t type, const char *message) {
     if (parser.current.type == type) {
         advance();
@@ -115,30 +132,37 @@ static void consume(token_type_t type, const char *message) {
     error_at_current(message);
 }
 
+// Check if the next token matches the type. Returns true or false.
 static bool check(token_type_t type) {
     return parser.current.type == type;
 }
 
+// Check if the next token matches the type. If it matches, it will consume
+// that token. Returns true or false.
 static bool match(token_type_t type) {
     if (!check(type)) return false;
     advance();
     return true;
 }
 
+// Emit single byte code
 static void emit_byte(uint8_t byte) {
     write_chunk(current_chunk(), byte, parser.previous.line);
 }
 
+// Emit double byte code
 static void emit_bytes(uint8_t b1, uint8_t b2) {
     emit_byte(b1);
     emit_byte(b2);
 }
 
+// Emit usual return byte code after compiling (implicit `nil`)
 static void emit_return() {
     emit_byte(OP_NIL);
     emit_byte(OP_RETURN);
 }
 
+// Creates an 8-bit constant value
 static uint8_t make_constant(value_t value) {
     int constant = add_constant(current_chunk(), value);
     if (constant > UINT8_MAX) {
@@ -149,78 +173,19 @@ static uint8_t make_constant(value_t value) {
     return (uint8_t)constant;
 }
 
-static void emit_constant(value_t value) {
-    emit_bytes(OP_CONSTANT, make_constant(value));
-}
-
+// Creates a constant value for a string in symbols
 static uint8_t symbol_constant(token_t *name) {
     return make_constant(OBJ_VAL(copy_string(name->start, name->length)));
 }
 
-static bool symbols_are_equal(token_t *a, token_t *b) {
-    if (a->length != b->length) return false;
-    return memcmp(a->start, b->start, a->length) == 0;
+// Emit the constant operation and constant value
+static void emit_constant(value_t value) {
+    emit_bytes(OP_CONSTANT, make_constant(value));
 }
 
-static int resolve_local(compiler_t *compiler, token_t *name) {
-    for (int i = compiler->local_count - 1; i >= 0; i--) {
-        local_t *local = &compiler->locals[i];
-        if (symbols_are_equal(name, &local->name)) {
-            if (local->depth == -1)
-                error("local symbol has not been initialized");
-            return i;
-        }
-    }
-    return -1;
-}
-
-static void add_local(token_t name) {
-    if (current->local_count == UINT8_COUNT) {
-        error("stack overflow. Too many local symbols declared in scope.");
-        return;
-    }
-
-    local_t *local = &current->locals[current->local_count++];
-    local->name = name;
-    local->depth = -1;
-}
-
-static void declare_symbol() {
-    // If it's a global, we go for the global route, so we skip from here.
-    if (current->scope_depth == 0) return;
-
-    token_t *name = &parser.previous;
-    for (int i = current->local_count - 1; i >= 0; i--) {
-        local_t *local = &current->locals[i];
-        if (local->depth != -1 && local->depth < current->scope_depth) break;
-
-        if (symbols_are_equal(name, &local->name))
-            error("a symbol with this name already exists in scope.");
-    }
-    add_local(*name);
-}
-
-static void define_symbol(uint8_t global) {
-    //  We exit from here if the symbol is local
-    if (current->scope_depth > 0) {
-        current->locals[current->local_count - 1].depth = current->scope_depth;
-        return;
-    }
-
-    emit_bytes(OP_DEFINE_GLOBAL, global);
-}
-
-static uint8_t parse_symbol(const char *error_message) {
-    consume(TOKEN_SYMBOL, error_message);
-
-    declare_symbol();
-    // If it's in a block, we escape from here, symbol was already declared above.
-    if (current->scope_depth > 0) return 0;
-
-    // If not, we go global.
-    return symbol_constant(&parser.previous);
-}
-
+// Initialize the compiler(s). Since we compile procedures in the language, we
+// open a compiler for each procedure and set the name of the procedure created
+// by the user here (in case the procedure is not the top-level <PROGRAM> one)
 static void init_compiler(compiler_t *compiler, procedure_type_t type) {
     compiler->enclosing = current;
     compiler->procedure = NULL;
@@ -239,6 +204,7 @@ static void init_compiler(compiler_t *compiler, procedure_type_t type) {
     local->name.length = 0;
 }
 
+// Close the compiler at hand and return the procedure generated on this compiler pass.
 static procedure_t *end_compiler() {
     emit_return();
     procedure_t *procedure = current->procedure;
@@ -253,10 +219,85 @@ static procedure_t *end_compiler() {
     return procedure;
 }
 
+// Compare two symbols
+static bool symbols_are_equal(token_t *a, token_t *b) {
+    if (a->length != b->length) return false;
+    return memcmp(a->start, b->start, a->length) == 0;
+}
+
+// Resolves symbols in local scope. Returns -1 if not found
+static int resolve_local(compiler_t *compiler, token_t *name) {
+    for (int i = compiler->local_count - 1; i >= 0; i--) {
+        local_t *local = &compiler->locals[i];
+        if (symbols_are_equal(name, &local->name)) {
+            if (local->depth == -1)
+                error("local symbol has not been initialized");
+            return i;
+        }
+    }
+    return -1;
+}
+
+// Lexical binding of the local variable
+static void add_local(token_t name) {
+    if (current->local_count == UINT8_COUNT) {
+        error("stack overflow. Too many local symbols declared in scope.");
+        return;
+    }
+
+    local_t *local = &current->locals[current->local_count++];
+    local->name = name;
+    local->depth = -1;
+}
+
+// Declares a symbol on the current scope. If the current scope is global (0),
+// skip and continue in define_symbol.
+static void declare_symbol() {
+    if (current->scope_depth == 0) return;
+
+    token_t *name = &parser.previous;
+    for (int i = current->local_count - 1; i >= 0; i--) {
+        local_t *local = &current->locals[i];
+        if (local->depth != -1 && local->depth < current->scope_depth) break;
+
+        if (symbols_are_equal(name, &local->name))
+            error("a symbol with this name already exists in scope.");
+    }
+
+    add_local(*name);
+}
+
+// Defiens a global symbol. If it's not global but it wasn't not initialized, we
+// mark it as initialized (adding the correct depth of the scope).
+static void define_symbol(uint8_t global) {
+    if (current->scope_depth > 0) {
+        current->locals[current->local_count - 1].depth = current->scope_depth;
+        return;
+    }
+
+    emit_bytes(OP_DEFINE_GLOBAL, global);
+}
+
+// Consume the next symbol in the parser, declare it (if it's local). If
+// declare_symbol doesn't short-circuit, it means we're in a local scope. So
+// then we leave from here because at that point the local variable is defined.
+// However, if declare_symbol short-circuits, then we go and get the constant
+// value for the symbol to be defined correctly.
+static uint8_t parse_symbol(const char *error_message) {
+    consume(TOKEN_SYMBOL, error_message);
+
+    declare_symbol();
+    if (current->scope_depth > 0) return 0;
+    return symbol_constant(&parser.previous);
+}
+
+// Go deeper into the block scope. Useful for opening scopes for procedures, if/else,
+// and other general blocks.
 static void begin_scope() {
     current->scope_depth++;
 }
 
+// Get out of the block scope and clean up all the variables created on that scope.
 static void end_scope() {
     current->scope_depth--;
 
@@ -271,15 +312,24 @@ static void end_scope() {
     }
 }
 
+/*
+ *
+ *   _____                _ __     __  _
+ *  / ___/__  __ _  ___  (_) /__ _/ /_(_)__  ___
+ * / /__/ _ \/  ' \/ _ \/ / / _ `/ __/ / _ \/ _ \
+ * \___/\___/_/_/_/ .__/_/_/\_,_/\__/_/\___/_//_/
+ *               /_/
+ * Functions that compile each expression and statement in the language
+ */
+
+// Forward-declaring recursive methods.
 static void expression();
 static parse_rule_t *get_rule(token_type_t type);
 static void parse_precedence(precedence_t precedence);
 
 static void block() {
-    while(!check(TOKEN_DOT) && !check(TOKEN_EOF)) {
+    while(!check(TOKEN_DOT) && !check(TOKEN_EOF))
         expression();
-    }
-
     consume(TOKEN_DOT, "expect '.' to end block");
 }
 
@@ -311,44 +361,34 @@ static void _unary() {
     emit_byte(OP_NEGATE);
 }
 
-static void binary() {
+static void _binary() {
     token_type_t operator_type = parser.previous.type;
 
     switch (operator_type) {
-        case TOKEN_BANG_EQUAL:
-            emit_bytes(OP_EQUAL, OP_NEGATE); break;
-        case TOKEN_EQUAL_EQUAL:
-            emit_byte(OP_EQUAL); break;
-        case TOKEN_GREATER:
-            emit_byte(OP_GREATER); break;
-        case TOKEN_GREATER_EQUAL:
-            emit_bytes(OP_LESS, OP_NEGATE); break;
-        case TOKEN_LESS:
-            emit_byte(OP_LESS); break;
-        case TOKEN_LESS_EQUAL:
-            emit_bytes(OP_GREATER, OP_NEGATE); break;
-        case TOKEN_PLUS:
-            emit_byte(OP_ADD); break;
-        case TOKEN_MINUS:
-            emit_byte(OP_SUBTRACT); break;
-        case TOKEN_STAR:
-            emit_byte(OP_MULTIPLY); break;
-        case TOKEN_SLASH:
-            emit_byte(OP_DIVIDE); break;
+        case TOKEN_BANG_EQUAL:    emit_bytes(OP_EQUAL, OP_NEGATE);   break;
+        case TOKEN_EQUAL_EQUAL:   emit_byte(OP_EQUAL);               break;
+        case TOKEN_GREATER:       emit_byte(OP_GREATER);             break;
+        case TOKEN_GREATER_EQUAL: emit_bytes(OP_LESS, OP_NEGATE);    break;
+        case TOKEN_LESS:          emit_byte(OP_LESS);                break;
+        case TOKEN_LESS_EQUAL:    emit_bytes(OP_GREATER, OP_NEGATE); break;
+        case TOKEN_PLUS:          emit_byte(OP_ADD);                 break;
+        case TOKEN_MINUS:         emit_byte(OP_SUBTRACT);            break;
+        case TOKEN_STAR:          emit_byte(OP_MULTIPLY);            break;
+        case TOKEN_SLASH:         emit_byte(OP_DIVIDE);              break;
         default: return;
     }
 }
 
-static void literal() {
+static void _lit() {
     switch (parser.previous.type) {
         case TOKEN_FALSE: emit_byte(OP_FALSE); break;
-        case TOKEN_NIL:   emit_byte(OP_NIL); break;
-        case TOKEN_TRUE:  emit_byte(OP_TRUE); break;
+        case TOKEN_NIL:   emit_byte(OP_NIL);   break;
+        case TOKEN_TRUE:  emit_byte(OP_TRUE);  break;
         default: return;
     }
 }
 
-static void grouping() {
+static void _group() {
     while (!check(TOKEN_RIGHT_PAREN) && !check(TOKEN_EOF))
         expression();
     consume(TOKEN_RIGHT_PAREN, "Expect ')' after expression.");
@@ -391,7 +431,7 @@ static void named_symbol(token_t name, bool assignment) {
     emit_bytes(assignment ? set_op : get_op, (uint8_t)arg);
 }
 
-static void symbol() {
+static void _symbol() {
     named_symbol(parser.previous, false);
 }
 
@@ -411,18 +451,30 @@ static void _stmt()  {
     }
 }
 
-static void _symbol_declare() {
-    uint8_t symbol = parse_symbol("expect symbol name after ':='");
-
+// TODO: Add description to this and all the other methods, good documentation
+// of these functions will help me go through this in the future.
+// This function basically gets the next expression happening while defining or
+// assigning something to a symbol.
+static void find_and_emit_value() {
     if (match(TOKEN_DOT)) {
         emit_byte(OP_NIL);
     } else {
-        while(!check(TOKEN_DOT) && !check(TOKEN_EOF)) {
+        while(!check(TOKEN_DOT) && !check(TOKEN_EOF))
             expression();
-        }
         consume(TOKEN_DOT, "expect '.' after symbol declaration.");
     }
+}
 
+static void _assign() {
+    consume(TOKEN_SYMBOL, "expect symbol name after '='");
+    token_t name = parser.previous;
+    find_and_emit_value();
+    named_symbol(name, true);
+}
+
+static void _symbol_declare() {
+    uint8_t symbol = parse_symbol("expect symbol name after ':='");
+    find_and_emit_value();
     define_symbol(symbol);
 }
 
@@ -441,25 +493,9 @@ static void _declare() {
         _procedure_declare();
     } else {
         error("failed to declare symbol or procedure.");
-        error("missing `=` or `:`.");
+        error("missing '=' or ':'.");
         return;
     }
-}
-
-static void assignment() {
-    consume(TOKEN_SYMBOL, "expect symbol name after \"=\"");
-    token_t name = parser.previous;
-
-    if (match(TOKEN_DOT)) {
-        emit_byte(OP_NIL);
-    } else {
-        while(!check(TOKEN_DOT) && !check(TOKEN_EOF)) {
-            expression();
-        }
-        consume(TOKEN_DOT, "expect '.' after symbol assignment.");
-    }
-
-    named_symbol(name, true);
 }
 
 static int emit_jump(uint8_t instruction) {
@@ -532,13 +568,13 @@ static void _loop() {
     loop_start = current_chunk()->count;
     quit_jump = -1;
 
-    if (match(TOKEN_RIGHT_BRACKET)) {
+    if (match(TOKEN_RIGHT_BRACE)) {
         // implicit true for infinite loops
         emit_byte(OP_TRUE);
     } else {
-        while (!check(TOKEN_RIGHT_BRACKET) && !check(TOKEN_EOF))
+        while (!check(TOKEN_RIGHT_BRACE) && !check(TOKEN_EOF))
             expression();
-        consume(TOKEN_RIGHT_BRACKET, "expect '}' at the end of conditionals for loop");
+        consume(TOKEN_RIGHT_BRACE, "expect '}' at the end of conditionals for loop");
     }
 
     consume(TOKEN_DO, "expect 'do' at the start of the loop");
@@ -606,31 +642,37 @@ static void _return() {
     emit_byte(OP_RETURN);
 }
 
+static void _list() {
+
+}
+
 parse_rule_t rules[] = {
-    [TOKEN_LEFT_PAREN]    = {grouping,    _call,      PREC_CALL},
+    [TOKEN_LEFT_PAREN]    = {_group,      _call,      PREC_CALL},
     [TOKEN_RIGHT_PAREN]   = {NULL,        NULL,       PREC_NONE},
-    [TOKEN_LEFT_BRACKET]  = {_loop,       NULL,       PREC_NONE},
+    [TOKEN_LEFT_BRACE]    = {_loop,       NULL,       PREC_NONE},
+    [TOKEN_RIGHT_BRACE]   = {NULL,        NULL,       PREC_NONE},
+    [TOKEN_LEFT_BRACKET]  = {_list,       NULL,       PREC_NONE},
     [TOKEN_RIGHT_BRACKET] = {NULL,        NULL,       PREC_NONE},
     [TOKEN_COMMA]         = {NULL,        NULL,       PREC_NONE},
-    [TOKEN_EQUAL]         = {assignment,  NULL,       PREC_NONE},
+    [TOKEN_EQUAL]         = {_assign,     NULL,       PREC_NONE},
     [TOKEN_COLON]         = {_declare,    NULL,       PREC_NONE},
-    [TOKEN_MINUS]         = {NULL,        binary,     PREC_TERM},
-    [TOKEN_PLUS]          = {NULL,        binary,     PREC_TERM},
-    [TOKEN_SLASH]         = {NULL,        binary,     PREC_FACTOR},
-    [TOKEN_STAR]          = {NULL,        binary,     PREC_FACTOR},
-    [TOKEN_BANG_EQUAL]    = {NULL,        binary,     PREC_EQUALITY},
-    [TOKEN_EQUAL_EQUAL]   = {NULL,        binary,     PREC_EQUALITY},
-    [TOKEN_GREATER]       = {NULL,        binary,     PREC_EQUALITY},
-    [TOKEN_GREATER_EQUAL] = {NULL,        binary,     PREC_EQUALITY},
-    [TOKEN_LESS]          = {NULL,        binary,     PREC_EQUALITY},
-    [TOKEN_LESS_EQUAL]    = {NULL,        binary,     PREC_EQUALITY},
-    [TOKEN_SYMBOL]        = {symbol,      NULL,       PREC_NONE},
+    [TOKEN_MINUS]         = {NULL,        _binary,    PREC_TERM},
+    [TOKEN_PLUS]          = {NULL,        _binary,    PREC_TERM},
+    [TOKEN_SLASH]         = {NULL,        _binary,    PREC_FACTOR},
+    [TOKEN_STAR]          = {NULL,        _binary,    PREC_FACTOR},
+    [TOKEN_BANG_EQUAL]    = {NULL,        _binary,    PREC_EQUALITY},
+    [TOKEN_EQUAL_EQUAL]   = {NULL,        _binary,    PREC_EQUALITY},
+    [TOKEN_GREATER]       = {NULL,        _binary,    PREC_EQUALITY},
+    [TOKEN_GREATER_EQUAL] = {NULL,        _binary,    PREC_EQUALITY},
+    [TOKEN_LESS]          = {NULL,        _binary,    PREC_EQUALITY},
+    [TOKEN_LESS_EQUAL]    = {NULL,        _binary,    PREC_EQUALITY},
+    [TOKEN_SYMBOL]        = {_symbol,     NULL,       PREC_NONE},
     [TOKEN_STRING]        = {_string,     NULL,       PREC_NONE},
     [TOKEN_FLOAT]         = {_number,     NULL,       PREC_NONE},
     [TOKEN_INT]           = {_number,     NULL,       PREC_NONE},
-    [TOKEN_FALSE]         = {literal,     literal,    PREC_EXPRESSION},
-    [TOKEN_TRUE]          = {literal,     literal,    PREC_EXPRESSION},
-    [TOKEN_NIL]           = {literal,     literal,    PREC_EXPRESSION},
+    [TOKEN_FALSE]         = {_lit,        NULL,       PREC_NONE},
+    [TOKEN_TRUE]          = {_lit,        NULL,       PREC_NONE},
+    [TOKEN_NIL]           = {_lit,        NULL,       PREC_NONE},
     [TOKEN_IF]            = {_if,         NULL,       PREC_NONE},
     [TOKEN_ELSE]          = {NULL,        NULL,       PREC_NONE},
     [TOKEN_AND]           = {NULL,        _logical,   PREC_AND},
@@ -647,6 +689,10 @@ parse_rule_t rules[] = {
     [TOKEN_EOF]           = {NULL,        NULL,       PREC_NONE}
 };
 
+// TODO: This is using Vaughan Pratt's top-down operator precedence parser
+// method, but technically we don't need it. MAYBE: Find a better parser that
+// works well with reverse polish notation, since at the time we generate the
+// bytecode, our language pretty much is following the same structure.
 static void parse_precedence(precedence_t precedence) {
     advance();
     parse_fn prefix_rule = get_rule(parser.previous.type)->prefix;

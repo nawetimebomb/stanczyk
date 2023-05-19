@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
-#include <time.h>
 
 #include "chunk.h"
 #include "common.h"
@@ -321,6 +320,13 @@ static interpret_result_t run() {
                 printf("\n");
             } break;
             case OP_DROP: pop(); break;
+            case OP_DROPN: {
+                int total = AS_INT(pop());
+                while (--total)
+                    pop();
+                // for (int i = 0; i < total; i++)
+                //     pop();
+            } break;
             case OP_DUP: push(peek(0)); break;
             case OP_JUMP_IF_FALSE: {
                 uint16_t offset = READ_SHORT();

@@ -178,8 +178,10 @@ token_t scan_token() {
     switch (c) {
         case '(': return make_token(TOKEN_LEFT_PAREN);
         case ')': return make_token(TOKEN_RIGHT_PAREN);
-        case '{': return make_token(TOKEN_LEFT_BRACKET);
-        case '}': return make_token(TOKEN_RIGHT_BRACKET);
+        case '{': return make_token(TOKEN_LEFT_BRACE);
+        case '}': return make_token(TOKEN_RIGHT_BRACE);
+        case '[': return make_token(TOKEN_LEFT_BRACKET);
+        case ']': return make_token(TOKEN_RIGHT_BRACKET);
         case ':': return make_token(TOKEN_COLON);
         case ',': return make_token(TOKEN_COMMA);
         case '.': return make_token(TOKEN_DOT);
