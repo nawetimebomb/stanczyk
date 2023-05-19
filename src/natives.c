@@ -22,21 +22,34 @@ static value_t _fread(int argc, value_t *args) {
     size_t file_size = ftell(file);
     rewind(file);
 
-    char *buffer = (char *)malloc(file_size + 1);
+    char *buffer = (char *)malloc(file_size);
+    if (buffer == NULL) {
+        fprintf(stderr, "not enough memory to read file '%s'", path);
+        return NIL_VAL;
+    }
+
     size_t bytes_read = fread(buffer, sizeof(char), file_size, file);
-    buffer[bytes_read] = '\0';
-    value_t fcontents = OBJ_VAL(copy_string(buffer, file_size + 1));
+    if (bytes_read < file_size) {
+        fprintf(stderr, "could not read file \"%s\".\n", path);
+        return NIL_VAL;
+    }
+
+    if (buffer[file_size - 1] == 10)
+        file_size--;
+
+    value_t result = OBJ_VAL(copy_string(buffer, file_size));
     fclose(file);
     free(buffer);
 
-    return fcontents;
+    return result;
 }
 
 static value_t _clock(int argc, value_t *args) {
-    return NUMBER_VAL((double)clock() / CLOCKS_PER_SEC);
+    return FLOAT_VAL((double)clock() / CLOCKS_PER_SEC);
 }
 
 void register_natives(define_native_func define) {
-    define("clock", _clock, 0);
-    define("fread", _fread, 1);
+    define("clock",   _clock,   0);
+    define("fread",   _fread,   1);
+
 }
