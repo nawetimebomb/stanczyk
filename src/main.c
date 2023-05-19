@@ -30,6 +30,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "common.h"
 #include "chunk.h"
@@ -83,8 +84,35 @@ static char *read_file(const char *path) {
     return buffer;
 }
 
+static char *get_file_directory(const char *path) {
+    int len = strlen(path);
+    char *dir = malloc(len + 1);
+    strcpy(dir, path);
+
+    while (len > 0) {
+        len--;
+        if (dir[len] == '\\' || dir[len] == '/') {
+            dir[len] = '\0';
+            break;
+        }
+    }
+
+    return dir;
+}
+
+static char *get_workspace(const char *path) {
+    char *result = malloc(1024);
+    getcwd(result, 1024);
+    strcat(result, "/");
+    strcat(result, get_file_directory(path));
+
+    return result;
+}
+
 static void run_file(const char *path) {
     char *source = read_file(path);
+    chdir(get_workspace(path));
+
     interpret_result_t result = interpret(source);
     free(source);
 
