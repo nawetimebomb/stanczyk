@@ -10,6 +10,12 @@
 #include "vm.h"
 #include "natives.h"
 
+static value_t _system(int argc, value_t *args) {
+    if (!IS_STRING(args[0]))
+        runtime_throw("system: argument must be a string.");
+    return system(AS_CSTRING(args[0])) ? BOOL_VAL(false) : BOOL_VAL(true);
+}
+
 static value_t _length(int argc, value_t *args) {
     value_t value = args[0];
     if (!IS_LIST(value) && !IS_STRING(value))
@@ -97,6 +103,7 @@ void register_natives(define_native_func define) {
     // GENERAL
     define("clock",    _clock,    0);
     define("fread",    _fread,    1);
+    define("system",   _system,   1);
 
     // LIST
     define("strtobuf", _strtobuf, 1);
