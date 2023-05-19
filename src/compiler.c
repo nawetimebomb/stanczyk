@@ -371,8 +371,7 @@ static void _number() {
 
 }
 
-
-static void string() {
+static void _string() {
     emit_constant(OBJ_VAL(copy_string(parser.previous.start + 1, parser.previous.length - 2)));
 }
 
@@ -625,8 +624,8 @@ parse_rule_t rules[] = {
     [TOKEN_GREATER_EQUAL] = {NULL,        binary,     PREC_EQUALITY},
     [TOKEN_LESS]          = {NULL,        binary,     PREC_EQUALITY},
     [TOKEN_LESS_EQUAL]    = {NULL,        binary,     PREC_EQUALITY},
-    [TOKEN_SYMBOL]        = {symbol,      symbol,     PREC_EXPRESSION},
-    [TOKEN_STRING]        = {string,      string,     PREC_EXPRESSION},
+    [TOKEN_SYMBOL]        = {symbol,      NULL,       PREC_NONE},
+    [TOKEN_STRING]        = {_string,     NULL,       PREC_NONE},
     [TOKEN_FLOAT]         = {_number,     NULL,       PREC_NONE},
     [TOKEN_INT]           = {_number,     NULL,       PREC_NONE},
     [TOKEN_FALSE]         = {literal,     literal,    PREC_EXPRESSION},
