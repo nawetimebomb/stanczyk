@@ -357,8 +357,7 @@ static void procedure(procedure_type_t type) {
     emit_bytes(OP_CONSTANT, make_constant(OBJ_VAL(procedure)));
 }
 
-static void _unary() {
-    parse_precedence(PREC_UNARY);
+static void _neg() {
     emit_byte(OP_NEGATE);
 }
 
@@ -759,7 +758,7 @@ parse_rule_t rules[] = {
     [TOKEN_LESS_GREATER]  = {_stmt,       NULL,       PREC_NONE},
     [TOKEN_GREATER_LESS]  = {_stmt,       NULL,       PREC_NONE},
     [TOKEN_BANG]          = {NULL,        _return,    PREC_CALL},
-    [TOKEN_NEG]           = {_unary,      NULL,       PREC_NONE},
+    [TOKEN_NEG]           = {_neg,        NULL,       PREC_NONE},
     [TOKEN_QUIT]          = {_quit,       NULL,       PREC_NONE},
     [TOKEN_TYPE_LIST]     = {_tdclr,      NULL,       PREC_NONE},
     [TOKEN_TYPE_STRING]   = {_tdclr,      NULL,       PREC_NONE},
