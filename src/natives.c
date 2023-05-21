@@ -19,7 +19,7 @@ static value_t _system(int argc, value_t *args) {
 static value_t _length(int argc, value_t *args) {
     value_t value = args[0];
     if (!IS_LIST(value) && !IS_STRING(value))
-        runtime_throw("length: only only list or strings.");
+        runtime_throw("length: argument must be list or strings.");
 
     return INT_VAL((IS_LIST(value)) ? AS_LIST(value)->count : strlen(AS_CSTRING(value)));
 }
@@ -45,19 +45,6 @@ static value_t _delete(int argc, value_t *args) {
         return BOOL_VAL(false);
 
     return BOOL_VAL(list_delete(list, index));
-}
-
-static value_t _strtobuf(int argc, value_t *args) {
-    if (!IS_STRING(args[0]))
-        runtime_throw("argument needs to be a string.");
-    char *source = AS_CSTRING(args[0]);
-    list_t *result = new_list();
-
-    for (int i = 0; i < strlen(source); i++) {
-        list_append(result, OBJ_VAL(copy_string(&source[i], 1)));
-    }
-
-    return OBJ_VAL(result);
 }
 
 static value_t _fread(int argc, value_t *args) {
@@ -106,7 +93,6 @@ void register_natives(define_native_func define) {
     define("system",   _system,   1);
 
     // LIST
-    define("strtobuf", _strtobuf, 1);
     define("append",   _append,   2);
     define("delete",   _delete,   2);
     define("length",   _length,   1);

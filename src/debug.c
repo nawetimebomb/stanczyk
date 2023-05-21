@@ -119,6 +119,12 @@ int disassemble_instruction(chunk_t *chunk, int offset) {
             return jump_instruction("OP_LOOP", -1, chunk, offset);
         case OP_CALL:
             return byte_instruction("OP_CALL", chunk, offset);
+        case OP_SPLIT:
+            return simple_instruction("OP_SPLIT", offset);
+        case OP_JOIN:
+            return simple_instruction("OP_JOIN", offset);
+        case OP_CAST:
+            return simple_instruction("OP_CAST", offset);
         case OP_RETURN:
             return simple_instruction("OP_RETURN", offset);
         default:
