@@ -36,6 +36,9 @@ typedef enum {
     OP_QUIT,
     OP_LOOP,
     OP_CALL,
+    OP_SPLIT,
+    OP_JOIN,
+    OP_CAST,
     OP_RETURN
 } op_code_t;
 

@@ -108,7 +108,7 @@ static token_type_t symbol_type() {
         case 'd': {
             if (scanner.current - scanner.start > 1) {
                 if (scanner.start[1] == 'o') return TOKEN_DO;
-                switch(scanner.start[1]) {
+                switch (scanner.start[1]) {
                     case 'r': return check_keyword(2, 2, "op", TOKEN_DROP);
                     case 'u': return check_keyword(2, 1, "p", TOKEN_DUP);
                 }
@@ -119,7 +119,7 @@ static token_type_t symbol_type() {
         case 'i': return check_keyword(1, 1, "f", TOKEN_IF);
         case 'n': {
             if (scanner.current - scanner.start > 1) {
-                switch(scanner.start[1]) {
+                switch (scanner.start[1]) {
                     case 'e': return check_keyword(2, 1, "g", TOKEN_NEG);
                     case 'i': return check_keyword(2, 1, "l", TOKEN_NIL);
                 }
@@ -129,13 +129,16 @@ static token_type_t symbol_type() {
         case 'p': return check_keyword(1, 4, "rint", TOKEN_PRINT);
         case 'q': return check_keyword(1, 3, "uit", TOKEN_QUIT);
         case 't': return check_keyword(1, 3, "rue", TOKEN_TRUE);
+        case 'F': return check_keyword(1, 4, "loat", TOKEN_TYPE_FLOAT);
+        case 'I': return check_keyword(1, 2, "nt", TOKEN_TYPE_INT);
+        case 'L': return check_keyword(1, 3, "ist", TOKEN_TYPE_LIST);
+        case 'S': return check_keyword(1, 2, "tr", TOKEN_TYPE_STRING);
     }
 
     return TOKEN_SYMBOL;
 }
 
 static token_t symbol() {
-    // TODO: Add special characters we want to allow in symbol's names
     while (is_alpha(peek()) || is_digit(peek()) || is_allowed_char(peek())) advance();
 
     return make_token(symbol_type());
@@ -147,9 +150,9 @@ static token_t number() {
     if (peek() == '.' && is_digit(peek_next())) {
         advance();
         while (is_digit(peek())) advance();
-        return make_token(TOKEN_FLOAT);
+        return make_token(TOKEN_VALUE_FLOAT);
     } else {
-        return make_token(TOKEN_INT);
+        return make_token(TOKEN_VALUE_INT);
     }
 }
 
@@ -162,7 +165,7 @@ static token_t string() {
     if (is_at_eof()) return error_token("unterminated string.");
 
     advance();
-    return make_token(TOKEN_STRING);
+    return make_token(TOKEN_VALUE_STRING);
 }
 
 token_t scan_token() {
@@ -180,20 +183,49 @@ token_t scan_token() {
         case ')': return make_token(TOKEN_RIGHT_PAREN);
         case '{': return make_token(TOKEN_LEFT_BRACE);
         case '}': return make_token(TOKEN_RIGHT_BRACE);
-        case '[': return make_token(TOKEN_LEFT_BRACKET);
+        case '[': return make_token(match(']') ? TOKEN_DOUBLE_BRACKETS : TOKEN_LEFT_BRACKET);
         case ']': return make_token(TOKEN_RIGHT_BRACKET);
         case ':': return make_token(TOKEN_COLON);
         case ',': return make_token(TOKEN_COMMA);
         case '.': return make_token(TOKEN_DOT);
-        case '-': return make_token(TOKEN_MINUS);
-        case '+': return make_token(TOKEN_PLUS);
+        case '-': {
+            token_type_t token_char = TOKEN_MINUS;
+            if (match('>')) {
+                token_char = TOKEN_RIGHT_ARROW;
+            } else if (match('-')) {
+                token_char = TOKEN_MINUS_MINUS;
+            }
+            return make_token(token_char);
+        }
+        case '+': return make_token(match('+') ? TOKEN_PLUS_PLUS : TOKEN_PLUS);
         case '/': return make_token(TOKEN_SLASH);
         case '*': return make_token(TOKEN_STAR);
         case '!': return make_token(match('=') ? TOKEN_BANG_EQUAL : TOKEN_BANG);
         case '=': return make_token(match('=') ? TOKEN_EQUAL_EQUAL : TOKEN_EQUAL);
-        case '<': return make_token(match('=') ? TOKEN_LESS_EQUAL : TOKEN_LESS);
-        case '>': return make_token(match('=') ? TOKEN_GREATER_EQUAL : TOKEN_GREATER);
-        case '"': return string();
+        case '<': {
+            token_type_t token_char = TOKEN_LESS;
+            if (match('>')) {
+                token_char = TOKEN_LESS_GREATER;
+            } else if (match('=')) {
+                token_char = TOKEN_LESS_EQUAL;
+            }
+            return make_token(token_char);
+        }
+        case '>': {
+            token_type_t token_char = TOKEN_GREATER;
+            if (match('<')) {
+                token_char = TOKEN_GREATER_LESS;
+            } else if (match('=')) {
+                token_char = TOKEN_GREATER_EQUAL;
+            }
+            return make_token(token_char);
+        }
+        case '@': return make_token(TOKEN_AT);
+        case '"': {
+            if (match('"'))
+                return make_token(TOKEN_QUOTES_QUOTES);
+            return string();
+        }
     }
 
     return error_token("unexpected character.");

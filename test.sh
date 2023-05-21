@@ -13,7 +13,6 @@ echo -e $PURPLE
 base64 -d misc/logo.base64
 echo -e $RESET
 
-
 for FILE in tests/*.sk; do
     if [ -f "$FILE" ]; then
         TOTAL=$(($TOTAL + 1))

@@ -9,6 +9,7 @@
 #include "debug.h"
 #include "object.h"
 #include "scanner.h"
+#include "value.h"
 
 #ifdef DEBUG_PRINT_CODE
 #include "debug.h"
@@ -398,11 +399,11 @@ static void _number() {
     token_type_t type = parser.previous.type;
 
     switch (type) {
-        case TOKEN_INT: {
+        case TOKEN_VALUE_INT: {
             long value = strtol(parser.previous.start, NULL, 10);
             emit_constant(INT_VAL(value));
         } break;
-        case TOKEN_FLOAT: {
+        case TOKEN_VALUE_FLOAT: {
             double value = strtod(parser.previous.start, NULL);
             emit_constant(FLOAT_VAL(value));
         } break;
@@ -432,21 +433,36 @@ static void named_symbol(token_t name, bool assignment) {
 }
 
 static void _symbol() {
-    named_symbol(parser.previous, false);
+    token_t name = parser.previous;
+
+    named_symbol(name, false);
+
+    if (match(TOKEN_PLUS_PLUS)) {
+        emit_constant(INT_VAL(1));
+        emit_byte(OP_ADD);
+        named_symbol(name, true);
+    } else if (match(TOKEN_MINUS_MINUS)) {
+        emit_constant(INT_VAL(1));
+        emit_byte(OP_SUBTRACT);
+        named_symbol(name, true);
+    }
 }
 
 static void _stmt()  {
     token_type_t statement_type = parser.previous.type;
 
     switch (statement_type) {
-        case TOKEN_PRINT: emit_byte(OP_PRINT); break;
-        case TOKEN_DROP:  emit_byte(OP_DROP);  break;
-        case TOKEN_DUP:   emit_byte(OP_DUP);   break;
+        case TOKEN_AT:           emit_byte(OP_CAST);  break;
+        case TOKEN_PRINT:        emit_byte(OP_PRINT); break;
         case TOKEN_DO: {
             begin_scope();
             block();
             end_scope();
         } break;
+        case TOKEN_DROP:         emit_byte(OP_DROP);  break;
+        case TOKEN_DUP:          emit_byte(OP_DUP);   break;
+        case TOKEN_LESS_GREATER: emit_byte(OP_SPLIT); break;
+        case TOKEN_GREATER_LESS: emit_byte(OP_JOIN);  break;
         default: return;
     }
 }
@@ -670,12 +686,25 @@ static void _access() {
     emit_byte(OP_LIST_GET_INDEX);
 }
 
+// Type declaration
+static void _tdclr() {
+    token_type_t type = parser.previous.type;
+
+    switch (type) {
+        case TOKEN_TYPE_LIST:   emit_constant(TYPE_DECL_VAL(TYPE_LIST));  break;
+        case TOKEN_TYPE_STRING: emit_constant(TYPE_DECL_VAL(TYPE_STR));   break;
+        case TOKEN_TYPE_FLOAT:  emit_constant(TYPE_DECL_VAL(TYPE_FLOAT)); break;
+        case TOKEN_TYPE_INT:    emit_constant(TYPE_DECL_VAL(TYPE_INT));   break;
+        default: return;
+    }
+}
+
 parse_rule_t rules[] = {
     [TOKEN_LEFT_PAREN]    = {_group,      _call,      PREC_CALL},
     [TOKEN_RIGHT_PAREN]   = {NULL,        NULL,       PREC_NONE},
     [TOKEN_LEFT_BRACE]    = {_loop,       NULL,       PREC_NONE},
     [TOKEN_RIGHT_BRACE]   = {NULL,        NULL,       PREC_NONE},
-    [TOKEN_LEFT_BRACKET]  = {_list,       _access,    PREC_PRIMARY},
+    [TOKEN_LEFT_BRACKET]  = {_list,       _access,    PREC_CALL},
     [TOKEN_RIGHT_BRACKET] = {NULL,        NULL,       PREC_NONE},
     [TOKEN_COMMA]         = {NULL,        NULL,       PREC_NONE},
     [TOKEN_EQUAL]         = {_assign,     NULL,       PREC_NONE},
@@ -691,25 +720,30 @@ parse_rule_t rules[] = {
     [TOKEN_LESS]          = {NULL,        _binary,    PREC_EQUALITY},
     [TOKEN_LESS_EQUAL]    = {NULL,        _binary,    PREC_EQUALITY},
     [TOKEN_SYMBOL]        = {_symbol,     NULL,       PREC_NONE},
-    [TOKEN_STRING]        = {_string,     NULL,       PREC_NONE},
-    [TOKEN_FLOAT]         = {_number,     NULL,       PREC_NONE},
-    [TOKEN_INT]           = {_number,     NULL,       PREC_NONE},
+    [TOKEN_VALUE_STRING]  = {_string,     NULL,       PREC_NONE},
+    [TOKEN_VALUE_FLOAT]   = {_number,     NULL,       PREC_NONE},
+    [TOKEN_VALUE_INT]     = {_number,     NULL,       PREC_NONE},
     [TOKEN_FALSE]         = {_lit,        NULL,       PREC_NONE},
     [TOKEN_TRUE]          = {_lit,        NULL,       PREC_NONE},
     [TOKEN_NIL]           = {_lit,        NULL,       PREC_NONE},
     [TOKEN_IF]            = {_if,         NULL,       PREC_NONE},
-    [TOKEN_ELSE]          = {NULL,        NULL,       PREC_NONE},
     [TOKEN_AND]           = {NULL,        _logical,   PREC_AND},
     [TOKEN_OR]            = {NULL,        _logical,   PREC_OR},
     [TOKEN_DO]            = {_stmt,       NULL,       PREC_NONE},
     [TOKEN_PRINT]         = {_stmt,       NULL,       PREC_NONE},
     [TOKEN_DROP]          = {_stmt,       NULL,       PREC_NONE},
     [TOKEN_DUP]           = {_stmt,       NULL,       PREC_NONE},
+    [TOKEN_AT]            = {_stmt,       NULL,       PREC_NONE},
+    [TOKEN_LESS_GREATER]  = {_stmt,       NULL,       PREC_NONE},
+    [TOKEN_GREATER_LESS]  = {_stmt,       NULL,       PREC_NONE},
     [TOKEN_BANG]          = {NULL,        _return,    PREC_CALL},
     [TOKEN_NEG]           = {_unary,      NULL,       PREC_NONE},
     [TOKEN_QUIT]          = {_quit,       NULL,       PREC_NONE},
+    [TOKEN_TYPE_LIST]     = {_tdclr,      NULL,       PREC_NONE},
+    [TOKEN_TYPE_STRING]   = {_tdclr,      NULL,       PREC_NONE},
+    [TOKEN_TYPE_FLOAT]    = {_tdclr,      NULL,       PREC_NONE},
+    [TOKEN_TYPE_INT]      = {_tdclr,      NULL,       PREC_NONE},
     [TOKEN_ERROR]         = {NULL,        NULL,       PREC_NONE},
-    [TOKEN_DOT]           = {NULL,        NULL,       PREC_NONE},
     [TOKEN_EOF]           = {NULL,        NULL,       PREC_NONE}
 };
 
