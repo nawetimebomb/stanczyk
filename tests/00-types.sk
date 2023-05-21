@@ -1,6 +1,6 @@
 true print
-neg true print
+true neg print
 false print
-neg false print
+false neg print
 nil print
-neg nil print
+nil neg print
