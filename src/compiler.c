@@ -389,12 +389,6 @@ static void _lit() {
     }
 }
 
-static void _group() {
-    while (!check(TOKEN_RIGHT_PAREN) && !check(TOKEN_EOF))
-        expression();
-    consume(TOKEN_RIGHT_PAREN, "Expect ')' after expression.");
-}
-
 static void _number() {
     token_type_t type = parser.previous.type;
 
@@ -579,15 +573,43 @@ static void emit_loop(int loop_start) {
 
 static void _loop() {
     int exit_jump, loop_start, quit_jump;
+    bool omit_declaration = false;
 
     begin_scope();
     loop_start = current_chunk()->count;
     quit_jump = -1;
 
     if (match(TOKEN_RIGHT_BRACE)) {
-        // implicit true for infinite loops
+        // Case 1: Implicit true for infinite loops // {} do
         emit_byte(OP_TRUE);
-    } else {
+        omit_declaration = true;
+    }
+
+    // TODO: This rewrite can be done once I change the algorithm to parse
+    // else if (match(TOKEN_VALUE_INT)) {
+    //     // Take the first number value
+    //     _number();
+    //     // User defined a number for the first parameter, we look into what's next.
+    //     // If it's another number, we continue with the evaluation.
+
+    //     if (match(TOKEN_DOT_DOT)) {
+
+    //     }
+
+    // }
+    // } else if (match(TOKEN_COLON)) {
+    //     // Case 2: Lexical binding of index inside this scope
+    //     consume(TOKEN_EQUAL, "expect '=' for variable definition.");
+
+    //     if (check(TOKEN_SYMBOL)) {
+    //         // The user picked an specific name for the symbol := // {:= myvar 0 3 ==} do
+    //     } else {
+    //         // The user didn't picked an specific name, so we bind 'i' // {:= 0 3 ==}
+
+    //     }
+    // }
+
+    if (!omit_declaration) {
         while (!check(TOKEN_RIGHT_BRACE) && !check(TOKEN_EOF))
             expression();
         consume(TOKEN_RIGHT_BRACE, "expect '}' at the end of conditionals for loop");
@@ -700,7 +722,7 @@ static void _tdclr() {
 }
 
 parse_rule_t rules[] = {
-    [TOKEN_LEFT_PAREN]    = {_group,      _call,      PREC_CALL},
+    [TOKEN_LEFT_PAREN]    = {NULL,        _call,      PREC_CALL},
     [TOKEN_RIGHT_PAREN]   = {NULL,        NULL,       PREC_NONE},
     [TOKEN_LEFT_BRACE]    = {_loop,       NULL,       PREC_NONE},
     [TOKEN_RIGHT_BRACE]   = {NULL,        NULL,       PREC_NONE},

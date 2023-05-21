@@ -187,7 +187,7 @@ token_t scan_token() {
         case ']': return make_token(TOKEN_RIGHT_BRACKET);
         case ':': return make_token(TOKEN_COLON);
         case ',': return make_token(TOKEN_COMMA);
-        case '.': return make_token(TOKEN_DOT);
+        case '.': return make_token(match('.') ? TOKEN_DOT_DOT : TOKEN_DOT);
         case '-': {
             token_type_t token_char = TOKEN_MINUS;
             if (match('>')) {
