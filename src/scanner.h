@@ -34,6 +34,7 @@ typedef enum {
     TOKEN_RIGHT_ARROW,
     TOKEN_LESS_GREATER,
     TOKEN_GREATER_LESS,
+    TOKEN_DOT_DOT,
 
     // Types
     TOKEN_TYPE_LIST,
