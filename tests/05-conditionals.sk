@@ -1,35 +1,37 @@
 := ZERO 0 .
-:= ONE 1 .
-:= TWO 2 .
+:= ONE  1 .
+:= TWO  2 .
 
-ZERO ONE == if
-    "if" print
-else
+:: main () do
+	ZERO ONE == if
+  	"if" print
+  else
     "else" print
-.
+  .
 
-ZERO ONE < if
+  ZERO ONE < if
     "if" print
-else
+  else
     "else" print
-.
+  .
 
-ONE TWO > if
+  ONE TWO > if
     "if" print
-else
+  else
     "else" print
-.
+  .
 
-ONE ZERO <
-ZERO TWO < or if
+  ONE ZERO <
+  ZERO TWO < or if
     "if" print
-else
+  else
     "else" print
-.
+  .
 
-ONE ZERO <
-ZERO TWO < and if
+  ONE ZERO <
+  ZERO TWO < and if
     "if" print
-else
+  else
     "else" print
+  .
 .

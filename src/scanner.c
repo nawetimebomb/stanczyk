@@ -221,11 +221,7 @@ token_t scan_token() {
             return make_token(token_char);
         }
         case '@': return make_token(TOKEN_AT);
-        case '"': {
-            if (match('"'))
-                return make_token(TOKEN_QUOTES_QUOTES);
-            return string();
-        }
+        case '"': return string();
     }
 
     return error_token("unexpected character.");

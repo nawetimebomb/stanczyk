@@ -1,8 +1,10 @@
 :: fib (n) do
-   n 2 < if
-     n !
-   .
-   fib(n 2 -) fib(n 1 -) + !
+  n 2 < if
+    n !
+  .
+  fib(n 2 -) fib(n 1 -) + !
 .
 
-fib(35) print
+:: main () do
+  fib(35) print
+.
