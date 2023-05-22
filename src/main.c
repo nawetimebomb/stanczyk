@@ -24,8 +24,7 @@
  * ███████║   ██║   ██║  ██║██║ ╚████║╚██████╗███████╗   ██║   ██║  ██╗
  * ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝╚══════╝   ╚═╝   ╚═╝  ╚═╝
  */
-#define REPL_VERSION "0.1"
-
+#define COMPILER_VERSION "0.1"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -36,24 +35,6 @@
 #include "chunk.h"
 #include "debug.h"
 #include "vm.h"
-
-static void run_repl() {
-    char line[1024];
-
-    printf(STYLE_BOLD "Stańczyk "
-           STYLE_OFF STYLE_ITALIC "REPL v%s\n" STYLE_OFF, REPL_VERSION);
-
-    for (;;)  {
-        printf("> ");
-
-        if (!fgets(line, sizeof(line), stdin)) {
-            printf("\n");
-            break;
-        }
-
-        interpret(line);
-    }
-}
 
 static char *read_file(const char *path) {
     FILE *file = fopen(path, "rb");
@@ -123,12 +104,11 @@ static void run_file(const char *path) {
 int main(int argc, const char *argv[]) {
     init_VM();
 
-    if (argc == 1) {
-        run_repl();
-    }  else if (argc == 2) {
+    if (argc == 2) {
         run_file(argv[1]);
     } else {
-        fprintf(stderr, "Usage: skc [path]\n");
+        fprintf(stdout,COLOR_PURPLE STYLE_BOLD"Stańczyk Programming Language\n"STYLE_OFF);
+        fprintf(stdout, "Usage: skc [path]\n");
         exit(64);
     }
 

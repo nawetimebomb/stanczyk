@@ -1,7 +1,6 @@
 :: test-clock () do
-   {clock() 0.01 <} do
-       "clock works" print
-       true quit
+	 clock() 0.01 < if
+     "clock works" print
    .
 .
 
@@ -9,5 +8,7 @@
    fread("../misc/fread_test.txt") print
 .
 
-test-clock()
-test-fread()
+:: main () do
+  test-clock()
+  test-fread()
+.

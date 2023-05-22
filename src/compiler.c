@@ -65,6 +65,7 @@ struct compiler_t {
 
 parser_t parser;
 compiler_t *current = NULL;
+bool main_procedure_handled = false;
 
 /*
  *    __ __    __
@@ -196,8 +197,13 @@ static void init_compiler(compiler_t *compiler, procedure_type_t type) {
     compiler->scope_depth = 0;
     current = compiler;
 
-    if (type != TYPE_PROGRAM)
+    if (type != TYPE_PROGRAM) {
         current->procedure->name = copy_string(parser.previous.start, parser.previous.length);
+
+        if (current->procedure->name->length == 4 &&
+            strcmp(current->procedure->name->chars, "main") == 0)
+            main_procedure_handled = true;
+    }
 
     local_t *local = &current->locals[current->local_count++];
     local->depth = 0;
@@ -434,10 +440,12 @@ static void _symbol() {
         emit_constant(INT_VAL(1));
         emit_byte(OP_ADD);
         named_symbol(name, true);
+        emit_byte(OP_DROP);
     } else if (match(TOKEN_MINUS_MINUS)) {
         emit_constant(INT_VAL(1));
         emit_byte(OP_SUBTRACT);
         named_symbol(name, true);
+        emit_byte(OP_DROP);
     }
 }
 
@@ -807,6 +815,12 @@ static void synchronize() {
     // Right now we disable panic after any statement.
 }
 
+static void add_main_call() {
+    uint8_t main_procedure = make_constant(OBJ_VAL(copy_string("main", 4)));
+    emit_bytes(OP_GET_GLOBAL, main_procedure);
+    emit_bytes(OP_CALL, 0);
+}
+
 procedure_t *compile(const char *source) {
     compiler_t compiler;
     init_scanner(source);
@@ -820,6 +834,13 @@ procedure_t *compile(const char *source) {
         expression();
         if (parser.panic) synchronize();
     }
+
+    if (!main_procedure_handled) {
+        error("need to define a 'main' procedure as the entry point");
+        return NULL;
+    }
+
+    add_main_call();
 
     procedure_t *procedure = end_compiler();
     return parser.erred ? NULL : procedure;
