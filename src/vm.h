@@ -7,7 +7,7 @@
 #include "object.h"
 #include "value.h"
 
-#define FRAMES_MAX 128
+#define FRAMES_MAX 1024
 #define STACK_MAX  (FRAMES_MAX * UINT8_COUNT)
 
 typedef struct {
@@ -25,6 +25,13 @@ typedef struct {
     table_t symbols; // These are global variables
     table_t strings; // and these, strings stored in memory.
     obj_t *objects;
+
+    size_t bytes_alloc;
+    size_t next_gc;
+
+    int gray_count;
+    int gray_capacity;
+    obj_t **gray_stack;
 } VM_t;
 
 typedef enum {

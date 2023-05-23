@@ -129,10 +129,6 @@ static token_type_t symbol_type() {
         case 'p': return check_keyword(1, 4, "rint", TOKEN_PRINT);
         case 'q': return check_keyword(1, 3, "uit", TOKEN_QUIT);
         case 't': return check_keyword(1, 3, "rue", TOKEN_TRUE);
-        case 'F': return check_keyword(1, 4, "loat", TOKEN_TYPE_FLOAT);
-        case 'I': return check_keyword(1, 2, "nt", TOKEN_TYPE_INT);
-        case 'L': return check_keyword(1, 3, "ist", TOKEN_TYPE_LIST);
-        case 'S': return check_keyword(1, 2, "tr", TOKEN_TYPE_STRING);
     }
 
     return TOKEN_SYMBOL;
@@ -220,7 +216,6 @@ token_t scan_token() {
             }
             return make_token(token_char);
         }
-        case '@': return make_token(TOKEN_AT);
         case '"': return string();
     }
 

@@ -6,5 +6,6 @@
 #include "chunk.h"
 
 procedure_t *compile(const char *source);
+void mark_compiler_roots();
 
 #endif

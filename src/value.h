@@ -12,16 +12,7 @@ typedef enum {
     VAL_FLOAT,
     VAL_INT,
     VAL_OBJ,
-    VAL_TYPE_DECL
 } value_type_t;
-
-typedef enum {
-    TYPE_BOOL,
-    TYPE_FLOAT,
-    TYPE_INT,
-    TYPE_STR,
-    TYPE_LIST
-} type_decl_t;
 
 typedef struct {
     value_type_t type;
@@ -30,7 +21,6 @@ typedef struct {
         double Float;
         long Int;
         obj_t *Obj;
-        type_decl_t TypeDecl;
     } as;
 } value_t;
 
@@ -40,20 +30,17 @@ typedef struct {
 #define IS_INT(value)    ((value).type == VAL_INT)
 #define IS_NUMBER(value) (IS_FLOAT(value) || IS_INT(value))
 #define IS_OBJ(value) ((value).type == VAL_OBJ)
-#define IS_TYPE_DECL(value) ((value).type == VAL_TYPE_DECL)
 
 #define AS_BOOL(value)  ((value).as.Bool)
 #define AS_FLOAT(value) ((value).as.Float)
 #define AS_INT(value)   ((value).as.Int)
 #define AS_OBJ(value) ((value).as.Obj)
-#define AS_TYPE_DECL(value) ((value).as.TypeDecl)
 
 #define NIL_VAL              ((value_t) {VAL_NIL,   {.Int = 0}})
 #define BOOL_VAL(value)      ((value_t) {VAL_BOOL,  {.Bool = value}})
 #define FLOAT_VAL(value)     ((value_t) {VAL_FLOAT, {.Float = value}})
 #define INT_VAL(value)       ((value_t) {VAL_INT,   {.Int = value}})
 #define OBJ_VAL(object)      ((value_t) {VAL_OBJ, {.Obj = (obj_t *)object}})
-#define TYPE_DECL_VAL(value) ((value_t) {VAL_TYPE_DECL, {.TypeDecl = value}})
 
 typedef struct {
     int capacity;
