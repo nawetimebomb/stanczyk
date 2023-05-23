@@ -7,6 +7,7 @@
 typedef struct {
     const char *start;
     const char *current;
+    const char *column;
     int line;
 } scanner_t;
 
@@ -61,6 +62,7 @@ static token_t make_token(token_type_t type) {
     token.start = scanner.start;
     token.length = (int)(scanner.current - scanner.start);
     token.line = scanner.line;
+    token.column = scanner.start - scanner.column;
     return token;
 }
 
@@ -83,6 +85,7 @@ static void skip_whitespace() {
                 advance(); break;
             case '\n':
                 scanner.line++;
+                scanner.column = scanner.current + 1;
                 advance();
                 break;
             case ';':
