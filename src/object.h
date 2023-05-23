@@ -26,6 +26,7 @@ typedef enum {
 
 struct obj_t {
     obj_type_t type;
+    bool marked;
     struct obj_t *next;
 };
 
