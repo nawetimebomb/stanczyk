@@ -1,5 +1,5 @@
-#ifndef NLISP_DEBUG_H
-#define NLISP_DEBUG_H
+#ifndef STANCZYK_DEBUG_H
+#define STANCZYK_DEBUG_H
 
 #include "chunk.h"
 

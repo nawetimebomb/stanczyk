@@ -1,5 +1,5 @@
-#ifndef NLISP_OBJECT_H
-#define NLISP_OBJECT_H
+#ifndef STANCZYK_OBJECT_H
+#define STANCZYK_OBJECT_H
 
 #include "common.h"
 #include "chunk.h"
