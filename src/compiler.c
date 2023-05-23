@@ -1,5 +1,3 @@
-// TODO: Add _access on _symbol
-
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -24,20 +22,6 @@ typedef struct {
     bool erred;
     bool panic;
 } parser_t;
-
-typedef enum {
-  PREC_NONE,
-  PREC_EXPRESSION,  // expression literals
-  PREC_OR,          // or
-  PREC_AND,         // and
-  PREC_EQUALITY,    // =
-  PREC_COMPARISON,  // < >
-  PREC_TERM,        // + -
-  PREC_FACTOR,      // * /
-  PREC_UNARY,       // ! -
-  PREC_CALL,        // ()
-  PREC_PRIMARY
-} precedence_t;
 
 typedef void (*parse_fn)(bool);
 
@@ -105,6 +89,7 @@ struct compiler_t {
 parser_t parser;
 compiler_t *current = NULL;
 bool main_procedure_handled = false;
+const char *filename = "";
 
 /*
  *    __ __    __
@@ -125,7 +110,7 @@ static chunk_t *current_chunk() {
 static void error_at(token_t *token, const char *message) {
     if (parser.panic) return;
     parser.panic = true;
-    fprintf(stderr, "[line %d] Error", token->line);
+    fprintf(stderr, "%s:%d:%d: ERROR", filename, token->line, token->column);
 
     if (token->type == TOKEN_EOF) {
         fprintf(stderr, " at end");
@@ -499,7 +484,7 @@ static void emit_list_get_index(bool global_allow_override) {
     while (!check(TOKEN_EOF) && !check(TOKEN_RIGHT_BRACKET))
         expression(global_allow_override);
 
-    consume(TOKEN_RIGHT_BRACKET, "expect ']' after index.");
+    consume(TOKEN_RIGHT_BRACKET, "expect ']' after index when trying to access list.");
 
     emit_byte(OP_LIST_GET_INDEX);
 }
@@ -673,7 +658,6 @@ static void RULE_symbol(bool global_allow_override) {
         named_symbol(name, true);
     } else if (match(TOKEN_LEFT_BRACKET)) {
         emit_list_get_index(global_allow_override);
-        consume(TOKEN_RIGHT_BRACKET, "expect ']' when trying to access a list.");
     }
 }
 
@@ -914,7 +898,8 @@ static void add_main_call() {
     emit_bytes(OP_CALL, 0);
 }
 
-procedure_t *compile(const char *source) {
+procedure_t *compile(const char *source, const char *path) {
+    filename = path;
     compiler_t compiler;
     init_scanner(source);
     init_compiler(&compiler, TYPE_PROGRAM);

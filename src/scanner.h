@@ -65,6 +65,7 @@ typedef struct {
     const char *start;
     int length;
     int line;
+    int column;
 } token_t;
 
 void init_scanner(const char *source);

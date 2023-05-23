@@ -478,8 +478,8 @@ value_t pop() {
     return *VM.stack_top;
 }
 
-interpret_result_t interpret(const char *source) {
-    procedure_t *procedure = compile(source);
+interpret_result_t interpret(const char *source, const char *path) {
+    procedure_t *procedure = compile(source, path);
     if (procedure == NULL) return INTERPRET_COMPILE_ERROR;
 
     push(OBJ_VAL(procedure));
