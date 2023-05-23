@@ -1,5 +1,5 @@
-#ifndef NLISP_SCANNER_H
-#define NLISP_SCANNER_H
+#ifndef STANCZYK_SCANNER_H
+#define STANCZYK_SCANNER_H
 
 typedef enum {
     // Single char tokens

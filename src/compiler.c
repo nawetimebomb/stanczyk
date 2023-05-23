@@ -1,3 +1,5 @@
+// TODO: Add _access on _symbol
+
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -37,12 +39,48 @@ typedef enum {
   PREC_PRIMARY
 } precedence_t;
 
-typedef void (*parse_fn)();
+typedef void (*parse_fn)(bool);
+
+typedef enum {
+    SKIPPED,
+    LITERAL_INT,
+    LITERAL_FLOAT,
+    LITERAL_STRING,
+    LITERAL_LIST,
+    LITERAL_BOOL,
+    LITERAL_NIL,
+    LOGICAL_AND,
+    LOGICAL_OR,
+    PROCEDURE_CALL,
+    START_LOOP,
+    ASSIGN_SYMBOL,
+    DECLARE_SYMBOL,
+    FIND_SYMBOL,
+    BINARY_OP_SUBSTRACT,
+    BINARY_OP_ADD,
+    BINARY_OP_DIVIDE,
+    BINARY_OP_MULTIPLY,
+    BINARY_OP_NOT_EQUAL,
+    BINARY_OP_EQUAL,
+    BINARY_OP_GREATER,
+    BINARY_OP_GREATER_EQUAL,
+    BINARY_OP_LESS,
+    BINARY_OP_LESS_EQUAL,
+    IF_BLOCK,
+    INTRINSIC_DO,
+    INTRINSIC_PRINT,
+    INTRINSIC_DROP,
+    INTRINSIC_DUP,
+    INTRINSIC_SPLIT,
+    INTRINSIC_JOIN,
+    UNARY_RETURN,
+    UNARY_NEGATE,
+    UNARY_QUIT,
+} expr_eval_t;
 
 typedef struct {
-    parse_fn prefix;
-    parse_fn postfix;
-    precedence_t precedence;
+    parse_fn func;
+    expr_eval_t expr;
 } parse_rule_t;
 
 typedef struct {
@@ -331,13 +369,13 @@ static void end_scope() {
  */
 
 // Forward-declaring recursive methods.
-static void expression();
+static expr_eval_t expression(bool skip_global_check);
 static parse_rule_t *get_rule(token_type_t type);
-static void parse_precedence(precedence_t precedence);
+static expr_eval_t parse_next(bool skip_global_check);
 
 static void block() {
     while(!check(TOKEN_DOT) && !check(TOKEN_EOF))
-        expression();
+        expression(false);
     consume(TOKEN_DOT, "expect '.' to end block");
 }
 
@@ -364,58 +402,6 @@ static void procedure(procedure_type_t type) {
     emit_bytes(OP_CONSTANT, make_constant(OBJ_VAL(procedure)));
 }
 
-static void _neg() {
-    emit_byte(OP_NEGATE);
-}
-
-static void _binary() {
-    token_type_t operator_type = parser.previous.type;
-
-    switch (operator_type) {
-        case TOKEN_BANG_EQUAL:    emit_bytes(OP_EQUAL, OP_NEGATE);   break;
-        case TOKEN_EQUAL_EQUAL:   emit_byte(OP_EQUAL);               break;
-        case TOKEN_GREATER:       emit_byte(OP_GREATER);             break;
-        case TOKEN_GREATER_EQUAL: emit_bytes(OP_LESS, OP_NEGATE);    break;
-        case TOKEN_LESS:          emit_byte(OP_LESS);                break;
-        case TOKEN_LESS_EQUAL:    emit_bytes(OP_GREATER, OP_NEGATE); break;
-        case TOKEN_PLUS:          emit_byte(OP_ADD);                 break;
-        case TOKEN_MINUS:         emit_byte(OP_SUBTRACT);            break;
-        case TOKEN_STAR:          emit_byte(OP_MULTIPLY);            break;
-        case TOKEN_SLASH:         emit_byte(OP_DIVIDE);              break;
-        default: return;
-    }
-}
-
-static void _lit() {
-    switch (parser.previous.type) {
-        case TOKEN_FALSE: emit_byte(OP_FALSE); break;
-        case TOKEN_NIL:   emit_byte(OP_NIL);   break;
-        case TOKEN_TRUE:  emit_byte(OP_TRUE);  break;
-        default: return;
-    }
-}
-
-static void _number() {
-    token_type_t type = parser.previous.type;
-
-    switch (type) {
-        case TOKEN_VALUE_INT: {
-            long value = strtol(parser.previous.start, NULL, 10);
-            emit_constant(INT_VAL(value));
-        } break;
-        case TOKEN_VALUE_FLOAT: {
-            double value = strtod(parser.previous.start, NULL);
-            emit_constant(FLOAT_VAL(value));
-        } break;
-        default: return;
-    }
-
-}
-
-static void _string() {
-    emit_constant(OBJ_VAL(copy_string(parser.previous.start + 1, parser.previous.length - 2)));
-}
-
 static void named_symbol(token_t name, bool assignment) {
     uint8_t get_op, set_op;
     int arg = resolve_local(current, &name);
@@ -432,40 +418,6 @@ static void named_symbol(token_t name, bool assignment) {
     emit_bytes(assignment ? set_op : get_op, (uint8_t)arg);
 }
 
-static void _symbol() {
-    token_t name = parser.previous;
-
-    named_symbol(name, false);
-
-    if (match(TOKEN_PLUS_PLUS)) {
-        emit_constant(INT_VAL(1));
-        emit_byte(OP_ADD);
-        named_symbol(name, true);
-    } else if (match(TOKEN_MINUS_MINUS)) {
-        emit_constant(INT_VAL(1));
-        emit_byte(OP_SUBTRACT);
-        named_symbol(name, true);
-    }
-}
-
-static void _stmt()  {
-    token_type_t statement_type = parser.previous.type;
-
-    switch (statement_type) {
-        case TOKEN_PRINT:        emit_byte(OP_PRINT); break;
-        case TOKEN_DO: {
-            begin_scope();
-            block();
-            end_scope();
-        } break;
-        case TOKEN_DROP:         emit_byte(OP_DROP);  break;
-        case TOKEN_DUP:          emit_byte(OP_DUP);   break;
-        case TOKEN_LESS_GREATER: emit_byte(OP_SPLIT); break;
-        case TOKEN_GREATER_LESS: emit_byte(OP_JOIN);  break;
-        default: return;
-    }
-}
-
 // TODO: Add description to this and all the other methods, good documentation
 // of these functions will help me go through this in the future.
 // This function basically gets the next expression happening while defining or
@@ -475,16 +427,9 @@ static void find_and_emit_value() {
         emit_byte(OP_NIL);
     } else {
         while(!check(TOKEN_DOT) && !check(TOKEN_EOF))
-            expression();
+            expression(true);
         consume(TOKEN_DOT, "expect '.' after symbol declaration.");
     }
-}
-
-static void _assign() {
-    consume(TOKEN_SYMBOL, "expect symbol name after '='");
-    token_t name = parser.previous;
-    find_and_emit_value();
-    named_symbol(name, true);
 }
 
 static void _symbol_declare() {
@@ -498,19 +443,6 @@ static void _procedure_declare() {
     // TODO: Figure out if I need to mark it mark_initialized();
     procedure(TYPE_PROCEDURE);
     define_symbol(symbol);
-}
-
-static void _declare() {
-    if (match(TOKEN_EQUAL)) {
-        // variable declaration with type inference
-        _symbol_declare();
-    } else if (match(TOKEN_COLON)) {
-        _procedure_declare();
-    } else {
-        error("failed to declare symbol or procedure.");
-        error("missing '=' or ':'.");
-        return;
-    }
 }
 
 static int emit_jump(uint8_t instruction) {
@@ -530,42 +462,6 @@ static void patch_jump(int offset) {
     current_chunk()->code[offset + 1] = jump & 0xff;
 }
 
-static void _if() {
-    int else_jump, then_jump;
-    then_jump = emit_jump(OP_JUMP_IF_FALSE);
-    emit_byte(OP_DROP);
-
-    begin_scope();
-    while (!check(TOKEN_DOT) && !check(TOKEN_ELSE) && !check(TOKEN_EOF))
-        expression();
-
-    end_scope();
-
-    else_jump = emit_jump(OP_JUMP);
-    patch_jump(then_jump);
-    emit_byte(OP_DROP);
-
-    if (match(TOKEN_ELSE)) {
-        begin_scope();
-        while (!match(TOKEN_DOT) && !match(TOKEN_EOF))
-            expression();
-        end_scope();
-    } else {
-        consume(TOKEN_DOT, "expect '.' after if block");
-    }
-    patch_jump(else_jump);
-}
-
-static void _logical() {
-    token_type_t operator_type = parser.previous.type;
-
-    switch (operator_type) {
-        case TOKEN_AND: emit_byte(OP_AND); break;
-        case TOKEN_OR:  emit_byte(OP_OR); break;
-        default: return;
-    }
-}
-
 static void emit_loop(int loop_start) {
     emit_byte(OP_LOOP);
 
@@ -576,7 +472,297 @@ static void emit_loop(int loop_start) {
     emit_byte(offset & 0xff);
 }
 
-static void _loop() {
+static uint8_t argument_list() {
+    uint8_t arg_count = 0;
+    if (!check(TOKEN_RIGHT_PAREN)) {
+        do {
+            while (!check(TOKEN_COMMA) && !check(TOKEN_EOF) && !check(TOKEN_RIGHT_PAREN))
+                expression(false);
+
+            if (arg_count == 255)
+                error("cannot have more than 255 arguments");
+
+            arg_count++;
+
+            if (check(TOKEN_EOF)) {
+                error("incomplete procedure.");
+                break;
+            }
+        } while (match(TOKEN_COMMA));
+    }
+
+    consume(TOKEN_RIGHT_PAREN, "expect ')' after arguments.");
+    return arg_count;
+}
+
+static void emit_list_get_index(bool global_allow_override) {
+    while (!check(TOKEN_EOF) && !check(TOKEN_RIGHT_BRACKET))
+        expression(global_allow_override);
+
+    consume(TOKEN_RIGHT_BRACKET, "expect ']' after index.");
+
+    emit_byte(OP_LIST_GET_INDEX);
+}
+
+/* Check if the current compiling context is the global scope and if it
+ * should not allow to run the rule expression */
+static bool disallowed_in_global_scope(bool global_allow_override) {
+    return current->type == TYPE_PROGRAM && !global_allow_override;
+}
+
+/* Numeric costant evaluation */
+static void RULE_number(bool global_allow_override) {
+    if (disallowed_in_global_scope(global_allow_override)) {
+        error("numeric constant not allowed in global scope.");
+        return;
+    }
+
+    token_type_t type = parser.previous.type;
+
+    switch (type) {
+        case TOKEN_VALUE_INT: {
+            long value = strtol(parser.previous.start, NULL, 10);
+            emit_constant(INT_VAL(value));
+        } break;
+        case TOKEN_VALUE_FLOAT: {
+            double value = strtod(parser.previous.start, NULL);
+            emit_constant(FLOAT_VAL(value));
+        } break;
+        default: return;
+    }
+
+}
+
+/* String literal evaluation */
+static void RULE_string(bool global_allow_override) {
+    if (disallowed_in_global_scope(global_allow_override)) {
+        error("string literal not allowed in global scope.");
+        return;
+    }
+    emit_constant(OBJ_VAL(copy_string(parser.previous.start + 1, parser.previous.length - 2)));
+}
+
+/* Nil and Boolean literal evaluation */
+static void RULE_bool_lit(bool global_allow_override) {
+    if (disallowed_in_global_scope(global_allow_override)) {
+        if (TOKEN_NIL) {
+            error("nil not allowed in global scope.");
+        } else {
+            error("Boolean literal not allowed in global scope.");
+        }
+        return;
+    }
+
+    switch (parser.previous.type) {
+        case TOKEN_FALSE: emit_byte(OP_FALSE); break;
+        case TOKEN_NIL:   emit_byte(OP_NIL);   break;
+        case TOKEN_TRUE:  emit_byte(OP_TRUE);  break;
+        default: return;
+    }
+}
+
+/* Binary operations evaluation */
+static void RULE_binary(bool global_allow_override) {
+    if (disallowed_in_global_scope(global_allow_override)) {
+        error("binary operation not allowed in global scope.");
+        return;
+    }
+
+    token_type_t operator_type = parser.previous.type;
+
+    switch (operator_type) {
+        case TOKEN_BANG_EQUAL:    emit_bytes(OP_EQUAL, OP_NEGATE);   break;
+        case TOKEN_EQUAL_EQUAL:   emit_byte(OP_EQUAL);               break;
+        case TOKEN_GREATER:       emit_byte(OP_GREATER);             break;
+        case TOKEN_GREATER_EQUAL: emit_bytes(OP_LESS, OP_NEGATE);    break;
+        case TOKEN_LESS:          emit_byte(OP_LESS);                break;
+        case TOKEN_LESS_EQUAL:    emit_bytes(OP_GREATER, OP_NEGATE); break;
+        case TOKEN_PLUS:          emit_byte(OP_ADD);                 break;
+        case TOKEN_MINUS:         emit_byte(OP_SUBTRACT);            break;
+        case TOKEN_STAR:          emit_byte(OP_MULTIPLY);            break;
+        case TOKEN_SLASH:         emit_byte(OP_DIVIDE);              break;
+        default: return;
+    }
+}
+
+/* Intrinsics evaluation */
+static void RULE_intrinsics(bool global_allow_override)  {
+    if (disallowed_in_global_scope(global_allow_override)) {
+        error("statement not allowed in global scope.");
+        return;
+    }
+
+    token_type_t statement_type = parser.previous.type;
+
+    switch (statement_type) {
+        case TOKEN_PRINT:        emit_byte(OP_PRINT); break;
+        case TOKEN_DO: {
+            begin_scope();
+            block();
+            end_scope();
+        } break;
+        case TOKEN_DROP:         emit_byte(OP_DROP);  break;
+        case TOKEN_DUP:          emit_byte(OP_DUP);   break;
+        case TOKEN_LESS_GREATER: emit_byte(OP_SPLIT); break;
+        case TOKEN_GREATER_LESS: emit_byte(OP_JOIN);  break;
+        default: return;
+    }
+}
+
+/* Logical operator evaluation */
+static void RULE_logical(bool global_allow_override) {
+    if (disallowed_in_global_scope(global_allow_override)) {
+        error("logical operator not allowed in global scope.");
+        return;
+    }
+
+    token_type_t operator_type = parser.previous.type;
+
+    switch (operator_type) {
+        case TOKEN_AND: emit_byte(OP_AND); break;
+        case TOKEN_OR:  emit_byte(OP_OR); break;
+        default: return;
+    }
+}
+
+/* Return evaluation */
+static void RULE_return(bool global_allow_override) {
+    // We force the check to fail because we don't allow to return in the global scope.
+    if (disallowed_in_global_scope(false)) {
+        error("return statement not allowed in global scope.");
+        return;
+    }
+
+    emit_byte(OP_RETURN);
+}
+
+/* Negate values (Booleans and numbers) */
+static void RULE_neg(bool global_allow_override) {
+    if (disallowed_in_global_scope(global_allow_override)) {
+        error("'neg' keyword not allowed in global scope.");
+        return;
+    }
+
+    emit_byte(OP_NEGATE);
+}
+
+/* Quiting from loops */
+static void RULE_quit(bool global_allow_override) {
+    error("cannot 'quit' in this context");
+    return;
+}
+
+/* Symbol find and re-assign if incrementing or decrementing */
+static void RULE_symbol(bool global_allow_override) {
+    if (disallowed_in_global_scope(global_allow_override)) {
+        error("symbol cannot be used in global scope.");
+        return;
+    }
+
+    token_t name = parser.previous;
+
+    named_symbol(name, false);
+
+    if (match(TOKEN_PLUS_PLUS)) {
+        emit_constant(INT_VAL(1));
+        emit_byte(OP_ADD);
+        named_symbol(name, true);
+    } else if (match(TOKEN_MINUS_MINUS)) {
+        emit_constant(INT_VAL(1));
+        emit_byte(OP_SUBTRACT);
+        named_symbol(name, true);
+    } else if (match(TOKEN_LEFT_BRACKET)) {
+        emit_list_get_index(global_allow_override);
+        consume(TOKEN_RIGHT_BRACKET, "expect ']' when trying to access a list.");
+    }
+}
+
+/* If blocks */
+static void RULE_if(bool global_allow_override) {
+    if (disallowed_in_global_scope(global_allow_override)) {
+        error("if statements not allowed in global scope.");
+        return;
+    }
+
+    int else_jump, then_jump;
+    then_jump = emit_jump(OP_JUMP_IF_FALSE);
+    emit_byte(OP_DROP);
+
+    begin_scope();
+    while (!check(TOKEN_DOT) && !check(TOKEN_ELSE) && !check(TOKEN_EOF))
+        expression(global_allow_override);
+
+    end_scope();
+
+    else_jump = emit_jump(OP_JUMP);
+    patch_jump(then_jump);
+    emit_byte(OP_DROP);
+
+    if (match(TOKEN_ELSE)) {
+        begin_scope();
+        while (!match(TOKEN_DOT) && !match(TOKEN_EOF))
+            expression(global_allow_override);
+        end_scope();
+    } else {
+        consume(TOKEN_DOT, "expect '.' after if block");
+    }
+    patch_jump(else_jump);
+}
+
+/* Declaring symbols */
+static void RULE_declare(bool global_allow_override) {
+    if (match(TOKEN_EQUAL)) {
+        // variable declaration with type inference
+        _symbol_declare();
+    } else if (match(TOKEN_COLON)) {
+        _procedure_declare();
+    } else {
+        error("failed to declare symbol or procedure.");
+        error("missing '=' or ':'.");
+        return;
+    }
+}
+
+/* Assigning new values to symbols */
+static void RULE_assign(bool global_allow_override) {
+    consume(TOKEN_SYMBOL, "expect symbol name after '='");
+    token_t name = parser.previous;
+    find_and_emit_value();
+    named_symbol(name, true);
+}
+
+/* List literal evaluation */
+static void RULE_list(bool global_allow_override) {
+    if (disallowed_in_global_scope(global_allow_override)) {
+        error("list literal not allowed in global scope.");
+        return;
+    }
+
+    int count = 0;
+
+    if (!check(TOKEN_RIGHT_BRACKET)) {
+        do {
+            while (!check(TOKEN_COMMA) && !check(TOKEN_EOF) && !check(TOKEN_RIGHT_BRACKET))
+                expression(global_allow_override);
+
+            if (count == 255)
+                error("cannot have more than 255 items");
+
+            count++;
+        } while (match(TOKEN_COMMA));
+    }
+
+    consume(TOKEN_RIGHT_BRACKET, "expect ']' after list literal.");
+    emit_bytes(OP_LIST_CREATE, count);
+}
+
+/* Loop creation */
+static void RULE_loop(bool global_allow_override) {
+    if (disallowed_in_global_scope(global_allow_override)) {
+        error("loop not allowed in global scope.");
+        return;
+    }
+
     int exit_jump, loop_start, quit_jump;
     bool omit_declaration = false;
 
@@ -616,7 +802,7 @@ static void _loop() {
 
     if (!omit_declaration) {
         while (!check(TOKEN_RIGHT_BRACE) && !check(TOKEN_EOF))
-            expression();
+            expression(global_allow_override);
         consume(TOKEN_RIGHT_BRACE, "expect '}' at the end of conditionals for loop");
     }
 
@@ -627,7 +813,7 @@ static void _loop() {
 
     // Parse body of loop
     while (!check(TOKEN_DOT) && !check(TOKEN_EOF)) {
-        expression();
+        expression(global_allow_override);
         if (match(TOKEN_QUIT)) {
             // Emits the quit jump that only works on loops, but also, it drops the
             // previous expression because we want to allow quit only if the stack has
@@ -646,153 +832,80 @@ static void _loop() {
     emit_byte(OP_DROP);
 }
 
-static void _quit() {
-    error("cannot 'quit' on this context");
-}
-
-static uint8_t argument_list() {
-    uint8_t arg_count = 0;
-    if (!check(TOKEN_RIGHT_PAREN)) {
-        do {
-            while (!check(TOKEN_COMMA) && !check(TOKEN_EOF) && !check(TOKEN_RIGHT_PAREN))
-                expression();
-
-            if (arg_count == 255)
-                error("cannot have more than 255 arguments");
-
-            arg_count++;
-
-            if (check(TOKEN_EOF)) {
-                error("incomplete procedure.");
-                break;
-            }
-        } while (match(TOKEN_COMMA));
+/* Procedure call */
+static void RULE_call(bool global_allow_override) {
+    if (disallowed_in_global_scope(global_allow_override)) {
+        error("procedure call not allowed in global scope.");
+        return;
     }
 
-    consume(TOKEN_RIGHT_PAREN, "expect ')' after arguments.");
-    return arg_count;
-}
-
-static void _call() {
     uint8_t arg_count = argument_list();
     emit_bytes(OP_CALL, arg_count);
 }
 
-static void _return() {
-    if (current->type == TYPE_PROGRAM)
-        error("cannot return value in this context.");
-
-    emit_byte(OP_RETURN);
-}
-
-static void _list() {
-    int count = 0;
-
-    if (!check(TOKEN_RIGHT_BRACKET)) {
-        do {
-            while (!check(TOKEN_COMMA) && !check(TOKEN_EOF) && !check(TOKEN_RIGHT_BRACKET))
-                expression();
-
-            if (count == 255)
-                error("cannot have more than 255 items");
-
-            count++;
-        } while (match(TOKEN_COMMA));
-    }
-
-    consume(TOKEN_RIGHT_BRACKET, "expect ']' after list literal.");
-    emit_bytes(OP_LIST_CREATE, count);
-}
-
-static void _access() {
-    while (!check(TOKEN_EOF) && !check(TOKEN_RIGHT_BRACKET))
-        expression();
-
-    consume(TOKEN_RIGHT_BRACKET, "expect ']' after index.");
-
-    emit_byte(OP_LIST_GET_INDEX);
-}
 
 parse_rule_t rules[] = {
-    [TOKEN_LEFT_PAREN]    = {NULL,        _call,      PREC_CALL},
-    [TOKEN_RIGHT_PAREN]   = {NULL,        NULL,       PREC_NONE},
-    [TOKEN_LEFT_BRACE]    = {_loop,       NULL,       PREC_NONE},
-    [TOKEN_RIGHT_BRACE]   = {NULL,        NULL,       PREC_NONE},
-    [TOKEN_LEFT_BRACKET]  = {_list,       _access,    PREC_CALL},
-    [TOKEN_RIGHT_BRACKET] = {NULL,        NULL,       PREC_NONE},
-    [TOKEN_COMMA]         = {NULL,        NULL,       PREC_NONE},
-    [TOKEN_EQUAL]         = {_assign,     NULL,       PREC_NONE},
-    [TOKEN_COLON]         = {_declare,    NULL,       PREC_NONE},
-    [TOKEN_MINUS]         = {NULL,        _binary,    PREC_TERM},
-    [TOKEN_PLUS]          = {NULL,        _binary,    PREC_TERM},
-    [TOKEN_SLASH]         = {NULL,        _binary,    PREC_FACTOR},
-    [TOKEN_STAR]          = {NULL,        _binary,    PREC_FACTOR},
-    [TOKEN_BANG_EQUAL]    = {NULL,        _binary,    PREC_EQUALITY},
-    [TOKEN_EQUAL_EQUAL]   = {NULL,        _binary,    PREC_EQUALITY},
-    [TOKEN_GREATER]       = {NULL,        _binary,    PREC_EQUALITY},
-    [TOKEN_GREATER_EQUAL] = {NULL,        _binary,    PREC_EQUALITY},
-    [TOKEN_LESS]          = {NULL,        _binary,    PREC_EQUALITY},
-    [TOKEN_LESS_EQUAL]    = {NULL,        _binary,    PREC_EQUALITY},
-    [TOKEN_SYMBOL]        = {_symbol,     NULL,       PREC_NONE},
-    [TOKEN_VALUE_STRING]  = {_string,     NULL,       PREC_NONE},
-    [TOKEN_VALUE_FLOAT]   = {_number,     NULL,       PREC_NONE},
-    [TOKEN_VALUE_INT]     = {_number,     NULL,       PREC_NONE},
-    [TOKEN_FALSE]         = {_lit,        NULL,       PREC_NONE},
-    [TOKEN_TRUE]          = {_lit,        NULL,       PREC_NONE},
-    [TOKEN_NIL]           = {_lit,        NULL,       PREC_NONE},
-    [TOKEN_IF]            = {_if,         NULL,       PREC_NONE},
-    [TOKEN_AND]           = {NULL,        _logical,   PREC_AND},
-    [TOKEN_OR]            = {NULL,        _logical,   PREC_OR},
-    [TOKEN_DO]            = {_stmt,       NULL,       PREC_NONE},
-    [TOKEN_PRINT]         = {_stmt,       NULL,       PREC_NONE},
-    [TOKEN_DROP]          = {_stmt,       NULL,       PREC_NONE},
-    [TOKEN_DUP]           = {_stmt,       NULL,       PREC_NONE},
-    [TOKEN_LESS_GREATER]  = {_stmt,       NULL,       PREC_NONE},
-    [TOKEN_GREATER_LESS]  = {_stmt,       NULL,       PREC_NONE},
-    [TOKEN_BANG]          = {NULL,        _return,    PREC_CALL},
-    [TOKEN_NEG]           = {_neg,        NULL,       PREC_NONE},
-    [TOKEN_QUIT]          = {_quit,       NULL,       PREC_NONE},
-    [TOKEN_ERROR]         = {NULL,        NULL,       PREC_NONE},
-    [TOKEN_EOF]           = {NULL,        NULL,       PREC_NONE}
+    [TOKEN_LEFT_PAREN]    = {RULE_call,       PROCEDURE_CALL},
+    [TOKEN_LEFT_BRACE]    = {RULE_loop,       START_LOOP},
+    [TOKEN_LEFT_BRACKET]  = {RULE_list,       LITERAL_LIST},
+    [TOKEN_EQUAL]         = {RULE_assign,     ASSIGN_SYMBOL},
+    [TOKEN_COLON]         = {RULE_declare,    DECLARE_SYMBOL},
+    [TOKEN_MINUS]         = {RULE_binary,     BINARY_OP_SUBSTRACT},
+    [TOKEN_PLUS]          = {RULE_binary,     BINARY_OP_ADD},
+    [TOKEN_SLASH]         = {RULE_binary,     BINARY_OP_DIVIDE},
+    [TOKEN_STAR]          = {RULE_binary,     BINARY_OP_MULTIPLY},
+    [TOKEN_BANG_EQUAL]    = {RULE_binary,     BINARY_OP_NOT_EQUAL},
+    [TOKEN_EQUAL_EQUAL]   = {RULE_binary,     BINARY_OP_EQUAL},
+    [TOKEN_GREATER]       = {RULE_binary,     BINARY_OP_GREATER},
+    [TOKEN_GREATER_EQUAL] = {RULE_binary,     BINARY_OP_GREATER_EQUAL},
+    [TOKEN_LESS]          = {RULE_binary,     BINARY_OP_LESS},
+    [TOKEN_LESS_EQUAL]    = {RULE_binary,     BINARY_OP_LESS_EQUAL},
+    [TOKEN_SYMBOL]        = {RULE_symbol,     FIND_SYMBOL},
+    [TOKEN_VALUE_STRING]  = {RULE_string,     LITERAL_STRING},
+    [TOKEN_VALUE_FLOAT]   = {RULE_number,     LITERAL_FLOAT},
+    [TOKEN_VALUE_INT]     = {RULE_number,     LITERAL_INT},
+    [TOKEN_FALSE]         = {RULE_bool_lit,   LITERAL_BOOL},
+    [TOKEN_TRUE]          = {RULE_bool_lit,   LITERAL_BOOL},
+    [TOKEN_NIL]           = {RULE_bool_lit,   LITERAL_NIL},
+    [TOKEN_IF]            = {RULE_if,         IF_BLOCK},
+    [TOKEN_AND]           = {RULE_logical,    LOGICAL_AND},
+    [TOKEN_OR]            = {RULE_logical,    LOGICAL_OR},
+    [TOKEN_DO]            = {RULE_intrinsics, INTRINSIC_DO},
+    [TOKEN_PRINT]         = {RULE_intrinsics, INTRINSIC_PRINT},
+    [TOKEN_DROP]          = {RULE_intrinsics, INTRINSIC_DROP},
+    [TOKEN_DUP]           = {RULE_intrinsics, INTRINSIC_DUP},
+    [TOKEN_LESS_GREATER]  = {RULE_intrinsics, INTRINSIC_SPLIT},
+    [TOKEN_GREATER_LESS]  = {RULE_intrinsics, INTRINSIC_JOIN},
+    [TOKEN_BANG]          = {RULE_return,     UNARY_RETURN},
+    [TOKEN_NEG]           = {RULE_neg,        UNARY_NEGATE},
+    [TOKEN_QUIT]          = {RULE_quit,       UNARY_QUIT},
 };
-
-// TODO: This is using Vaughan Pratt's top-down operator precedence parser
-// method, but technically we don't need it. MAYBE: Find a better parser that
-// works well with reverse polish notation, since at the time we generate the
-// bytecode, our language pretty much is following the same structure.
-static void parse_precedence(precedence_t precedence) {
-    advance();
-    parse_fn prefix_rule = get_rule(parser.previous.type)->prefix;
-
-    if (prefix_rule == NULL) {
-        error("expect expression.");
-        return;
-    }
-
-    prefix_rule();
-
-    while (precedence <= get_rule(parser.current.type)->precedence) {
-        advance();
-        parse_fn postfix_rule = get_rule(parser.previous.type)->postfix;
-        postfix_rule();
-    }
-}
 
 static parse_rule_t *get_rule(token_type_t type) {
     return &rules[type];
 }
 
-static void expression() {
-    parse_precedence(PREC_EXPRESSION);
+static expr_eval_t parse_next(bool skip_global_check) {
+    advance();
+    parse_rule_t *rule = get_rule(parser.previous.type);
+
+    if (rule->func == NULL) {
+        error("expect expression.");
+        return SKIPPED;
+    }
+
+    rule->func(skip_global_check);
+    return rule->expr;
+}
+
+static expr_eval_t expression(bool skip_global_check) {
+    return parse_next(skip_global_check);
 }
 
 static void synchronize() {
-    parser.panic = false;
-
-    // TODO: Disabling panic mode should only work for specific context.
-    // We want to skip over the possibles erred statements and continue compiling after that,
-    // so we can catch errors (if any) in the following procedures.
-    // Right now we disable panic after any statement.
+    if (parser.previous.line != parser.current.line) {
+        parser.panic = false;
+    }
 }
 
 static void add_main_call() {
@@ -811,7 +924,7 @@ procedure_t *compile(const char *source) {
 
     advance();
     while (!match(TOKEN_EOF)) {
-        expression();
+        expression(false);
         if (parser.panic) synchronize();
     }
 
