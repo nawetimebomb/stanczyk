@@ -10,6 +10,18 @@
 #include "vm.h"
 #include "natives.h"
 
+static value_t _randrange(int argc, value_t *args) {
+    if (!IS_INT(args[0]) && !IS_INT(args[1])) {
+        runtime_throw("randrange: arguments must be Int.");
+    }
+
+    int max = AS_INT(pop());
+    int min = AS_INT(pop());
+    int random = min + (rand() % (max - min));
+
+    return INT_VAL(random);
+}
+
 static value_t _system(int argc, value_t *args) {
     if (!IS_STRING(args[0]))
         runtime_throw("system: argument must be a string.");
@@ -87,13 +99,15 @@ static value_t _clock(int argc, value_t *args) {
 }
 
 void register_natives(define_native_func define) {
+    srand(time(NULL));
     // GENERAL
-    define("clock",    _clock,    0);
-    define("fread",    _fread,    1);
-    define("system",   _system,   1);
+    define("clock",     _clock,     0);
+    define("fread",     _fread,     1);
+    define("system",    _system,    1);
+    define("randrange", _randrange, 2);
 
     // LIST
-    define("append",   _append,   2);
-    define("delete",   _delete,   2);
-    define("length",   _length,   1);
+    define("append",    _append,    2);
+    define("delete",    _delete,    2);
+    define("length",    _length,    1);
 }

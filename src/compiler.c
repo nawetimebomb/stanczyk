@@ -457,12 +457,12 @@ static void emit_loop(int loop_start) {
     emit_byte(offset & 0xff);
 }
 
-static uint8_t argument_list() {
+static uint8_t argument_list(bool global_allow_override) {
     uint8_t arg_count = 0;
     if (!check(TOKEN_RIGHT_PAREN)) {
         do {
             while (!check(TOKEN_COMMA) && !check(TOKEN_EOF) && !check(TOKEN_RIGHT_PAREN))
-                expression(false);
+                expression(global_allow_override);
 
             if (arg_count == 255)
                 error("cannot have more than 255 arguments");
@@ -823,7 +823,7 @@ static void RULE_call(bool global_allow_override) {
         return;
     }
 
-    uint8_t arg_count = argument_list();
+    uint8_t arg_count = argument_list(global_allow_override);
     emit_bytes(OP_CALL, arg_count);
 }
 
