@@ -25,99 +25,43 @@
  * ███████║   ██║   ██║  ██║██║ ╚████║╚██████╗███████╗   ██║   ██║  ██╗
  * ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝╚══════╝   ╚═╝   ╚═╝  ╚═╝
  */
-#define COMPILER_VERSION "0.1"
+#ifndef STANCZYK_CONSTANT_H
+#define STANCZYK_CONSTANT_H
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
+typedef struct Object Object;
+typedef struct String String;
 
-#include "common.h"
-#include "compiler.h"
+typedef enum {
+    VALUE_NUMBER,
+    VALUE_OBJECT
+} ValueType;
 
-CompilerOptions options;
+typedef struct {
+    ValueType type;
+    union {
+        int number;
+        Object *obj;
+    } as;
+} Value;
 
-static char *read_file(const char *path) {
-    FILE *file = fopen(path, "rb");
-    if (file == NULL) {
-        fprintf(stderr, "could not open file \"%s\".\n", path);
-        exit(74);
-    }
+typedef struct {
+    int capacity;
+    int count;
+    Value *values;
+} ConstantArray;
 
-    fseek(file, 0L, SEEK_END);
-    size_t file_size = ftell(file);
-    rewind(file);
+#define IS_NUMBER(value) ((value).type == VALUE_NUMBER)
+#define IS_OBJECT(value) ((value).type == VALUE_OBJECT)
 
-    char *buffer = (char *)malloc(file_size + 1);
-    if (buffer == NULL) {
-        fprintf(stderr, "not enough memory to read \"%s\".\n", path);
-        exit(74);
-    }
+#define AS_NUMBER(value) ((value).as.number)
+#define AS_OBJECT(value) ((value).as.obj)
 
-    size_t bytes_read = fread(buffer, sizeof(char), file_size, file);
-    if (bytes_read < file_size) {
-        fprintf(stderr, "could not read file \"%s\".\n", path);
-        exit(74);
-    }
+#define NUMBER_VALUE(value)  ((Value){VALUE_NUMBER, {.number = value}})
+#define OBJECT_VALUE(object) ((Value){VALUE_OBJECT, {.obj = (Object *)object}})
 
-    buffer[bytes_read] = '\0';
+void init_constants_array(ConstantArray *);
+void write_constants_array(ConstantArray *, Value);
+void free_constants_array(ConstantArray *);
+void print_constant(Value value);
 
-    fclose(file);
-    return buffer;
-}
-
-static char *get_file_directory(const char *path) {
-    int len = strlen(path);
-    char *dir = malloc(len + 1);
-    strcpy(dir, path);
-
-    while (len > 0) {
-        len--;
-        if (dir[len] == '\\' || dir[len] == '/') {
-            dir[len] = '\0';
-            break;
-        }
-    }
-
-    return dir;
-}
-
-static char *get_workspace(const char *path) {
-    char *result = malloc(1024);
-    getcwd(result, 1024);
-    strcat(result, "/");
-    strcat(result, get_file_directory(path));
-
-    return result;
-}
-
-static int load_file(const char *path) {
-    char *source = read_file(path);
-    // chdir(get_workspace(path));
-    options.workspace = get_workspace(path);
-
-    CompilerResult result = compile(source);
-    free(source);
-
-    return result;
-}
-
-int main(int argc, const char *argv[]) {
-    if (argc < 2) {
-        printf("\n");
-        system("base64 -d misc/title.b64");
-        printf("The Stańczyk Compiler\n");
-		printf("Usage:\n");
-		printf("\tskc <file> [options]\n\n");
-		printf("For more information about what the compiler can do, you can use: skc -help.\n");
-        exit(1);
-    }
-
-    // TODO: Handle other flags.
-    options.entry_file = argv[1];
-    int result = load_file(options.entry_file);
-
-    // TODO: Run the compiled Stańczyk code with FASM
-
-    return result;
-}
+#endif

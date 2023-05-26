@@ -1,57 +1,88 @@
+/* The Stańczyk Programming Language
+ *
+ *            ¿«fº"└└-.`└└*∞▄_              ╓▄∞╙╙└└└╙╙*▄▄
+ *         J^. ,▄▄▄▄▄▄_      └▀████▄ç    JA▀            └▀v
+ *       ,┘ ▄████████████▄¿     ▀██████▄▀└      ╓▄██████▄¿ "▄_
+ *      ,─╓██▀└└└╙▀█████████      ▀████╘      ▄████████████_`██▄
+ *     ;"▄█└      ,██████████-     ▐█▀      ▄███████▀▀J█████▄▐▀██▄
+ *     ▌█▀      _▄█▀▀█████████      █      ▄██████▌▄▀╙     ▀█▐▄,▀██▄
+ *    ▐▄▀     A└-▀▌  █████████      ║     J███████▀         ▐▌▌╙█µ▀█▄
+ *  A╙└▀█∩   [    █  █████████      ▌     ███████H          J██ç ▀▄╙█_
+ * █    ▐▌    ▀▄▄▀  J█████████      H    ████████          █    █  ▀▄▌
+ *  ▀▄▄█▀.          █████████▌           ████████          █ç__▄▀ ╓▀└ ╙%_
+ *                 ▐█████████      ▐    J████████▌          .└╙   █¿   ,▌
+ *                 █████████▀╙╙█▌└▐█╙└██▀▀████████                 ╙▀▀▀▀
+ *                ▐██▀┘Å▀▄A └▓█╓▐█▄▄██▄J▀@└▐▄Å▌▀██▌
+ *                █▄▌▄█M╨╙└└-           .└└▀**▀█▄,▌
+ *                ²▀█▄▄L_                  _J▄▄▄█▀└
+ *                     └╙▀▀▀▀▀MMMR████▀▀▀▀▀▀▀└
+ *
+ *
+ * ███████╗████████╗ █████╗ ███╗   ██╗ ██████╗███████╗██╗   ██╗██╗  ██╗
+ * ██╔════╝╚══██╔══╝██╔══██╗████╗  ██║██╔════╝╚══███╔╝╚██╗ ██╔╝██║ ██╔╝
+ * ███████╗   ██║   ███████║██╔██╗ ██║██║       ███╔╝  ╚████╔╝ █████╔╝
+ * ╚════██║   ██║   ██╔══██║██║╚██╗██║██║      ███╔╝    ╚██╔╝  ██╔═██╗
+ * ███████║   ██║   ██║  ██║██║ ╚████║╚██████╗███████╗   ██║   ██║  ██╗
+ * ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝╚══════╝   ╚═╝   ╚═╝  ╚═╝
+ */
 #ifndef STANCZYK_CHUNK_H
 #define STANCZYK_CHUNK_H
 
 #include "common.h"
-#include "value.h"
+#include "constant.h"
 
 typedef enum {
-    OP_CONSTANT,
-    OP_LIST_CREATE,
-    OP_LIST_GET_INDEX,
-    OP_LIST_STORE_INDEX,
-    OP_NIL,
-    OP_TRUE,
-    OP_FALSE,
-    OP_GET_LOCAL,
-    OP_SET_LOCAL,
-    OP_GET_GLOBAL,
-    OP_DEFINE_GLOBAL,
-    OP_SET_GLOBAL,
+    // Constants
+    OP_PUSH_INT,
+    OP_PUSH_STR,
+    // Keywords
+    OP_JUMP,
+    OP_JUMP_IF_FALSE,
+    OP_LOOP,
+    OP_MEMORY,
+    // Intrinsics
+    OP_ADD,
+    OP_AND,
+    OP_DEC,
+    OP_DIVIDE,
+    OP_DROP,
+    OP_DUP,
     OP_EQUAL,
     OP_GREATER,
+    OP_GREATER_EQUAL,
+
+    OP_INC,
     OP_LESS,
-    OP_AND,
-    OP_OR,
-    OP_ADD,
-    OP_SUBTRACT,
+    OP_LESS_EQUAL,
+    OP_LOAD8,
+
     OP_MULTIPLY,
-    OP_DIVIDE,
-    OP_NEGATE,
+    OP_NOT_EQUAL,
+    OP_OR,
+
+    OP_OVER,
     OP_PRINT,
-    OP_DROP,
-    OP_DROPN,
-    OP_DUP,
-    OP_JUMP_IF_FALSE,
-    OP_JUMP,
-    OP_QUIT,
-    OP_LOOP,
-    OP_CALL,
-    OP_SPLIT,
-    OP_JOIN,
-    OP_RETURN
-} op_code_t;
+    OP_RETURN,
+    OP_SAVE8,
+    OP_SUBSTRACT,
+    OP_SWAP,
+    OP_SYS4,
+    // Special
+    OP_END
+} Op;
 
 typedef struct {
     int count;
     int capacity;
-    uint8_t* code;
+    bool erred;
+    u8 *code;
     int *lines;
-    value_array_t constants;
-} chunk_t;
+    ConstantArray constants;
+} Chunk;
 
-void init_chunk(chunk_t *chunk);
-void write_chunk(chunk_t *chunk, uint8_t byte, int line);
-int add_constant(chunk_t *chunk, value_t value);
-void free_chunk(chunk_t *chunk);
+void init_chunk(Chunk *);
+int add_constant(Chunk *, Value);
+void write_chunk(Chunk *, u8, int);
+void free_chunk(Chunk *);
 
 #endif

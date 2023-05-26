@@ -2,26 +2,15 @@ PROJECT_NAME  := Stanczyk
 CC            := gcc
 CFLAGS        := -Wall -std=c99 -Wpedantic
 RELEASE_FLAGS := -O3
-DEBUG_FLAGS   := -DDEBUG_PRINT_CODE -DDEBUG_TIME_LOG -g -ggdb -O0
-DEBUG_TRACE   := -DDEBUG_TRACE_EXECUTION
-DEBUG_GC      := -DDEBUG_LOG_GC
-TEST_GC       := -DDEBUG_STRESS_GC -DDEBUG_LOG_GC
+DEBUG_FLAGS   := -DDEBUG_BYTECODE -DDEBUG_COMPILED -g -ggdb -O0
 NAME          := skc
 SRC  := $(wildcard src/*.c)
 
 default: main
 
 main:
-	@ $(CC) $(CFLAGS) $(RELEASE_FLAGS) $(SRC) -o $(NAME)
-
-debug:
 	@ $(CC) $(CFLAGS) $(DEBUG_FLAGS) $(SRC) -o $(NAME)
+	@ ./skc playground.sk
 
-trace:
-	@ $(CC) $(CFLAGS) $(DEBUG_FLAGS) $(DEBUG_TRACE) $(SRC) -o $(NAME)
-
-debug-gc:
-	@ $(CC) $(CFLAGS) $(DEBUG_FLAGS) $(DEBUG_GC) $(SRC) -o $(NAME)
-
-test-gc:
-	@ $(CC) $(CFLAGS) $(DEBUG_FLAGS) $(TEST_GC) $(SRC) -o $(NAME)
+release:
+	@ $(CC) $(CFLAGS) $(RELEASE_FLAGS) $(SRC) -o $(NAME)

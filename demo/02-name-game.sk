@@ -1,0 +1,23 @@
+; What is this?
+; * Asking the name to the user, reading it into a buffer and print it back.
+
+; How does it work?
+; * First we print the message using the syscall for writing to a file descriptor (stdout).
+; * Then we read the input through stdin
+; * Finally we show the message back to stdout.
+
+; Saving "Hi, " to the buffer memory
+memory 0 + 72  !8
+memory 1 + 105 !8
+memory 2 + 44  !8
+memory 3 + 32  !8
+
+; Asking for the name to doing a syscall to stdout fd.
+"What's your name? " 1 1 sys4 drop
+
+; Letting the user input something in stdin by doing a read syscall
+; and saving it into the buffer memory.
+80 memory 4 + 0 0 sys4
+
+; Showing the results with another write syscall to std fd.
+5 + memory 1 1 sys4
