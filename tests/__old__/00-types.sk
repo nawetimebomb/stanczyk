@@ -1,0 +1,8 @@
+:: main () do
+	true print
+	true neg print
+	false print
+	false neg print
+	nil print
+	nil neg print
+.

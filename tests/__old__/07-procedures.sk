@@ -1,0 +1,20 @@
+:: returning(a, b, c) do
+   a b + c + !
+.
+
+:: side-effect-nil-return() do
+   "test" print
+.
+
+:: recursive(n) do
+   n 3 == if
+     n !
+   .
+   recursive(n 1 +) !
+.
+
+:: main () do
+  returning(1, 2, 3) print
+  side-effect-nil-return() print
+  recursive(1) print
+.

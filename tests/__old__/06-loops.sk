@@ -1,0 +1,16 @@
+:= first 0 .
+:= second 0 .
+
+:: main () do
+  ;; infinite loop
+  {} do
+    first 5 >= quit
+    "this is an infinite loop, with quit" print
+    = first first 1 + .
+  .
+
+  {second 3 <} do
+    "this is a conditional loop" print
+    = second second 1 + .
+  .
+.
