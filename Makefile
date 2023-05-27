@@ -10,7 +10,6 @@ default: main
 
 main:
 	@ $(CC) $(CFLAGS) $(DEBUG_FLAGS) $(SRC) -o $(NAME)
-	@ ./skc playground.sk
 
 release:
 	@ $(CC) $(CFLAGS) $(RELEASE_FLAGS) $(SRC) -o $(NAME)

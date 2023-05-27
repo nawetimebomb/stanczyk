@@ -39,7 +39,7 @@
 #define READ_SHORT() (writer->ip += 2, (u16)((writer->ip[-2] << 8) | writer->ip[-1]))
 
 CompilerResult generate_x64_linux(Writer *writer,
-                                  OutputArray *executable,
+                                  OutputArray *code,
                                   OutputArray *writeable) {
     for (;;) {
 #ifdef DEBUG_BYTECODE
@@ -47,224 +47,229 @@ CompilerResult generate_x64_linux(Writer *writer,
 #endif
 
         u8 instruction;
-        int line = writer->chunk->lines[writer->ip - writer->chunk->code];
-        append(executable,
-               "ip_%d: %*s; (line %d)",
-               writer->ip - writer->chunk->code, 25, "", line);
+        int offset = writer->ip - writer->chunk->code;
+        if (offset > 0 &&
+            writer->chunk->lines[offset] == writer->chunk->lines[offset - 1]) {
+        } else {
+            append(code, "/*    line %d    */", writer->chunk->lines[offset]);
+        }
+        append(code, "ip_%d:", offset);
         switch (instruction = READ_BYTE()) {
             // Constants
             case OP_PUSH_INT: {
                 int value = AS_NUMBER(READ_CONSTANT());
-                append(executable, "    ;; %d", value);
-                append(executable, "    mov    rax, %d", value);
-                append(executable, "    push   rax");
+                append(code, "    /*    %d    */", value);
+                append(code, "    mov    $%d, rax", value);
+                append(code, "    push   rax");
             } break;
             case OP_PUSH_STR: {
                 String *value = READ_STRING();
-                append(executable, "    ;; %d %s", value->length, value->chars);
-                append(executable, "    mov    rax, %d", strlen(value->chars));
-                append(executable, "    push   rax");
-                append(executable, "    push   str_%d", writeable->count);
+                append(code, "    /*    len: %d str: str_%d    */",
+                       value->length, writeable->count);
+                append(code, "    mov    $%d, rax", value->length);
+                append(code, "    push   rax");
+                append(code, "    lea    str_%d(rip), rax", writeable->count);
+                append(code, "    push   rax");
                 append(writeable, "%s", value->chars);
             } break;
             // Keywords
             case OP_JUMP: {
                 u16 offset = READ_SHORT();
                 int result_ip = (writer->ip - writer->chunk->code) + offset;
-                append(executable, "    ;; else (ip_%d)", result_ip);
-                append(executable, "    jmp    ip_%d", result_ip);
+                append(code, "    /*    else (ip_%d)    */", result_ip);
+                append(code, "    jmp    ip_%d", result_ip);
             } break;
             case OP_JUMP_IF_FALSE: {
                 u16 offset = READ_SHORT();
                 int result_ip = (writer->ip - writer->chunk->code) + offset;
-                append(executable, "    ;; do (ip_%d)", result_ip);
-                append(executable, "    pop    rax");
-                append(executable, "    test   rax, rax");
-                append(executable, "    jz     ip_%d", result_ip);
+                append(code, "    /*    do (ip_%d)    */", result_ip);
+                append(code, "    pop    rax");
+                append(code, "    test   rax, rax");
+                append(code, "    jz     ip_%d", result_ip);
             } break;
             case OP_LOOP: {
                 u16 offset = READ_SHORT();
                 int result_ip = (writer->ip - writer->chunk->code) - offset;
-                append(executable, "    ;; loop (ip_%d)", result_ip);
-                append(executable, "    jmp    ip_%d", result_ip);
+                append(code, "    /*    loop (ip_%d)    */", result_ip);
+                append(code, "    jmp    ip_%d", result_ip);
             } break;
             case OP_MEMORY: {
-                append(executable, "    ;; memory");
-                append(executable, "    push mem");
+                append(code, "    /*    memory    */");
+                append(code, "    lea   mem(rip), rax");
+                append(code, "    push  rax");
             } break;
             // Intrinsics
             case OP_ADD: {
-                append(executable, "    ;; +");
-                append(executable, "    pop    rax");
-                append(executable, "    pop    rbx");
-                append(executable, "    add    rax, rbx");
-                append(executable, "    push   rax");
+                append(code, "    /*    +    */");
+                append(code, "    pop    rax");
+                append(code, "    pop    rbx");
+                append(code, "    add    rbx, rax");
+                append(code, "    push   rax");
             } break;
             case OP_AND: {
                 printf("Not implemented\n");
                 return COMPILER_GENERATOR_ERROR;
             } break;
             case OP_DEC: {
-                append(executable, "    ;; dec");
-                append(executable, "    pop    rax");
-                append(executable, "    dec    rax");
-                append(executable, "    push   rax");
+                append(code, "    /*    dec    */");
+                append(code, "    pop    rax");
+                append(code, "    dec    rax");
+                append(code, "    push   rax");
             } break;
             case OP_DIVIDE: {
-                append(executable, "    ;; /");
-                append(executable, "    xor    rdx, rdx");
-                append(executable, "    pop    rbx");
-                append(executable, "    pop    rax");
-                append(executable, "    div    rax");
-                append(executable, "    push   rax         ; quotient");
-                append(executable, "    push   rbx         ; remainder");
+                append(code, "    /*    /    */");
+                append(code, "    xor    rdx, rdx");
+                append(code, "    pop    rbx");
+                append(code, "    pop    rax");
+                append(code, "    div    rbx");
+                append(code, "    push   rax");
             } break;
             case OP_DROP: {
-                append(executable, "    ;; drop");
-                append(executable, "    pop    rax");
+                append(code, "    /*    drop    */");
+                append(code, "    pop    rax");
             } break;
             case OP_DUP: {
-                append(executable, "    ;; dup");
-                append(executable, "    pop    rax");
-                append(executable, "    push   rax");
-                append(executable, "    push   rax");
+                append(code, "    /*    dup    */");
+                append(code, "    pop    rax");
+                append(code, "    push   rax");
+                append(code, "    push   rax");
             } break;
             case OP_EQUAL: {
-                append(executable, "    ;; ==");
-                append(executable, "    mov    rcx, 1");
-                append(executable, "    xor    rdx, rdx");
-                append(executable, "    pop    rbx");
-                append(executable, "    pop    rax");
-                append(executable, "    cmp    rax, rbx");
-                append(executable, "    cmove  rdx, rcx");
-                append(executable, "    push   rdx");
+                append(code, "    /*    ==    */");
+                append(code, "    xor    rcx, rcx");
+                append(code, "    mov    $1,  rdx");
+                append(code, "    pop    rbx");
+                append(code, "    pop    rax");
+                append(code, "    cmp    rbx, rax");
+                append(code, "    cmove  rdx, rcx");
+                append(code, "    push   rcx");
             } break;
             case OP_GREATER: {
-                append(executable, "    ;; >");
-                append(executable, "    mov    rcx, 1");
-                append(executable, "    xor    rdx, rdx");
-                append(executable, "    pop    rbx");
-                append(executable, "    pop    rax");
-                append(executable, "    cmp    rax, rbx");
-                append(executable, "    cmovg  rdx, rcx");
-                append(executable, "    push   rdx");
+                append(code, "    /*    >    */");
+                append(code, "    xor    rcx, rcx");
+                append(code, "    mov    $1,  rdx");
+                append(code, "    pop    rbx");
+                append(code, "    pop    rax");
+                append(code, "    cmp    rbx, rax");
+                append(code, "    cmovg  rdx, rcx");
+                append(code, "    push   rcx");
             } break;
             case OP_GREATER_EQUAL: {
-                append(executable, "    ;; >=");
-                append(executable, "    mov    rcx, 1");
-                append(executable, "    xor    rdx, rdx");
-                append(executable, "    pop    rbx");
-                append(executable, "    pop    rax");
-                append(executable, "    cmp    rax, rbx");
-                append(executable, "    cmovge rdx, rcx");
-                append(executable, "    push   rdx");
+                append(code, "    /*    >=    */");
+                append(code, "    xor    rcx, rcx");
+                append(code, "    mov    $1,  rdx");
+                append(code, "    pop    rbx");
+                append(code, "    pop    rax");
+                append(code, "    cmp    rbx, rax");
+                append(code, "    cmovge rdx, rcx");
+                append(code, "    push   rcx");
             } break;
             case OP_INC: {
-                append(executable, "    ;; inc");
-                append(executable, "    pop    rax");
-                append(executable, "    inc    rax");
-                append(executable, "    push   rax");
+                append(code, "    /*    inc    */");
+                append(code, "    pop    rax");
+                append(code, "    inc    rax");
+                append(code, "    push   rax");
             } break;
             case OP_LESS: {
-                append(executable, "    ;; <");
-                append(executable, "    mov    rcx, 1");
-                append(executable, "    xor    rdx, rdx");
-                append(executable, "    pop    rbx");
-                append(executable, "    pop    rax");
-                append(executable, "    cmp    rax, rbx");
-                append(executable, "    cmovl  rdx, rcx");
-                append(executable, "    push   rdx");
+                append(code, "    /*    <    */");
+                append(code, "    xor    rcx, rcx");
+                append(code, "    mov    $1,  rdx");
+                append(code, "    pop    rbx");
+                append(code, "    pop    rax");
+                append(code, "    cmp    rbx, rax");
+                append(code, "    cmovl  rdx, rcx");
+                append(code, "    push   rcx");
             } break;
             case OP_LESS_EQUAL: {
-                append(executable, "    ;; <=");
-                append(executable, "    mov    rcx, 1");
-                append(executable, "    xor    rdx, rdx");
-                append(executable, "    pop    rbx");
-                append(executable, "    pop    rax");
-                append(executable, "    cmp    rax, rbx");
-                append(executable, "    cmovle rdx, rcx");
-                append(executable, "    push   rdx");
+                append(code, "    /*    <=    */");
+                append(code, "    xor    rcx, rcx");
+                append(code, "    mov    $1,  rdx");
+                append(code, "    pop    rbx");
+                append(code, "    pop    rax");
+                append(code, "    cmp    rbx, rax");
+                append(code, "    cmovle rdx, rcx");
+                append(code, "    push   rcx");
             } break;
             case OP_LOAD8: {
-                append(executable, "    ;; @8");
-                append(executable, "    pop    rax");
-                append(executable, "    xor    rbx, rbx");
-                append(executable, "    mov    bl, [rax]");
-                append(executable, "    push   rbx");
+                append(code, "    /*    @8    */");
+                append(code, "    pop    rax");
+                append(code, "    xor    rbx, rbx");
+                append(code, "    mov    (rax), bl");
+                append(code, "    push   rbx");
             } break;
             case OP_MULTIPLY: {
-                append(executable, "    ;; *");
-                append(executable, "    pop    rax");
-                append(executable, "    pop    rbx");
-                append(executable, "    mul    rbx");
-                append(executable, "    push   rax");
+                append(code, "    /*    *    */");
+                append(code, "    pop    rax");
+                append(code, "    pop    rbx");
+                append(code, "    mul    rbx");
+                append(code, "    push   rax");
             } break;
             case OP_NOT_EQUAL: {
-                append(executable, "    ;; !=");
-                append(executable, "    mov    rcx, 1");
-                append(executable, "    xor    rdx, rdx");
-                append(executable, "    pop    rbx");
-                append(executable, "    pop    rax");
-                append(executable, "    cmp    rax, rbx");
-                append(executable, "    cmovne rdx, rcx");
-                append(executable, "    push   rdx");
+                append(code, "    /*    !=    */");
+                append(code, "    xor    rcx, rcx");
+                append(code, "    mov    $1,  rdx");
+                append(code, "    pop    rbx");
+                append(code, "    pop    rax");
+                append(code, "    cmp    rbx, rax");
+                append(code, "    cmovne rdx, rcx");
+                append(code, "    push   rcx");
             } break;
             case OP_OR: {
                 printf("Not implemented\n");
                 return COMPILER_GENERATOR_ERROR;
             } break;
             case OP_OVER: {
-                append(executable, "    ;; over");
-                append(executable, "    pop    rax");
-                append(executable, "    pop    rbx");
-                append(executable, "    push   rbx");
-                append(executable, "    push   rax");
-                append(executable, "    push   rbx");
+                append(code, "    /*    over    */");
+                append(code, "    pop    rax");
+                append(code, "    pop    rbx");
+                append(code, "    push   rbx");
+                append(code, "    push   rax");
+                append(code, "    push   rbx");
             } break;
             case OP_PRINT: {
-                append(executable, "    ;; print");
-                append(executable, "    pop    rdi");
-                append(executable, "    call   dump");
+                append(code, "    /*    print    */");
+                append(code, "    pop    rdi");
+                append(code, "    call   dump");
             } break;
             case OP_RETURN: {
                 printf("Not implemented\n");
                 return COMPILER_GENERATOR_ERROR;
             } break;
             case OP_SAVE8: {
-                append(executable, "    ;; !8");
-                append(executable, "    pop    rbx");
-                append(executable, "    pop    rax");
-                append(executable, "    mov    [rax], bl");
+                append(code, "    /*    !8    */");
+                append(code, "    pop    rbx");
+                append(code, "    pop    rax");
+                append(code, "    mov    bl, (rax)");
             } break;
             case OP_SWAP: {
-                append(executable, "    ;; swap");
-                append(executable, "    pop    rax");
-                append(executable, "    pop    rbx");
-                append(executable, "    push   rax");
-                append(executable, "    push   rbx");
+                append(code, "    /*    swap    */");
+                append(code, "    pop    rax");
+                append(code, "    pop    rbx");
+                append(code, "    push   rax");
+                append(code, "    push   rbx");
             } break;
             case OP_SUBSTRACT: {
-                append(executable, "    ;; -");
-                append(executable, "    pop    rax");
-                append(executable, "    pop    rbx");
-                append(executable, "    sub    rbx, rax");
-                append(executable, "    push   rbx");
+                append(code, "    /*    -    */");
+                append(code, "    pop    rax");
+                append(code, "    pop    rbx");
+                append(code, "    sub    rax, rbx");
+                append(code, "    push   rbx");
             } break;
             case OP_SYS4: {
-                append(executable, "    ;; sys4");
-                append(executable, "    pop    rax");
-                append(executable, "    pop    rdi");
-                append(executable, "    pop    rsi");
-                append(executable, "    pop    rdx");
-                append(executable, "    syscall");
-                append(executable, "    push   rax");
+                append(code, "    /*    sys4    */");
+                append(code, "    pop    rax");
+                append(code, "    pop    rdi");
+                append(code, "    pop    rsi");
+                append(code, "    pop    rdx");
+                append(code, "    syscall");
+                append(code, "    push   rax");
             } break;
             // Special
             case OP_END: {
-                append(executable, "    ;; EOF");
-                append(executable, "    mov    rax, 60");
-                append(executable, "    xor    rdi, rdi");
-                append(executable, "    syscall");
+                append(code, "    /*    EOF    */");
+                append(code, "    mov    $60,   rax");
+                append(code, "    xor    rdi, rdi");
+                append(code, "    syscall");
                 return COMPILER_OK;
             }
             default: {

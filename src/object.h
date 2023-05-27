@@ -28,6 +28,7 @@
 #ifndef STANCZYK_OBJECT_H
 #define STANCZYK_OBJECT_H
 
+#include "common.h"
 #include "constant.h"
 
 typedef enum {
@@ -42,6 +43,7 @@ struct String {
     Object obj;
     int length;
     char *chars;
+    u32 hash;
 };
 
 #define OBJECT_TYPE(value) (AS_OBJECT(value)->type)

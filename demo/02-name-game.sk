@@ -6,6 +6,11 @@
 ; * Then we read the input through stdin
 ; * Finally we show the message back to stdout.
 
+:> stdin  do 0           .
+:> stdout do 1           .
+:> write  do 1 SYS4 drop .
+:> read   do 0 SYS4      .
+
 ; Saving "Hi, " to the buffer memory
 memory 0 + 72  !8
 memory 1 + 105 !8
@@ -13,11 +18,11 @@ memory 2 + 44  !8
 memory 3 + 32  !8
 
 ; Asking for the name to doing a syscall to stdout fd.
-"What's your name? " 1 1 sys4 drop
+"What's your name? " stdout write
 
 ; Letting the user input something in stdin by doing a read syscall
 ; and saving it into the buffer memory.
-80 memory 4 + 0 0 sys4
+80 memory 4 + stdin read
 
 ; Showing the results with another write syscall to std fd.
-5 + memory 1 1 sys4
+5 + memory stdin write

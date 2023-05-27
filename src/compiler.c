@@ -39,6 +39,9 @@
 #include "debug.h"
 #include "generator.h"
 #include "printer.h"
+#include "task.h"
+
+extern CompilerOptions options;
 
 Writer writer;
 
@@ -51,7 +54,7 @@ static void init_writer_array(OutputArray *array) {
 static CompilerResult generate() {
 #if defined(__linux__)
     print_cli("[ info ]", "Compiling code for Linux");
-    return generate_x64_linux(&writer, &writer.executable, &writer.writeable);
+    return generate_x64_linux(&writer, &writer.code, &writer.writeable);
 #elif defined(_WIN32) || defined(_WIN64) || defined(__CYGWIN__)
     print_cli("[ error ]", "Windows is not supported");
     return COMPILER_OS_ERROR;
@@ -64,90 +67,10 @@ static CompilerResult generate() {
 #endif
 }
 
-static CompilerResult write() {
-    // TODO: Select name of file dinamically
-    FILE *out = fopen("output.asm", "w");
-
-    fprintf(out, "format ELF64 executable\n");
-    fprintf(out, "segment readable executable\n");
-    fprintf(out, "dump:\n");
-    fprintf(out, "    mov     r9, -3689348814741910323\n");
-    fprintf(out, "    sub     rsp, 40\n");
-    fprintf(out, "    mov     BYTE [rsp+31], 10\n");
-    fprintf(out, "    lea     rcx, [rsp+30]\n");
-    fprintf(out, ".L2:\n");
-    fprintf(out, "    mov     rax, rdi\n");
-    fprintf(out, "    lea     r8, [rsp+32]\n");
-    fprintf(out, "    mul     r9\n");
-    fprintf(out, "    mov     rax, rdi\n");
-    fprintf(out, "    sub     r8, rcx\n");
-    fprintf(out, "    shr     rdx, 3\n");
-    fprintf(out, "    lea     rsi, [rdx+rdx*4]\n");
-    fprintf(out, "    add     rsi, rsi\n");
-    fprintf(out, "    sub     rax, rsi\n");
-    fprintf(out, "    add     eax, 48\n");
-    fprintf(out, "    mov     BYTE [rcx], al\n");
-    fprintf(out, "    mov     rax, rdi\n");
-    fprintf(out, "    mov     rdi, rdx\n");
-    fprintf(out, "    mov     rdx, rcx\n");
-    fprintf(out, "    sub     rcx, 1\n");
-    fprintf(out, "    cmp     rax, 9\n");
-    fprintf(out, "    ja      .L2\n");
-    fprintf(out, "    lea     rax, [rsp+32]\n");
-    fprintf(out, "    mov     edi, 1\n");
-    fprintf(out, "    sub     rdx, rax\n");
-    fprintf(out, "    xor     eax, eax\n");
-    fprintf(out, "    lea     rsi, [rsp+32+rdx]\n");
-    fprintf(out, "    mov     rdx, r8\n");
-    fprintf(out, "    mov     rax, 1\n");
-    fprintf(out, "    syscall\n");
-    fprintf(out, "    add     rsp, 40\n");
-    fprintf(out, "    ret\n");
-    fprintf(out, "entry start\n");
-    fprintf(out, "start:\n");
-
-    for (int i = 0; i < writer.executable.count; i++) {
-        fprintf(out, "%s\n", writer.executable.items[i]);
-    }
-
-    fprintf(out, "segment readable writeable\n");
-
-    for (int i = 0; i < writer.writeable.count; i++) {
-        char *str = writer.writeable.items[i];
-        int count = 0;
-        int length = strlen(str);
-        fprintf(out, "str_%d: db ", i);
-
-        for (char c = *str; c; c = *++str) {
-            fprintf(out, "%d", c);
-            if (count != length - 1) fprintf(out, ",");
-            count++;
-        }
-
-        fprintf(out, "\n");
-    }
-
-    // TODO: Get memory dinamically
-    fprintf(out, "mem: rb 640000\n");
-
-    fclose(out);
-
-    // TODO: move these out.
-    print_cli("[ info ]", "Running the FASM Assembler");
-    system("fasm output.asm");
-#ifndef DEBUG_COMPILED
-    print_cli("[ info ]", "Cleaning up");
-    system("rm output.asm");
-#endif
-    system("./output");
-
-    return COMPILER_OK;
-}
-
 CompilerResult compile(const char *source) {
     Chunk *chunk = malloc(sizeof(Chunk));
     init_chunk(chunk);
-    init_writer_array(&writer.executable);
+    init_writer_array(&writer.code);
     init_writer_array(&writer.writeable);
 
     const char *processed = process(source);
@@ -164,10 +87,8 @@ CompilerResult compile(const char *source) {
 
     // TODO: Improve the below
     if (result) return result;
-    result = write();
-    if (result) return result;
 
-    return result;
+    return run(&writer);
 }
 
 void append(OutputArray *array, char *format, ...) {

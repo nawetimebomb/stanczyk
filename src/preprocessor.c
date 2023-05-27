@@ -30,6 +30,12 @@
 #include <string.h>
 
 #include "preprocessor.h"
+#include "common.h"
+
+// TODO: Move this to a helper function
+static bool is_digit(char c) {
+    return c >= '0' && c <= '9';
+}
 
 static const char *process_source(const char *source) {
     char *p = malloc(strlen(source) + 1);
@@ -37,33 +43,24 @@ static const char *process_source(const char *source) {
     int i = 0;
 
     for (char c = *source; c;) {
+        // Removing comments from source file.
         if (c == ';') {
             while (c != '\n' && c != '\0') {
                 c = *++source;
             }
         }
-        if (c == '\\') {
-            c = *++source;
-            switch (c) {
-                // TODO: Figure out if we want these escaping sequences
-                case '\'': c = '\''; break;
-                case '\\': c = '\\'; break;
-                case '"': c = '"'; break;
-                case '?': c = '\?'; break;
-                case 'a': c = '\a'; break;
-                case 'b': c = '\b'; break;
-                case 'f': c = '\f'; break;
-                case 'n': c = '\n'; break;
-                case 'r': c = '\r'; break;
-                case 't': c = '\t'; break;
-                case 'v': c = '\v'; break;
-                default: continue;
-            }
 
-            p[i] = c;
-            i++;
-            c = *++source;
-            continue;
+        // Removing _ between digits, allowing 1_000_000
+        if (is_digit(c)) {
+            while (c != '\n' && c != ' ' && c != '\0') {
+                if (c != '_') {
+                    p[i] = c;
+                    i++;
+                    c = *++source;
+                } else {
+                    c = *++source;
+                }
+            }
         }
 
         p[i] = c;

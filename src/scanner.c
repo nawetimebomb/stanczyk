@@ -116,7 +116,7 @@ static TokenType check_keyword(int start, int length, const char *rest, TokenTyp
         return type;
     }
 
-    return TOKEN_UNKNOWN;
+    return TOKEN_WORD;
 }
 
 static TokenType keyword_type() {
@@ -132,7 +132,14 @@ static TokenType keyword_type() {
                 }
             }
         }
-        case 'e': return check_keyword(1, 3, "lse", TOKEN_ELSE);
+        case 'e': {
+            if (scanner.current - scanner.start > 1) {
+                switch (scanner.start[1]) {
+                    case 'l': return check_keyword(2, 2, "se", TOKEN_ELSE);
+                    case 'n': return check_keyword(2, 1, "d",  TOKEN_END);
+                }
+            }
+        }
         case 'i': {
             if (scanner.current - scanner.start > 1) {
                 if (scanner.start[1] == 'f') return TOKEN_IF;
@@ -152,17 +159,11 @@ static TokenType keyword_type() {
             }
         }
         case 'p': return check_keyword(1, 4, "rint", TOKEN_PRINT);
-        case 's': {
-            if (scanner.current - scanner.start > 1) {
-                switch (scanner.start[1]) {
-                    case 'w': return check_keyword(2, 2, "ap", TOKEN_SWAP);
-                    case 'y': return check_keyword(2, 2, "s4", TOKEN_SYS4);
-                }
-            }
-        }
+        case 's': return check_keyword(1, 3, "wap", TOKEN_SWAP);
+        case 'S': return check_keyword(1, 3, "YS4", TOKEN_SYS4);
     }
 
-    return TOKEN_UNKNOWN;
+    return TOKEN_WORD;
 }
 
 static Token keyword() {
@@ -216,8 +217,13 @@ Token scan_token() {
         }
         case '<': return make_token(match('=') ? TOKEN_LESS_EQUAL : TOKEN_LESS);
         case '>': return make_token(match('=') ? TOKEN_GREATER_EQUAL : TOKEN_GREATER);
+        case ':': {
+            if (match(':')) return make_token(TOKEN_PROC);
+            if (match('>')) return make_token(TOKEN_MACRO);
+            if (match('=')) return make_token(TOKEN_CONST);
+        } break;
         case '"': return string();
     }
 
-    return error_token("unknown token found");
+    return error_token("unknown token");
 }

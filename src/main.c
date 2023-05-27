@@ -33,6 +33,7 @@
 #include <unistd.h>
 
 #include "common.h"
+#include "printer.h"
 #include "compiler.h"
 
 CompilerOptions options;
@@ -102,22 +103,36 @@ static int load_file(const char *path) {
     return result;
 }
 
-int main(int argc, const char *argv[]) {
+static void parse_arguments(int argc, const char **argv) {
+    for (int i = 1; i < argc; i++) {
+        const char *input = argv[i];
+
+        if ((strcmp(input, "-r") == 0) || (strcmp(input, "-run") == 0)) {
+            options.run = true;
+        } else if ((strcmp(input, "-d") == 0) || (strcmp(input, "-debug") == 0)) {
+            options.debug = true;
+        } else if ((strcmp(input, "-o") == 0) || (strcmp(input, "-out") == 0)) {
+            i++;
+            options.out_file = argv[i];
+        } else if ((strcmp(input, "-h") == 0) || (strcmp(input, "-help") == 0)) {
+            print_help();
+            exit(0);
+        } else if (strstr(input, ".sk")) {
+            options.entry_file = input;
+        } else {
+            print_cli_error();
+        }
+    }
+}
+
+int main(int argc, const char **argv) {
     if (argc < 2) {
-        printf("\n");
-        system("base64 -d misc/title.b64");
-        printf("The Stańczyk Compiler\n");
-		printf("Usage:\n");
-		printf("\tskc <file> [options]\n\n");
-		printf("For more information about what the compiler can do, you can use: skc -help.\n");
-        exit(1);
+        print_cli_error();
     }
 
-    // TODO: Handle other flags.
-    options.entry_file = argv[1];
-    int result = load_file(options.entry_file);
+    parse_arguments(argc, argv);
 
-    // TODO: Run the compiled Stańczyk code with FASM
+    int result = load_file(options.entry_file);
 
     return result;
 }

@@ -33,7 +33,10 @@
 
 typedef struct {
     const char *entry_file;
+    const char *out_file;
     const char *workspace;
+    bool run;
+    bool debug;
 } CompilerOptions;
 
 typedef struct {
@@ -45,7 +48,7 @@ typedef struct {
 typedef struct {
     Chunk *chunk;
     u8    *ip;
-    OutputArray executable;
+    OutputArray code;
     OutputArray writeable;
 } Writer;
 
