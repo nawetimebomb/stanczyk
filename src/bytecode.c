@@ -318,8 +318,7 @@ static void RULE_intrinsic(Token token) {
 
 static void populate_statement_array(TokenArray *statement) {
     int blocks = 0;
-    while (blocks > 0 || (!check(TOKEN_END) &&
-                          !check(TOKEN_EOF) &&
+    while (blocks > 0 || (!check(TOKEN_EOF) &&
                           !check(TOKEN_DOT))) {
         advance();
         Token token = parser.previous;
@@ -372,9 +371,7 @@ static void run_if(TokenArray *statement, int starting_index) {
     else_ip = emit_jump(OP_JUMP);
     patch_jump(then_ip);
 
-    if (check_from(statement, index, TOKEN_ELSE)) {
-        index++;
-
+    if (match_from(statement, &index, TOKEN_ELSE)) {
         while (!check_from(statement, index, TOKEN_EOF) &&
                !check_from(statement, index, TOKEN_DOT)) {
             parse_this_from(statement, index);
@@ -441,7 +438,7 @@ static void inline_loop_statement() {
 static void macro_statement() {
     consume(TOKEN_WORD,
             "a valid word is expected after the macro definition symbol\n" "E.g.:\n"
-            "\t:> my-macro do [...] end\n" COLOR_RED"\t   ^^^^^^^^\n"STYLE_OFF
+            "\t:> my-macro do [...] .\n" COLOR_RED"\t   ^^^^^^^^\n"STYLE_OFF
             "Name may be any word starting with a lowercase or uppercase character, "
             "but it may contain numbers, _ or -");
     String *word = copy_string(parser.previous.start, parser.previous.length);
@@ -454,12 +451,12 @@ static void macro_statement() {
     }
 
     consume(TOKEN_DO, "'do' expected after the name of this macro\n" "E.g.:\n"
-            "\t:> my-macro do [...] end\n" COLOR_RED"\t            ^^\n"STYLE_OFF
+            "\t:> my-macro do [...] .\n" COLOR_RED"\t            ^^\n"STYLE_OFF
             "All block expressions must be enclosed in 'do' and '.' keywords");
 
-    if (match(TOKEN_END)) {
+    if (match(TOKEN_DOT)) {
         error("missing macro content after 'do'. Empty macros are not allowed\n" "E.g.:\n"
-              "\t:> my-macro do [...] end\n" COLOR_RED"\t               ^^^^^\n"STYLE_OFF
+              "\t:> my-macro do [...] .\n" COLOR_RED"\t               ^^^^^\n"STYLE_OFF
               "Macro content may be anything, including other macros, but not the same macro");
         return;
     }
@@ -467,10 +464,10 @@ static void macro_statement() {
     TokenArray *statement = create_macro(word);
     populate_statement_array(statement);
 
-    consume(TOKEN_END,
-            "'end' expected after macro declaration\n" "E.g.:\n"
-            "\t:> my-macro do [...] end\n" COLOR_RED"\t                     ^^^\n"STYLE_OFF
-            "Macro declaration must be closed with the 'end' keyword");
+    consume(TOKEN_DOT,
+            "'.' (dot) expected after macro declaration\n" "E.g.:\n"
+            "\t:> my-macro do [...] .\n" COLOR_RED "\t                     ^\n"STYLE_OFF
+            "Macro declaration must be closed with the '.' keyword");
 }
 
 static void RULE_keyword(Token token) {

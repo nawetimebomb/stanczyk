@@ -35,7 +35,6 @@ typedef enum {
     TOKEN_DEC,
     TOKEN_DO,
     TOKEN_DOT,
-    TOKEN_END,
     TOKEN_DROP,
     TOKEN_DUP,
     TOKEN_ELSE,

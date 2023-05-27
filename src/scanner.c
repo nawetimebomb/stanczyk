@@ -132,14 +132,7 @@ static TokenType keyword_type() {
                 }
             }
         }
-        case 'e': {
-            if (scanner.current - scanner.start > 1) {
-                switch (scanner.start[1]) {
-                    case 'l': return check_keyword(2, 2, "se", TOKEN_ELSE);
-                    case 'n': return check_keyword(2, 1, "d",  TOKEN_END);
-                }
-            }
-        }
+        case 'e': return check_keyword(1, 3, "lse", TOKEN_ELSE);
         case 'i': {
             if (scanner.current - scanner.start > 1) {
                 if (scanner.start[1] == 'f') return TOKEN_IF;
