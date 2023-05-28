@@ -299,17 +299,6 @@ static void RULE_constant(Token token) {
 
 static void RULE_intrinsic(Token token) {
     switch (token.type) {
-        case TOKEN___SYS0        : emit_byte(OP_SYS0);          break;
-        case TOKEN___SYS1        : emit_byte(OP_SYS1);          break;
-        case TOKEN___SYS2        : emit_byte(OP_SYS2);          break;
-        case TOKEN___SYS3        : emit_byte(OP_SYS3);          break;
-        case TOKEN___SYS4        : emit_byte(OP_SYS4);          break;
-        case TOKEN___SYS5        : emit_byte(OP_SYS5);          break;
-        case TOKEN___SYS6        : emit_byte(OP_SYS6);          break;
-        case TOKEN___SYS_ADD     : emit_byte(OP_ADD);           break;
-        case TOKEN___SYS_DIVMOD  : emit_byte(OP_DIVIDE);        break;
-        case TOKEN___SYS_MUL     : emit_byte(OP_MULTIPLY);      break;
-        case TOKEN___SYS_SUB     : emit_byte(OP_SUBSTRACT);     break;
         case TOKEN_AND           : emit_byte(OP_AND);           break;
         case TOKEN_DEC           : emit_byte(OP_DEC);           break;
         case TOKEN_DROP          : emit_byte(OP_DROP);          break;
@@ -489,7 +478,6 @@ static void RULE_keyword(Token token) {
     switch (token.type) {
         case TOKEN_IF     : inline_if_statement();   break;
         case TOKEN_LOOP   : inline_loop_statement(); break;
-            //case TOKEN_MACRO  : macro_statement();       break;
         case TOKEN_MEMORY : emit_byte(OP_MEMORY);    break;
         default: return;
     }
@@ -544,18 +532,35 @@ static void RULE_ignore() {
     return;
 }
 
+static void RULE_sys(Token token) {
+    switch (token.type) {
+        case TOKEN___SYS0       : emit_byte(OP_SYS0);      break;
+        case TOKEN___SYS1       : emit_byte(OP_SYS1);      break;
+        case TOKEN___SYS2       : emit_byte(OP_SYS2);      break;
+        case TOKEN___SYS3       : emit_byte(OP_SYS3);      break;
+        case TOKEN___SYS4       : emit_byte(OP_SYS4);      break;
+        case TOKEN___SYS5       : emit_byte(OP_SYS5);      break;
+        case TOKEN___SYS6       : emit_byte(OP_SYS6);      break;
+        case TOKEN___SYS_ADD    : emit_byte(OP_ADD);       break;
+        case TOKEN___SYS_DIVMOD : emit_byte(OP_DIVIDE);    break;
+        case TOKEN___SYS_MUL    : emit_byte(OP_MULTIPLY);  break;
+        case TOKEN___SYS_SUB    : emit_byte(OP_SUBSTRACT); break;
+        default: return;
+    }
+}
+
 ParseRule rules[] = {
-    [TOKEN___SYS0]        = {RULE_intrinsic, NULL},
-    [TOKEN___SYS1]        = {RULE_intrinsic, NULL},
-    [TOKEN___SYS2]        = {RULE_intrinsic, NULL},
-    [TOKEN___SYS3]        = {RULE_intrinsic, NULL},
-    [TOKEN___SYS4]        = {RULE_intrinsic, NULL},
-    [TOKEN___SYS5]        = {RULE_intrinsic, NULL},
-    [TOKEN___SYS6]        = {RULE_intrinsic, NULL},
-    [TOKEN___SYS_ADD]     = {RULE_intrinsic, NULL},
-    [TOKEN___SYS_DIVMOD]  = {RULE_intrinsic, NULL},
-    [TOKEN___SYS_MUL]     = {RULE_intrinsic, NULL},
-    [TOKEN___SYS_SUB]     = {RULE_intrinsic, NULL},
+    [TOKEN___SYS0]        = {RULE_sys,       NULL},
+    [TOKEN___SYS1]        = {RULE_sys,       NULL},
+    [TOKEN___SYS2]        = {RULE_sys,       NULL},
+    [TOKEN___SYS3]        = {RULE_sys,       NULL},
+    [TOKEN___SYS4]        = {RULE_sys,       NULL},
+    [TOKEN___SYS5]        = {RULE_sys,       NULL},
+    [TOKEN___SYS6]        = {RULE_sys,       NULL},
+    [TOKEN___SYS_ADD]     = {RULE_sys,       NULL},
+    [TOKEN___SYS_DIVMOD]  = {RULE_sys,       NULL},
+    [TOKEN___SYS_MUL]     = {RULE_sys,       NULL},
+    [TOKEN___SYS_SUB]     = {RULE_sys,       NULL},
     [TOKEN_HASH_INCLUDE]  = {RULE_skip,      NULL},
     [TOKEN_MACRO]         = {RULE_ignore,    NULL},
     [TOKEN_INT]           = {RULE_constant,  NULL},
