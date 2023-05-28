@@ -1,9 +1,10 @@
 # The Stańczyk Programming Language
 
-[![Build](https://img.shields.io/appveyor/build/elnawe/stanczyk)]
-[![Commits](https://img.shields.io/github/commit-activity/w/elnawe/stanczyk)
-[![LICENSE](https://img.shields.io/github/license/elnawe/stanczyk)]
+![Build](https://img.shields.io/appveyor/build/elnawe/stanczyk)
+![Commits](https://img.shields.io/github/commit-activity/w/elnawe/stanczyk)
+![LICENSE](https://img.shields.io/github/license/elnawe/stanczyk)
 
+```
             ¿«fº"└└-.`└└*∞▄_              ╓▄∞╙╙└└└╙╙*▄▄
          J^. ,▄▄▄▄▄▄_      └▀████▄ç    JA▀            └▀v
        ,┘ ▄████████████▄¿     ▀██████▄▀└      ╓▄██████▄¿ "▄_
@@ -28,6 +29,7 @@
  ╚════██║   ██║   ██╔══██║██║╚██╗██║██║      ███╔╝    ╚██╔╝  ██╔═██╗
  ███████║   ██║   ██║  ██║██║ ╚████║╚██████╗███████╗   ██║   ██║  ██╗
  ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝╚══════╝   ╚═╝   ╚═╝  ╚═╝
+```
 
 **NOTE: This is a work in progress, things can change without any notice. Use with discretion.**
 

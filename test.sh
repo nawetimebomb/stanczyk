@@ -23,11 +23,11 @@ for FILE in tests/*.sk; do
         TEST_NAME="${TEST_SRC##*/}"
 
         if [ "$1" == "save" ]; then
-            ./skc ${TEST_SRC}.sk -r -s > ${TEST_SRC}.txt
+            ./skc run ${TEST_SRC}.sk > ${TEST_SRC}.txt
         fi
 
 
-        ./skc ${TEST_SRC}.sk -r -s > result.txt
+        ./skc run ${TEST_SRC}.sk > result.txt
 
         RESULT=$(diff ${TEST_SRC}.txt result.txt)
         printf "${BOLD} ¤ %-56s${RESET}" $TEST_NAME
