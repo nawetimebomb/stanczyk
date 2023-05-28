@@ -63,3 +63,7 @@ A simple *Hello, Stańczyk* program could be:
 ```
 
 You can find more examples on [demos](demo)
+
+## Unit tests
+
+After you get the Stańczyk Compiler executable, you can run `./test.sh`.
