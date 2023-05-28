@@ -146,7 +146,7 @@ static void error_at(Token *token, const char *message) {
     if (parser.panic) return;
     parser.panic = true;
     // TODO: It should use specific file by context
-    fprintf(stderr, "\n%s:%d:%d: " STYLE_UNDERSCORE"ERROR",
+    fprintf(stderr, "\n%s:%d:%d: " STYLE_UNDERLINE"ERROR",
             token->filename, token->line, token->column);
 
     if (token->type == TOKEN_EOF) {
@@ -430,50 +430,6 @@ static void inline_loop_statement() {
     run_loop(statement, 0);
 }
 
-static void macro_statement() {
-    consume(TOKEN_WORD,
-            "a valid word is expected after the macro definition symbol\n" "E.g.:\n"
-            "\t:> my-macro set [...] end\n" COLOR_RED
-            "\t   ^^^^^^^^\n"STYLE_OFF
-            "Name may be any word starting with a lowercase or uppercase character, "
-            "but it may contain numbers, _ or -");
-    String *word = copy_string(parser.previous.start, parser.previous.length);
-    int macro_index = find_macro_index(word);
-
-    if (macro_index != -1) {
-        error("cannot override macro\n"
-              "A macro with this name already exists. Macros cannot be overriden");
-        return;
-    }
-
-    consume(TOKEN_SET, "'set' expected after the name of this macro\n" "E.g.:\n"
-            "\t:> my-macro set [...] end\n" COLOR_RED
-            "\t            ^^^\n"STYLE_OFF
-            "All declaration statements must be enclosed in 'set' and 'end' keywords");
-
-    if (match(TOKEN_END)) {
-        error("missing macro content after 'do'. Empty macros are not allowed\n" "E.g.:\n"
-              "\t:> my-macro set [...] end\n" COLOR_RED
-              "\t                ^^^^^\n"STYLE_OFF
-              "Macro content may be anything, including other macros, but not the same macro");
-        return;
-    }
-
-    TokenArray *statement = create_macro(word);
-
-    while (!check(TOKEN_END) && !check(TOKEN_EOF)) {
-        advance();
-        Token token = parser.previous;
-        append_token(statement, token);
-    }
-
-    consume(TOKEN_END,
-            "'end' keyword expected after macro declaration\n" "E.g.:\n"
-            "\t:> my-macro set [...] end\n" COLOR_RED
-            "\t                      ^^^\n"STYLE_OFF
-            "Macro declaration must close with the 'end' keyword");
-}
-
 static void RULE_keyword(Token token) {
     switch (token.type) {
         case TOKEN_IF     : inline_if_statement();   break;
@@ -507,13 +463,13 @@ static void RULE_word(Token token) {
     String *word = copy_string(token.start, token.length);
     int index = find_macro_index(word);
 
-    if (index == -1) {
-        error("unknown word\n" "The word definition has not been found yet in the code\n"
-              "Check if the definition is after this line or if you mispelled the word");
+    if (index >= 0) {
+        expand_macro(&macros.statements[index]);
         return;
     }
 
-    expand_macro(&macros.statements[index]);
+    error("unknown word\n" "The word definition has not been found yet in the code\n"
+          "Check if the definition is after this line or if you mispelled the word");
 }
 
 static void RULE_skip() {
@@ -526,21 +482,19 @@ static void RULE_skip() {
 }
 
 static void RULE_ignore() {
-    while (!match(TOKEN_END)) {
-        advance();
-    }
+    while (!match(TOKEN_END)) advance();
     return;
 }
 
 static void RULE_sys(Token token) {
     switch (token.type) {
-        case TOKEN___SYS0       : emit_byte(OP_SYS0);      break;
-        case TOKEN___SYS1       : emit_byte(OP_SYS1);      break;
-        case TOKEN___SYS2       : emit_byte(OP_SYS2);      break;
-        case TOKEN___SYS3       : emit_byte(OP_SYS3);      break;
-        case TOKEN___SYS4       : emit_byte(OP_SYS4);      break;
-        case TOKEN___SYS5       : emit_byte(OP_SYS5);      break;
-        case TOKEN___SYS6       : emit_byte(OP_SYS6);      break;
+        case TOKEN___SYS_CALL0  : emit_byte(OP_SYS0);      break;
+        case TOKEN___SYS_CALL1  : emit_byte(OP_SYS1);      break;
+        case TOKEN___SYS_CALL2  : emit_byte(OP_SYS2);      break;
+        case TOKEN___SYS_CALL3  : emit_byte(OP_SYS3);      break;
+        case TOKEN___SYS_CALL4  : emit_byte(OP_SYS4);      break;
+        case TOKEN___SYS_CALL5  : emit_byte(OP_SYS5);      break;
+        case TOKEN___SYS_CALL6  : emit_byte(OP_SYS6);      break;
         case TOKEN___SYS_ADD    : emit_byte(OP_ADD);       break;
         case TOKEN___SYS_DIVMOD : emit_byte(OP_DIVIDE);    break;
         case TOKEN___SYS_MUL    : emit_byte(OP_MULTIPLY);  break;
@@ -550,19 +504,21 @@ static void RULE_sys(Token token) {
 }
 
 ParseRule rules[] = {
-    [TOKEN___SYS0]        = {RULE_sys,       NULL},
-    [TOKEN___SYS1]        = {RULE_sys,       NULL},
-    [TOKEN___SYS2]        = {RULE_sys,       NULL},
-    [TOKEN___SYS3]        = {RULE_sys,       NULL},
-    [TOKEN___SYS4]        = {RULE_sys,       NULL},
-    [TOKEN___SYS5]        = {RULE_sys,       NULL},
-    [TOKEN___SYS6]        = {RULE_sys,       NULL},
+    [TOKEN___SYS_CALL0]   = {RULE_sys,       NULL},
+    [TOKEN___SYS_CALL1]   = {RULE_sys,       NULL},
+    [TOKEN___SYS_CALL2]   = {RULE_sys,       NULL},
+    [TOKEN___SYS_CALL3]   = {RULE_sys,       NULL},
+    [TOKEN___SYS_CALL4]   = {RULE_sys,       NULL},
+    [TOKEN___SYS_CALL5]   = {RULE_sys,       NULL},
+    [TOKEN___SYS_CALL6]   = {RULE_sys,       NULL},
     [TOKEN___SYS_ADD]     = {RULE_sys,       NULL},
     [TOKEN___SYS_DIVMOD]  = {RULE_sys,       NULL},
     [TOKEN___SYS_MUL]     = {RULE_sys,       NULL},
     [TOKEN___SYS_SUB]     = {RULE_sys,       NULL},
     [TOKEN_HASH_INCLUDE]  = {RULE_skip,      NULL},
+    [TOKEN_CONST]         = {RULE_ignore,    NULL},
     [TOKEN_MACRO]         = {RULE_ignore,    NULL},
+    [TOKEN_PROC]          = {RULE_ignore,    NULL},
     [TOKEN_INT]           = {RULE_constant,  NULL},
     [TOKEN_STR]           = {RULE_constant,  NULL},
     [TOKEN_IF]            = {RULE_keyword,   RULE_keyword_ex},
@@ -671,6 +627,99 @@ static void hash_include() {
     }
 }
 
+static void macro_statement() {
+    consume(TOKEN_WORD,
+            "a valid word is expected after the macro definition symbol\n" "E.g.:\n"
+            "\t:> my-macro set [...] end\n" COLOR_RED
+            "\t   ^^^^^^^^\n"STYLE_OFF
+            "Name may be any word starting with a lowercase or uppercase character, "
+            "but it may contain numbers, _ or -");
+    String *word = copy_string(parser.previous.start, parser.previous.length);
+    int macro_index = find_macro_index(word);
+
+    if (macro_index != -1) {
+        char *error_message = ALLOCATE(char, 32);
+        memset(error_message, 0, sizeof(char) * 32);
+        sprintf(error_message, "word %s already in use\n"
+                "You cannot override existing declarations in Stańczyk,\n"
+                "must select a different name for this macro", word->chars);
+        error(error_message);
+        return;
+    }
+
+    consume(TOKEN_SET, "'set' expected after the name of this macro\n" "E.g.:\n"
+            "\t:> my-macro set [...] end\n" COLOR_RED
+            "\t            ^^^\n"STYLE_OFF
+            "Macro declaration statements must be enclosed in 'set' and 'end' keywords");
+
+    if (match(TOKEN_END)) {
+        error("missing macro content after 'set'. Empty macros are not allowed\n" "E.g.:\n"
+              "\t:> my-macro set [...] end\n" COLOR_RED
+              "\t                ^^^^^\n"STYLE_OFF
+              "Macro content may be anything, including other macros, but not the same macro");
+        return;
+    }
+
+    TokenArray *statement = create_macro(word);
+
+    while (!check(TOKEN_END) && !check(TOKEN_EOF)) {
+        advance();
+        Token token = parser.previous;
+        append_token(statement, token);
+    }
+
+    consume(TOKEN_END,
+            "'end' keyword expected after macro declaration\n" "E.g.:\n"
+            "\t:> my-macro set [...] end\n" COLOR_RED
+            "\t                      ^^^\n"STYLE_OFF
+            "Macro declaration must close with the 'end' keyword");
+}
+
+static void const_statement() {
+    consume(TOKEN_WORD,
+            "a valid word is expected after the const definition symbol\n" "E.g.:\n"
+            "\t:= my-const <value> end\n" COLOR_RED
+            "\t   ^^^^^^^^\n"STYLE_OFF
+            "Name may be any word starting with a lowercase or uppercase character, "
+            "but it may contain numbers, _ or -");
+    String *word = copy_string(parser.previous.start, parser.previous.length);
+    int macro_index = find_macro_index(word);
+
+    if (macro_index != -1) {
+        char *error_message = ALLOCATE(char, 32);
+        memset(error_message, 0, sizeof(char) * 32);
+        sprintf(error_message, "word %s already in use\n"
+                "You cannot override existing declarations in Stańczyk,\n"
+                "must select a different name for this const", word->chars);
+        error(error_message);
+        return;
+    }
+
+    if (match(TOKEN_END)) {
+        error("missing const content after name. Empty const are not allowed\n" "E.g.:\n"
+              "\t:> my-const <value> end\n" COLOR_RED
+              "\t            ^^^^^^^\n"STYLE_OFF
+              "Const content may be a constant value, like an Int or Str.");
+        return;
+    }
+
+    TokenArray *statement = create_macro(word);
+    advance();
+    Token token = parser.previous;
+    if (token.type == TOKEN_INT || token.type == TOKEN_STR) {
+        append_token(statement, token);
+    } else {
+        error("you can only assign a constant value to a 'const'\n"
+              "Only an Int or Str is allowed to be used here.");
+    }
+
+    consume(TOKEN_END,
+            "'end' keyword expected after const declaration\n" "E.g.:\n"
+            "\t:> my-const <value> end\n" COLOR_RED
+            "\t                    ^^^\n"STYLE_OFF
+            "Const declaration must close with the 'end' keyword");
+}
+
 static void run_preprocessor_tokens(int index) {
     const char *filename = the_compiler->files.filenames[index];
     const char *source = the_compiler->files.sources[index];
@@ -682,6 +731,7 @@ static void run_preprocessor_tokens(int index) {
         switch (parser.previous.type) {
             case TOKEN_HASH_INCLUDE : hash_include();     break;
             case TOKEN_MACRO        : macro_statement();  break;
+            case TOKEN_CONST        : const_statement();  break;
             default: break;
         }
         if (parser.panic) synch();
@@ -706,14 +756,14 @@ void bytecode(Compiler *compiler, Chunk *chunk) {
     the_compiler = compiler;
     current = chunk;
 
+    // Save libs/basics.sk
+    Filename basics = get_full_path(the_compiler, "basics");
+    process_and_save(the_compiler, &basics);
+
     // Save the entry file
     const char *entry = the_compiler->options.entry_file;
     Filename file = get_full_path(the_compiler, entry);
     process_and_save(the_compiler, &file);
-
-    // Save libs/basics.sk
-    Filename basics = get_full_path(the_compiler, "basics");
-    process_and_save(the_compiler, &basics);
 
     // Check for #includes, save macros, const and procedures
     for (int index = 0; index < the_compiler->files.count; index++) {

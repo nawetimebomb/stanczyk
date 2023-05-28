@@ -28,12 +28,13 @@
 #ifndef STANCZYK_PRINTER_H
 #define STANCZYK_PRINTER_H
 
-#define STYLE_OFF  "\033[0m"
-#define STYLE_BOLD "\033[1m"
-#define STYLE_UNDERSCORE "\033[4m"
-#define COLOR_RED  "\033[31m"
+#define STYLE_OFF       "\033[0m"
+#define STYLE_BOLD      "\033[1m"
+#define STYLE_UNDERLINE "\033[4m"
+#define COLOR_RED       "\033[31m"
 
 #define PRINTF_BOLD(str) printf("%s%s%s", STYLE_BOLD, str, STYLE_OFF)
+#define PRINTF_UNDERLINE(str) printf("%s%s%s", STYLE_UNDERLINE, str, STYLE_OFF);
 #define PRINTF_RED(str) printf("%s%s%s", COLOR_RED, str, STYLE_OFF)
 
 void print_cli(const char *, const char *);

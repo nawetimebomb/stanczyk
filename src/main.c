@@ -73,11 +73,30 @@ static char *get_compiler_dir(const char *path) {
 }
 
 static void parse_arguments(int argc, const char **argv) {
-    for (int i = 1; i < argc; i++) {
+    // Parse argv[1]
+    if (strcmp(argv[1], "run") == 0) {
+        compiler.options.run = true;
+        compiler.options.clean = true;
+        compiler.options.silent = true;
+    } else if (strcmp(argv[1], "build") == 0) {
+        compiler.options.debug = false;
+    } else if (strcmp(argv[1], "help") == 0) {
+        print_help();
+        exit(0);
+    } else {
+        printf("ERROR: first argument should be 'run' or 'build'\n");
+        print_cli_error();
+        exit(1);
+    }
+
+    for (int i = 2; i < argc; i++) {
         const char *input = argv[i];
 
         if ((strcmp(input, "-r") == 0) || (strcmp(input, "-run") == 0)) {
             compiler.options.run = true;
+        } else if ((strcmp(input, "-C") == 0) || (strcmp(input, "-clean") == 0)) {
+            compiler.options.run = true;
+            compiler.options.clean = true;
         } else if ((strcmp(input, "-d") == 0) || (strcmp(input, "-debug") == 0)) {
             compiler.options.debug = true;
         } else if ((strcmp(input, "-o") == 0) || (strcmp(input, "-out") == 0)) {
@@ -85,11 +104,9 @@ static void parse_arguments(int argc, const char **argv) {
             compiler.options.out_file = argv[i];
         } else if ((strcmp(input, "-s") == 0) || (strcmp(input, "-silent") == 0)) {
             compiler.options.silent = true;
-        } else if ((strcmp(input, "-h") == 0) || (strcmp(input, "-help") == 0)) {
-            print_help();
-            exit(0);
-        } else if (strstr(input, ".sk")) {
-            compiler.options.entry_file = input;
+        } else if (strstr(argv[i], ".sk")) {
+            compiler.ready = true;
+            compiler.options.entry_file = argv[i];
         } else {
             print_cli_error();
         }
@@ -102,7 +119,15 @@ int main(int argc, const char **argv) {
     }
 
     init_file_array();
+
     parse_arguments(argc, argv);
+
+    if (!compiler.ready) {
+        printf("ERROR: missing entry file\n");
+        print_cli_error();
+        exit(1);
+    }
+
     compiler.options.workspace = get_workspace(compiler.options.entry_file);
     compiler.options.compiler_dir = get_compiler_dir(argv[0]);
 
@@ -121,6 +146,7 @@ int main(int argc, const char **argv) {
     }
 
     if (compiler.options.run) system("./output");
+    if (compiler.options.clean) system("rm ./output");
 
     return result;
 }

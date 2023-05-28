@@ -37,6 +37,9 @@
 #include "util.h"
 #include "common.h"
 
+// TODO: Most of this code is unsafe because we never check the length of the
+// input and limit it to be the expected one, so we might end with buffer overflow.
+
 static char *get_word_in_name(const char *name) {
     char *result = ALLOCATE(char, 32);
     memset(result, 0, sizeof(char) * 32);

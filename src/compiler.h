@@ -37,6 +37,7 @@ typedef struct {
     const char *workspace;
     const char *compiler_dir;
     bool run;
+    bool clean;
     bool debug;
     bool silent;
 } CompilerOptions;
@@ -60,6 +61,7 @@ typedef struct {
     CompilerOptions options;
     FileArray files;
     Timers timers;
+    bool ready;
 } Compiler;
 
 typedef struct {

@@ -52,113 +52,114 @@
 ;; TODO: Add descriptions
 
 ;; File descriptor (fd)
-:> STDIN_FILENO  set 0 end    :> stdin  set STDIN_FILENO  end
-:> STDOUT_FILENO set 1 end    :> stdout set STDOUT_FILENO end
-:> STDERR_FILENO set 2 end    :> stderr set STDERR_FILENO end
+:= STDIN_FILENO  0 end    :> stdin  set STDIN_FILENO  end
+:= STDOUT_FILENO 1 end    :> stdout set STDOUT_FILENO end
+:= STDERR_FILENO 2 end    :> stderr set STDERR_FILENO end
 
 ;; System call (syscall)
-:> LINUX_SYS_READ                set 0     end
-:> LINUX_SYS_WRITE               set 1     end
-:> LINUX_SYS_OPEN                set 2     end
-:> LINUX_SYS_CLOSE               set 3     end
-:> LINUX_SYS_STAT                set 4     end
-:> LINUX_SYS_FSTAT               set 5     end
-:> LINUX_SYS_LSTAT               set 6     end
-:> LINUX_SYS_POLL                set 7     end
-:> LINUX_SYS_LSEEK               set 8     end
-:> LINUX_SYS_MMAP                set 9     end
-:> LINUX_SYS_MPROTECT            set 10    end
-:> LINUX_SYS_MUNMAP              set 11    end
-:> LINUX_SYS_BRK                 set 12    end
-:> LINUX_SYS_RT_SIGACTION        set 13    end
-:> LINUX_SYS_RT_SIGPROCMASK      set 14    end
-:> LINUX_SYS_RT_SIGRETURN        set 15    end
-:> LINUX_SYS_IOCTL               set 16    end
-:> LINUX_SYS_PREAD64             set 17    end
-:> LINUX_SYS_PWRITE64            set 18    end
-:> LINUX_SYS_READV               set 19    end
-:> LINUX_SYS_WRITEV              set 20    end
-:> LINUX_SYS_ACCESS              set 21    end
-:> LINUX_SYS_PIPE                set 22    end
-:> LINUX_SYS_SELECT              set 23    end
-:> LINUX_SYS_SCHED_YIELD         set 24    end
-:> LINUX_SYS_MREMAP	             set 25    end
-:> LINUX_SYS_MSYNC	             set 26    end
-:> LINUX_SYS_MINCORE             set 27    end
-:> LINUX_SYS_MADVISE             set 28    end
-:> LINUX_SYS_SHMGET              set 29    end
-:> LINUX_SYS_SHMAT	             set 30    end
-:> LINUX_SYS_SHMCTL              set 31    end
-:> LINUX_SYS_DUP	               set 32    end
-:> LINUX_SYS_DUP2	               set 33    end
-:> LINUX_SYS_PAUSE               set 34    end
-:> LINUX_SYS_NANOSLEEP           set 35    end
-:> LINUX_SYS_GETITIMER           set 36    end
-:> LINUX_SYS_ALARM	             set 37    end
-:> LINUX_SYS_SETITIMER           set 38    end
-:> LINUX_SYS_GETPID              set 39    end
-:> LINUX_SYS_SENDFILE            set 40    end
-:> LINUX_SYS_SOCKET	             set 41    end
-:> LINUX_SYS_CONNECT	           set 42    end
-:> LINUX_SYS_ACCEPT	             set 43    end
-:> LINUX_SYS_SENDTO	             set 44    end
-:> LINUX_SYS_RECVFROM	           set 45    end
-:> LINUX_SYS_SENDMSG	           set 46    end
-:> LINUX_SYS_RECVMSG	           set 47    end
-:> LINUX_SYS_SHUTDOWN            set 48    end
-:> LINUX_SYS_BIND	               set 49    end
-:> LINUX_SYS_LISTEN              set 50    end
-:> LINUX_SYS_GETSOCKNAME         set 51    end
-:> LINUX_SYS_GETPEERNAME         set 52    end
-:> LINUX_SYS_SOCKETPAIR          set 53    end
-:> LINUX_SYS_SETSOCKOPT          set 54    end
-:> LINUX_SYS_GETSOCKOPT          set 55    end
-:> LINUX_SYS_CLONE	             set 56    end
-:> LINUX_SYS_FORK                set 57    end
-:> LINUX_SYS_VFORK               set 58    end
-:> LINUX_SYS_EXECVE	             set 59    end
-:> LINUX_SYS_EXIT	               set 60    end
-:> LINUX_SYS_WAIT4               set 61    end
-:> LINUX_SYS_KILL	               set 62    end
-:> LINUX_SYS_UNAME	             set 63    end
-:> LINUX_SYS_SEMGET	             set 64    end
-:> LINUX_SYS_SEMOP	             set 65    end
-:> LINUX_SYS_SEMCTL	             set 66    end
-:> LINUX_SYS_SHMDT	             set 67    end
-:> LINUX_SYS_MSGGET	             set 68    end
-:> LINUX_SYS_MSGSND	             set 69    end
-:> LINUX_SYS_MSGRCV	             set 70    end
-:> LINUX_SYS_MSGCTL	             set 71    end
-:> LINUX_SYS_FCNTL	             set 72    end
-:> LINUX_SYS_FLOCK	             set 73    end
-:> LINUX_SYS_FSYNC	             set 74    end
-:> LINUX_SYS_FDATASYNC           set 75    end
-:> LINUX_SYS_TRUNCATE	           set 76    end
-:> LINUX_SYS_FTRUNCATE           set 77    end
-:> LINUX_SYS_GETDENTS	           set 78    end
-:> LINUX_SYS_GETCWD	             set 79    end
-:> LINUX_SYS_CHDIR	             set 80    end
-:> LINUX_SYS_FCHDIR	             set 81    end
-:> LINUX_SYS_RENAME	             set 82    end
-:> LINUX_SYS_MKDIR	             set 83    end
-:> LINUX_SYS_RMDIR	             set 84    end
-:> LINUX_SYS_CREAT	             set 85    end
-:> LINUX_SYS_LINK	               set 86    end
-:> LINUX_SYS_UNLINK	             set 87    end
-:> LINUX_SYS_SYMLINK	           set 88    end
-:> LINUX_SYS_READLINK	           set 89    end
-:> LINUX_SYS_CHMOD	             set 90    end
-:> LINUX_SYS_FCHMOD	             set 91    end
-:> LINUX_SYS_CHOWN	             set 92    end
-:> LINUX_SYS_FCHOWN	             set 93    end
-:> LINUX_SYS_LCHOWN	             set 94    end
-:> LINUX_SYS_UMASK	             set 95    end
-:> LINUX_SYS_GETTIMEOFDAY        set 96    end
-:> LINUX_SYS_GETRLIMIT	         set 97    end
-:> LINUX_SYS_GETRUSAGE	         set 98    end
-:> LINUX_SYS_SYSINFO	           set 99    end
-:> LINUX_SYS_TIMES	             set 100   end
+:= LINUX_SYS_READ           0   end
+:= LINUX_SYS_WRITE          1   end
+:= LINUX_SYS_OPEN           2   end
+:= LINUX_SYS_CLOSE          3   end
+:= LINUX_SYS_STAT           4   end
+:= LINUX_SYS_FSTAT          5   end
+:= LINUX_SYS_LSTAT          6   end
+:= LINUX_SYS_POLL           7   end
+:= LINUX_SYS_LSEEK          8   end
+:= LINUX_SYS_MMAP           9   end
+:= LINUX_SYS_MPROTECT       10  end
+:= LINUX_SYS_MUNMAP         11  end
+:= LINUX_SYS_BRK            12  end
+:= LINUX_SYS_RT_SIGACTION   13  end
+:= LINUX_SYS_RT_SIGPROCMASK 14  end
+:= LINUX_SYS_RT_SIGRETURN   15  end
+:= LINUX_SYS_IOCTL          16  end
+:= LINUX_SYS_PREAD64        17  end
+:= LINUX_SYS_PWRITE64       18  end
+:= LINUX_SYS_READV          19  end
+:= LINUX_SYS_WRITEV         20  end
+:= LINUX_SYS_ACCESS         21  end
+:= LINUX_SYS_PIPE           22  end
+:= LINUX_SYS_SELECT         23  end
+:= LINUX_SYS_SCHED_YIELD    24  end
+:= LINUX_SYS_MREMAP	        25  end
+:= LINUX_SYS_MSYNC	        26  end
+:= LINUX_SYS_MINCORE        27  end
+:= LINUX_SYS_MADVISE        28  end
+:= LINUX_SYS_SHMGET         29  end
+:= LINUX_SYS_SHMAT	        30  end
+:= LINUX_SYS_SHMCTL         31  end
+:= LINUX_SYS_DUP	          32  end
+:= LINUX_SYS_DUP2	          33  end
+:= LINUX_SYS_PAUSE          34  end
+:= LINUX_SYS_NANOSLEEP      35  end
+:= LINUX_SYS_GETITIMER      36  end
+:= LINUX_SYS_ALARM	        37  end
+:= LINUX_SYS_SETITIMER      38  end
+:= LINUX_SYS_GETPID         39  end
+:= LINUX_SYS_SENDFILE       40  end
+:= LINUX_SYS_SOCKET	        41  end
+:= LINUX_SYS_CONNECT	      42  end
+:= LINUX_SYS_ACCEPT	        43  end
+:= LINUX_SYS_SENDTO	        44  end
+:= LINUX_SYS_RECVFROM	      45  end
+:= LINUX_SYS_SENDMSG	      46  end
+:= LINUX_SYS_RECVMSG	      47  end
+:= LINUX_SYS_SHUTDOWN       48  end
+:= LINUX_SYS_BIND	          49  end
+:= LINUX_SYS_LISTEN         50  end
+:= LINUX_SYS_GETSOCKNAME    51  end
+:= LINUX_SYS_GETPEERNAME    52  end
+:= LINUX_SYS_SOCKETPAIR     53  end
+:= LINUX_SYS_SETSOCKOPT     54  end
+:= LINUX_SYS_GETSOCKOPT     55  end
+:= LINUX_SYS_CLONE	        56  end
+:= LINUX_SYS_FORK           57  end
+:= LINUX_SYS_VFORK          58  end
+:= LINUX_SYS_EXECVE	        59  end
+:= LINUX_SYS_EXIT	          60  end
+:= LINUX_SYS_WAIT4          61  end
+:= LINUX_SYS_KILL	          62  end
+:= LINUX_SYS_UNAME	        63  end
+:= LINUX_SYS_SEMGET	        64  end
+:= LINUX_SYS_SEMOP	        65  end
+:= LINUX_SYS_SEMCTL	        66  end
+:= LINUX_SYS_SHMDT	        67  end
+:= LINUX_SYS_MSGGET	        68  end
+:= LINUX_SYS_MSGSND	        69  end
+:= LINUX_SYS_MSGRCV	        70  end
+:= LINUX_SYS_MSGCTL	        71  end
+:= LINUX_SYS_FCNTL	        72  end
+:= LINUX_SYS_FLOCK	        73  end
+:= LINUX_SYS_FSYNC	        74  end
+:= LINUX_SYS_FDATASYNC      75  end
+:= LINUX_SYS_TRUNCATE	      76  end
+:= LINUX_SYS_FTRUNCATE      77  end
+:= LINUX_SYS_GETDENTS	      78  end
+:= LINUX_SYS_GETCWD	        79  end
+:= LINUX_SYS_CHDIR	        80  end
+:= LINUX_SYS_FCHDIR	        81  end
+:= LINUX_SYS_RENAME	        82  end
+:= LINUX_SYS_MKDIR	        83  end
+:= LINUX_SYS_RMDIR	        84  end
+:= LINUX_SYS_CREAT	        85  end
+:= LINUX_SYS_LINK	          86  end
+:= LINUX_SYS_UNLINK	        87  end
+:= LINUX_SYS_SYMLINK	      88  end
+:= LINUX_SYS_READLINK	      89  end
+:= LINUX_SYS_CHMOD	        90  end
+:= LINUX_SYS_FCHMOD	        91  end
+:= LINUX_SYS_CHOWN	        92  end
+:= LINUX_SYS_FCHOWN	        93  end
+:= LINUX_SYS_LCHOWN	        94  end
+:= LINUX_SYS_UMASK	        95  end
+:= LINUX_SYS_GETTIMEOFDAY   96  end
+:= LINUX_SYS_GETRLIMIT	    97  end
+:= LINUX_SYS_GETRUSAGE	    98  end
+:= LINUX_SYS_SYSINFO	      99  end
+:= LINUX_SYS_TIMES	        100 end
 
 ;; Helper macros
-:> read  set stdin  LINUX_SYS_READ  __SYS3 end
-:> write set stdout LINUX_SYS_WRITE __SYS3 end
+:> read  set stdin  LINUX_SYS_READ  __SYS_CALL3 end
+:> write set stdout LINUX_SYS_WRITE __SYS_CALL3 end
+:> exit  set LINUX_SYS_EXIT         __SYS_CALL1 end

@@ -136,13 +136,13 @@ static TokenType keyword_type() {
             if (check_if_keyword(1, 8,  "_SYS_SUB"))     return TOKEN___SYS_SUB;
             if (check_if_keyword(1, 8,  "_SYS_MUL"))     return TOKEN___SYS_MUL;
             if (check_if_keyword(1, 11, "_SYS_DIVMOD"))  return TOKEN___SYS_DIVMOD;
-            if (check_if_keyword(1, 5,  "_SYS0"))        return TOKEN___SYS0;
-            if (check_if_keyword(1, 5,  "_SYS1"))        return TOKEN___SYS1;
-            if (check_if_keyword(1, 5,  "_SYS2"))        return TOKEN___SYS2;
-            if (check_if_keyword(1, 5,  "_SYS3"))        return TOKEN___SYS3;
-            if (check_if_keyword(1, 5,  "_SYS4"))        return TOKEN___SYS4;
-            if (check_if_keyword(1, 5,  "_SYS5"))        return TOKEN___SYS5;
-            if (check_if_keyword(1, 5,  "_SYS6"))        return TOKEN___SYS6;
+            if (check_if_keyword(1, 10, "_SYS_CALL0"))   return TOKEN___SYS_CALL0;
+            if (check_if_keyword(1, 10, "_SYS_CALL1"))   return TOKEN___SYS_CALL1;
+            if (check_if_keyword(1, 10, "_SYS_CALL2"))   return TOKEN___SYS_CALL2;
+            if (check_if_keyword(1, 10, "_SYS_CALL3"))   return TOKEN___SYS_CALL3;
+            if (check_if_keyword(1, 10, "_SYS_CALL4"))   return TOKEN___SYS_CALL4;
+            if (check_if_keyword(1, 10, "_SYS_CALL5"))   return TOKEN___SYS_CALL5;
+            if (check_if_keyword(1, 10, "_SYS_CALL6"))   return TOKEN___SYS_CALL6;
         } break;
         case 'a': return check_keyword(1, 2, "nd", TOKEN_AND);
         case 'd': {

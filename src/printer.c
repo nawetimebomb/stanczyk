@@ -43,7 +43,12 @@ void print_cli(const char *group, const char *message) {
 static void print_logo() {
     const char *name = "The Stańczyk Compiler";
     printf(COLOR_RED"\n");
-    system("base64 -d misc/title.b64");
+    puts("███████╗████████╗ █████╗ ███╗   ██╗ ██████╗███████╗██╗   ██╗██╗  ██╗\n"
+         "██╔════╝╚══██╔══╝██╔══██╗████╗  ██║██╔════╝╚══███╔╝╚██╗ ██╔╝██║ ██╔╝\n"
+         "███████╗   ██║   ███████║██╔██╗ ██║██║       ███╔╝  ╚████╔╝ █████╔╝ \n"
+         "╚════██║   ██║   ██╔══██║██║╚██╗██║██║      ███╔╝    ╚██╔╝  ██╔═██╗ \n"
+         "███████║   ██║   ██║  ██║██║ ╚████║╚██████╗███████╗   ██║   ██║  ██╗\n"
+         "╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝╚══════╝   ╚═╝   ╚═╝  ╚═╝\n");
     printf("%*s\n"STYLE_OFF, (int)((66 + strlen(name)) / 2), name);
 }
 
@@ -56,7 +61,13 @@ void print_help() {
 void print_cli_error() {
     print_logo();
     PRINTF_BOLD("Usage:\n");
-    printf("\tskc <file> [options]\n\n");
-    printf("For more information about what the compiler can do, you can use: skc -help.\n");
+    printf("\tskc ");
+    PRINTF_UNDERLINE("command");
+    printf(" [arguments]\n");
+    PRINTF_BOLD("Commands:\n");
+    printf("\tbuild  compile the entry .sk file and it's includes.\n");
+    printf("\trun    same as 'build', but it runs the result and cleans up the executable.\n");
+    printf("\n");
+    printf("For more information about what the compiler can do, you can use: skc help.\n");
     exit(1);
 }

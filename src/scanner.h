@@ -70,13 +70,13 @@ typedef enum {
     TOKEN___SYS_MUL,
     TOKEN___SYS_DIVMOD,
 
-    TOKEN___SYS0,
-    TOKEN___SYS1,
-    TOKEN___SYS2,
-    TOKEN___SYS3,
-    TOKEN___SYS4,
-    TOKEN___SYS5,
-    TOKEN___SYS6,
+    TOKEN___SYS_CALL0,
+    TOKEN___SYS_CALL1,
+    TOKEN___SYS_CALL2,
+    TOKEN___SYS_CALL3,
+    TOKEN___SYS_CALL4,
+    TOKEN___SYS_CALL5,
+    TOKEN___SYS_CALL6,
 
     TOKEN_ERROR,
     TOKEN_EOF
