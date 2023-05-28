@@ -35,7 +35,7 @@
 
 extern CompilerOptions options;
 
-static CompilerResult write(Writer *writer) {
+static CompilerResult write(Writer *writer, Compiler *compiler) {
     // TODO: Select name of file dinamically
     FILE *out = fopen("output.s", "w");
 
@@ -113,11 +113,11 @@ static CompilerResult write(Writer *writer) {
     print_cli("[ info ]", "Cleaning up");
     system("rm output.asm");
 #endif
-    if (options.run) system("./output");
+    if (compiler->options.run) system("./output");
 
     return COMPILER_OK;
 }
 
-CompilerResult run(Writer *writer) {
-    return write(writer);
+CompilerResult run(Writer *writer, Compiler *compiler) {
+    return write(writer, compiler);
 }

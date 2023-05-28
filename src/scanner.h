@@ -65,6 +65,10 @@ typedef enum {
     TOKEN_CONST,
     TOKEN_MACRO,
     TOKEN_WORD,
+    TOKEN_SET,
+    TOKEN_END,
+
+    TOKEN_HASH_INCLUDE,
 
     TOKEN_ERROR,
     TOKEN_EOF
@@ -72,13 +76,14 @@ typedef enum {
 
 typedef struct {
     TokenType type;
+    const char *filename;
     const char *start;
     u32 length;
     u32 line;
     u32 column;
 } Token;
 
-void init_scanner(const char *);
+void init_scanner(const char *,const char *);
 Token scan_token();
 
 #endif

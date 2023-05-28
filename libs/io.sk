@@ -1,0 +1,3 @@
+:> stdout set 1 end
+
+:> write set stdout 1 SYS4 drop end

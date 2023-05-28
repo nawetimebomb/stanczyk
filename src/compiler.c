@@ -35,7 +35,7 @@
 #include "compiler.h"
 #include "bytecode.h"
 #include "memory.h"
-#include "preprocessor.h"
+#include "fileman.h"
 #include "debug.h"
 #include "generator.h"
 #include "printer.h"
@@ -67,14 +67,13 @@ static CompilerResult generate() {
 #endif
 }
 
-CompilerResult compile(const char *source) {
+CompilerResult compile(Compiler *compiler) {
     Chunk *chunk = malloc(sizeof(Chunk));
     init_chunk(chunk);
     init_writer_array(&writer.code);
     init_writer_array(&writer.writeable);
 
-    const char *processed = process(source);
-    bytecode(processed, chunk);
+    bytecode(compiler, chunk);
 
     if (chunk->erred) {
         return COMPILER_BYTECODE_ERROR;
@@ -88,7 +87,7 @@ CompilerResult compile(const char *source) {
     // TODO: Improve the below
     if (result) return result;
 
-    return run(&writer);
+    return run(&writer, compiler);
 }
 
 void append(OutputArray *array, char *format, ...) {

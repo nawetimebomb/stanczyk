@@ -25,13 +25,13 @@
  * ███████║   ██║   ██║  ██║██║ ╚████║╚██████╗███████╗   ██║   ██║  ██╗
  * ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝╚══════╝   ╚═╝   ╚═╝  ╚═╝
  */
-#ifndef STANCZYK_BYTECODE_H
-#define STANCZYK_BYTECODE_H
+#ifndef STANCZYK_UTIL_H
+#define STANCZYK_UTIL_H
 
 #include "common.h"
-#include "chunk.h"
-#include "compiler.h"
 
-void bytecode(Compiler *compiler, Chunk *);
+bool is_digit(char c);
+bool is_alpha(char c);
+bool is_allowed_char(char c);
 
 #endif

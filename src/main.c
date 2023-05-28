@@ -36,35 +36,13 @@
 #include "printer.h"
 #include "compiler.h"
 
-CompilerOptions options;
+Compiler compiler;
 
-static char *read_file(const char *path) {
-    FILE *file = fopen(path, "rb");
-    if (file == NULL) {
-        fprintf(stderr, "could not open file \"%s\".\n", path);
-        exit(74);
-    }
-
-    fseek(file, 0L, SEEK_END);
-    size_t file_size = ftell(file);
-    rewind(file);
-
-    char *buffer = (char *)malloc(file_size + 1);
-    if (buffer == NULL) {
-        fprintf(stderr, "not enough memory to read \"%s\".\n", path);
-        exit(74);
-    }
-
-    size_t bytes_read = fread(buffer, sizeof(char), file_size, file);
-    if (bytes_read < file_size) {
-        fprintf(stderr, "could not read file \"%s\".\n", path);
-        exit(74);
-    }
-
-    buffer[bytes_read] = '\0';
-
-    fclose(file);
-    return buffer;
+static void init_file_array() {
+    compiler.files.count = 0;
+    compiler.files.capacity = 0;
+    compiler.files.filenames = NULL;
+    compiler.files.sources = NULL;
 }
 
 static char *get_file_directory(const char *path) {
@@ -85,6 +63,7 @@ static char *get_file_directory(const char *path) {
 
 static char *get_workspace(const char *path) {
     char *result = malloc(1024);
+    memset(result, 0, 1024);
     getcwd(result, 1024);
     strcat(result, "/");
     strcat(result, get_file_directory(path));
@@ -92,13 +71,11 @@ static char *get_workspace(const char *path) {
     return result;
 }
 
-static int load_file(const char *path) {
-    char *source = read_file(path);
-    // chdir(get_workspace(path));
-    options.workspace = get_workspace(path);
-
-    CompilerResult result = compile(source);
-    free(source);
+static char *get_compiler_dir() {
+    char *result = malloc(1024);
+    memset(result, 0, 1024);
+    getcwd(result, 1024);
+    strcat(result, "/");
 
     return result;
 }
@@ -108,17 +85,17 @@ static void parse_arguments(int argc, const char **argv) {
         const char *input = argv[i];
 
         if ((strcmp(input, "-r") == 0) || (strcmp(input, "-run") == 0)) {
-            options.run = true;
+            compiler.options.run = true;
         } else if ((strcmp(input, "-d") == 0) || (strcmp(input, "-debug") == 0)) {
-            options.debug = true;
+            compiler.options.debug = true;
         } else if ((strcmp(input, "-o") == 0) || (strcmp(input, "-out") == 0)) {
             i++;
-            options.out_file = argv[i];
+            compiler.options.out_file = argv[i];
         } else if ((strcmp(input, "-h") == 0) || (strcmp(input, "-help") == 0)) {
             print_help();
             exit(0);
         } else if (strstr(input, ".sk")) {
-            options.entry_file = input;
+            compiler.options.entry_file = input;
         } else {
             print_cli_error();
         }
@@ -130,9 +107,10 @@ int main(int argc, const char **argv) {
         print_cli_error();
     }
 
+    init_file_array();
     parse_arguments(argc, argv);
+    compiler.options.workspace = get_workspace(compiler.options.entry_file);
+    compiler.options.compiler_dir = get_compiler_dir();
 
-    int result = load_file(options.entry_file);
-
-    return result;
+    return compile(&compiler);
 }

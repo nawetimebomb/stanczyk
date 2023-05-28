@@ -30,6 +30,6 @@
 
 #include "compiler.h"
 
-CompilerResult run(Writer *writer);
+CompilerResult run(Writer *, Compiler *);
 
 #endif

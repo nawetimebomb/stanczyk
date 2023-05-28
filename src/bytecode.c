@@ -29,6 +29,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "fileman.h"
 #include "compiler.h"
 #include "chunk.h"
 #include "constant.h"
@@ -66,7 +67,7 @@ typedef struct {
     ParseExFn   ex;
 } ParseRule;
 
-extern CompilerOptions options;
+Compiler *the_compiler;
 MacroArray macros;
 Parser parser;
 Chunk *current;
@@ -142,7 +143,7 @@ static void error_at(Token *token, const char *message) {
     parser.panic = true;
     // TODO: It should use specific file by context
     fprintf(stderr, "\n%s:%d:%d: " STYLE_UNDERSCORE"ERROR",
-            options.entry_file, token->line, token->column);
+            token->filename, token->line, token->column);
 
     if (token->type == TOKEN_EOF) {
         fprintf(stderr, " at end of file");
@@ -175,13 +176,14 @@ static void advance() {
     }
 }
 
-static void consume(TokenType type, const char *message) {
+static bool consume(TokenType type, const char *message) {
     if (parser.current.type == type) {
         advance();
-        return;
+        return true;
     }
 
     error_at_current(message);
+    return false;
 }
 
 static bool check(TokenType type) {
@@ -194,18 +196,21 @@ static bool match(TokenType type) {
     return true;
 }
 
-static void consume_from(TokenArray *statement, int *index,
-                         TokenType type, const char *message) {
-    if (statement->tokens[*index].type == type) {
-        *index += 1;
-        return;
-    }
-
-    error_at_current(message);
-}
-
 static bool check_from(TokenArray *statement, int index, TokenType type) {
     return (statement->tokens[index].type == type);
+}
+
+static bool consume_from(TokenArray *statement, int *index,
+                         TokenType type, const char *message) {
+    Token token = statement->tokens[*index];
+
+    if (token.type == type) {
+        *index += 1;
+        return true;
+    }
+
+    error_at(&token, message);
+    return false;
 }
 
 static bool match_from(TokenArray *statement, int *index, TokenType type) {
@@ -316,29 +321,17 @@ static void RULE_intrinsic(Token token) {
     }
 }
 
-static void populate_statement_array(TokenArray *statement) {
-    int blocks = 0;
-    while (blocks > 0 || (!check(TOKEN_EOF) &&
-                          !check(TOKEN_DOT))) {
+static void construct_statement_array(TokenArray *statement) {
+    init_token_array(statement);
+
+    while (!check(TOKEN_END) && !check(TOKEN_EOF) && !check(TOKEN_DOT)) {
         advance();
         Token token = parser.previous;
         append_token(statement, token);
-        if (token.type == TOKEN_DO) blocks++;
-        if (blocks > 0 && check(TOKEN_DOT)) blocks--;
     }
 
-    if (match(TOKEN_DOT)) {
-        append_token(statement, parser.previous);
-    } else {
-        error("Failure to find '.' in order to close this block of code.\n"
-              "This is most likely a bug in the compiler.\n"
-              "Please, open a ticket at "GIT_URL);
-    }
-}
-
-static void construct_statement_array(TokenArray *statement) {
-    init_token_array(statement);
-    populate_statement_array(statement);
+    consume(TOKEN_DOT, "");
+    append_token(statement, parser.previous);
 }
 
 static void run_if(TokenArray *statement, int starting_index) {
@@ -348,6 +341,7 @@ static void run_if(TokenArray *statement, int starting_index) {
     // Conditionals
     while (!check_from(statement, index, TOKEN_DO) &&
            !check_from(statement, index, TOKEN_EOF) &&
+           !check_from(statement, index, TOKEN_ELSE) &&
            !check_from(statement, index, TOKEN_DOT)) {
         parse_this_from(statement, index);
         index++;
@@ -372,7 +366,8 @@ static void run_if(TokenArray *statement, int starting_index) {
     patch_jump(then_ip);
 
     if (match_from(statement, &index, TOKEN_ELSE)) {
-        while (!check_from(statement, index, TOKEN_EOF) &&
+        while (index < statement->count - 1 &&
+               !check_from(statement, index, TOKEN_EOF) &&
                !check_from(statement, index, TOKEN_DOT)) {
             parse_this_from(statement, index);
             index++;
@@ -425,7 +420,8 @@ static void run_loop(TokenArray *statement, int starting_index) {
 
     consume_from(statement, &index, TOKEN_DOT,
                  "'.' (dot) expected after block of code\n" "E.g.:\n"
-                 "\tloop 0 25 < do [...] .\n" COLOR_RED"\t                     ^\n"STYLE_OFF
+                 "\tloop 0 25 < do [...] .\n" COLOR_RED
+                 "\t                     ^\n"STYLE_OFF
                  "All blocks must end with a '.' (dot)");
 }
 
@@ -438,7 +434,8 @@ static void inline_loop_statement() {
 static void macro_statement() {
     consume(TOKEN_WORD,
             "a valid word is expected after the macro definition symbol\n" "E.g.:\n"
-            "\t:> my-macro do [...] .\n" COLOR_RED"\t   ^^^^^^^^\n"STYLE_OFF
+            "\t:> my-macro set [...] end\n" COLOR_RED
+            "\t   ^^^^^^^^\n"STYLE_OFF
             "Name may be any word starting with a lowercase or uppercase character, "
             "but it may contain numbers, _ or -");
     String *word = copy_string(parser.previous.start, parser.previous.length);
@@ -450,31 +447,39 @@ static void macro_statement() {
         return;
     }
 
-    consume(TOKEN_DO, "'do' expected after the name of this macro\n" "E.g.:\n"
-            "\t:> my-macro do [...] .\n" COLOR_RED"\t            ^^\n"STYLE_OFF
-            "All block expressions must be enclosed in 'do' and '.' keywords");
+    consume(TOKEN_SET, "'set' expected after the name of this macro\n" "E.g.:\n"
+            "\t:> my-macro set [...] end\n" COLOR_RED
+            "\t            ^^^\n"STYLE_OFF
+            "All declaration statements must be enclosed in 'set' and 'end' keywords");
 
-    if (match(TOKEN_DOT)) {
+    if (match(TOKEN_END)) {
         error("missing macro content after 'do'. Empty macros are not allowed\n" "E.g.:\n"
-              "\t:> my-macro do [...] .\n" COLOR_RED"\t               ^^^^^\n"STYLE_OFF
+              "\t:> my-macro set [...] end\n" COLOR_RED
+              "\t                ^^^^^\n"STYLE_OFF
               "Macro content may be anything, including other macros, but not the same macro");
         return;
     }
 
     TokenArray *statement = create_macro(word);
-    populate_statement_array(statement);
 
-    consume(TOKEN_DOT,
-            "'.' (dot) expected after macro declaration\n" "E.g.:\n"
-            "\t:> my-macro do [...] .\n" COLOR_RED "\t                     ^\n"STYLE_OFF
-            "Macro declaration must be closed with the '.' keyword");
+    while (!check(TOKEN_END) && !check(TOKEN_EOF)) {
+        advance();
+        Token token = parser.previous;
+        append_token(statement, token);
+    }
+
+    consume(TOKEN_END,
+            "'end' keyword expected after macro declaration\n" "E.g.:\n"
+            "\t:> my-macro set [...] end\n" COLOR_RED
+            "\t                      ^^^\n"STYLE_OFF
+            "Macro declaration must close with the 'end' keyword");
 }
 
 static void RULE_keyword(Token token) {
     switch (token.type) {
         case TOKEN_IF     : inline_if_statement();   break;
         case TOKEN_LOOP   : inline_loop_statement(); break;
-        case TOKEN_MACRO  : macro_statement();       break;
+            //case TOKEN_MACRO  : macro_statement();       break;
         case TOKEN_MEMORY : emit_byte(OP_MEMORY);    break;
         default: return;
     }
@@ -513,13 +518,30 @@ static void RULE_word(Token token) {
     expand_macro(&macros.statements[index]);
 }
 
+static void RULE_skip() {
+    // This is for include tokens in main running.
+    consume(TOKEN_STR, "file or library name expected after '#include'\n"
+            "E.g.:\n"
+            "\t#include \"io\"" COLOR_RED"\t           ^^^^\n"STYLE_OFF
+            "You can find a list of libraries running skc -help");
+    return;
+}
+
+static void RULE_ignore() {
+    while (!match(TOKEN_END)) {
+        advance();
+    }
+    return;
+}
+
 ParseRule rules[] = {
+    [TOKEN_HASH_INCLUDE]  = {RULE_skip,      NULL},
+    [TOKEN_MACRO]         = {RULE_ignore,    NULL},
     [TOKEN_INT]           = {RULE_constant,  NULL},
     [TOKEN_STR]           = {RULE_constant,  NULL},
     [TOKEN_IF]            = {RULE_keyword,   RULE_keyword_ex},
     [TOKEN_LOOP]          = {RULE_keyword,   RULE_keyword_ex},
     [TOKEN_MEMORY]        = {RULE_keyword,   NULL},
-    [TOKEN_MACRO]         = {RULE_keyword,   NULL},
     [TOKEN_OR]            = {RULE_intrinsic, NULL},
     [TOKEN_AND]           = {RULE_intrinsic, NULL},
     [TOKEN_DEC]           = {RULE_intrinsic, NULL},
@@ -569,12 +591,13 @@ static void parse_this_from(TokenArray *statement, int index) {
     } else {
         if (rule->normal == NULL) {
             String *token_name = copy_string(token.start, token.length);
-            char error_message[256];
+            char *error_message = ALLOCATE(char, 128);
             sprintf(error_message, "unknown expression while expanding macro\n"
                     "Failed to parse '%s' expression. "
                     "This is most likely a bug in the compiler.\n"
                     "Please, open a ticket at %s. Thank you!", token_name->chars, GIT_URL);
-            error(error_message);
+            error_at(&token, error_message);
+            free(error_message);
             return;
         }
         rule->normal(token);
@@ -588,11 +611,13 @@ static void synch() {
     while (parser.current.type != TOKEN_EOF) {
         if (parser.previous.type == TOKEN_DOT) return;
         switch (parser.current.type) {
+            case TOKEN_END:
             case TOKEN_ELSE:
             case TOKEN_IF:
             case TOKEN_LOOP:
             case TOKEN_MACRO:
             case TOKEN_PRINT:
+            case TOKEN_HASH_INCLUDE:
                 return;
             default: break;
         }
@@ -600,15 +625,76 @@ static void synch() {
     }
 }
 
-void bytecode(const char *source, Chunk *chunk) {
-    init_scanner(source);
-    init_macro_array();
-    current = chunk;
+static void hash_include() {
+    consume(TOKEN_STR, "file or library name expected after '#include'\n"
+            "E.g.:\n" "\t#include \"io\"" COLOR_RED"\t           ^^^^\n"STYLE_OFF
+            "You can find a list of libraries running skc -help");
+    String *name = copy_string(parser.previous.start, parser.previous.length);
 
+    if (library_exists(the_compiler, name->chars)) {
+        if (library_not_processed(the_compiler, name->chars)) {
+            process_and_save(the_compiler, name->chars);
+        }
+    } else {
+        char *error_message = ALLOCATE(char, 512);
+        sprintf(error_message, "failed to find library to include: %s\n"
+                "Make sure the name is correct. If it is an internal Stańczyk library, you\n"
+                "must omit the '.sk' in the name. If it is your code, then you must have '.sk'\n"
+                "The relative path to your libraries starts from the entry point base path\n"
+                "E.g.:\n" "\t#include \"my/code.sk\"\n"
+                "This means the file is inside a folder called 'my', adjacent to the entry file",
+                name->chars);
+        error(error_message);
+        free(error_message);
+    }
+}
+
+static void run_preprocessor_tokens(int index) {
+    const char *filename = the_compiler->files.filenames[index];
+    const char *source = the_compiler->files.sources[index];
+
+    init_scanner(filename, source);
+    advance();
+    while (!match(TOKEN_EOF)) {
+        advance();
+        switch (parser.previous.type) {
+            case TOKEN_HASH_INCLUDE : hash_include();     break;
+            case TOKEN_MACRO        : macro_statement();  break;
+            default: break;
+        }
+        if (parser.panic) synch();
+    }
+}
+
+static void run_compilation_tokens(int index) {
+    const char *filename = the_compiler->files.filenames[index];
+    const char *source = the_compiler->files.sources[index];
+
+    init_scanner(filename, source);
     advance();
     while (!match(TOKEN_EOF)) {
         parse_next();
         if (parser.panic) synch();
+    }
+}
+
+void bytecode(Compiler *compiler, Chunk *chunk) {
+    init_macro_array();
+    the_compiler = compiler;
+    current = chunk;
+
+    // Save the entry file
+    const char *entry = the_compiler->options.entry_file;
+    process_and_save(the_compiler, entry);
+
+    // Check for #includes, save macros, const and procedures
+    for (int index = 0; index < the_compiler->files.count; index++) {
+        run_preprocessor_tokens(index);
+    }
+
+    // Process all the saved files and their source code
+    for (int index = the_compiler->files.count - 1; index >= 0; index--) {
+        run_compilation_tokens(index);
     }
 
     emit_end();

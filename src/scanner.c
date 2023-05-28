@@ -25,11 +25,15 @@
  * ███████║   ██║   ██║  ██║██║ ╚████║╚██████╗███████╗   ██║   ██║  ██╗
  * ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝╚══════╝   ╚═╝   ╚═╝  ╚═╝
  */
+#include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "scanner.h"
+#include "util.h"
 
 typedef struct {
+    const char *filename;
     const char *start;
     const char *current;
     const char *column;
@@ -38,19 +42,12 @@ typedef struct {
 
 Scanner scanner;
 
-void init_scanner(const char *source) {
+void init_scanner(const char *filename, const char *source) {
+    scanner.filename = filename;
     scanner.start = source;
     scanner.current = source;
     scanner.column = source;
     scanner.line = 1;
-}
-
-static bool is_digit(char c) {
-    return c >= '0' && c <= '9';
-}
-
-static bool is_alpha(char c) {
-    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
 }
 
 static bool is_at_eof() {
@@ -80,6 +77,7 @@ static Token make_token(TokenType type) {
     token.length = (int)(scanner.current - scanner.start);
     token.line = scanner.line;
     token.column = scanner.start - scanner.column;
+    token.filename = scanner.filename;
     return token;
 }
 
@@ -121,6 +119,13 @@ static TokenType check_keyword(int start, int length, const char *rest, TokenTyp
 
 static TokenType keyword_type() {
     switch (scanner.start[0]) {
+        case '#': {
+            if (scanner.current - scanner.start > 1) {
+                switch (scanner.start[1]) {
+                    case 'i': return check_keyword(2, 6, "nclude", TOKEN_HASH_INCLUDE);
+                }
+            }
+        } break;
         case 'a': return check_keyword(1, 2, "nd", TOKEN_AND);
         case 'd': {
             if (scanner.current - scanner.start > 1) {
@@ -131,8 +136,15 @@ static TokenType keyword_type() {
                     case 'u': return check_keyword(2, 1, "p", TOKEN_DUP);
                 }
             }
-        }
-        case 'e': return check_keyword(1, 3, "lse", TOKEN_ELSE);
+        } break;
+        case 'e': {
+            if (scanner.current - scanner.start > 1) {
+                switch (scanner.start[1]) {
+                    case 'l': return check_keyword(2, 2, "se", TOKEN_ELSE);
+                    case 'n': return check_keyword(2, 1, "d", TOKEN_END);
+                }
+            }
+        } break;
         case 'i': {
             if (scanner.current - scanner.start > 1) {
                 if (scanner.start[1] == 'f') return TOKEN_IF;
@@ -140,7 +152,7 @@ static TokenType keyword_type() {
                     case 'n': return check_keyword(2, 1, "c", TOKEN_INC);
                 }
             }
-        }
+        } break;
         case 'l': return check_keyword(1, 3, "oop", TOKEN_LOOP);
         case 'm': return check_keyword(1, 5, "emory", TOKEN_MEMORY);
         case 'o': {
@@ -150,9 +162,16 @@ static TokenType keyword_type() {
                     case 'v': return check_keyword(2, 2, "er", TOKEN_OVER);
                 }
             }
-        }
+        } break;
         case 'p': return check_keyword(1, 4, "rint", TOKEN_PRINT);
-        case 's': return check_keyword(1, 3, "wap", TOKEN_SWAP);
+        case 's': {
+            if (scanner.current - scanner.start > 1) {
+                switch (scanner.start[1]) {
+                    case 'e': return check_keyword(2, 1, "t", TOKEN_SET);
+                    case 'w': return check_keyword(2, 2, "ap", TOKEN_SWAP);
+                }
+            }
+        } break;
         case 'S': return check_keyword(1, 3, "YS4", TOKEN_SYS4);
     }
 
@@ -160,7 +179,7 @@ static TokenType keyword_type() {
 }
 
 static Token keyword() {
-    while (is_alpha(peek()) || is_digit(peek())) advance();
+    while (is_alpha(peek()) || is_digit(peek()) || is_allowed_char(peek())) advance();
 
     return make_token(keyword_type());
 }
@@ -188,6 +207,7 @@ Token scan_token() {
     char c = advance();
     if (is_digit(c)) return number();
     if (is_alpha(c)) return keyword();
+    if (c == '#') return keyword();
 
     switch (c) {
         case '.': return make_token(TOKEN_DOT);

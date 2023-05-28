@@ -25,9 +25,13 @@
  * ███████║   ██║   ██║  ██║██║ ╚████║╚██████╗███████╗   ██║   ██║  ██╗
  * ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝╚══════╝   ╚═╝   ╚═╝  ╚═╝
  */
-#ifndef STANCZYK_PREPROCESSOR_H
-#define STANCZYK_PREPROCESSOR_H
+#ifndef STANCZYK_FILEMAN_H
+#define STANCZYK_FILEMAN_H
 
-const char *process(const char *);
+#include "compiler.h"
+
+void process_and_save(Compiler *, const char *);
+bool library_exists(Compiler *, const char *);
+bool library_not_processed(Compiler *, const char *);
 
 #endif

@@ -39,9 +39,9 @@
 #define GROW_CAPACITY(capacity)                                                \
   ((capacity) < MIN_MEM_CAPACITY ? MIN_MEM_CAPACITY : (capacity)*MEM_SCALAR)
 
-#define GROW_ARRAY(type, pointer, prev_count, new_count)                       \
-  (type *)reallocate(pointer, sizeof(type) * (prev_count),                     \
-                     sizeof(type) * (new_count))
+#define GROW_ARRAY(type, pointer, prev_cap, new_cap)                       \
+  (type *)reallocate(pointer, sizeof(type) * (prev_cap),                     \
+                     sizeof(type) * (new_cap))
 
 #define FREE_ARRAY(type, pointer, prev_count)                                  \
   reallocate(pointer, sizeof(type) * (prev_count), 0)

@@ -35,9 +35,22 @@ typedef struct {
     const char *entry_file;
     const char *out_file;
     const char *workspace;
+    const char *compiler_dir;
     bool run;
     bool debug;
 } CompilerOptions;
+
+typedef struct {
+    int capacity;
+    int count;
+    char **filenames;
+    char **sources;
+} FileArray;
+
+typedef struct {
+    CompilerOptions options;
+    FileArray files;
+} Compiler;
 
 typedef struct {
     int  count;
@@ -60,7 +73,7 @@ typedef enum {
     COMPILER_GENERATOR_ERROR
 } CompilerResult;
 
-CompilerResult compile(const char *);
+CompilerResult compile(Compiler *);
 void append(OutputArray *, char *, ...);
 
 #endif
