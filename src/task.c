@@ -113,6 +113,7 @@ static CompilerResult write(Writer *writer, Compiler *compiler) {
 CompilerResult run(Writer *writer, Compiler *compiler) {
     CompilerResult result = write(writer, compiler);
 
+    // TODO: Update name files
     double START = (double)clock() / CLOCKS_PER_SEC;
     print_cli("[ info ]", "Running Assembler");
     system("as output.s -o output.o");
@@ -121,6 +122,7 @@ CompilerResult run(Writer *writer, Compiler *compiler) {
 #ifndef DEBUG_COMPILED
     print_cli("[ info ]", "Cleaning up");
     system("rm output.s");
+    system("rm output.o");
 #endif
     double END = (double)clock() / CLOCKS_PER_SEC;
     compiler->timers.backend = END - START;

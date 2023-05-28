@@ -114,7 +114,6 @@ int main(int argc, const char **argv) {
     printf("\tBack-end compiler  : %fs\n", timers->backend);
     printf(STYLE_BOLD"\tTotal time         : %fs\n"STYLE_OFF, total_time);
 
-
     if (compiler.options.run) system("./output");
 
     return result;
