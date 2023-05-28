@@ -1,74 +1,97 @@
+/* The Stańczyk Programming Language
+ *
+ *            ¿«fº"└└-.`└└*∞▄_              ╓▄∞╙╙└└└╙╙*▄▄
+ *         J^. ,▄▄▄▄▄▄_      └▀████▄ç    JA▀            └▀v
+ *       ,┘ ▄████████████▄¿     ▀██████▄▀└      ╓▄██████▄¿ "▄_
+ *      ,─╓██▀└└└╙▀█████████      ▀████╘      ▄████████████_`██▄
+ *     ;"▄█└      ,██████████-     ▐█▀      ▄███████▀▀J█████▄▐▀██▄
+ *     ▌█▀      _▄█▀▀█████████      █      ▄██████▌▄▀╙     ▀█▐▄,▀██▄
+ *    ▐▄▀     A└-▀▌  █████████      ║     J███████▀         ▐▌▌╙█µ▀█▄
+ *  A╙└▀█∩   [    █  █████████      ▌     ███████H          J██ç ▀▄╙█_
+ * █    ▐▌    ▀▄▄▀  J█████████      H    ████████          █    █  ▀▄▌
+ *  ▀▄▄█▀.          █████████▌           ████████          █ç__▄▀ ╓▀└ ╙%_
+ *                 ▐█████████      ▐    J████████▌          .└╙   █¿   ,▌
+ *                 █████████▀╙╙█▌└▐█╙└██▀▀████████                 ╙▀▀▀▀
+ *                ▐██▀┘Å▀▄A └▓█╓▐█▄▄██▄J▀@└▐▄Å▌▀██▌
+ *                █▄▌▄█M╨╙└└-           .└└▀**▀█▄,▌
+ *                ²▀█▄▄L_                  _J▄▄▄█▀└
+ *                     └╙▀▀▀▀▀MMMR████▀▀▀▀▀▀▀└
+ *
+ *
+ * ███████╗████████╗ █████╗ ███╗   ██╗ ██████╗███████╗██╗   ██╗██╗  ██╗
+ * ██╔════╝╚══██╔══╝██╔══██╗████╗  ██║██╔════╝╚══███╔╝╚██╗ ██╔╝██║ ██╔╝
+ * ███████╗   ██║   ███████║██╔██╗ ██║██║       ███╔╝  ╚████╔╝ █████╔╝
+ * ╚════██║   ██║   ██╔══██║██║╚██╗██║██║      ███╔╝    ╚██╔╝  ██╔═██╗
+ * ███████║   ██║   ██║  ██║██║ ╚████║╚██████╗███████╗   ██║   ██║  ██╗
+ * ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝╚══════╝   ╚═╝   ╚═╝  ╚═╝
+ */
 #ifndef STANCZYK_SCANNER_H
 #define STANCZYK_SCANNER_H
 
+#include "common.h"
+
 typedef enum {
-    // Single char tokens
-    TOKEN_LEFT_PAREN,    // (
-    TOKEN_RIGHT_PAREN,   // )
-    TOKEN_LEFT_BRACE,    // {
-    TOKEN_RIGHT_BRACE,   // }
-    TOKEN_LEFT_BRACKET,  // [
-    TOKEN_RIGHT_BRACKET, // ]
-    TOKEN_COMMA,
-    TOKEN_DOT,
-    TOKEN_MINUS,
-    TOKEN_PLUS,
-    TOKEN_SLASH,
-    TOKEN_STAR,
-    TOKEN_COLON,
-    TOKEN_EQUAL,
-    TOKEN_BANG,
-    TOKEN_GREATER,
-    TOKEN_LESS,
-
-    // Double char tokens
-    TOKEN_PLUS_PLUS,
-    TOKEN_MINUS_MINUS,
-    TOKEN_DOUBLE_BRACKETS,
-    TOKEN_BANG_EQUAL,
-    TOKEN_EQUAL_EQUAL,
-    TOKEN_GREATER_EQUAL,
-    TOKEN_LESS_EQUAL,
-    TOKEN_RIGHT_ARROW,
-    TOKEN_LESS_GREATER,
-    TOKEN_GREATER_LESS,
-    TOKEN_DOT_DOT,
-
-    // Literals
-    TOKEN_SYMBOL,
-    TOKEN_VALUE_STRING,
-    TOKEN_VALUE_FLOAT,
-    TOKEN_VALUE_INT,
-
-    // Keywords
     TOKEN_AND,
+    TOKEN_DEC,
     TOKEN_DO,
+    TOKEN_DOT,
     TOKEN_DROP,
     TOKEN_DUP,
     TOKEN_ELSE,
-    TOKEN_FALSE,
+    TOKEN_EQUAL,
+    TOKEN_GREATER,
+    TOKEN_GREATER_EQUAL,
     TOKEN_IF,
-    TOKEN_NIL,
+    TOKEN_INC,
+    TOKEN_INT,
+    TOKEN_LESS,
+    TOKEN_LESS_EQUAL,
+    TOKEN_LOAD8,
+    TOKEN_LOOP,
+    TOKEN_MEMORY,
+    TOKEN_NOT_EQUAL,
     TOKEN_OR,
-    TOKEN_NEG,
+    TOKEN_OVER,
     TOKEN_PRINT,
-    TOKEN_QUIT,
-    TOKEN_TRUE,
+    TOKEN_SAVE8,
+    TOKEN_STR,
+    TOKEN_SWAP,
+    TOKEN_PROC,
+    TOKEN_CONST,
+    TOKEN_MACRO,
+    TOKEN_WORD,
+    TOKEN_SET,
+    TOKEN_END,
 
-    // Special
+    TOKEN_HASH_INCLUDE,
+
+    TOKEN___SYS_ADD,
+    TOKEN___SYS_SUB,
+    TOKEN___SYS_MUL,
+    TOKEN___SYS_DIVMOD,
+
+    TOKEN___SYS_CALL0,
+    TOKEN___SYS_CALL1,
+    TOKEN___SYS_CALL2,
+    TOKEN___SYS_CALL3,
+    TOKEN___SYS_CALL4,
+    TOKEN___SYS_CALL5,
+    TOKEN___SYS_CALL6,
+
     TOKEN_ERROR,
     TOKEN_EOF
-} token_type_t;
+} TokenType;
 
 typedef struct {
-    token_type_t type;
+    TokenType type;
+    const char *filename;
     const char *start;
-    int length;
-    int line;
-    int column;
-} token_t;
+    u32 length;
+    u32 line;
+    u32 column;
+} Token;
 
-void init_scanner(const char *source);
-token_t scan_token();
+void init_scanner(const char *,const char *);
+Token scan_token();
 
 #endif

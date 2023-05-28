@@ -25,43 +25,44 @@
  * ███████║   ██║   ██║  ██║██║ ╚████║╚██████╗███████╗   ██║   ██║  ██╗
  * ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝╚══════╝   ╚═╝   ╚═╝  ╚═╝
  */
-#include <stdlib.h>
+#ifndef STANCZYK_CONSTANT_H
+#define STANCZYK_CONSTANT_H
 
-#include "chunk.h"
-#include "constant.h"
-#include "memory.h"
+typedef struct Object Object;
+typedef struct String String;
 
-void init_chunk(Chunk *chunk) {
-    chunk->start = 32;
-    chunk->count = 0;
-    chunk->capacity = 0;
-    chunk->erred = false;
-    chunk->code = NULL;
-    chunk->lines = NULL;
-    init_constants_array(&chunk->constants);
-}
+typedef enum {
+    VALUE_NUMBER,
+    VALUE_OBJECT
+} ValueType;
 
-void write_chunk(Chunk *chunk, u8 byte, int line) {
-    if (chunk->capacity < chunk->count + 1) {
-        int prev_capacity = chunk->capacity;
-        chunk->capacity = GROW_CAPACITY(prev_capacity, chunk->start);
-        chunk->code = GROW_ARRAY(u8, chunk->code, prev_capacity, chunk->capacity);
-        chunk->lines = GROW_ARRAY(int, chunk->lines, prev_capacity, chunk->capacity);
-    }
+typedef struct {
+    ValueType type;
+    union {
+        int number;
+        Object *obj;
+    } as;
+} Value;
 
-    chunk->code[chunk->count] = byte;
-    chunk->lines[chunk->count] = line;
-    chunk->count++;
-}
+typedef struct {
+    int start;
+    int capacity;
+    int count;
+    Value *values;
+} ConstantArray;
 
-int add_constant(Chunk *chunk, Value value) {
-    write_constants_array(&chunk->constants, value);
-    return chunk->constants.count - 1;
-}
+#define IS_NUMBER(value) ((value).type == VALUE_NUMBER)
+#define IS_OBJECT(value) ((value).type == VALUE_OBJECT)
 
-void free_chunk(Chunk *chunk) {
-    FREE_ARRAY(u8, chunk->code, chunk->capacity);
-    FREE_ARRAY(int, chunk->lines, chunk->capacity);
-    free_constants_array(&chunk->constants);
-    init_chunk(chunk);
-}
+#define AS_NUMBER(value) ((value).as.number)
+#define AS_OBJECT(value) ((value).as.obj)
+
+#define NUMBER_VALUE(value)  ((Value){VALUE_NUMBER, {.number = value}})
+#define OBJECT_VALUE(object) ((Value){VALUE_OBJECT, {.obj = (Object *)object}})
+
+void init_constants_array(ConstantArray *);
+void write_constants_array(ConstantArray *, Value);
+void free_constants_array(ConstantArray *);
+void print_constant(Value value);
+
+#endif

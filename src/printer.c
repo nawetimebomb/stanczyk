@@ -25,43 +25,49 @@
  * ███████║   ██║   ██║  ██║██║ ╚████║╚██████╗███████╗   ██║   ██║  ██╗
  * ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝╚══════╝   ╚═╝   ╚═╝  ╚═╝
  */
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
-#include "chunk.h"
-#include "constant.h"
-#include "memory.h"
+#include "printer.h"
+#include "compiler.h"
 
-void init_chunk(Chunk *chunk) {
-    chunk->start = 32;
-    chunk->count = 0;
-    chunk->capacity = 0;
-    chunk->erred = false;
-    chunk->code = NULL;
-    chunk->lines = NULL;
-    init_constants_array(&chunk->constants);
-}
+extern Compiler compiler;
 
-void write_chunk(Chunk *chunk, u8 byte, int line) {
-    if (chunk->capacity < chunk->count + 1) {
-        int prev_capacity = chunk->capacity;
-        chunk->capacity = GROW_CAPACITY(prev_capacity, chunk->start);
-        chunk->code = GROW_ARRAY(u8, chunk->code, prev_capacity, chunk->capacity);
-        chunk->lines = GROW_ARRAY(int, chunk->lines, prev_capacity, chunk->capacity);
+void print_cli(const char *group, const char *message) {
+    if (!compiler.options.silent) {
+        printf(STYLE_BOLD "%s" STYLE_OFF " %s\n", group, message);
     }
-
-    chunk->code[chunk->count] = byte;
-    chunk->lines[chunk->count] = line;
-    chunk->count++;
 }
 
-int add_constant(Chunk *chunk, Value value) {
-    write_constants_array(&chunk->constants, value);
-    return chunk->constants.count - 1;
+static void print_logo() {
+    const char *name = "The Stańczyk Compiler";
+    printf(COLOR_RED"\n");
+    puts("███████╗████████╗ █████╗ ███╗   ██╗ ██████╗███████╗██╗   ██╗██╗  ██╗\n"
+         "██╔════╝╚══██╔══╝██╔══██╗████╗  ██║██╔════╝╚══███╔╝╚██╗ ██╔╝██║ ██╔╝\n"
+         "███████╗   ██║   ███████║██╔██╗ ██║██║       ███╔╝  ╚████╔╝ █████╔╝ \n"
+         "╚════██║   ██║   ██╔══██║██║╚██╗██║██║      ███╔╝    ╚██╔╝  ██╔═██╗ \n"
+         "███████║   ██║   ██║  ██║██║ ╚████║╚██████╗███████╗   ██║   ██║  ██╗\n"
+         "╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝╚══════╝   ╚═╝   ╚═╝  ╚═╝\n");
+    printf("%*s\n"STYLE_OFF, (int)((66 + strlen(name)) / 2), name);
 }
 
-void free_chunk(Chunk *chunk) {
-    FREE_ARRAY(u8, chunk->code, chunk->capacity);
-    FREE_ARRAY(int, chunk->lines, chunk->capacity);
-    free_constants_array(&chunk->constants);
-    init_chunk(chunk);
+
+// TODO: complete the help section
+void print_help() {
+    print_logo();
+}
+
+void print_cli_error() {
+    print_logo();
+    PRINTF_BOLD("Usage:\n");
+    printf("\tskc ");
+    PRINTF_UNDERLINE("command");
+    printf(" [arguments]\n");
+    PRINTF_BOLD("Commands:\n");
+    printf("\tbuild  compile the entry .sk file and it's includes.\n");
+    printf("\trun    same as 'build', but it runs the result and cleans up the executable.\n");
+    printf("\n");
+    printf("For more information about what the compiler can do, you can use: skc help.\n");
+    exit(1);
 }

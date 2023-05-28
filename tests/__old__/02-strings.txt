@@ -1,0 +1,3 @@
+Hello, Stańczyk
+testing
+multiple concatenation

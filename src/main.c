@@ -1,4 +1,5 @@
-/*
+/* The Stańczyk Programming Language
+ *
  *            ¿«fº"└└-.`└└*∞▄_              ╓▄∞╙╙└└└╙╙*▄▄
  *         J^. ,▄▄▄▄▄▄_      └▀████▄ç    JA▀            └▀v
  *       ,┘ ▄████████████▄¿     ▀██████▄▀└      ╓▄██████▄¿ "▄_
@@ -32,42 +33,32 @@
 #include <unistd.h>
 
 #include "common.h"
-#include "chunk.h"
-#include "debug.h"
-#include "vm.h"
+#include "printer.h"
+#include "compiler.h"
+#include "memory.h"
 
-static char *read_file(const char *path) {
-    FILE *file = fopen(path, "rb");
-    if (file == NULL) {
-        fprintf(stderr, "could not open file \"%s\".\n", path);
-        exit(74);
-    }
+Compiler compiler;
 
-    fseek(file, 0L, SEEK_END);
-    size_t file_size = ftell(file);
-    rewind(file);
-
-    char *buffer = (char *)malloc(file_size + 1);
-    if (buffer == NULL) {
-        fprintf(stderr, "not enough memory to read \"%s\".\n", path);
-        exit(74);
-    }
-
-    size_t bytes_read = fread(buffer, sizeof(char), file_size, file);
-    if (bytes_read < file_size) {
-        fprintf(stderr, "could not read file \"%s\".\n", path);
-        exit(74);
-    }
-
-    buffer[bytes_read] = '\0';
-
-    fclose(file);
-    return buffer;
+static void init_file_array() {
+    compiler.files.start = 4;
+    compiler.files.count = 0;
+    compiler.files.capacity = 0;
+    compiler.files.filenames = NULL;
+    compiler.files.sources = NULL;
 }
 
-static char *get_file_directory(const char *path) {
+static char *get_workspace(const char *path) {
+    char *result = malloc(256);
+    memset(result, 0, 256);
+    getcwd(result, 256);
+
+    return result;
+}
+
+static char *get_compiler_dir(const char *path) {
     int len = strlen(path);
     char *dir = malloc(len + 1);
+    memset(dir, 0, len + 1);
     strcpy(dir, path);
 
     while (len > 0) {
@@ -81,36 +72,81 @@ static char *get_file_directory(const char *path) {
     return dir;
 }
 
-static char *get_workspace(const char *path) {
-    char *result = malloc(1024);
-    getcwd(result, 1024);
-    strcat(result, "/");
-    strcat(result, get_file_directory(path));
-
-    return result;
-}
-
-static void run_file(const char *path) {
-    char *source = read_file(path);
-    chdir(get_workspace(path));
-
-    interpret_result_t result = interpret(source, path);
-    free(source);
-
-    if (result == INTERPRET_COMPILE_ERROR) exit(65);
-    if (result == INTERPRET_RUNTIME_ERROR) exit(70);
-}
-
-int main(int argc, const char *argv[]) {
-    init_VM();
-
-    if (argc == 2) {
-        run_file(argv[1]);
+static void parse_arguments(int argc, const char **argv) {
+    // Parse argv[1]
+    if (strcmp(argv[1], "run") == 0) {
+        compiler.options.run = true;
+        compiler.options.clean = true;
+        compiler.options.silent = true;
+    } else if (strcmp(argv[1], "build") == 0) {
+        compiler.options.debug = false;
+    } else if (strcmp(argv[1], "help") == 0) {
+        print_help();
+        exit(0);
     } else {
-        fprintf(stdout,COLOR_PURPLE STYLE_BOLD"Stańczyk Programming Language\n"STYLE_OFF);
-        fprintf(stdout, "Usage: skc [path]\n");
-        exit(64);
+        printf("ERROR: first argument should be 'run' or 'build'\n");
+        print_cli_error();
+        exit(1);
     }
 
-    return 0;
+    for (int i = 2; i < argc; i++) {
+        const char *input = argv[i];
+
+        if ((strcmp(input, "-r") == 0) || (strcmp(input, "-run") == 0)) {
+            compiler.options.run = true;
+        } else if ((strcmp(input, "-C") == 0) || (strcmp(input, "-clean") == 0)) {
+            compiler.options.run = true;
+            compiler.options.clean = true;
+        } else if ((strcmp(input, "-d") == 0) || (strcmp(input, "-debug") == 0)) {
+            compiler.options.debug = true;
+        } else if ((strcmp(input, "-o") == 0) || (strcmp(input, "-out") == 0)) {
+            i++;
+            compiler.options.out_file = argv[i];
+        } else if ((strcmp(input, "-s") == 0) || (strcmp(input, "-silent") == 0)) {
+            compiler.options.silent = true;
+        } else if (strstr(argv[i], ".sk")) {
+            compiler.ready = true;
+            compiler.options.entry_file = argv[i];
+        } else {
+            print_cli_error();
+        }
+    }
+}
+
+int main(int argc, const char **argv) {
+    if (argc < 2) {
+        print_cli_error();
+    }
+
+    init_file_array();
+
+    parse_arguments(argc, argv);
+
+    if (!compiler.ready) {
+        printf("ERROR: missing entry file\n");
+        print_cli_error();
+        exit(1);
+    }
+
+    compiler.options.workspace = get_workspace(compiler.options.entry_file);
+    compiler.options.compiler_dir = get_compiler_dir(argv[0]);
+
+    CompilerResult result = compile(&compiler);
+    Timers *timers = &compiler.timers;
+
+    if (!compiler.options.silent) {
+        double total_time = timers->frontend + timers->generator +
+            timers->writer + timers->backend;
+        print_cli("[ info ]", "Compilation timers:");
+        printf("\tFront-end compiler : %fs\n", timers->frontend);
+        printf("\tCode generator     : %fs\n", timers->generator);
+        printf("\tAssembly output    : %fs\n", timers->writer);
+        printf("\tBack-end compiler  : %fs\n", timers->backend);
+        printf(STYLE_BOLD"\tTotal time         : %fs%s\n", total_time, STYLE_OFF);
+    }
+
+    if (compiler.options.run) system("./output");
+    if (compiler.options.clean) system("rm ./output");
+
+    return result;
 }

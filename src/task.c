@@ -27,89 +27,105 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdarg.h>
 #include <string.h>
 #include <time.h>
 
-#include "common.h"
-#include "chunk.h"
 #include "compiler.h"
-#include "bytecode.h"
-#include "memory.h"
-#include "fileman.h"
-#include "debug.h"
-#include "generator.h"
 #include "printer.h"
 #include "task.h"
 
 extern CompilerOptions options;
 
-Writer writer;
-
-static void init_writer_array(OutputArray *array) {
-    array->start = 32;
-    array->count = 0;
-    array->capacity = 0;
-    array->items = NULL;
-}
-
-static CompilerResult generate() {
-#if defined(__linux__)
-    print_cli("[ info ]", "Compiling code for Linux");
-    return generate_x64_linux(&writer, &writer.code, &writer.writeable);
-#elif defined(_WIN32) || defined(_WIN64) || defined(__CYGWIN__)
-    print_cli("[ error ]", "Windows is not supported");
-    return COMPILER_OS_ERROR;
-#elif defined(__APPLE__) || defined(__MACH__)
-    print_cli("[ error ]", "Mac is not supported");
-    return COMPILER_OS_ERROR;
-#else
-    print_cli("[ error ]", " Operating System not supported");
-    return COMPILER_OS_ERROR;
-#endif
-}
-
-CompilerResult compile(Compiler *compiler) {
-    Chunk *chunk = malloc(sizeof(Chunk));
-    init_chunk(chunk);
-    init_writer_array(&writer.code);
-    init_writer_array(&writer.writeable);
-
-    bytecode(compiler, chunk);
-
-    if (chunk->erred) {
-        return COMPILER_BYTECODE_ERROR;
-    }
-
-    writer.chunk = chunk;
-    writer.ip = chunk->code;
-
+static CompilerResult write(Writer *writer, Compiler *compiler) {
     double START = (double)clock() / CLOCKS_PER_SEC;
-    CompilerResult result = generate();
-    double END = (double)clock() / CLOCKS_PER_SEC;
-    compiler->timers.generator = END - START;
+    // TODO: Select name of file dinamically
+    FILE *out = fopen("output.s", "w");
 
-    // TODO: Improve the below
-    if (result) return result;
+    fprintf(out, ".att_syntax noprefix\n");
+    fprintf(out, ".global main\n");
+    fprintf(out, "dump:\n");
+    fprintf(out, "   movabsq $-3689348814741910323, r8\n");
+    fprintf(out, "   subq    $40, rsp\n");
+    fprintf(out, "   movb    $10, 31(rsp)\n");
+    fprintf(out, "   leaq    30(rsp), rcx\n");
+    fprintf(out, ".L2:\n");
+    fprintf(out, "   movq    rdi, rax\n");
+    fprintf(out, "   mulq    r8\n");
+    fprintf(out, "   movq    rdi, rax\n");
+    fprintf(out, "   shrq    $3, rdx\n");
+    fprintf(out, "   leaq    (rdx,rdx,4), rsi\n");
+    fprintf(out, "   addq    rsi, rsi\n");
+    fprintf(out, "   subq    rsi, rax\n");
+    fprintf(out, "   movq    rcx, rsi\n");
+    fprintf(out, "   subq    $1, rcx\n");
+    fprintf(out, "   addl    $48, eax\n");
+    fprintf(out, "   movb    al, 1(rcx)\n");
+    fprintf(out, "   movq    rdi, rax\n");
+    fprintf(out, "   movq    rdx, rdi\n");
+    fprintf(out, "   cmpq    $9, rax\n");
+    fprintf(out, "   ja      .L2\n");
+    fprintf(out, "   leaq    32(rsp), rdx\n");
+    fprintf(out, "   movl    $1, edi\n");
+    fprintf(out, "   subq    rsi, rdx\n");
+    fprintf(out, "   call    write\n");
+    fprintf(out, "   addq    $40, rsp\n");
+    fprintf(out, "   ret\n");
+    fprintf(out, "main:\n");
 
-    return run(&writer, compiler);
-}
-
-void append(OutputArray *array, char *format, ...) {
-    va_list args;
-    char *line = (char *)malloc(sizeof(char *) * 128);
-    va_start(args, format);
-    vsprintf(line, format, args);
-    va_end(args);
-
-    if (array->capacity < array->count + 1) {
-        int prev_capacity = array->capacity;
-        array->capacity = GROW_CAPACITY(prev_capacity, array->start);
-        array->items = GROW_ARRAY(char *, array->items, prev_capacity, array->capacity);
+    for (int i = 0; i < writer->code.count; i++) {
+        fprintf(out, "%s\n", writer->code.items[i]);
     }
 
-    array->items[array->count] = (char *)malloc(strlen(line) + 1);
-    strcpy(array->items[array->count], line);
-    array->count++;
-    free(line);
+    // fprintf(out, ".section d\n");
+
+    fprintf(out, "\n\n");
+
+    for (int i = 0; i < writer->writeable.count; i++) {
+        char *str = writer->writeable.items[i];
+        fprintf(out, "str_%d: .string \"%s\"\n", i, str);
+    }
+
+    // for (int i = 0; i < writer->writeable.count; i++) {
+    //     char *str = writer->writeable.items[i];
+    //     int count = 0;
+    //     int length = strlen(str);
+    //     fprintf(out, "str_%d: db ", i);
+
+    //     for (char c = *str; c; c = *++str) {
+    //         fprintf(out, "%d", c);
+    //         if (count != length - 1) fprintf(out, ",");
+    //         count++;
+    //     }
+
+    //     fprintf(out, "\n");
+    // }
+
+    // // TODO: Get memory dinamically
+    fprintf(out, ".comm mem, 80\n");
+
+    fclose(out);
+    double END = (double)clock() / CLOCKS_PER_SEC;
+    compiler->timers.writer = END - START;
+
+    return COMPILER_OK;
+}
+
+CompilerResult run(Writer *writer, Compiler *compiler) {
+    CompilerResult result = write(writer, compiler);
+
+    // TODO: Update name files
+    double START = (double)clock() / CLOCKS_PER_SEC;
+    print_cli("[ info ]", "Running Assembler");
+    system("as output.s -o output.o");
+    print_cli("[ info ]", "Running the GCC Linker");
+    system("gcc -L. output.o -o output -g");
+#ifndef DEBUG_COMPILED
+    print_cli("[ info ]", "Cleaning up");
+    system("rm output.s");
+    system("rm output.o");
+#endif
+    double END = (double)clock() / CLOCKS_PER_SEC;
+    compiler->timers.backend = END - START;
+
+    return result;
 }

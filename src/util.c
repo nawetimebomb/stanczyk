@@ -25,43 +25,16 @@
  * ███████║   ██║   ██║  ██║██║ ╚████║╚██████╗███████╗   ██║   ██║  ██╗
  * ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝╚══════╝   ╚═╝   ╚═╝  ╚═╝
  */
-#include <stdlib.h>
+#include "util.h"
 
-#include "chunk.h"
-#include "constant.h"
-#include "memory.h"
-
-void init_chunk(Chunk *chunk) {
-    chunk->start = 32;
-    chunk->count = 0;
-    chunk->capacity = 0;
-    chunk->erred = false;
-    chunk->code = NULL;
-    chunk->lines = NULL;
-    init_constants_array(&chunk->constants);
+bool is_digit(char c) {
+    return c >= '0' && c <= '9';
 }
 
-void write_chunk(Chunk *chunk, u8 byte, int line) {
-    if (chunk->capacity < chunk->count + 1) {
-        int prev_capacity = chunk->capacity;
-        chunk->capacity = GROW_CAPACITY(prev_capacity, chunk->start);
-        chunk->code = GROW_ARRAY(u8, chunk->code, prev_capacity, chunk->capacity);
-        chunk->lines = GROW_ARRAY(int, chunk->lines, prev_capacity, chunk->capacity);
-    }
-
-    chunk->code[chunk->count] = byte;
-    chunk->lines[chunk->count] = line;
-    chunk->count++;
+bool is_alpha(char c) {
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
 }
 
-int add_constant(Chunk *chunk, Value value) {
-    write_constants_array(&chunk->constants, value);
-    return chunk->constants.count - 1;
-}
-
-void free_chunk(Chunk *chunk) {
-    FREE_ARRAY(u8, chunk->code, chunk->capacity);
-    FREE_ARRAY(int, chunk->lines, chunk->capacity);
-    free_constants_array(&chunk->constants);
-    init_chunk(chunk);
+bool is_allowed_char(char c) {
+    return (c == '-' || c == '_');
 }
