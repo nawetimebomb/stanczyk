@@ -1,0 +1,11 @@
+.\" Manpage for the Stańczyk Compiler
+.\" Contact stanczyk@nsacchetti.com to correct errors or typos.
+
+.TH SKC 1 "28 May 2023" "0.1" "The Stańczyk Compiler"
+.SH NAME
+skc \- The Stańczyk Compiler for the Stańczyk Programming Language
+.SH SYNOPSIS
+skc command [arguments]
+.SH DESCRIPTION
+skc compiles .sk files and lets you execute them.
+.SH OPTIONS
