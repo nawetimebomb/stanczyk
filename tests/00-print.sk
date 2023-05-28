@@ -1,3 +1,6 @@
+;; Test: print
+;; Description:
+;    print numbers on the screen. Numbers with snake_case should print without the _.
 1                           print
 13                          print
 666                         print
