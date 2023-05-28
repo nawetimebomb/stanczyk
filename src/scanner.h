@@ -49,18 +49,13 @@ typedef enum {
     TOKEN_LOAD8,
     TOKEN_LOOP,
     TOKEN_MEMORY,
-    TOKEN_MINUS,
     TOKEN_NOT_EQUAL,
     TOKEN_OR,
     TOKEN_OVER,
-    TOKEN_PLUS,
     TOKEN_PRINT,
     TOKEN_SAVE8,
-    TOKEN_SLASH,
-    TOKEN_STAR,
     TOKEN_STR,
     TOKEN_SWAP,
-    TOKEN_SYS4,
     TOKEN_PROC,
     TOKEN_CONST,
     TOKEN_MACRO,
@@ -69,6 +64,19 @@ typedef enum {
     TOKEN_END,
 
     TOKEN_HASH_INCLUDE,
+
+    TOKEN___SYS_ADD,
+    TOKEN___SYS_SUB,
+    TOKEN___SYS_MUL,
+    TOKEN___SYS_DIVMOD,
+
+    TOKEN___SYS0,
+    TOKEN___SYS1,
+    TOKEN___SYS2,
+    TOKEN___SYS3,
+    TOKEN___SYS4,
+    TOKEN___SYS5,
+    TOKEN___SYS6,
 
     TOKEN_ERROR,
     TOKEN_EOF

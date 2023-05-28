@@ -124,8 +124,20 @@ int disassemble_instruction(Chunk *chunk, int offset) {
             return simple_instruction("OP_SAVE8", offset);
         case OP_SUBSTRACT:
             return simple_instruction("OP_SUBSTRACT", offset);
+        case OP_SYS0:
+            return simple_instruction("OP_SYS0", offset);
+        case OP_SYS1:
+            return simple_instruction("OP_SYS1", offset);
+        case OP_SYS2:
+            return simple_instruction("OP_SYS2", offset);
+        case OP_SYS3:
+            return simple_instruction("OP_SYS3", offset);
         case OP_SYS4:
             return simple_instruction("OP_SYS4", offset);
+        case OP_SYS5:
+            return simple_instruction("OP_SYS5", offset);
+        case OP_SYS6:
+            return simple_instruction("OP_SYS6", offset);
         case OP_SWAP:
             return simple_instruction("OP_SWAP", offset);
         // Special

@@ -122,6 +122,7 @@ CompilerResult generate_x64_linux(Writer *writer,
                 append(code, "    pop    rbx");
                 append(code, "    pop    rax");
                 append(code, "    div    rbx");
+                append(code, "    push   rdx");
                 append(code, "    push   rax");
             } break;
             case OP_DROP: {
@@ -255,12 +256,66 @@ CompilerResult generate_x64_linux(Writer *writer,
                 append(code, "    sub    rax, rbx");
                 append(code, "    push   rbx");
             } break;
-            case OP_SYS4: {
-                append(code, "    /*    sys4    */");
+            case OP_SYS0: {
+                append(code, "    /*    __SYS0    */");
+                append(code, "    pop    rax");
+                append(code, "    syscall");
+                append(code, "    push   rax");
+            } break;
+            case OP_SYS1: {
+                append(code, "    /*    __SYS1    */");
+                append(code, "    pop    rax");
+                append(code, "    pop    rdi");
+                append(code, "    syscall");
+                append(code, "    push   rax");
+            } break;
+            case OP_SYS2: {
+                append(code, "    /*    __SYS2    */");
+                append(code, "    pop    rax");
+                append(code, "    pop    rdi");
+                append(code, "    pop    rsi");
+                append(code, "    syscall");
+                append(code, "    push   rax");
+            } break;
+            case OP_SYS3: {
+                append(code, "    /*    __SYS3    */");
                 append(code, "    pop    rax");
                 append(code, "    pop    rdi");
                 append(code, "    pop    rsi");
                 append(code, "    pop    rdx");
+                append(code, "    syscall");
+                append(code, "    push   rax");
+            } break;
+            case OP_SYS4: {
+                append(code, "    /*    __SYS4    */");
+                append(code, "    pop    rax");
+                append(code, "    pop    rdi");
+                append(code, "    pop    rsi");
+                append(code, "    pop    rdx");
+                append(code, "    pop    r10");
+                append(code, "    syscall");
+                append(code, "    push   rax");
+            } break;
+            case OP_SYS5: {
+                append(code, "    /*    __SYS5    */");
+                append(code, "    pop    rax");
+                append(code, "    pop    rdi");
+                append(code, "    pop    rsi");
+                append(code, "    pop    rdx");
+                append(code, "    pop    r10");
+                append(code, "    pop    r9");
+                append(code, "    syscall");
+                append(code, "    push   rax");
+            } break;
+            case OP_SYS6: {
+                append(code, "    /*    __SYS6    */");
+                append(code, "    pop    rax");
+                append(code, "    pop    rdi");
+                append(code, "    pop    rsi");
+                append(code, "    pop    rdx");
+                append(code, "    pop    r10");
+                append(code, "    pop    r9");
+                append(code, "    pop    r8");
                 append(code, "    syscall");
                 append(code, "    push   rax");
             } break;

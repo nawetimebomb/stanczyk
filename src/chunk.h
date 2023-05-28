@@ -35,11 +35,13 @@ typedef enum {
     // Constants
     OP_PUSH_INT,
     OP_PUSH_STR,
+
     // Keywords
     OP_JUMP,
     OP_JUMP_IF_FALSE,
     OP_LOOP,
     OP_MEMORY,
+
     // Intrinsics
     OP_ADD,
     OP_AND,
@@ -50,23 +52,27 @@ typedef enum {
     OP_EQUAL,
     OP_GREATER,
     OP_GREATER_EQUAL,
-
     OP_INC,
     OP_LESS,
     OP_LESS_EQUAL,
     OP_LOAD8,
-
     OP_MULTIPLY,
     OP_NOT_EQUAL,
     OP_OR,
-
     OP_OVER,
     OP_PRINT,
     OP_RETURN,
     OP_SAVE8,
     OP_SUBSTRACT,
     OP_SWAP,
+    OP_SYS0,
+    OP_SYS1,
+    OP_SYS2,
+    OP_SYS3,
     OP_SYS4,
+    OP_SYS5,
+    OP_SYS6,
+
     // Special
     OP_END
 } Op;

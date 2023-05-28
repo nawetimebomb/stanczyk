@@ -299,6 +299,17 @@ static void RULE_constant(Token token) {
 
 static void RULE_intrinsic(Token token) {
     switch (token.type) {
+        case TOKEN___SYS0        : emit_byte(OP_SYS0);          break;
+        case TOKEN___SYS1        : emit_byte(OP_SYS1);          break;
+        case TOKEN___SYS2        : emit_byte(OP_SYS2);          break;
+        case TOKEN___SYS3        : emit_byte(OP_SYS3);          break;
+        case TOKEN___SYS4        : emit_byte(OP_SYS4);          break;
+        case TOKEN___SYS5        : emit_byte(OP_SYS5);          break;
+        case TOKEN___SYS6        : emit_byte(OP_SYS6);          break;
+        case TOKEN___SYS_ADD     : emit_byte(OP_ADD);           break;
+        case TOKEN___SYS_DIVMOD  : emit_byte(OP_DIVIDE);        break;
+        case TOKEN___SYS_MUL     : emit_byte(OP_MULTIPLY);      break;
+        case TOKEN___SYS_SUB     : emit_byte(OP_SUBSTRACT);     break;
         case TOKEN_AND           : emit_byte(OP_AND);           break;
         case TOKEN_DEC           : emit_byte(OP_DEC);           break;
         case TOKEN_DROP          : emit_byte(OP_DROP);          break;
@@ -310,17 +321,12 @@ static void RULE_intrinsic(Token token) {
         case TOKEN_LESS          : emit_byte(OP_LESS);          break;
         case TOKEN_LESS_EQUAL    : emit_byte(OP_LESS_EQUAL);    break;
         case TOKEN_LOAD8         : emit_byte(OP_LOAD8);         break;
-        case TOKEN_MINUS         : emit_byte(OP_SUBSTRACT);     break;
         case TOKEN_NOT_EQUAL     : emit_byte(OP_NOT_EQUAL);     break;
         case TOKEN_OR            : emit_byte(OP_OR);            break;
         case TOKEN_OVER          : emit_byte(OP_OVER);          break;
-        case TOKEN_PLUS          : emit_byte(OP_ADD);           break;
         case TOKEN_PRINT         : emit_byte(OP_PRINT);         break;
         case TOKEN_SAVE8         : emit_byte(OP_SAVE8);         break;
-        case TOKEN_SLASH         : emit_byte(OP_DIVIDE);        break;
-        case TOKEN_STAR          : emit_byte(OP_MULTIPLY);      break;
         case TOKEN_SWAP          : emit_byte(OP_SWAP);          break;
-        case TOKEN_SYS4          : emit_byte(OP_SYS4);          break;
         default: return;
     }
 }
@@ -539,6 +545,17 @@ static void RULE_ignore() {
 }
 
 ParseRule rules[] = {
+    [TOKEN___SYS0]        = {RULE_intrinsic, NULL},
+    [TOKEN___SYS1]        = {RULE_intrinsic, NULL},
+    [TOKEN___SYS2]        = {RULE_intrinsic, NULL},
+    [TOKEN___SYS3]        = {RULE_intrinsic, NULL},
+    [TOKEN___SYS4]        = {RULE_intrinsic, NULL},
+    [TOKEN___SYS5]        = {RULE_intrinsic, NULL},
+    [TOKEN___SYS6]        = {RULE_intrinsic, NULL},
+    [TOKEN___SYS_ADD]     = {RULE_intrinsic, NULL},
+    [TOKEN___SYS_DIVMOD]  = {RULE_intrinsic, NULL},
+    [TOKEN___SYS_MUL]     = {RULE_intrinsic, NULL},
+    [TOKEN___SYS_SUB]     = {RULE_intrinsic, NULL},
     [TOKEN_HASH_INCLUDE]  = {RULE_skip,      NULL},
     [TOKEN_MACRO]         = {RULE_ignore,    NULL},
     [TOKEN_INT]           = {RULE_constant,  NULL},
@@ -558,16 +575,11 @@ ParseRule rules[] = {
     [TOKEN_LESS]          = {RULE_intrinsic, NULL},
     [TOKEN_LESS_EQUAL]    = {RULE_intrinsic, NULL},
     [TOKEN_LOAD8]         = {RULE_intrinsic, NULL},
-    [TOKEN_MINUS]         = {RULE_intrinsic, NULL},
     [TOKEN_NOT_EQUAL]     = {RULE_intrinsic, NULL},
     [TOKEN_OVER]          = {RULE_intrinsic, NULL},
-    [TOKEN_PLUS]          = {RULE_intrinsic, NULL},
     [TOKEN_PRINT]         = {RULE_intrinsic, NULL},
     [TOKEN_SAVE8]         = {RULE_intrinsic, NULL},
-    [TOKEN_SLASH]         = {RULE_intrinsic, NULL},
-    [TOKEN_STAR]          = {RULE_intrinsic, NULL},
     [TOKEN_SWAP]          = {RULE_intrinsic, NULL},
-    [TOKEN_SYS4]          = {RULE_intrinsic, NULL},
     [TOKEN_WORD]          = {RULE_word,      NULL}
 };
 
@@ -693,6 +705,10 @@ void bytecode(Compiler *compiler, Chunk *chunk) {
     const char *entry = the_compiler->options.entry_file;
     Filename file = get_full_path(the_compiler, entry);
     process_and_save(the_compiler, &file);
+
+    // Save libs/basics.sk
+    Filename basics = get_full_path(the_compiler, "basics");
+    process_and_save(the_compiler, &basics);
 
     // Check for #includes, save macros, const and procedures
     for (int index = 0; index < the_compiler->files.count; index++) {

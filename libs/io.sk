@@ -159,7 +159,6 @@
 :> LINUX_SYS_SYSINFO	           set 99    end
 :> LINUX_SYS_TIMES	             set 100   end
 
-
 ;; Helper macros
-:> read  set stdin  LINUX_SYS_READ  __SYS4 end
-:> write set stdout LINUX_SYS_WRITE __SYS4 end
+:> read  set stdin  LINUX_SYS_READ  __SYS3 end
+:> write set stdout LINUX_SYS_WRITE __SYS3 end

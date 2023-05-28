@@ -132,7 +132,17 @@ static TokenType keyword_type() {
             }
         } break;
         case '_': {
-            if (check_if_keyword(1, 5, "_SYS4")) return TOKEN_SYS4;
+            if (check_if_keyword(1, 8,  "_SYS_ADD"))     return TOKEN___SYS_ADD;
+            if (check_if_keyword(1, 8,  "_SYS_SUB"))     return TOKEN___SYS_SUB;
+            if (check_if_keyword(1, 8,  "_SYS_MUL"))     return TOKEN___SYS_MUL;
+            if (check_if_keyword(1, 11, "_SYS_DIVMOD"))  return TOKEN___SYS_DIVMOD;
+            if (check_if_keyword(1, 5,  "_SYS0"))        return TOKEN___SYS0;
+            if (check_if_keyword(1, 5,  "_SYS1"))        return TOKEN___SYS1;
+            if (check_if_keyword(1, 5,  "_SYS2"))        return TOKEN___SYS2;
+            if (check_if_keyword(1, 5,  "_SYS3"))        return TOKEN___SYS3;
+            if (check_if_keyword(1, 5,  "_SYS4"))        return TOKEN___SYS4;
+            if (check_if_keyword(1, 5,  "_SYS5"))        return TOKEN___SYS5;
+            if (check_if_keyword(1, 5,  "_SYS6"))        return TOKEN___SYS6;
         } break;
         case 'a': return check_keyword(1, 2, "nd", TOKEN_AND);
         case 'd': {
@@ -213,15 +223,9 @@ Token scan_token() {
 
     char c = advance();
     if (is_digit(c)) return number();
-    if (is_alpha(c)) return keyword();
-    if (c == '#' || c == '_') return keyword();
 
     switch (c) {
         case '.': return make_token(TOKEN_DOT);
-        case '-': return make_token(TOKEN_MINUS);
-        case '+': return make_token(TOKEN_PLUS);
-        case '/': return make_token(TOKEN_SLASH);
-        case '*': return make_token(TOKEN_STAR);
         case '!': {
             if (match('=')) return make_token(TOKEN_NOT_EQUAL);
             if (match('8')) return make_token(TOKEN_SAVE8);
@@ -243,6 +247,7 @@ Token scan_token() {
             if (match('=')) return make_token(TOKEN_CONST);
         } break;
         case '"': return string();
+        default: return keyword();
     }
 
     return error_token("unknown token");
