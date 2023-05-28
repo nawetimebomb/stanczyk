@@ -35,10 +35,12 @@
 #include "common.h"
 #include "printer.h"
 #include "compiler.h"
+#include "memory.h"
 
 Compiler compiler;
 
 static void init_file_array() {
+    compiler.files.start = 4;
     compiler.files.count = 0;
     compiler.files.capacity = 0;
     compiler.files.filenames = NULL;
@@ -81,6 +83,8 @@ static void parse_arguments(int argc, const char **argv) {
         } else if ((strcmp(input, "-o") == 0) || (strcmp(input, "-out") == 0)) {
             i++;
             compiler.options.out_file = argv[i];
+        } else if ((strcmp(input, "-s") == 0) || (strcmp(input, "-silent") == 0)) {
+            compiler.options.silent = true;
         } else if ((strcmp(input, "-h") == 0) || (strcmp(input, "-help") == 0)) {
             print_help();
             exit(0);
@@ -105,14 +109,16 @@ int main(int argc, const char **argv) {
     CompilerResult result = compile(&compiler);
     Timers *timers = &compiler.timers;
 
-    double total_time = timers->frontend + timers->generator +
-        timers->writer + timers->backend;
-    print_cli("[ info ]", "Compilation timers:");
-    printf("\tFront-end compiler : %fs\n", timers->frontend);
-    printf("\tCode generator     : %fs\n", timers->generator);
-    printf("\tAssembly output    : %fs\n", timers->writer);
-    printf("\tBack-end compiler  : %fs\n", timers->backend);
-    printf(STYLE_BOLD"\tTotal time         : %fs\n"STYLE_OFF, total_time);
+    if (!compiler.options.silent) {
+        double total_time = timers->frontend + timers->generator +
+            timers->writer + timers->backend;
+        print_cli("[ info ]", "Compilation timers:");
+        printf("\tFront-end compiler : %fs\n", timers->frontend);
+        printf("\tCode generator     : %fs\n", timers->generator);
+        printf("\tAssembly output    : %fs\n", timers->writer);
+        printf("\tBack-end compiler  : %fs\n", timers->backend);
+        printf(STYLE_BOLD"\tTotal time         : %fs%s\n", total_time, STYLE_OFF);
+    }
 
     if (compiler.options.run) system("./output");
 

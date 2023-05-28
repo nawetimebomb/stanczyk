@@ -30,18 +30,17 @@
 
 #include "common.h"
 
-#define MIN_MEM_CAPACITY 8
 #define MEM_SCALAR 2
 
 #define ALLOCATE(type, count) \
     (type*)reallocate(NULL, 0, sizeof(type) * (count))
 
-#define GROW_CAPACITY(capacity)                                                \
-  ((capacity) < MIN_MEM_CAPACITY ? MIN_MEM_CAPACITY : (capacity)*MEM_SCALAR)
+#define GROW_CAPACITY(capacity, start)          \
+    ((capacity) < start ? start : (capacity)*MEM_SCALAR)
 
-#define GROW_ARRAY(type, pointer, prev_cap, new_cap)                       \
-  (type *)reallocate(pointer, sizeof(type) * (prev_cap),                     \
-                     sizeof(type) * (new_cap))
+#define GROW_ARRAY(type, pointer, prev_cap, new_cap)                          \
+  (type *)reallocate(pointer, sizeof(type) * (prev_cap),                      \
+                      sizeof(type) * (new_cap))
 
 #define FREE_ARRAY(type, pointer, prev_count)                                  \
   reallocate(pointer, sizeof(type) * (prev_count), 0)

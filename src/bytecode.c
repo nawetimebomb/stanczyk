@@ -41,12 +41,14 @@
 #include "printer.h"
 
 typedef struct {
+    int start;
     int capacity;
     int count;
     Token *tokens;
 } TokenArray;
 
 typedef struct {
+    int start;
     int capacity;
     int count;
     String **names;
@@ -74,12 +76,14 @@ Parser parser;
 Chunk *current;
 
 static void init_token_array(TokenArray *array) {
+    array->start = 16;
     array->count = 0;
     array->capacity = 0;
     array->tokens = NULL;
 }
 
 static void init_macro_array() {
+    macros.start = 32;
     macros.count = 0;
     macros.capacity = 0;
     macros.names = NULL;
@@ -89,16 +93,15 @@ static void init_macro_array() {
 static TokenArray *create_macro(String *name) {
     if (macros.capacity < macros.count + 1) {
         int prev_capacity = macros.capacity;
-        macros.capacity = GROW_CAPACITY(prev_capacity);
+        macros.capacity = GROW_CAPACITY(prev_capacity, macros.start);
         macros.names = GROW_ARRAY(String *, macros.names,
                                   prev_capacity, macros.capacity);
         macros.statements = GROW_ARRAY(TokenArray, macros.statements,
                                        prev_capacity, macros.capacity);
     }
 
-    if (macros.count == 0) init_token_array(macros.statements);
-
     TokenArray *result = &macros.statements[macros.count];
+    init_token_array(result);
 
     macros.names[macros.count] = copy_string(name->chars, name->length);
     macros.count++;
@@ -109,7 +112,7 @@ static TokenArray *create_macro(String *name) {
 static void append_token(TokenArray *array, Token token) {
     if (array->capacity < array->count + 1) {
         int prev_capacity = array->capacity;
-        array->capacity = GROW_CAPACITY(prev_capacity);
+        array->capacity = GROW_CAPACITY(prev_capacity, array->start);
         array->tokens = GROW_ARRAY(Token, array->tokens, prev_capacity, array->capacity);
     }
 

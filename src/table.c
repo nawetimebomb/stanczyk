@@ -36,6 +36,7 @@
 #define TABLE_MAX_LOAD 0.75
 
 void init_table(Table *table) {
+    table->start = 4;
     table->count = 0;
     table->capacity = 0;
     table->entries = NULL;
@@ -101,7 +102,7 @@ static void adjust_capacity(Table *table, int capacity) {
 
 bool table_set(Table *table, String *key, Value value) {
     if (table->count + 1 > table->capacity * TABLE_MAX_LOAD) {
-        int capacity = GROW_CAPACITY(table->capacity);
+        int capacity = GROW_CAPACITY(table->capacity, table->start);
         adjust_capacity(table, capacity);
     }
 

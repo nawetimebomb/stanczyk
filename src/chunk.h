@@ -72,6 +72,7 @@ typedef enum {
 } Op;
 
 typedef struct {
+    int start;
     int count;
     int capacity;
     bool erred;

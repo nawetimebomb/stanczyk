@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# If save is provided, (like `./test.sh save`) the test runner will automatically save the results
+# into a .txt file and make sure the tests runs. This helps to make sure I have updated tests when needed.
+
 FAIL=0
 SUCCESS=0
 TOTAL=0
@@ -9,7 +12,7 @@ RESET="\033[0m"
 PURPLE="\033[35m"
 BOLD="\033[1m"
 
-echo -e $PURPLE
+echo -e $RED
 base64 -d misc/logo.base64
 echo -e $RESET
 
@@ -19,7 +22,12 @@ for FILE in tests/*.sk; do
         TEST_SRC="${FILE%.*}"
         TEST_NAME="${TEST_SRC##*/}"
 
-        ./skc ${TEST_SRC}.sk > result.txt
+        if [ "$1" == "save" ]; then
+            ./skc ${TEST_SRC}.sk -r -s > ${TEST_SRC}.txt
+        fi
+
+
+        ./skc ${TEST_SRC}.sk -r -s > result.txt
 
         RESULT=$(diff ${TEST_SRC}.txt result.txt)
         printf "${BOLD} ¤ %-56s${RESET}" $TEST_NAME

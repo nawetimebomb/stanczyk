@@ -32,6 +32,7 @@
 #include "memory.h"
 
 void init_chunk(Chunk *chunk) {
+    chunk->start = 32;
     chunk->count = 0;
     chunk->capacity = 0;
     chunk->erred = false;
@@ -43,7 +44,7 @@ void init_chunk(Chunk *chunk) {
 void write_chunk(Chunk *chunk, u8 byte, int line) {
     if (chunk->capacity < chunk->count + 1) {
         int prev_capacity = chunk->capacity;
-        chunk->capacity = GROW_CAPACITY(prev_capacity);
+        chunk->capacity = GROW_CAPACITY(prev_capacity, chunk->start);
         chunk->code = GROW_ARRAY(u8, chunk->code, prev_capacity, chunk->capacity);
         chunk->lines = GROW_ARRAY(int, chunk->lines, prev_capacity, chunk->capacity);
     }

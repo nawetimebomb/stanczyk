@@ -45,6 +45,7 @@ typedef struct {
 } Value;
 
 typedef struct {
+    int start;
     int capacity;
     int count;
     Value *values;

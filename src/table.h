@@ -37,6 +37,7 @@ typedef struct {
 } Entry;
 
 typedef struct {
+    int start;
     int count;
     int capacity;
     Entry *entries;

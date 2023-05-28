@@ -38,6 +38,7 @@ typedef struct {
     const char *compiler_dir;
     bool run;
     bool debug;
+    bool silent;
 } CompilerOptions;
 
 typedef struct {
@@ -48,6 +49,7 @@ typedef struct {
 } Timers;
 
 typedef struct {
+    int start;
     int capacity;
     int count;
     char **filenames;
@@ -61,6 +63,7 @@ typedef struct {
 } Compiler;
 
 typedef struct {
+    int  start;
     int  count;
     int  capacity;
     char **items;

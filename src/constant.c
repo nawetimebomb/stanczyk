@@ -34,6 +34,7 @@
 #include "object.h"
 
 void init_constants_array(ConstantArray *array) {
+    array->start = 8;
     array->capacity = 0;
     array->count = 0;
     array->values = NULL;
@@ -42,7 +43,7 @@ void init_constants_array(ConstantArray *array) {
 void write_constants_array(ConstantArray* array, Value value) {
     if (array->capacity < array->count + 1) {
         int prev_capacity = array->capacity;
-        array->capacity = GROW_CAPACITY(prev_capacity);
+        array->capacity = GROW_CAPACITY(prev_capacity, array->start);
         array->values = GROW_ARRAY(Value, array->values, prev_capacity, array->capacity);
     }
 

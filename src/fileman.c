@@ -39,7 +39,7 @@
 
 static char *get_word_in_name(const char *name) {
     char *result = ALLOCATE(char, 32);
-    memset(result, 0, 32);
+    memset(result, 0, sizeof(char) * 32);
     int i = 0;
 
     for (char c = *name; c; c = *++name) {
@@ -55,7 +55,7 @@ static char *get_word_in_name(const char *name) {
 static char *get_file_path(Compiler *compiler, const char *name) {
     bool is_dev_lib = strstr(name, ".sk");
     char *filepath = ALLOCATE(char, 256);
-    memset(filepath, 0, 256);
+    memset(filepath, 0, sizeof(char) * 256);
 
     if (is_dev_lib) {
         strcpy(filepath, compiler->options.workspace);
@@ -81,7 +81,7 @@ static void add_processed_file(FileArray *array,
                                const char *filename, const char *source) {
     if (array->capacity < array->count + 1) {
         int prev_capacity = array->capacity;
-        array->capacity = GROW_CAPACITY(prev_capacity);
+        array->capacity = GROW_CAPACITY(prev_capacity, array->start);
         array->filenames = GROW_ARRAY(char *, array->filenames,
                                       prev_capacity, array->capacity);
         array->sources = GROW_ARRAY(char *, array->sources,
@@ -91,7 +91,9 @@ static void add_processed_file(FileArray *array,
     int filename_len = strlen(filename) + 1;
     int source_len = strlen(source) + 1;
     array->filenames[array->count] = ALLOCATE(char, filename_len);
+    memset(array->filenames[array->count], 0, sizeof(char) * filename_len);
     array->sources[array->count] = ALLOCATE(char, source_len);
+    memset(array->sources[array->count], 0, sizeof(char) * source_len);
     memcpy(array->filenames[array->count], filename, filename_len);
     memcpy(array->sources[array->count], source, source_len);
     array->count++;

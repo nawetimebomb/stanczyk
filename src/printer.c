@@ -30,9 +30,14 @@
 #include <string.h>
 
 #include "printer.h"
+#include "compiler.h"
+
+extern Compiler compiler;
 
 void print_cli(const char *group, const char *message) {
-    printf(STYLE_BOLD "%s" STYLE_OFF " %s\n", group, message);
+    if (!compiler.options.silent) {
+        printf(STYLE_BOLD "%s" STYLE_OFF " %s\n", group, message);
+    }
 }
 
 static void print_logo() {

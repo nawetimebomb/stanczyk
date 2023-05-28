@@ -47,6 +47,7 @@ extern CompilerOptions options;
 Writer writer;
 
 static void init_writer_array(OutputArray *array) {
+    array->start = 32;
     array->count = 0;
     array->capacity = 0;
     array->items = NULL;
@@ -103,7 +104,7 @@ void append(OutputArray *array, char *format, ...) {
 
     if (array->capacity < array->count + 1) {
         int prev_capacity = array->capacity;
-        array->capacity = GROW_CAPACITY(prev_capacity);
+        array->capacity = GROW_CAPACITY(prev_capacity, array->start);
         array->items = GROW_ARRAY(char *, array->items, prev_capacity, array->capacity);
     }
 
