@@ -29,6 +29,7 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <string.h>
+#include <time.h>
 
 #include "common.h"
 #include "chunk.h"
@@ -82,7 +83,10 @@ CompilerResult compile(Compiler *compiler) {
     writer.chunk = chunk;
     writer.ip = chunk->code;
 
+    double START = (double)clock() / CLOCKS_PER_SEC;
     CompilerResult result = generate();
+    double END = (double)clock() / CLOCKS_PER_SEC;
+    compiler->timers.generator = END - START;
 
     // TODO: Improve the below
     if (result) return result;

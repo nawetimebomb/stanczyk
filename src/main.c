@@ -45,9 +45,18 @@ static void init_file_array() {
     compiler.files.sources = NULL;
 }
 
-static char *get_file_directory(const char *path) {
+static char *get_workspace(const char *path) {
+    char *result = malloc(256);
+    memset(result, 0, 256);
+    getcwd(result, 256);
+
+    return result;
+}
+
+static char *get_compiler_dir(const char *path) {
     int len = strlen(path);
     char *dir = malloc(len + 1);
+    memset(dir, 0, len + 1);
     strcpy(dir, path);
 
     while (len > 0) {
@@ -59,25 +68,6 @@ static char *get_file_directory(const char *path) {
     }
 
     return dir;
-}
-
-static char *get_workspace(const char *path) {
-    char *result = malloc(1024);
-    memset(result, 0, 1024);
-    getcwd(result, 1024);
-    strcat(result, "/");
-    strcat(result, get_file_directory(path));
-
-    return result;
-}
-
-static char *get_compiler_dir() {
-    char *result = malloc(1024);
-    memset(result, 0, 1024);
-    getcwd(result, 1024);
-    strcat(result, "/");
-
-    return result;
 }
 
 static void parse_arguments(int argc, const char **argv) {
@@ -110,7 +100,22 @@ int main(int argc, const char **argv) {
     init_file_array();
     parse_arguments(argc, argv);
     compiler.options.workspace = get_workspace(compiler.options.entry_file);
-    compiler.options.compiler_dir = get_compiler_dir();
+    compiler.options.compiler_dir = get_compiler_dir(argv[0]);
 
-    return compile(&compiler);
+    CompilerResult result = compile(&compiler);
+    Timers *timers = &compiler.timers;
+
+    double total_time = timers->frontend + timers->generator +
+        timers->writer + timers->backend;
+    print_cli("[ info ]", "Compilation timers:");
+    printf("\tFront-end compiler : %fs\n", timers->frontend);
+    printf("\tCode generator     : %fs\n", timers->generator);
+    printf("\tAssembly output    : %fs\n", timers->writer);
+    printf("\tBack-end compiler  : %fs\n", timers->backend);
+    printf(STYLE_BOLD"\tTotal time         : %fs\n"STYLE_OFF, total_time);
+
+
+    if (compiler.options.run) system("./output");
+
+    return result;
 }

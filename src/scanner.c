@@ -108,6 +108,11 @@ static void skip_whitespace() {
     }
 }
 
+static bool check_if_keyword(int start, int length, const char *rest) {
+    return (scanner.current - scanner.start == start + length &&
+            memcmp(scanner.start + start, rest, length) == 0);
+}
+
 static TokenType check_keyword(int start, int length, const char *rest, TokenType type) {
     if (scanner.current - scanner.start == start + length &&
         memcmp(scanner.start + start, rest, length) == 0) {
@@ -125,6 +130,9 @@ static TokenType keyword_type() {
                     case 'i': return check_keyword(2, 6, "nclude", TOKEN_HASH_INCLUDE);
                 }
             }
+        } break;
+        case '_': {
+            if (check_if_keyword(1, 5, "_SYS4")) return TOKEN_SYS4;
         } break;
         case 'a': return check_keyword(1, 2, "nd", TOKEN_AND);
         case 'd': {
@@ -172,7 +180,6 @@ static TokenType keyword_type() {
                 }
             }
         } break;
-        case 'S': return check_keyword(1, 3, "YS4", TOKEN_SYS4);
     }
 
     return TOKEN_WORD;
@@ -207,7 +214,7 @@ Token scan_token() {
     char c = advance();
     if (is_digit(c)) return number();
     if (is_alpha(c)) return keyword();
-    if (c == '#') return keyword();
+    if (c == '#' || c == '_') return keyword();
 
     switch (c) {
         case '.': return make_token(TOKEN_DOT);

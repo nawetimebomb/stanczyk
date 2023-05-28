@@ -28,6 +28,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "scanner.h"
 #include "memory.h"
@@ -35,6 +36,46 @@
 #include "compiler.h"
 #include "util.h"
 #include "common.h"
+
+static char *get_word_in_name(const char *name) {
+    char *result = ALLOCATE(char, 32);
+    memset(result, 0, 32);
+    int i = 0;
+
+    for (char c = *name; c; c = *++name) {
+        if (is_alpha(c) || is_digit(c) || is_allowed_char(c) || c == '.' || c == '/') {
+            result[i] = c;
+            i++;
+        }
+    }
+
+    return result;
+}
+
+static char *get_file_path(Compiler *compiler, const char *name) {
+    bool is_dev_lib = strstr(name, ".sk");
+    char *filepath = ALLOCATE(char, 256);
+    memset(filepath, 0, 256);
+
+    if (is_dev_lib) {
+        strcpy(filepath, compiler->options.workspace);
+        strcat(filepath, "/");
+        strcat(filepath, get_word_in_name(name));
+    } else {
+        strcpy(filepath, compiler->options.compiler_dir);
+        strcat(filepath, "/libs/");
+        strcat(filepath, get_word_in_name(name));
+        strcat(filepath, ".sk");
+    }
+
+    return filepath;
+}
+
+Filename get_full_path(Compiler *compiler, const char *name) {
+    Filename result;
+    result.name = get_file_path(compiler, name);
+    return result;
+}
 
 static void add_processed_file(FileArray *array,
                                const char *filename, const char *source) {
@@ -121,67 +162,27 @@ static const char *process_source(const char *source) {
     return p;
 }
 
-static char *get_word_in_name(const char *name) {
-    char *result = ALLOCATE(char, 64);
-    memset(result, 0, 64);
-    int i = 0;
+void process_and_save(Compiler *compiler, Filename *file) {
+    const char *source = process_source(read_file(file->name));
+    add_processed_file(&compiler->files, file->name, source);
+}
 
-    for (char c = *name; c; c = *++name) {
-        if (is_alpha(c) || is_digit(c) || is_allowed_char(c) || c == '.') {
-            result[i] = c;
-            i++;
-        }
+bool library_exists(Filename *file) {
+    if (access(file->name, F_OK) == -1) {
+        return false;
     }
 
-    return result;
+    return true;
 }
 
-static char *get_file_path(Compiler *compiler, const char *name) {
-    bool is_dev_lib = strstr(name, ".sk");
-    char *filepath = ALLOCATE(char, 256);
-    memset(filepath, 0, 256);
-
-    if (is_dev_lib) {
-        strcpy(filepath, compiler->options.compiler_dir);
-        strcat(filepath, "/");
-        strcat(filepath, get_word_in_name(name));
-    } else {
-        strcpy(filepath, compiler->options.compiler_dir);
-        strcat(filepath, "libs/");
-        strcat(filepath, get_word_in_name(name));
-        strcat(filepath, ".sk");
-    }
-
-    return filepath;
-}
-
-void process_and_save(Compiler *compiler, const char *name) {
-    const char *filename = get_file_path(compiler, name);
-    const char *source = process_source(read_file(filename));
-
-    add_processed_file(&compiler->files, filename, source);
-}
-
-bool library_exists(Compiler *compiler, const char *name) {
-    FILE *file = fopen(get_file_path(compiler, name), "r");
-
-    if (file) {
-        fclose(file);
-        return true;
-    }
-
-    return false;
-}
-
-bool library_not_processed(Compiler *compiler, const char *name) {
-    const char *filename = get_file_path(compiler, name);
-    int filename_len = strlen(filename);
+bool library_not_processed(Compiler *compiler, Filename *file) {
+    int filename_len = strlen(file->name);
 
     for (int i = 0; i < compiler->files.count; i++) {
         const char *name = compiler->files.filenames[i];
         int name_len = strlen(name);
 
-        if (filename_len == name_len && memcmp(filename, name, filename_len) == 0) {
+        if (filename_len == name_len && memcmp(file->name, name, filename_len) == 0) {
             return false;
         }
     }

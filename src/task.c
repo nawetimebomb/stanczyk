@@ -28,6 +28,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include "compiler.h"
 #include "printer.h"
@@ -36,6 +37,7 @@
 extern CompilerOptions options;
 
 static CompilerResult write(Writer *writer, Compiler *compiler) {
+    double START = (double)clock() / CLOCKS_PER_SEC;
     // TODO: Select name of file dinamically
     FILE *out = fopen("output.s", "w");
 
@@ -102,22 +104,26 @@ static CompilerResult write(Writer *writer, Compiler *compiler) {
     fprintf(out, ".comm mem, 80\n");
 
     fclose(out);
-
-    // TODO: move these out.
-    print_cli("[ info ]", "Running Assembler");
-    system("as output.s -o output.o");
-    print_cli("[ info ]", "Running the GCC Linker");
-    system("gcc -L. output.o -o output -g");
-    //system("fasm output.asm");
-#ifndef DEBUG_COMPILED
-    print_cli("[ info ]", "Cleaning up");
-    system("rm output.asm");
-#endif
-    if (compiler->options.run) system("./output");
+    double END = (double)clock() / CLOCKS_PER_SEC;
+    compiler->timers.writer = END - START;
 
     return COMPILER_OK;
 }
 
 CompilerResult run(Writer *writer, Compiler *compiler) {
-    return write(writer, compiler);
+    CompilerResult result = write(writer, compiler);
+
+    double START = (double)clock() / CLOCKS_PER_SEC;
+    print_cli("[ info ]", "Running Assembler");
+    system("as output.s -o output.o");
+    print_cli("[ info ]", "Running the GCC Linker");
+    system("gcc -L. output.o -o output -g");
+#ifndef DEBUG_COMPILED
+    print_cli("[ info ]", "Cleaning up");
+    system("rm output.s");
+#endif
+    double END = (double)clock() / CLOCKS_PER_SEC;
+    compiler->timers.backend = END - START;
+
+    return result;
 }

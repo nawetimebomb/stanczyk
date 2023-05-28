@@ -28,6 +28,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include "fileman.h"
 #include "compiler.h"
@@ -630,13 +631,14 @@ static void hash_include() {
             "E.g.:\n" "\t#include \"io\"" COLOR_RED"\t           ^^^^\n"STYLE_OFF
             "You can find a list of libraries running skc -help");
     String *name = copy_string(parser.previous.start, parser.previous.length);
+    Filename file = get_full_path(the_compiler, name->chars);
 
-    if (library_exists(the_compiler, name->chars)) {
-        if (library_not_processed(the_compiler, name->chars)) {
-            process_and_save(the_compiler, name->chars);
+    if (library_exists(&file)) {
+        if (library_not_processed(the_compiler, &file)) {
+            process_and_save(the_compiler, &file);
         }
     } else {
-        char *error_message = ALLOCATE(char, 512);
+        char *error_message = ALLOCATE(char, 400);
         sprintf(error_message, "failed to find library to include: %s\n"
                 "Make sure the name is correct. If it is an internal Stańczyk library, you\n"
                 "must omit the '.sk' in the name. If it is your code, then you must have '.sk'\n"
@@ -679,13 +681,15 @@ static void run_compilation_tokens(int index) {
 }
 
 void bytecode(Compiler *compiler, Chunk *chunk) {
+    double START = (double)clock() / CLOCKS_PER_SEC;
     init_macro_array();
     the_compiler = compiler;
     current = chunk;
 
     // Save the entry file
     const char *entry = the_compiler->options.entry_file;
-    process_and_save(the_compiler, entry);
+    Filename file = get_full_path(the_compiler, entry);
+    process_and_save(the_compiler, &file);
 
     // Check for #includes, save macros, const and procedures
     for (int index = 0; index < the_compiler->files.count; index++) {
@@ -700,4 +704,7 @@ void bytecode(Compiler *compiler, Chunk *chunk) {
     emit_end();
 
     chunk->erred = parser.erred;
+
+    double END = (double)clock() / CLOCKS_PER_SEC;
+    compiler->timers.frontend = END - START;
 }

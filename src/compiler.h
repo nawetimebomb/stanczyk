@@ -41,6 +41,13 @@ typedef struct {
 } CompilerOptions;
 
 typedef struct {
+    double frontend;
+    double generator;
+    double writer;
+    double backend;
+} Timers;
+
+typedef struct {
     int capacity;
     int count;
     char **filenames;
@@ -50,6 +57,7 @@ typedef struct {
 typedef struct {
     CompilerOptions options;
     FileArray files;
+    Timers timers;
 } Compiler;
 
 typedef struct {
