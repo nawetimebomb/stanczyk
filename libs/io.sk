@@ -1,0 +1,165 @@
+;;;;;;;;;;;;;;;;;;  The Stańczyk Programming Language  ;;;;;;;;;;;;;;;;;;
+;                                                                       ;
+;            ¿«fº"└└-.`└└*∞▄_              ╓▄∞╙╙└└└╙╙*▄▄                ;
+;         J^. ,▄▄▄▄▄▄_      └▀████▄ç    JA▀            └▀v              ;
+;       ,┘ ▄████████████▄¿     ▀██████▄▀└      ╓▄██████▄¿ "▄_           ;
+;      ,─╓██▀└└└╙▀█████████      ▀████╘      ▄████████████_`██▄         ;
+;     ;"▄█└      ,██████████-     ▐█▀      ▄███████▀▀J█████▄▐▀██▄       ;
+;     ▌█▀      _▄█▀▀█████████      █      ▄██████▌▄▀╙     ▀█▐▄,▀██▄     ;
+;    ▐▄▀     A└-▀▌  █████████      ║     J███████▀         ▐▌▌╙█µ▀█▄    ;
+;  A╙└▀█∩   [    █  █████████      ▌     ███████H          J██ç ▀▄╙█_   ;
+; █    ▐▌    ▀▄▄▀  J█████████      H    ████████          █    █  ▀▄▌   ;
+;  ▀▄▄█▀.          █████████▌           ████████          █ç__▄▀ ╓▀└ ╙%_;
+;                 ▐█████████      ▐    J████████▌          .└╙   █¿   ,▌;
+;                 █████████▀╙╙█▌└▐█╙└██▀▀████████                 ╙▀▀▀▀ ;
+;                ▐██▀┘Å▀▄A └▓█╓▐█▄▄██▄J▀@└▐▄Å▌▀██▌                      ;
+;                █▄▌▄█M╨╙└└-           .└└▀**▀█▄,▌                      ;
+;                ²▀█▄▄L_                  _J▄▄▄█▀└                      ;
+;                     └╙▀▀▀▀▀MMMR████▀▀▀▀▀▀▀└                           ;
+;                                                                       ;
+;                                                                       ;
+; ███████╗████████╗ █████╗ ███╗   ██╗ ██████╗███████╗██╗   ██╗██╗  ██╗  ;
+; ██╔════╝╚══██╔══╝██╔══██╗████╗  ██║██╔════╝╚══███╔╝╚██╗ ██╔╝██║ ██╔╝  ;
+; ███████╗   ██║   ███████║██╔██╗ ██║██║       ███╔╝  ╚████╔╝ █████╔╝   ;
+; ╚════██║   ██║   ██╔══██║██║╚██╗██║██║      ███╔╝    ╚██╔╝  ██╔═██╗   ;
+; ███████║   ██║   ██║  ██║██║ ╚████║╚██████╗███████╗   ██║   ██║  ██╗  ;
+; ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝╚══════╝   ╚═╝   ╚═╝  ╚═╝  ;
+;                                                                       ;
+;;;;;;;;;;;;;;;;;;  The Stańczyk Programming Language  ;;;;;;;;;;;;;;;;;;
+
+; Copyright (c) 2023 Nahuel Jesús Sacchetti and Stańczyk contributors
+
+; Permission is hereby granted, free of charge, to any person obtaining
+; a copy of this software and associated documentation files (the
+; "Software"), to deal in the Software without restriction, including
+; without limitation the rights to use, copy, modify, merge, publish,
+; distribute, sublicense, and/or sell copies of the Software, and to
+; permit persons to whom the Software is furnished to do so, subject to
+; the following conditions:
+
+; The above copyright notice and this permission notice shall be
+; included in all copies or substantial portions of the Software.
+
+; THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+; EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+; MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+; NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+; LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+; OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+; WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+;; UNIX I/O Library
+;; TODO: Add descriptions
+
+;; File descriptor (fd)
+:= STDIN_FILENO  0 end    :> stdin  set STDIN_FILENO  end
+:= STDOUT_FILENO 1 end    :> stdout set STDOUT_FILENO end
+:= STDERR_FILENO 2 end    :> stderr set STDERR_FILENO end
+
+;; System call (syscall)
+:= LINUX_SYS_READ           0   end
+:= LINUX_SYS_WRITE          1   end
+:= LINUX_SYS_OPEN           2   end
+:= LINUX_SYS_CLOSE          3   end
+:= LINUX_SYS_STAT           4   end
+:= LINUX_SYS_FSTAT          5   end
+:= LINUX_SYS_LSTAT          6   end
+:= LINUX_SYS_POLL           7   end
+:= LINUX_SYS_LSEEK          8   end
+:= LINUX_SYS_MMAP           9   end
+:= LINUX_SYS_MPROTECT       10  end
+:= LINUX_SYS_MUNMAP         11  end
+:= LINUX_SYS_BRK            12  end
+:= LINUX_SYS_RT_SIGACTION   13  end
+:= LINUX_SYS_RT_SIGPROCMASK 14  end
+:= LINUX_SYS_RT_SIGRETURN   15  end
+:= LINUX_SYS_IOCTL          16  end
+:= LINUX_SYS_PREAD64        17  end
+:= LINUX_SYS_PWRITE64       18  end
+:= LINUX_SYS_READV          19  end
+:= LINUX_SYS_WRITEV         20  end
+:= LINUX_SYS_ACCESS         21  end
+:= LINUX_SYS_PIPE           22  end
+:= LINUX_SYS_SELECT         23  end
+:= LINUX_SYS_SCHED_YIELD    24  end
+:= LINUX_SYS_MREMAP	        25  end
+:= LINUX_SYS_MSYNC	        26  end
+:= LINUX_SYS_MINCORE        27  end
+:= LINUX_SYS_MADVISE        28  end
+:= LINUX_SYS_SHMGET         29  end
+:= LINUX_SYS_SHMAT	        30  end
+:= LINUX_SYS_SHMCTL         31  end
+:= LINUX_SYS_DUP	          32  end
+:= LINUX_SYS_DUP2	          33  end
+:= LINUX_SYS_PAUSE          34  end
+:= LINUX_SYS_NANOSLEEP      35  end
+:= LINUX_SYS_GETITIMER      36  end
+:= LINUX_SYS_ALARM	        37  end
+:= LINUX_SYS_SETITIMER      38  end
+:= LINUX_SYS_GETPID         39  end
+:= LINUX_SYS_SENDFILE       40  end
+:= LINUX_SYS_SOCKET	        41  end
+:= LINUX_SYS_CONNECT	      42  end
+:= LINUX_SYS_ACCEPT	        43  end
+:= LINUX_SYS_SENDTO	        44  end
+:= LINUX_SYS_RECVFROM	      45  end
+:= LINUX_SYS_SENDMSG	      46  end
+:= LINUX_SYS_RECVMSG	      47  end
+:= LINUX_SYS_SHUTDOWN       48  end
+:= LINUX_SYS_BIND	          49  end
+:= LINUX_SYS_LISTEN         50  end
+:= LINUX_SYS_GETSOCKNAME    51  end
+:= LINUX_SYS_GETPEERNAME    52  end
+:= LINUX_SYS_SOCKETPAIR     53  end
+:= LINUX_SYS_SETSOCKOPT     54  end
+:= LINUX_SYS_GETSOCKOPT     55  end
+:= LINUX_SYS_CLONE	        56  end
+:= LINUX_SYS_FORK           57  end
+:= LINUX_SYS_VFORK          58  end
+:= LINUX_SYS_EXECVE	        59  end
+:= LINUX_SYS_EXIT	          60  end
+:= LINUX_SYS_WAIT4          61  end
+:= LINUX_SYS_KILL	          62  end
+:= LINUX_SYS_UNAME	        63  end
+:= LINUX_SYS_SEMGET	        64  end
+:= LINUX_SYS_SEMOP	        65  end
+:= LINUX_SYS_SEMCTL	        66  end
+:= LINUX_SYS_SHMDT	        67  end
+:= LINUX_SYS_MSGGET	        68  end
+:= LINUX_SYS_MSGSND	        69  end
+:= LINUX_SYS_MSGRCV	        70  end
+:= LINUX_SYS_MSGCTL	        71  end
+:= LINUX_SYS_FCNTL	        72  end
+:= LINUX_SYS_FLOCK	        73  end
+:= LINUX_SYS_FSYNC	        74  end
+:= LINUX_SYS_FDATASYNC      75  end
+:= LINUX_SYS_TRUNCATE	      76  end
+:= LINUX_SYS_FTRUNCATE      77  end
+:= LINUX_SYS_GETDENTS	      78  end
+:= LINUX_SYS_GETCWD	        79  end
+:= LINUX_SYS_CHDIR	        80  end
+:= LINUX_SYS_FCHDIR	        81  end
+:= LINUX_SYS_RENAME	        82  end
+:= LINUX_SYS_MKDIR	        83  end
+:= LINUX_SYS_RMDIR	        84  end
+:= LINUX_SYS_CREAT	        85  end
+:= LINUX_SYS_LINK	          86  end
+:= LINUX_SYS_UNLINK	        87  end
+:= LINUX_SYS_SYMLINK	      88  end
+:= LINUX_SYS_READLINK	      89  end
+:= LINUX_SYS_CHMOD	        90  end
+:= LINUX_SYS_FCHMOD	        91  end
+:= LINUX_SYS_CHOWN	        92  end
+:= LINUX_SYS_FCHOWN	        93  end
+:= LINUX_SYS_LCHOWN	        94  end
+:= LINUX_SYS_UMASK	        95  end
+:= LINUX_SYS_GETTIMEOFDAY   96  end
+:= LINUX_SYS_GETRLIMIT	    97  end
+:= LINUX_SYS_GETRUSAGE	    98  end
+:= LINUX_SYS_SYSINFO	      99  end
+:= LINUX_SYS_TIMES	        100 end
+
+;; Helper macros
+:> read  set stdin  LINUX_SYS_READ  __SYS_CALL3 end
+:> write set stdout LINUX_SYS_WRITE __SYS_CALL3 end
+:> exit  set LINUX_SYS_EXIT         __SYS_CALL1 end
