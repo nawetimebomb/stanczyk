@@ -145,8 +145,10 @@ int main(int argc, const char **argv) {
         printf(STYLE_BOLD"\tTotal time         : %fs%s\n", total_time, STYLE_OFF);
     }
 
-    if (compiler.options.run) system("./output");
-    if (compiler.options.clean) system("rm ./output");
+    if (compiler.options.run && !compiler.failed) {
+        system("./output");
+        if (compiler.options.clean) system("rm ./output");
+    }
 
     return result;
 }

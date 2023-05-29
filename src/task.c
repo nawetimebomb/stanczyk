@@ -78,30 +78,22 @@ static CompilerResult write(Writer *writer, Compiler *compiler) {
 
     // fprintf(out, ".section d\n");
 
-    fprintf(out, "\n\n");
+    if (writer->strs.count > 0) {
+        fprintf(out, "\n\n");
 
-    for (int i = 0; i < writer->writeable.count; i++) {
-        char *str = writer->writeable.items[i];
-        fprintf(out, "str_%d: .string \"%s\"\n", i, str);
+        for (int i = 0; i < writer->strs.count; i++) {
+            char *str = writer->strs.items[i];
+            fprintf(out, "str_%d: .string \"%s\"\n", i, str);
+        }
     }
 
-    // for (int i = 0; i < writer->writeable.count; i++) {
-    //     char *str = writer->writeable.items[i];
-    //     int count = 0;
-    //     int length = strlen(str);
-    //     fprintf(out, "str_%d: db ", i);
+    if (writer->mems.count > 0) {
+        fprintf(out, "\n\n");
 
-    //     for (char c = *str; c; c = *++str) {
-    //         fprintf(out, "%d", c);
-    //         if (count != length - 1) fprintf(out, ",");
-    //         count++;
-    //     }
-
-    //     fprintf(out, "\n");
-    // }
-
-    // // TODO: Get memory dinamically
-    fprintf(out, ".comm mem, 80\n");
+        for (int i = 0; i < writer->mems.count; i++) {
+            fprintf(out, "%s\n", writer->mems.items[i]);
+        }
+    }
 
     fclose(out);
     double END = (double)clock() / CLOCKS_PER_SEC;
@@ -126,6 +118,10 @@ CompilerResult run(Writer *writer, Compiler *compiler) {
 #endif
     double END = (double)clock() / CLOCKS_PER_SEC;
     compiler->timers.backend = END - START;
+
+    if (result) {
+        compiler->failed = true;
+    }
 
     return result;
 }

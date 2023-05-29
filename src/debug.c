@@ -50,6 +50,17 @@ static int constant_instruction(const char *name, Chunk *chunk, int offset) {
     return offset + 2;
 }
 
+static int definition_instruction(const char *name, Chunk *chunk, int offset) {
+    u8 mem_name = chunk->code[offset + 1];
+    u8 mem_bytes = chunk->code[offset + 2];
+    printf("%-16s %4d %4d '", name, mem_name, mem_bytes);
+    print_constant(chunk->constants.values[mem_name]);
+    printf(" ");
+    print_constant(chunk->constants.values[mem_bytes]);
+    printf("'\n");
+    return offset + 3;
+}
+
 static int jump_instruction(const char *name, int sign, Chunk *chunk, int offset) {
     u16 jump = (u16)(chunk->code[offset + 1] << 8);
     jump |= chunk->code[offset + 2];
@@ -72,6 +83,8 @@ int disassemble_instruction(Chunk *chunk, int offset) {
             return constant_instruction("OP_PUSH_INT", chunk, offset);
         case OP_PUSH_STR:
             return constant_instruction("OP_PUSH_STR", chunk, offset);
+        case OP_PUSH_PTR:
+            return constant_instruction("OP_PUSH_PTR", chunk, offset);
         // Keywords
         case OP_JUMP:
             return jump_instruction("OP_JUMP", 1, chunk, offset);
@@ -79,8 +92,6 @@ int disassemble_instruction(Chunk *chunk, int offset) {
             return jump_instruction("OP_JUMP_IF_FALSE", 1, chunk, offset);
         case OP_LOOP:
             return jump_instruction("OP_LOOP", -1, chunk, offset);
-        case OP_MEMORY:
-            return simple_instruction("OP_MEMORY", offset);
         // Intrinsics
         case OP_ADD:
             return simple_instruction("OP_ADD", offset);
@@ -88,6 +99,8 @@ int disassemble_instruction(Chunk *chunk, int offset) {
             return simple_instruction("OP_AND", offset);
         case OP_DEC:
             return simple_instruction("OP_DEC", offset);
+        case OP_DEFINE_PTR:
+            return definition_instruction("OP_DEFINE_PTR", chunk, offset);
         case OP_DIVIDE:
             return simple_instruction("OP_DIVIDE", offset);
         case OP_DROP:

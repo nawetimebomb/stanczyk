@@ -40,7 +40,8 @@
 
 CompilerResult generate_x64_linux(Writer *writer,
                                   OutputArray *code,
-                                  OutputArray *writeable) {
+                                  OutputArray *strs,
+                                  OutputArray *mems) {
     for (;;) {
 #ifdef DEBUG_BYTECODE
         disassemble_instruction(writer->chunk, (int)(writer->ip - writer->chunk->code));
@@ -65,12 +66,18 @@ CompilerResult generate_x64_linux(Writer *writer,
             case OP_PUSH_STR: {
                 String *value = READ_STRING();
                 append(code, "    /*    len: %d str: str_%d    */",
-                       value->length, writeable->count);
+                       value->length, strs->count);
                 append(code, "    mov    $%d, rax", value->length);
                 append(code, "    push   rax");
-                append(code, "    lea    str_%d(rip), rax", writeable->count);
+                append(code, "    lea    str_%d(rip), rax", strs->count);
                 append(code, "    push   rax");
-                append(writeable, "%s", value->chars);
+                append(strs, "%s", value->chars);
+            } break;
+            case OP_PUSH_PTR: {
+                const char *name = READ_STRING()->chars;
+                append(code, "    /*    memory: %s    */", name);
+                append(code, "    lea    %s(rip), rax", name);
+                append(code, "    push   rax");
             } break;
             // Keywords
             case OP_JUMP: {
@@ -93,14 +100,9 @@ CompilerResult generate_x64_linux(Writer *writer,
                 append(code, "    /*    loop (ip_%d)    */", result_ip);
                 append(code, "    jmp    ip_%d", result_ip);
             } break;
-            case OP_MEMORY: {
-                append(code, "    /*    memory    */");
-                append(code, "    lea   mem(rip), rax");
-                append(code, "    push  rax");
-            } break;
             // Intrinsics
             case OP_ADD: {
-                append(code, "    /*    +    */");
+                append(code, "    /*    __SYS_ADD    */");
                 append(code, "    pop    rax");
                 append(code, "    pop    rbx");
                 append(code, "    add    rbx, rax");
@@ -116,8 +118,13 @@ CompilerResult generate_x64_linux(Writer *writer,
                 append(code, "    dec    rax");
                 append(code, "    push   rax");
             } break;
+            case OP_DEFINE_PTR: {
+                const char *name = READ_STRING()->chars;
+                int size = AS_NUMBER(READ_CONSTANT());
+                append(mems, ".comm %s, %d", name, size);
+            } break;
             case OP_DIVIDE: {
-                append(code, "    /*    /    */");
+                append(code, "    /*    __SYS_DIVMOD    */");
                 append(code, "    xor    rdx, rdx");
                 append(code, "    pop    rbx");
                 append(code, "    pop    rax");
@@ -199,7 +206,7 @@ CompilerResult generate_x64_linux(Writer *writer,
                 append(code, "    push   rbx");
             } break;
             case OP_MULTIPLY: {
-                append(code, "    /*    *    */");
+                append(code, "    /*    __SYS_MUL    */");
                 append(code, "    pop    rax");
                 append(code, "    pop    rbx");
                 append(code, "    mul    rbx");
@@ -250,27 +257,27 @@ CompilerResult generate_x64_linux(Writer *writer,
                 append(code, "    push   rbx");
             } break;
             case OP_SUBSTRACT: {
-                append(code, "    /*    -    */");
+                append(code, "    /*    __SYS_SUB    */");
                 append(code, "    pop    rax");
                 append(code, "    pop    rbx");
                 append(code, "    sub    rax, rbx");
                 append(code, "    push   rbx");
             } break;
             case OP_SYS0: {
-                append(code, "    /*    __SYS0    */");
+                append(code, "    /*    __SYS_CALL0    */");
                 append(code, "    pop    rax");
                 append(code, "    syscall");
                 append(code, "    push   rax");
             } break;
             case OP_SYS1: {
-                append(code, "    /*    __SYS1    */");
+                append(code, "    /*    __SYS_CALL1    */");
                 append(code, "    pop    rax");
                 append(code, "    pop    rdi");
                 append(code, "    syscall");
                 append(code, "    push   rax");
             } break;
             case OP_SYS2: {
-                append(code, "    /*    __SYS2    */");
+                append(code, "    /*    __SYS_CALL2    */");
                 append(code, "    pop    rax");
                 append(code, "    pop    rdi");
                 append(code, "    pop    rsi");
@@ -278,7 +285,7 @@ CompilerResult generate_x64_linux(Writer *writer,
                 append(code, "    push   rax");
             } break;
             case OP_SYS3: {
-                append(code, "    /*    __SYS3    */");
+                append(code, "    /*    __SYS_CALL3    */");
                 append(code, "    pop    rax");
                 append(code, "    pop    rdi");
                 append(code, "    pop    rsi");
@@ -287,7 +294,7 @@ CompilerResult generate_x64_linux(Writer *writer,
                 append(code, "    push   rax");
             } break;
             case OP_SYS4: {
-                append(code, "    /*    __SYS4    */");
+                append(code, "    /*    __SYS_CALL4    */");
                 append(code, "    pop    rax");
                 append(code, "    pop    rdi");
                 append(code, "    pop    rsi");
@@ -297,7 +304,7 @@ CompilerResult generate_x64_linux(Writer *writer,
                 append(code, "    push   rax");
             } break;
             case OP_SYS5: {
-                append(code, "    /*    __SYS5    */");
+                append(code, "    /*    __SYS_CALL5    */");
                 append(code, "    pop    rax");
                 append(code, "    pop    rdi");
                 append(code, "    pop    rsi");
@@ -308,14 +315,14 @@ CompilerResult generate_x64_linux(Writer *writer,
                 append(code, "    push   rax");
             } break;
             case OP_SYS6: {
-                append(code, "    /*    __SYS6    */");
+                append(code, "    /*    __SYS_CALL6    */");
                 append(code, "    pop    rax");
                 append(code, "    pop    rdi");
                 append(code, "    pop    rsi");
                 append(code, "    pop    rdx");
                 append(code, "    pop    r10");
-                append(code, "    pop    r9");
                 append(code, "    pop    r8");
+                append(code, "    pop    r9");
                 append(code, "    syscall");
                 append(code, "    push   rax");
             } break;
