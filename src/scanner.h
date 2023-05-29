@@ -31,6 +31,9 @@
 #include "common.h"
 
 typedef enum {
+    TOKEN_LEFT_PAREN,
+    TOKEN_RIGHT_PAREN,
+
     TOKEN_AND,
     TOKEN_DEC,
     TOKEN_DO,
@@ -48,7 +51,7 @@ typedef enum {
     TOKEN_LESS_EQUAL,
     TOKEN_LOAD8,
     TOKEN_LOOP,
-    TOKEN_MEMORY,
+    TOKEN_STATIC,
     TOKEN_NOT_EQUAL,
     TOKEN_OR,
     TOKEN_OVER,
@@ -64,6 +67,7 @@ typedef enum {
     TOKEN_END,
 
     TOKEN_HASH_INCLUDE,
+    TOKEN_HASH_C,
 
     TOKEN___SYS_ADD,
     TOKEN___SYS_SUB,

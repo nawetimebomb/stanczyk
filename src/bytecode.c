@@ -56,6 +56,13 @@ typedef struct {
 } MacroArray;
 
 typedef struct {
+    int start;
+    int capacity;
+    int count;
+    String **names;
+} Memories;
+
+typedef struct {
     Token current;
     Token previous;
     bool erred;
@@ -71,6 +78,7 @@ typedef struct {
 } ParseRule;
 
 Compiler *the_compiler;
+Memories memories;
 MacroArray macros;
 Parser parser;
 Chunk *current;
@@ -82,12 +90,19 @@ static void init_token_array(TokenArray *array) {
     array->tokens = NULL;
 }
 
-static void init_macro_array() {
+static void init_macros_array() {
     macros.start = 32;
     macros.count = 0;
     macros.capacity = 0;
     macros.names = NULL;
     macros.statements = NULL;
+}
+
+static void init_memories_array() {
+    memories.start = 8;
+    memories.count = 0;
+    memories.capacity = 0;
+    memories.names = NULL;
 }
 
 static TokenArray *create_macro(String *name) {
@@ -120,9 +135,33 @@ static void append_token(TokenArray *array, Token token) {
     array->count++;
 }
 
+static void append_memory_name(Memories *array, String *name) {
+    if (array->capacity < array->count + 1) {
+        int prev_capacity = array->capacity;
+        array->capacity = GROW_CAPACITY(prev_capacity, array->start);
+        array->names = GROW_ARRAY(String *, array->names, prev_capacity, array->capacity);
+    }
+
+    array->names[array->count] = copy_string(name->chars, name->length);
+    array->count++;
+}
+
 static int find_macro_index(String *query) {
     for (int i = 0; i < macros.count; i++) {
         String *item = macros.names[i];
+        if (item->length == query->length &&
+            item->hash == query->hash &&
+            memcmp(item->chars, query->chars, query->length) == 0) {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+static int find_memory_index(String *query) {
+    for (int i = 0; i < memories.count; i++) {
+        String *item = memories.names[i];
         if (item->length == query->length &&
             item->hash == query->hash &&
             memcmp(item->chars, query->chars, query->length) == 0) {
@@ -430,11 +469,45 @@ static void inline_loop_statement() {
     run_loop(statement, 0);
 }
 
+static void static_memory_definition() {
+    consume(TOKEN_WORD, "memory definition requires a name after the 'memory' keyword\n"
+            "E.g.:" "\tmemory buffer 1024 end\n" COLOR_RED "\t       ^^^^^^\n"STYLE_OFF
+            "Memory name may be any word, starting with lowercase or uppercase character,\n"
+            "but it may contain numbers, - or _");
+    String *word = copy_string(parser.previous.start, parser.previous.length);
+    long number = 0;
+
+    if (match(TOKEN_END)) {
+        error("expect Int after the memory name\n"
+            "E.g.:\n" "\tmemory buffer 1024 end\n" COLOR_RED "\t              ^^^^\n"STYLE_OFF
+            "This number indicates how much memory (in bytes) is going to be saved");
+        return;
+    }
+
+    if (match(TOKEN_INT)) {
+        number = strtol(parser.previous.start, NULL, 10);
+    } else if (match(TOKEN_WORD)) {
+        int index = find_macro_index(copy_string(parser.previous.start, parser.previous.length));
+        Token token = macros.statements[index].tokens[0];
+        number = strtol(token.start, NULL, 10);
+    }
+
+    emit_byte(OP_DEFINE_PTR);
+    emit_bytes(make_constant(OBJECT_VALUE(word)), make_constant(NUMBER_VALUE(number)));
+    append_memory_name(&memories, word);
+
+    consume(TOKEN_END,
+            "'end' keyword expected after memory definition\n" "E.g.:\n"
+            "\tmemory buffer 1024 end\n" COLOR_RED
+            "\t                   ^^^\n"STYLE_OFF
+            "Memory definition must close with the 'end' keyword");
+}
+
 static void RULE_keyword(Token token) {
     switch (token.type) {
-        case TOKEN_IF     : inline_if_statement();   break;
-        case TOKEN_LOOP   : inline_loop_statement(); break;
-        case TOKEN_MEMORY : emit_byte(OP_MEMORY);    break;
+        case TOKEN_IF     : inline_if_statement();       break;
+        case TOKEN_LOOP   : inline_loop_statement();     break;
+        case TOKEN_STATIC : static_memory_definition(); break;
         default: return;
     }
 }
@@ -459,17 +532,23 @@ static void expand_macro(TokenArray *statement) {
     }
 }
 
+static void push_pointer(String *name) {
+    emit_constant(OP_PUSH_PTR, OBJECT_VALUE(name));
+}
+
 static void RULE_word(Token token) {
     String *word = copy_string(token.start, token.length);
-    int index = find_macro_index(word);
+    int macro_index = find_macro_index(word);
+    int memory_index = find_memory_index(word);
 
-    if (index >= 0) {
-        expand_macro(&macros.statements[index]);
+    if (macro_index < 0 && memory_index < 0) {
+        error("unknown word\n" "The word definition has not been found yet in the code\n"
+              "Check if the definition is after this line or if you mispelled the word");
         return;
     }
 
-    error("unknown word\n" "The word definition has not been found yet in the code\n"
-          "Check if the definition is after this line or if you mispelled the word");
+    if (macro_index >= 0)  { expand_macro(&macros.statements[macro_index]); return; }
+    if (memory_index >= 0) { push_pointer(memories.names[memory_index]);    return; }
 }
 
 static void RULE_skip() {
@@ -523,7 +602,7 @@ ParseRule rules[] = {
     [TOKEN_STR]           = {RULE_constant,  NULL},
     [TOKEN_IF]            = {RULE_keyword,   RULE_keyword_ex},
     [TOKEN_LOOP]          = {RULE_keyword,   RULE_keyword_ex},
-    [TOKEN_MEMORY]        = {RULE_keyword,   NULL},
+    [TOKEN_STATIC]        = {RULE_keyword,   NULL},
     [TOKEN_OR]            = {RULE_intrinsic, NULL},
     [TOKEN_AND]           = {RULE_intrinsic, NULL},
     [TOKEN_DEC]           = {RULE_intrinsic, NULL},
@@ -570,8 +649,8 @@ static void parse_this_from(TokenArray *statement, int index) {
             String *token_name = copy_string(token.start, token.length);
             char *error_message = ALLOCATE(char, 128);
             sprintf(error_message, "unknown expression while expanding macro\n"
-                    "Failed to parse '%s' expression. "
-                    "This is most likely a bug in the compiler.\n"
+                    "Failed to parse '%s' expression."
+                    "This is most likely a bug in the compiler\n"
                     "Please, open a ticket at %s. Thank you!", token_name->chars, GIT_URL);
             error_at(&token, error_message);
             free(error_message);
@@ -699,7 +778,7 @@ static void const_statement() {
         error("missing const content after name. Empty const are not allowed\n" "E.g.:\n"
               "\t:> my-const <value> end\n" COLOR_RED
               "\t            ^^^^^^^\n"STYLE_OFF
-              "Const content may be a constant value, like an Int or Str.");
+              "Const content may be a constant value, like an Int or Str");
         return;
     }
 
@@ -710,7 +789,7 @@ static void const_statement() {
         append_token(statement, token);
     } else {
         error("you can only assign a constant value to a 'const'\n"
-              "Only an Int or Str is allowed to be used here.");
+              "Only an Int or Str is allowed to be used here");
     }
 
     consume(TOKEN_END,
@@ -752,7 +831,8 @@ static void run_compilation_tokens(int index) {
 
 void bytecode(Compiler *compiler, Chunk *chunk) {
     double START = (double)clock() / CLOCKS_PER_SEC;
-    init_macro_array();
+    init_macros_array();
+    init_memories_array();
     the_compiler = compiler;
     current = chunk;
 
@@ -771,7 +851,7 @@ void bytecode(Compiler *compiler, Chunk *chunk) {
     }
 
     // Process all the saved files and their source code
-    for (int index = the_compiler->files.count - 1; index >= 0; index--) {
+    for (int index = 0; index < the_compiler->files.count; index++) {
         run_compilation_tokens(index);
     }
 
