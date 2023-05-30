@@ -101,6 +101,8 @@ int disassemble_instruction(Chunk *chunk, int offset) {
             return constant_instruction("OP_PUSH_FLOAT", chunk, offset);
         case OP_PUSH_STR:
             return constant_instruction("OP_PUSH_STR", chunk, offset);
+        case OP_PUSH_HEX:
+            return constant_instruction("OP_PUSH_HEX", chunk, offset);
         case OP_PUSH_PTR:
             return constant_instruction("OP_PUSH_PTR", chunk, offset);
 

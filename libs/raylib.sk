@@ -3,15 +3,15 @@
 #clib m
 #clib dl
 
-c-function rl-InitWindow   InitWindow   (rdi rsi rdx) end
-c-function rl-BeginDrawing BeginDrawing ()            end
-c-function rl-EndDrawing   EndDrawing   ()            end
-c-function rl-ShouldClose  WindowShouldClose ()       end
-c-function rl-CloseWindow  CloseWindow  ()            end
-c-function rl-ClearBackground ClearBackground (rdi)   end
-c-function rl-SetTargetFPS SetTargetFPS (rdi)         end
-c-function rl-DrawRectangle DrawRectangle (rdi rsi rdx r10 r8) end
-c-function rl-DrawCircle DrawCircle (rdi rsi rdx xmm0) end
+c-function rl-InitWindow   InitWindow   (rdi rsi rdx)           end
+c-function rl-BeginDrawing BeginDrawing ()                      end
+c-function rl-EndDrawing   EndDrawing   ()                      end
+c-function rl-WindowShouldClose  WindowShouldClose ()           end
+c-function rl-CloseWindow  CloseWindow  ()                      end
+c-function rl-ClearBackground ClearBackground (rdi)             end
+c-function rl-SetTargetFPS SetTargetFPS (rdi)                   end
+c-function rl-DrawRectangle DrawRectangle (rdi rsi rdx rcx r8) end
+c-function rl-DrawCircle DrawCircle (rdi rsi rdx xmm0)          end
 
 ; c-function rl-InitWindow InitWindow                             (Int Int Str) end
 ; c-function rl-WindowShouldClose WindowShouldClose               ()            end
