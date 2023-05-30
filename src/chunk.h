@@ -35,6 +35,7 @@ typedef enum {
     // Constants
     OP_PUSH_INT,
     OP_PUSH_FLOAT,
+    OP_PUSH_HEX,
     OP_PUSH_STR,
     OP_PUSH_PTR,
 

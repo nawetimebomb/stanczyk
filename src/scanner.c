@@ -230,6 +230,12 @@ static Token number() {
         while (is_digit(peek())) advance();
     }
 
+    if (peek() == 'x' && (is_digit(peek_next()) || is_alpha(peek_next()))) {
+        type = TOKEN_HEX;
+        advance();
+        while (is_digit(peek()) || is_alpha(peek())) advance();
+    }
+
     return make_token(type);
 }
 
