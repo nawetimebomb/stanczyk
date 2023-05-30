@@ -29,11 +29,14 @@
 #define STANCZYK_MEMORY_H
 
 #include "common.h"
+#include "object.h"
 
 #define MEM_SCALAR 2
 
-#define ALLOCATE(type, count) \
-    (type*)reallocate(NULL, 0, sizeof(type) * (count))
+#define ALLOCATE(type, count)                                                  \
+  (type *)reallocate(NULL, 0, sizeof(type) * (count))
+
+#define FREE(type, pointer) reallocate(pointer, sizeof(type), 0)
 
 #define GROW_CAPACITY(capacity, start)          \
     ((capacity) < start ? start : (capacity)*MEM_SCALAR)
@@ -46,5 +49,6 @@
   reallocate(pointer, sizeof(type) * (prev_count), 0)
 
 void *reallocate(void *, size_t, size_t);
+void free_object(Object *);
 
 #endif
