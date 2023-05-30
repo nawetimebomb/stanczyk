@@ -32,14 +32,16 @@ typedef struct Object Object;
 typedef struct String String;
 
 typedef enum {
-    VALUE_NUMBER,
+    VALUE_INT,
+    VALUE_FLOAT,
     VALUE_OBJECT
 } ValueType;
 
 typedef struct {
     ValueType type;
     union {
-        int number;
+        int inumber;
+        float fnumber;
         Object *obj;
     } as;
 } Value;
@@ -51,13 +53,16 @@ typedef struct {
     Value *values;
 } ConstantArray;
 
-#define IS_NUMBER(value) ((value).type == VALUE_NUMBER)
+#define IS_INT(value) ((value).type == VALUE_INT)
+#define IS_FLOAT(value) ((value).type == VALUE_FLOAT)
 #define IS_OBJECT(value) ((value).type == VALUE_OBJECT)
 
-#define AS_NUMBER(value) ((value).as.number)
+#define AS_INT(value) ((value).as.inumber)
+#define AS_FLOAT(value) ((value).as.fnumber)
 #define AS_OBJECT(value) ((value).as.obj)
 
-#define NUMBER_VALUE(value)  ((Value){VALUE_NUMBER, {.number = value}})
+#define INT_VALUE(value) ((Value){VALUE_INT, {.inumber = value}})
+#define FLOAT_VALUE(value) ((Value){VALUE_FLOAT, {.fnumber = value}})
 #define OBJECT_VALUE(object) ((Value){VALUE_OBJECT, {.obj = (Object *)object}})
 
 void init_constants_array(ConstantArray *);

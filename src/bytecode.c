@@ -70,18 +70,32 @@ typedef struct {
 } Parser;
 
 typedef void (*ParseFn)(Token);
-typedef void (*ParseExFn)(Token, TokenArray *, int);
 
 typedef struct {
     ParseFn     normal;
-    ParseExFn   ex;
 } ParseRule;
+
+typedef struct {
+    int start;
+    int capacity;
+    int count;
+    CFunction **fn;
+} CFunctionArray;
+
+typedef struct {
+    Chunk chunk;
+    CFunctionArray cfunctions;
+} Bytecode;
 
 Compiler *the_compiler;
 Memories memories;
 MacroArray macros;
 Parser parser;
-Chunk *current;
+Bytecode *current;
+
+static Chunk *current_chunk() {
+    return &current->chunk;
+}
 
 static void init_token_array(TokenArray *array) {
     array->start = 16;
@@ -103,6 +117,24 @@ static void init_memories_array() {
     memories.count = 0;
     memories.capacity = 0;
     memories.names = NULL;
+}
+
+static void init_cfunction_array(CFunctionArray *array) {
+    array->start = 8;
+    array->capacity = 0;
+    array->count = 0;
+    array->fn = NULL;
+}
+
+static void append_clib(ClibArray *array, String *name) {
+    if (array->capacity < array->count + 1) {
+        int prev_cap = array->capacity;
+        array->capacity = GROW_CAPACITY(prev_cap, array->start);
+        array->libs = GROW_ARRAY(String *, array->libs, prev_cap, array->capacity);
+    }
+
+    array->libs[array->count] = name;
+    array->count++;
 }
 
 static TokenArray *create_macro(String *name) {
@@ -142,7 +174,18 @@ static void append_memory_name(Memories *array, String *name) {
         array->names = GROW_ARRAY(String *, array->names, prev_capacity, array->capacity);
     }
 
-    array->names[array->count] = copy_string(name->chars, name->length);
+    array->names[array->count] = name;
+    array->count++;
+}
+
+static void append_cfunction(CFunctionArray *array, CFunction *cfunction) {
+    if (array->capacity < array->count + 1) {
+        int prev_capacity = array->capacity;
+        array->capacity = GROW_CAPACITY(prev_capacity, array->start);
+        array->fn = GROW_ARRAY(CFunction *, array->fn, prev_capacity, array->capacity);
+    }
+
+    array->fn[array->count] = cfunction;
     array->count++;
 }
 
@@ -170,6 +213,29 @@ static int find_memory_index(String *query) {
     }
 
     return -1;
+}
+
+static int find_cfunction_index(String *query) {
+    for (int i = 0; i < current->cfunctions.count; i++) {
+        String *item = current->cfunctions.fn[i]->name;
+        if (item->length == query->length &&
+            item->hash == query->hash &&
+            memcmp(item->chars, query->chars, query->length) == 0) {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+static void init_bytecode() {
+    current = malloc(sizeof(Bytecode));
+    memset(current, 0, sizeof(Bytecode));
+
+    init_chunk(&current->chunk);
+    init_macros_array();
+    init_memories_array();
+    init_cfunction_array(&current->cfunctions);
 }
 
 /*
@@ -243,27 +309,8 @@ static bool check_from(TokenArray *statement, int index, TokenType type) {
     return (statement->tokens[index].type == type);
 }
 
-static bool consume_from(TokenArray *statement, int *index,
-                         TokenType type, const char *message) {
-    Token token = statement->tokens[*index];
-
-    if (token.type == type) {
-        *index += 1;
-        return true;
-    }
-
-    error_at(&token, message);
-    return false;
-}
-
-static bool match_from(TokenArray *statement, int *index, TokenType type) {
-    if (statement->tokens[*index].type != type) return false;
-    *index += 1;
-    return true;
-}
-
 static void emit_byte(u8 byte) {
-    write_chunk(current, byte, parser.previous.line);
+    write_chunk(current_chunk(), byte, parser.previous.line);
 }
 
 static void emit_bytes(u8 b1, u8 b2) {
@@ -272,7 +319,7 @@ static void emit_bytes(u8 b1, u8 b2) {
 }
 
 static u8 make_constant(Value value) {
-    int constant = add_constant(current, value);
+    int constant = add_constant(current_chunk(), value);
     return (u8)constant;
 }
 
@@ -284,20 +331,20 @@ static int emit_jump(u8 instruction) {
     emit_byte(instruction);
     emit_byte(0xff);
     emit_byte(0xff);
-    return current->count - 2;
+    return current_chunk()->count - 2;
 }
 
 static void patch_jump(int offset) {
-    int jump = current->count - offset - 2;
+    int jump = current_chunk()->count - offset - 2;
 
-    current->code[offset] = (jump >> 8) & 0xff;
-    current->code[offset + 1] = jump & 0xff;
+    current_chunk()->code[offset] = (jump >> 8) & 0xff;
+    current_chunk()->code[offset + 1] = jump & 0xff;
 }
 
 static void emit_loop(int loop_start_ip) {
     emit_byte(OP_LOOP);
 
-    int offset = current->count - loop_start_ip + 2;
+    int offset = current_chunk()->count - loop_start_ip + 2;
 
     emit_byte((offset >> 8) & 0xff);
     emit_byte(offset & 0xff);
@@ -319,17 +366,21 @@ static void emit_end() {
 
 static ParseRule *get_rule(TokenType);
 static void parse_next();
-static void parse_this_from(TokenArray *, int);
+static void  parse_this_from(TokenArray *, int);
 
 static void RULE_constant(Token token) {
     switch (token.type) {
         case TOKEN_INT: {
             long value = strtol(token.start, NULL, 10);
-            emit_constant(OP_PUSH_INT, NUMBER_VALUE(value));
+            emit_constant(OP_PUSH_INT, INT_VALUE(value));
         } break;
         case TOKEN_STR: {
             emit_constant(OP_PUSH_STR,
                           OBJECT_VALUE(copy_string(token.start + 1, token.length - 2)));
+        } break;
+        case TOKEN_FLOAT: {
+            double value = strtod(token.start, NULL);
+            emit_constant(OP_PUSH_FLOAT, FLOAT_VALUE(value));
         } break;
         default: return;
     }
@@ -359,114 +410,67 @@ static void RULE_intrinsic(Token token) {
     }
 }
 
-static void construct_statement_array(TokenArray *statement) {
-    init_token_array(statement);
-
-    while (!check(TOKEN_END) && !check(TOKEN_EOF) && !check(TOKEN_DOT)) {
-        advance();
-        Token token = parser.previous;
-        append_token(statement, token);
-    }
-
-    consume(TOKEN_DOT, "");
-    append_token(statement, parser.previous);
-}
-
-static void run_if(TokenArray *statement, int starting_index) {
+static void if_statement() {
     int then_ip, else_ip;
-    int index = starting_index;
 
     // Conditionals
-    while (!check_from(statement, index, TOKEN_DO) &&
-           !check_from(statement, index, TOKEN_EOF) &&
-           !check_from(statement, index, TOKEN_ELSE) &&
-           !check_from(statement, index, TOKEN_DOT)) {
-        parse_this_from(statement, index);
-        index++;
+    while (!check(TOKEN_DO) && !check(TOKEN_EOF) && !check(TOKEN_ELSE) && !check(TOKEN_DOT)) {
+        parse_next();
     }
 
-    consume_from(statement, &index, TOKEN_DO,
-                 "'do' expected after 'if' conditionals\n" "E.g.:\n"
-                 "\tif 13 31 == do [...] .\n" COLOR_RED"\t            ^^\n"STYLE_OFF
-                 "All block expressions must be enclosed in 'do' and '.' keywords");
+    consume(TOKEN_DO, "'do' expected after 'if' conditionals\n" "E.g.:\n"
+            "\tif 13 31 == do [...] .\n" COLOR_RED"\t            ^^\n"STYLE_OFF
+            "All block expressions must be enclosed in 'do' and '.' keywords");
 
     then_ip = emit_jump(OP_JUMP_IF_FALSE);
 
     // If is true...
-    while (!check_from(statement, index, TOKEN_ELSE) &&
-           !check_from(statement, index, TOKEN_EOF) &&
-           !check_from(statement, index, TOKEN_DOT)) {
-        parse_this_from(statement, index);
-        index++;
+    while (!check(TOKEN_ELSE) && !check(TOKEN_EOF) && !check(TOKEN_DOT)) {
+        parse_next();
     }
 
     else_ip = emit_jump(OP_JUMP);
     patch_jump(then_ip);
 
-    if (match_from(statement, &index, TOKEN_ELSE)) {
-        while (index < statement->count - 1 &&
-               !check_from(statement, index, TOKEN_EOF) &&
-               !check_from(statement, index, TOKEN_DOT)) {
-            parse_this_from(statement, index);
-            index++;
+    if (match(TOKEN_ELSE)) {
+        while (!check(TOKEN_EOF) && !check(TOKEN_DOT)) {
+            parse_next();
         }
     }
 
     patch_jump(else_ip);
 
-    consume_from(statement, &index, TOKEN_DOT,
-                 "'.' (dot) expected after block of code\n" "E.g.:\n"
-                 "\tif 0 25 < do [...] .\n" COLOR_RED"\t                   ^\n"STYLE_OFF
-                 "All blocks must end with a '.' (dot)");
+    consume(TOKEN_DOT, "'.' (dot) expected after block of code\n" "E.g.:\n"
+            "\tif 0 25 < do [...] .\n" COLOR_RED"\t                   ^\n"STYLE_OFF
+            "All blocks must end with a '.' (dot)");
 }
 
-static void inline_if_statement() {
-    TokenArray *statement = malloc(sizeof(TokenArray));
-    construct_statement_array(statement);
-    run_if(statement, 0);
-}
-
-static void run_loop(TokenArray *statement, int starting_index) {
+static void loop_statement() {
     int exit_ip, loop_ip;
-    loop_ip = current->count;
-    int index = starting_index;
+    loop_ip = current_chunk()->count;
 
     // Conditionals
-    while (!check_from(statement, index, TOKEN_DO) &&
-           !check_from(statement, index, TOKEN_EOF) &&
-           !check_from(statement, index, TOKEN_DOT)) {
-        parse_this_from(statement, index);
-        index++;
+    while (!check(TOKEN_DO) && !check(TOKEN_EOF) && !check(TOKEN_DOT)) {
+        parse_next();
     }
 
-    consume_from(statement, &index,
-                 TOKEN_DO, "'do' expected after 'loop' conditionals\n" "E.g.:\n"
-                 "\tloop 0 25 < do [...] .\n" COLOR_RED"\t            ^^\n"STYLE_OFF
-                 "All block expressions must be enclosed in 'do' and '.' keywords");
+    consume(TOKEN_DO, "'do' expected after 'loop' conditionals\n" "E.g.:\n"
+            "\tloop 0 25 < do [...] .\n" COLOR_RED"\t            ^^\n"STYLE_OFF
+            "All block expressions must be enclosed in 'do' and '.' keywords");
 
     exit_ip = emit_jump(OP_JUMP_IF_FALSE);
 
     // Loop body
-    while (!check_from(statement, index, TOKEN_DOT) &&
-           !check_from(statement, index, TOKEN_EOF)) {
-        parse_this_from(statement, index);
-        index++;
+    while (!check(TOKEN_DOT) && !check(TOKEN_EOF)) {
+        parse_next();
     }
 
     emit_loop(loop_ip);
     patch_jump(exit_ip);
 
-    consume_from(statement, &index, TOKEN_DOT,
-                 "'.' (dot) expected after block of code\n" "E.g.:\n"
-                 "\tloop 0 25 < do [...] .\n" COLOR_RED
-                 "\t                     ^\n"STYLE_OFF
-                 "All blocks must end with a '.' (dot)");
-}
-
-static void inline_loop_statement() {
-    TokenArray *statement = malloc(sizeof(TokenArray));
-    construct_statement_array(statement);
-    run_loop(statement, 0);
+    consume(TOKEN_DOT, "'.' (dot) expected after block of code\n" "E.g.:\n"
+            "\tloop 0 25 < do [...] .\n" COLOR_RED "\t                     ^\n"STYLE_OFF
+            "All blocks must end with a '.' (dot)");
 }
 
 static void static_memory_definition() {
@@ -493,7 +497,7 @@ static void static_memory_definition() {
     }
 
     emit_byte(OP_DEFINE_PTR);
-    emit_bytes(make_constant(OBJECT_VALUE(word)), make_constant(NUMBER_VALUE(number)));
+    emit_bytes(make_constant(OBJECT_VALUE(word)), make_constant(INT_VALUE(number)));
     append_memory_name(&memories, word);
 
     consume(TOKEN_END,
@@ -505,17 +509,9 @@ static void static_memory_definition() {
 
 static void RULE_keyword(Token token) {
     switch (token.type) {
-        case TOKEN_IF     : inline_if_statement();       break;
-        case TOKEN_LOOP   : inline_loop_statement();     break;
+        case TOKEN_IF     : if_statement();             break;
+        case TOKEN_LOOP   : loop_statement();           break;
         case TOKEN_STATIC : static_memory_definition(); break;
-        default: return;
-    }
-}
-
-static void RULE_keyword_ex(Token token, TokenArray *statement, int next_index) {
-    switch (token.type) {
-        case TOKEN_IF   : run_if(statement, next_index);   break;
-        case TOKEN_LOOP : run_loop(statement, next_index); break;
         default: return;
     }
 }
@@ -536,26 +532,43 @@ static void push_pointer(String *name) {
     emit_constant(OP_PUSH_PTR, OBJECT_VALUE(name));
 }
 
+static void call_cfunction(CFunction *fn) {
+    emit_bytes(OP_CALL_CFUNC, make_constant(INT_VALUE(fn->count)));
+    emit_byte(make_constant(OBJECT_VALUE(fn->cname)));
+
+    for (int i = fn->count - 1; i >= 0; i--) {
+        emit_byte(make_constant(OBJECT_VALUE(fn->regs[i])));
+    }
+
+    return;
+}
+
 static void RULE_word(Token token) {
     String *word = copy_string(token.start, token.length);
     int macro_index = find_macro_index(word);
     int memory_index = find_memory_index(word);
+    int cfunction_index = find_cfunction_index(word);
 
-    if (macro_index < 0 && memory_index < 0) {
+    if (macro_index < 0 && memory_index < 0 && cfunction_index < 0) {
         error("unknown word\n" "The word definition has not been found yet in the code\n"
               "Check if the definition is after this line or if you mispelled the word");
         return;
     }
 
-    if (macro_index >= 0)  { expand_macro(&macros.statements[macro_index]); return; }
-    if (memory_index >= 0) { push_pointer(memories.names[memory_index]);    return; }
+    if (macro_index >= 0)
+        { expand_macro(&macros.statements[macro_index]); return; }
+    if (memory_index >= 0)
+        { push_pointer(memories.names[memory_index]); return; }
+    if (cfunction_index >= 0)
+        { call_cfunction(current->cfunctions.fn[cfunction_index]); return; }
 }
 
 static void RULE_skip() {
     // This is for include tokens in main running.
-    consume(TOKEN_STR, "file or library name expected after '#include'\n"
+    consume(TOKEN_WORD, "file or library name expected after '#include'\n"
             "E.g.:\n"
-            "\t#include \"io\"" COLOR_RED"\t           ^^^^\n"STYLE_OFF
+            "\t#include io" COLOR_RED
+            "\t         ^^\n"STYLE_OFF
             "You can find a list of libraries running skc -help");
     return;
 }
@@ -583,44 +596,52 @@ static void RULE_sys(Token token) {
 }
 
 ParseRule rules[] = {
-    [TOKEN___SYS_CALL0]   = {RULE_sys,       NULL},
-    [TOKEN___SYS_CALL1]   = {RULE_sys,       NULL},
-    [TOKEN___SYS_CALL2]   = {RULE_sys,       NULL},
-    [TOKEN___SYS_CALL3]   = {RULE_sys,       NULL},
-    [TOKEN___SYS_CALL4]   = {RULE_sys,       NULL},
-    [TOKEN___SYS_CALL5]   = {RULE_sys,       NULL},
-    [TOKEN___SYS_CALL6]   = {RULE_sys,       NULL},
-    [TOKEN___SYS_ADD]     = {RULE_sys,       NULL},
-    [TOKEN___SYS_DIVMOD]  = {RULE_sys,       NULL},
-    [TOKEN___SYS_MUL]     = {RULE_sys,       NULL},
-    [TOKEN___SYS_SUB]     = {RULE_sys,       NULL},
-    [TOKEN_HASH_INCLUDE]  = {RULE_skip,      NULL},
-    [TOKEN_CONST]         = {RULE_ignore,    NULL},
-    [TOKEN_MACRO]         = {RULE_ignore,    NULL},
-    [TOKEN_PROC]          = {RULE_ignore,    NULL},
-    [TOKEN_INT]           = {RULE_constant,  NULL},
-    [TOKEN_STR]           = {RULE_constant,  NULL},
-    [TOKEN_IF]            = {RULE_keyword,   RULE_keyword_ex},
-    [TOKEN_LOOP]          = {RULE_keyword,   RULE_keyword_ex},
-    [TOKEN_STATIC]        = {RULE_keyword,   NULL},
-    [TOKEN_OR]            = {RULE_intrinsic, NULL},
-    [TOKEN_AND]           = {RULE_intrinsic, NULL},
-    [TOKEN_DEC]           = {RULE_intrinsic, NULL},
-    [TOKEN_DROP]          = {RULE_intrinsic, NULL},
-    [TOKEN_DUP]           = {RULE_intrinsic, NULL},
-    [TOKEN_EQUAL]         = {RULE_intrinsic, NULL},
-    [TOKEN_GREATER]       = {RULE_intrinsic, NULL},
-    [TOKEN_GREATER_EQUAL] = {RULE_intrinsic, NULL},
-    [TOKEN_INC]           = {RULE_intrinsic, NULL},
-    [TOKEN_LESS]          = {RULE_intrinsic, NULL},
-    [TOKEN_LESS_EQUAL]    = {RULE_intrinsic, NULL},
-    [TOKEN_LOAD8]         = {RULE_intrinsic, NULL},
-    [TOKEN_NOT_EQUAL]     = {RULE_intrinsic, NULL},
-    [TOKEN_OVER]          = {RULE_intrinsic, NULL},
-    [TOKEN_PRINT]         = {RULE_intrinsic, NULL},
-    [TOKEN_SAVE8]         = {RULE_intrinsic, NULL},
-    [TOKEN_SWAP]          = {RULE_intrinsic, NULL},
-    [TOKEN_WORD]          = {RULE_word,      NULL}
+    [TOKEN_HASH_INCLUDE]  = {RULE_skip      },
+    [TOKEN_HASH_CLIB]     = {RULE_skip      },
+    [TOKEN_CONST]         = {RULE_ignore    },
+    [TOKEN_MACRO]         = {RULE_ignore    },
+    [TOKEN_FUNCTION]      = {RULE_ignore    },
+    [TOKEN_C_FUNCTION]    = {RULE_ignore    },
+
+    [TOKEN___SYS_CALL0]   = {RULE_sys       },
+    [TOKEN___SYS_CALL1]   = {RULE_sys       },
+    [TOKEN___SYS_CALL2]   = {RULE_sys       },
+    [TOKEN___SYS_CALL3]   = {RULE_sys       },
+    [TOKEN___SYS_CALL4]   = {RULE_sys       },
+    [TOKEN___SYS_CALL5]   = {RULE_sys       },
+    [TOKEN___SYS_CALL6]   = {RULE_sys       },
+    [TOKEN___SYS_ADD]     = {RULE_sys       },
+    [TOKEN___SYS_DIVMOD]  = {RULE_sys       },
+    [TOKEN___SYS_MUL]     = {RULE_sys       },
+    [TOKEN___SYS_SUB]     = {RULE_sys       },
+
+    [TOKEN_INT]           = {RULE_constant  },
+    [TOKEN_STR]           = {RULE_constant  },
+    [TOKEN_FLOAT]         = {RULE_constant  },
+
+    [TOKEN_IF]            = {RULE_keyword   },
+    [TOKEN_LOOP]          = {RULE_keyword   },
+    [TOKEN_STATIC]        = {RULE_keyword   },
+
+    [TOKEN_OR]            = {RULE_intrinsic },
+    [TOKEN_AND]           = {RULE_intrinsic },
+    [TOKEN_DEC]           = {RULE_intrinsic },
+    [TOKEN_DROP]          = {RULE_intrinsic },
+    [TOKEN_DUP]           = {RULE_intrinsic },
+    [TOKEN_EQUAL]         = {RULE_intrinsic },
+    [TOKEN_GREATER]       = {RULE_intrinsic },
+    [TOKEN_GREATER_EQUAL] = {RULE_intrinsic },
+    [TOKEN_INC]           = {RULE_intrinsic },
+    [TOKEN_LESS]          = {RULE_intrinsic },
+    [TOKEN_LESS_EQUAL]    = {RULE_intrinsic },
+    [TOKEN_LOAD8]         = {RULE_intrinsic },
+    [TOKEN_NOT_EQUAL]     = {RULE_intrinsic },
+    [TOKEN_OVER]          = {RULE_intrinsic },
+    [TOKEN_PRINT]         = {RULE_intrinsic },
+    [TOKEN_SAVE8]         = {RULE_intrinsic },
+    [TOKEN_SWAP]          = {RULE_intrinsic },
+
+    [TOKEN_WORD]          = {RULE_word      },
 };
 
 static ParseRule *get_rule(TokenType type) {
@@ -642,22 +663,19 @@ static void parse_this_from(TokenArray *statement, int index) {
     Token token = statement->tokens[index];
     ParseRule *rule = get_rule(token.type);
 
-    if (rule->ex != NULL) {
-        rule->ex(token, statement, index + 1);
-    } else {
-        if (rule->normal == NULL) {
-            String *token_name = copy_string(token.start, token.length);
-            char *error_message = ALLOCATE(char, 128);
-            sprintf(error_message, "unknown expression while expanding macro\n"
-                    "Failed to parse '%s' expression."
-                    "This is most likely a bug in the compiler\n"
-                    "Please, open a ticket at %s. Thank you!", token_name->chars, GIT_URL);
-            error_at(&token, error_message);
-            free(error_message);
-            return;
-        }
-        rule->normal(token);
+    if (rule->normal == NULL) {
+        String *token_name = copy_string(token.start, token.length);
+        char *error_message = ALLOCATE(char, 128);
+        sprintf(error_message, "unknown expression while expanding macro\n"
+                "Failed to parse '%s' expression."
+                "This is most likely a bug in the compiler\n"
+                "Please, open a ticket at %s. Thank you!", token_name->chars, GIT_URL);
+        error_at(&token, error_message);
+        free(error_message);
+        return;
     }
+
+    rule->normal(token);
 }
 
 
@@ -682,8 +700,8 @@ static void synch() {
 }
 
 static void hash_include() {
-    consume(TOKEN_STR, "file or library name expected after '#include'\n"
-            "E.g.:\n" "\t#include \"io\"" COLOR_RED"\t           ^^^^\n"STYLE_OFF
+    consume(TOKEN_WORD, "file or library name expected after '#include'\n"
+            "E.g.:\n" "\t#include io" COLOR_RED "\t                   ^^\n"STYLE_OFF
             "You can find a list of libraries running skc -help");
     String *name = copy_string(parser.previous.start, parser.previous.length);
     Filename file = get_full_path(the_compiler, name->chars);
@@ -703,6 +721,25 @@ static void hash_include() {
                 name->chars);
         error(error_message);
         free(error_message);
+    }
+}
+
+static void clib_include() {
+    consume(TOKEN_WORD, "TODO");
+    String *libname = copy_string(parser.previous.start, parser.previous.length);
+    bool loaded = false;
+
+    for (int i = 0; i < the_compiler->clibs.count; i++) {
+        String *item = the_compiler->clibs.libs[i];
+        if (libname->length == item->length &&
+            libname->hash == item->hash &&
+            memcmp(libname->chars, item->chars, libname->length)) {
+            loaded = true;
+        }
+    }
+
+    if (!loaded) {
+        append_clib(&the_compiler->clibs, libname);
     }
 }
 
@@ -744,6 +781,9 @@ static void macro_statement() {
     while (!check(TOKEN_END) && !check(TOKEN_EOF)) {
         advance();
         Token token = parser.previous;
+        if (token.type == TOKEN_IF || token.type == TOKEN_LOOP)
+            error_at(&token, "if and loop blocks are not allowed in macros\n");
+        // TODO: Improve the error message
         append_token(statement, token);
     }
 
@@ -799,6 +839,26 @@ static void const_statement() {
             "Const declaration must close with the 'end' keyword");
 }
 
+static void cfunction_statement() {
+    consume(TOKEN_WORD, "Name in Stanczyk FIX");
+    CFunction *cfunction = new_cfunction();
+    cfunction->name = copy_string(parser.previous.start, parser.previous.length);
+    consume(TOKEN_WORD, "Name in C FIX");
+    cfunction->cname = copy_string(parser.previous.start, parser.previous.length);
+
+    consume(TOKEN_LEFT_PAREN, "START Parameters FIX");
+
+    while (!check(TOKEN_RIGHT_PAREN) && !check(TOKEN_EOF) && !check(TOKEN_END)) {
+        consume(TOKEN_WORD, "add message!");
+        cfunction_add_reg(cfunction, copy_string(parser.previous.start, parser.previous.length));
+    }
+
+    consume(TOKEN_RIGHT_PAREN, "finish parameters FIX");
+    consume(TOKEN_END, "end keyword FIX");
+
+    append_cfunction(&current->cfunctions, cfunction);
+}
+
 static void run_preprocessor_tokens(int index) {
     const char *filename = the_compiler->files.filenames[index];
     const char *source = the_compiler->files.sources[index];
@@ -808,9 +868,12 @@ static void run_preprocessor_tokens(int index) {
     while (!match(TOKEN_EOF)) {
         advance();
         switch (parser.previous.type) {
-            case TOKEN_HASH_INCLUDE : hash_include();     break;
-            case TOKEN_MACRO        : macro_statement();  break;
-            case TOKEN_CONST        : const_statement();  break;
+            case TOKEN_HASH_INCLUDE : hash_include();        break;
+            case TOKEN_HASH_CLIB    : clib_include();        break;
+
+            case TOKEN_MACRO        : macro_statement();     break;
+            case TOKEN_CONST        : const_statement();     break;
+            case TOKEN_C_FUNCTION   : cfunction_statement(); break;
             default: break;
         }
         if (parser.panic) synch();
@@ -829,12 +892,11 @@ static void run_compilation_tokens(int index) {
     }
 }
 
-void bytecode(Compiler *compiler, Chunk *chunk) {
+Chunk *bytecode(Compiler *compiler) {
     double START = (double)clock() / CLOCKS_PER_SEC;
-    init_macros_array();
-    init_memories_array();
+
+    init_bytecode();
     the_compiler = compiler;
-    current = chunk;
 
     // Save libs/basics.sk
     Filename basics = get_full_path(the_compiler, "basics");
@@ -845,7 +907,7 @@ void bytecode(Compiler *compiler, Chunk *chunk) {
     Filename file = get_full_path(the_compiler, entry);
     process_and_save(the_compiler, &file);
 
-    // Check for #includes, save macros, const and procedures
+    // Check for #includes, save macros, const and functions
     for (int index = 0; index < the_compiler->files.count; index++) {
         run_preprocessor_tokens(index);
     }
@@ -857,8 +919,10 @@ void bytecode(Compiler *compiler, Chunk *chunk) {
 
     emit_end();
 
-    chunk->erred = parser.erred;
+    current->chunk.erred = parser.erred;
 
     double END = (double)clock() / CLOCKS_PER_SEC;
     compiler->timers.frontend = END - START;
+
+    return &current->chunk;
 }

@@ -38,10 +38,11 @@
 #define READ_STRING() AS_STRING(READ_CONSTANT())
 #define READ_SHORT() (writer->ip += 2, (u16)((writer->ip[-2] << 8) | writer->ip[-1]))
 
-CompilerResult generate_x64_linux(Writer *writer,
-                                  OutputArray *code,
-                                  OutputArray *strs,
-                                  OutputArray *mems) {
+CompilerResult generate_x64_linux(Writer *writer) {
+    OutputArray *code = &writer->code;
+    OutputArray *strs = &writer->strs;
+    OutputArray *mems = &writer->mems;
+    OutputArray *flts = &writer->flts;
     for (;;) {
 #ifdef DEBUG_BYTECODE
         disassemble_instruction(writer->chunk, (int)(writer->ip - writer->chunk->code));
@@ -58,7 +59,7 @@ CompilerResult generate_x64_linux(Writer *writer,
         switch (instruction = READ_BYTE()) {
             // Constants
             case OP_PUSH_INT: {
-                int value = AS_NUMBER(READ_CONSTANT());
+                int value = AS_INT(READ_CONSTANT());
                 append(code, "    /*    %d    */", value);
                 append(code, "    mov    $%d, rax", value);
                 append(code, "    push   rax");
@@ -72,6 +73,12 @@ CompilerResult generate_x64_linux(Writer *writer,
                 append(code, "    lea    str_%d(rip), rax", strs->count);
                 append(code, "    push   rax");
                 append(strs, "%s", value->chars);
+            } break;
+            case OP_PUSH_FLOAT: {
+                float value = AS_FLOAT(READ_CONSTANT());
+                append(code, "    /*    %f    */", value);
+                append(code, "    movss  float_%d(rip), xmm0", flts->count);
+                append(flts, "float_%d: .single %f\n", flts->count, value);
             } break;
             case OP_PUSH_PTR: {
                 const char *name = READ_STRING()->chars;
@@ -112,6 +119,23 @@ CompilerResult generate_x64_linux(Writer *writer,
                 printf("Not implemented\n");
                 return COMPILER_GENERATOR_ERROR;
             } break;
+            case OP_CALL_CFUNC: {
+                int arity = AS_INT(READ_CONSTANT());
+                char *cname = READ_STRING()->chars;
+
+                append(code, "    /*    %s    */", cname);
+
+                for (int i = 0; i < arity; i++) {
+                    char *reg = READ_STRING()->chars;
+                    if (reg[0] == 'r') {
+                        append(code, "    xor    %s, %s", reg, reg);
+                        append(code, "    pop    %s", reg);
+                    }
+                }
+
+                //append(code, "    xor    rax, rax");
+                append(code, "    call   %s", cname);
+            } break;
             case OP_DEC: {
                 append(code, "    /*    dec    */");
                 append(code, "    pop    rax");
@@ -120,7 +144,7 @@ CompilerResult generate_x64_linux(Writer *writer,
             } break;
             case OP_DEFINE_PTR: {
                 const char *name = READ_STRING()->chars;
-                int size = AS_NUMBER(READ_CONSTANT());
+                int size = AS_INT(READ_CONSTANT());
                 append(mems, ".comm %s, %d", name, size);
             } break;
             case OP_DIVIDE: {

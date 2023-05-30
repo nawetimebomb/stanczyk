@@ -34,6 +34,7 @@
 typedef enum {
     // Constants
     OP_PUSH_INT,
+    OP_PUSH_FLOAT,
     OP_PUSH_STR,
     OP_PUSH_PTR,
 
@@ -45,6 +46,7 @@ typedef enum {
     // Intrinsics
     OP_ADD,
     OP_AND,
+    OP_CALL_CFUNC,
     OP_DEC,
     OP_DEFINE_PTR,
     OP_DIVIDE,

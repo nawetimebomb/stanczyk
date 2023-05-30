@@ -28,7 +28,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "chunk.h"
 #include "memory.h"
+#include "object.h"
 
 /* reallocate:
  *    reallocates or frees memory depending the following conditions:
@@ -52,4 +54,26 @@ void *reallocate(void *pointer, size_t prev_size, size_t new_size) {
     void *result = realloc(pointer, new_size);
     if (result == NULL) exit(1);
     return result;
+}
+
+void free_object(Object *object) {
+    switch (object->type) {
+        case OBJECT_STRING: {
+            String *str = (String *)object;
+            FREE_ARRAY(char, str->chars, str->length + 1);
+            FREE(String, object);
+            break;
+        } break;
+        case OBJECT_FUNCTION: {
+            Function *function = (Function *)object;
+            free_chunk(&function->chunk);
+            FREE(Function, object);
+            break;
+        } break;
+        case OBJECT_CFUNCTION: {
+            CFunction *cfunction = (CFunction *)object;
+            FREE_ARRAY(String *, cfunction->regs, cfunction->count);
+            FREE(CFunction, object);
+        } break;
+    }
 }
