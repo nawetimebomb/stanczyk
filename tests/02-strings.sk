@@ -1,4 +1,4 @@
-#include "io"
+#include io
 
 ;; Test: strings
 ;; Description:
@@ -8,4 +8,4 @@
 "Hello, World\n" drop print
 
 ; Print something
-"Hello, Stańczyk!\n" write drop
+"Hello, Stańczyk!\n" write

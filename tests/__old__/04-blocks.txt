@@ -1,6 +1,0 @@
-in global scope
-its local now
-in global scope
-13
-26
-13
