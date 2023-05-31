@@ -83,8 +83,16 @@ typedef struct {
 } CFunctionArray;
 
 typedef struct {
+    int start;
+    int capacity;
+    int count;
+    Function **fn;
+} FunctionArray;
+
+typedef struct {
     Chunk chunk;
     CFunctionArray cfunctions;
+    FunctionArray functions;
 } Bytecode;
 
 Compiler *the_compiler;
@@ -121,6 +129,13 @@ static void init_memories_array() {
 
 static void init_cfunction_array(CFunctionArray *array) {
     array->start = 8;
+    array->capacity = 0;
+    array->count = 0;
+    array->fn = NULL;
+}
+
+static void init_function_array(FunctionArray *array) {
+    array->start = 16;
     array->capacity = 0;
     array->count = 0;
     array->fn = NULL;
@@ -189,6 +204,17 @@ static void append_cfunction(CFunctionArray *array, CFunction *cfunction) {
     array->count++;
 }
 
+static void append_function(FunctionArray *array, Function *function) {
+    if (array->capacity < array->count + 1) {
+        int prev_capacity = array->capacity;
+        array->capacity = GROW_CAPACITY(prev_capacity, array->start);
+        array->fn = GROW_ARRAY(Function *, array->fn, prev_capacity, array->capacity);
+    }
+
+    array->fn[array->count] = function;
+    array->count++;
+}
+
 static int find_macro_index(String *query) {
     for (int i = 0; i < macros.count; i++) {
         String *item = macros.names[i];
@@ -228,6 +254,19 @@ static int find_cfunction_index(String *query) {
     return -1;
 }
 
+static int find_function_index(String *query) {
+    for (int i = 0; i < current->functions.count; i++) {
+        String *item = current->functions.fn[i]->name;
+        if (item->length == query->length &&
+            item->hash == query->hash &&
+            memcmp(item->chars, query->chars, query->length) == 0) {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
 static void init_bytecode() {
     current = malloc(sizeof(Bytecode));
     memset(current, 0, sizeof(Bytecode));
@@ -236,6 +275,7 @@ static void init_bytecode() {
     init_macros_array();
     init_memories_array();
     init_cfunction_array(&current->cfunctions);
+    init_function_array(&current->functions);
 }
 
 /*
@@ -410,6 +450,7 @@ static void RULE_intrinsic(Token token) {
         case TOKEN_PRINT         : emit_byte(OP_PRINT);         break;
         case TOKEN_SAVE8         : emit_byte(OP_SAVE8);         break;
         case TOKEN_SWAP          : emit_byte(OP_SWAP);          break;
+        case TOKEN_TAKE          : emit_byte(OP_TAKE);          break;
         default: return;
     }
 }
@@ -537,14 +578,12 @@ static void push_pointer(String *name) {
 }
 
 static void call_cfunction(CFunction *fn) {
-    emit_bytes(OP_CALL_CFUNC, make_constant(INT_VALUE(fn->count)));
-    emit_byte(make_constant(OBJECT_VALUE(fn->cname)));
+    emit_bytes(OP_CALL_CFUNC, make_constant(OBJECT_VALUE(fn)));
+}
 
-    for (int i = fn->count - 1; i >= 0; i--) {
-        emit_byte(make_constant(OBJECT_VALUE(fn->regs[i])));
-    }
-
-    return;
+static void call_function(Function *fn) {
+    fn->called = true;
+    emit_bytes(OP_CALL, make_constant(OBJECT_VALUE(fn)));
 }
 
 static void RULE_word(Token token) {
@@ -552,8 +591,9 @@ static void RULE_word(Token token) {
     int macro_index = find_macro_index(word);
     int memory_index = find_memory_index(word);
     int cfunction_index = find_cfunction_index(word);
+    int function_index = find_function_index(word);
 
-    if (macro_index < 0 && memory_index < 0 && cfunction_index < 0) {
+    if (macro_index < 0 && memory_index < 0 && cfunction_index < 0 && function_index < 0) {
         error("unknown word\n" "The word definition has not been found yet in the code\n"
               "Check if the definition is after this line or if you mispelled the word");
         return;
@@ -565,14 +605,14 @@ static void RULE_word(Token token) {
         { push_pointer(memories.names[memory_index]); return; }
     if (cfunction_index >= 0)
         { call_cfunction(current->cfunctions.fn[cfunction_index]); return; }
+    if (function_index >= 0)
+        { call_function(current->functions.fn[function_index]); return; }
 }
 
 static void RULE_skip() {
     // This is for include tokens in main running.
-    consume(TOKEN_WORD, "file or library name expected after '#include'\n"
-            "E.g.:\n"
-            "\t#include io" COLOR_RED
-            "\t         ^^\n"STYLE_OFF
+    consume(TOKEN_STR, "file or library name expected after '#include'\n"
+            "E.g.:\n" "\t#include \"io\"\n" COLOR_RED "\t         ^^^^\n"STYLE_OFF
             "You can find a list of libraries running skc -help");
     return;
 }
@@ -645,6 +685,7 @@ ParseRule rules[] = {
     [TOKEN_PRINT]         = {RULE_intrinsic },
     [TOKEN_SAVE8]         = {RULE_intrinsic },
     [TOKEN_SWAP]          = {RULE_intrinsic },
+    [TOKEN_TAKE]          = {RULE_intrinsic },
 
     [TOKEN_WORD]          = {RULE_word      },
 };
@@ -705,15 +746,14 @@ static void synch() {
 }
 
 static void hash_include() {
-    consume(TOKEN_WORD, "file or library name expected after '#include'\n"
-            "E.g.:\n" "\t#include io" COLOR_RED "\t                   ^^\n"STYLE_OFF
+    consume(TOKEN_STR, "file or library name expected after '#include'\n"
+            "E.g.:\n" "\t#include \"io\"\n" COLOR_RED "\t         ^^^^\n"STYLE_OFF
             "You can find a list of libraries running skc -help");
-    String *name = copy_string(parser.previous.start, parser.previous.length);
-    Filename file = get_full_path(the_compiler, name->chars);
+    String *name = copy_string(parser.previous.start + 1, parser.previous.length - 2);
 
-    if (library_exists(&file)) {
-        if (library_not_processed(the_compiler, &file)) {
-            process_and_save(the_compiler, &file);
+    if (library_exists(the_compiler, name->chars)) {
+        if (library_not_processed(the_compiler, name->chars)) {
+            process_and_save(the_compiler, name->chars);
         }
     } else {
         char *error_message = ALLOCATE(char, 400);
@@ -730,8 +770,8 @@ static void hash_include() {
 }
 
 static void clib_include() {
-    consume(TOKEN_WORD, "TODO");
-    String *libname = copy_string(parser.previous.start, parser.previous.length);
+    consume(TOKEN_STR, "TODO");
+    String *libname = copy_string(parser.previous.start + 1, parser.previous.length - 2);
     bool loaded = false;
 
     for (int i = 0; i < the_compiler->clibs.count; i++) {
@@ -844,29 +884,74 @@ static void const_statement() {
             "Const declaration must close with the 'end' keyword");
 }
 
+static DataType get_data_type(Token token) {
+    switch (token.type) {
+        case TOKEN_DATATYPE_INT: return DATA_INT;
+        case TOKEN_DATATYPE_STR: return DATA_STR;
+        case TOKEN_DATATYPE_BOOL: return DATA_BOOL;
+        case TOKEN_DATATYPE_PTR: return DATA_PTR;
+        case TOKEN_DATATYPE_FLOAT: return DATA_FLOAT;
+        case TOKEN_DATATYPE_HEX: return DATA_HEX;
+        default: return DATA_NULL;
+    }
+}
+
 static void cfunction_statement() {
     consume(TOKEN_WORD, "Name in Stanczyk FIX");
     CFunction *cfunction = new_cfunction();
     cfunction->name = copy_string(parser.previous.start, parser.previous.length);
     consume(TOKEN_WORD, "Name in C FIX");
     cfunction->cname = copy_string(parser.previous.start, parser.previous.length);
-
-    consume(TOKEN_LEFT_PAREN, "START Parameters FIX");
-
-    while (!check(TOKEN_RIGHT_PAREN) && !check(TOKEN_EOF) && !check(TOKEN_END)) {
-        consume(TOKEN_WORD, "add message!");
-        cfunction_add_reg(cfunction, copy_string(parser.previous.start, parser.previous.length));
+    while (!check(TOKEN_RIGHT_ARROW) && !check(TOKEN_EOF) && !check(TOKEN_END)) {
+        advance();
+        cfunction->arguments[cfunction->arity] = get_data_type(parser.previous);
+        cfunction->arity++;
     }
 
-    consume(TOKEN_RIGHT_PAREN, "finish parameters FIX");
+    if (match(TOKEN_RIGHT_ARROW)) {
+        advance();
+        cfunction->ret = get_data_type(parser.previous);
+    }
+
     consume(TOKEN_END, "end keyword FIX");
 
     append_cfunction(&current->cfunctions, cfunction);
 }
 
+static void function_statement() {
+    consume(TOKEN_WORD, "Name in Stanczyk FIX");
+    Function *function = new_function();
+    function->name = copy_string(parser.previous.start, parser.previous.length);
+
+    while (!check(TOKEN_RIGHT_ARROW) && !check(TOKEN_EOF) && !check(TOKEN_END)) {
+        advance();
+        function->arguments[function->arity] = get_data_type(parser.previous);
+        function->arity++;
+    }
+
+    if (match(TOKEN_RIGHT_ARROW)) {
+        advance();
+        function->ret = get_data_type(parser.previous);
+    }
+
+    append_function(&current->functions, function);
+
+    consume(TOKEN_SET, "fix this");
+
+    emit_bytes(OP_DEFINE_FUNCTION, make_constant(OBJECT_VALUE(function)));
+
+    while (!check(TOKEN_END) && !check(TOKEN_EOF)) {
+        parse_next();
+    }
+
+    emit_byte(OP_RETURN);
+    consume(TOKEN_END, "end keyword FIX");
+    emit_bytes(OP_FUNCTION_END, make_constant(OBJECT_VALUE(function)));
+}
+
 static void run_preprocessor_tokens(int index) {
-    const char *filename = the_compiler->files.filenames[index];
-    const char *source = the_compiler->files.sources[index];
+    const char *filename = get_file_name(index);
+    const char *source = get_file_source(index);
 
     init_scanner(filename, source);
     advance();
@@ -879,6 +964,7 @@ static void run_preprocessor_tokens(int index) {
             case TOKEN_MACRO        : macro_statement();     break;
             case TOKEN_CONST        : const_statement();     break;
             case TOKEN_C_FUNCTION   : cfunction_statement(); break;
+            case TOKEN_FUNCTION     : function_statement();  break;
             default: break;
         }
         if (parser.panic) synch();
@@ -886,8 +972,8 @@ static void run_preprocessor_tokens(int index) {
 }
 
 static void run_compilation_tokens(int index) {
-    const char *filename = the_compiler->files.filenames[index];
-    const char *source = the_compiler->files.sources[index];
+    const char *filename = get_file_name(index);
+    const char *source = get_file_source(index);
 
     init_scanner(filename, source);
     advance();
@@ -901,24 +987,22 @@ Chunk *bytecode(Compiler *compiler) {
     double START = (double)clock() / CLOCKS_PER_SEC;
 
     init_bytecode();
+    init_file_manager();
     the_compiler = compiler;
 
     // Save libs/basics.sk
-    Filename basics = get_full_path(the_compiler, "basics");
-    process_and_save(the_compiler, &basics);
+    process_and_save(the_compiler, "basics");
 
     // Save the entry file
-    const char *entry = the_compiler->options.entry_file;
-    Filename file = get_full_path(the_compiler, entry);
-    process_and_save(the_compiler, &file);
+    process_and_save(the_compiler, the_compiler->options.entry_file);
 
     // Check for #includes, save macros, const and functions
-    for (int index = 0; index < the_compiler->files.count; index++) {
+    for (int index = 0; index < get_files_count(); index++) {
         run_preprocessor_tokens(index);
     }
 
     // Process all the saved files and their source code
-    for (int index = 0; index < the_compiler->files.count; index++) {
+    for (int index = 0; index < get_files_count(); index++) {
         run_compilation_tokens(index);
     }
 
@@ -928,6 +1012,8 @@ Chunk *bytecode(Compiler *compiler) {
 
     double END = (double)clock() / CLOCKS_PER_SEC;
     compiler->timers.frontend = END - START;
+
+    free_file_manager();
 
     return &current->chunk;
 }

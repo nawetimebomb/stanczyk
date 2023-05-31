@@ -65,14 +65,15 @@ void free_object(Object *object) {
             break;
         } break;
         case OBJECT_FUNCTION: {
-            Function *function = (Function *)object;
-            free_chunk(&function->chunk);
+            Function *fn = (Function *)object;
+            free_object((Object *)fn->name);
             FREE(Function, object);
             break;
         } break;
         case OBJECT_CFUNCTION: {
-            CFunction *cfunction = (CFunction *)object;
-            FREE_ARRAY(String *, cfunction->regs, cfunction->count);
+            CFunction *fn = (CFunction *)object;
+            free_object((Object *)fn->name);
+            free_object((Object *)fn->cname);
             FREE(CFunction, object);
         } break;
     }

@@ -30,13 +30,13 @@
 
 #include "compiler.h"
 
-typedef struct {
-    const char *name;
-} Filename;
-
-Filename get_full_path(Compiler *, const char *);
-void process_and_save(Compiler *, Filename *);
-bool library_exists(Filename *);
-bool library_not_processed(Compiler *, Filename *);
+void init_file_manager();
+void free_file_manager();
+int get_files_count();
+const char *get_file_name(int);
+const char *get_file_source(int);
+void process_and_save(Compiler *, const char*);
+bool library_exists(Compiler *, const char *);
+bool library_not_processed(Compiler *, const char *);
 
 #endif

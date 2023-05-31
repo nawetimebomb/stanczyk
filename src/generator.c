@@ -126,28 +126,61 @@ CompilerResult generate_x64_linux(Writer *writer) {
                 return COMPILER_GENERATOR_ERROR;
             } break;
             case OP_CALL_CFUNC: {
-                int arity = AS_INT(READ_CONSTANT());
-                char *cname = READ_STRING()->chars;
+                CFunction * fn = AS_CFUNCTION(READ_CONSTANT());
+                char *regs[6] = { "rdi", "rsi", "rdx", "rcx", "r8", "r9" };
 
-                append(code, "    /*    %s    */", cname);
+                append(code, "    /*    %s    */", fn->name->chars);
 
-                for (int i = 0; i < arity; i++) {
-                    char *reg = READ_STRING()->chars;
-                    if (reg[0] == 'r') {
-                        append(code, "    xor    %s, %s", reg, reg);
-                        append(code, "    pop    %s", reg);
+                for (int i = fn->arity - 1; i >= 0; i--) {
+                    DataType reg = fn->arguments[i];
+                    if (reg != DATA_FLOAT) {
+                        append(code, "    pop    %s", regs[i]);
                     }
                 }
 
-                //append(code, "    xor    rax, rax");
-                append(code, "    call   %s", cname);
-                append(code, "    push   rax");
+                append(code, "    call   %s", fn->cname->chars);
+
+                if (fn->ret != DATA_NULL) {
+                    append(code, "    push   rax");
+                }
             } break;
             case OP_DEC: {
                 append(code, "    /*    dec    */");
                 append(code, "    pop    rax");
                 append(code, "    dec    rax");
                 append(code, "    push   rax");
+            } break;
+            case OP_DEFINE_FUNCTION: {
+                Function *fn = AS_FUNCTION(READ_CONSTANT());
+                if (fn->called) {
+                    append(code, "    /* define: %s    */", fn->name->chars);
+                    append(code, "    jmp    %s_end", fn->name->chars);
+                    append(code, "%s_start:         ", fn->name->chars);
+                    append(code, "    pop    r10");
+                } else {
+                    printf("Warning: unused function %s\n", fn->name->chars);
+                }
+            } break;
+            case OP_FUNCTION_END: {
+                Function *fn = AS_FUNCTION(READ_CONSTANT());
+                if (fn->called) {
+                    append(code, "    /* end of: %s    */", fn->name->chars);
+                    append(code, "%s_end:", fn->name->chars);
+                    if (fn->ret != DATA_NULL) {
+                        append(code, "    pop rax");
+                        append(code, "    push rax");
+                    }
+                }
+            } break;
+            case OP_CALL: {
+                Function *fn = AS_FUNCTION(READ_CONSTANT());
+                append(code, "    /* call: %s    */", fn->name->chars);
+                append(code, "    call %s_start", fn->name->chars);
+            } break;
+            case OP_RETURN: {
+                append(code, "    /*    return    */");
+                append(code, "    push   r10");
+                append(code, "    ret");
             } break;
             case OP_DEFINE_PTR: {
                 const char *name = READ_STRING()->chars;
@@ -270,10 +303,6 @@ CompilerResult generate_x64_linux(Writer *writer) {
                 append(code, "    pop    rdi");
                 append(code, "    call   dump");
             } break;
-            case OP_RETURN: {
-                printf("Not implemented\n");
-                return COMPILER_GENERATOR_ERROR;
-            } break;
             case OP_SAVE8: {
                 append(code, "    /*    !8    */");
                 append(code, "    pop    rbx");
@@ -355,6 +384,11 @@ CompilerResult generate_x64_linux(Writer *writer) {
                 append(code, "    pop    r8");
                 append(code, "    pop    r9");
                 append(code, "    syscall");
+                append(code, "    push   rax");
+            } break;
+            case OP_TAKE: {
+                append(code, "    /*    take    */");
+                append(code, "    pop    rax");
                 append(code, "    push   rax");
             } break;
             // Special

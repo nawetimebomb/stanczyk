@@ -72,9 +72,9 @@ static CompilerResult write(Writer *writer, Compiler *compiler) {
     fprintf(out, "    addq    $40, rsp\n");
     fprintf(out, "    ret\n");
     fprintf(out, "main:\n");
-    fprintf(out, "    mov    rsp, rbp  \n");
-    fprintf(out, "    sub    $1024, rsp\n");
-    fprintf(out, "    and    $-16, rsp \n");
+    // fprintf(out, "    mov    rsp, rbp  \n");
+    // fprintf(out, "    sub    $1024, rsp\n");
+    // fprintf(out, "    and    $-16, rsp \n");
 
     for (int i = 0; i < writer->code.count; i++) {
         fprintf(out, "%s\n", writer->code.items[i]);

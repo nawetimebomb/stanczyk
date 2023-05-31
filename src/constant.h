@@ -37,6 +37,16 @@ typedef enum {
     VALUE_OBJECT
 } ValueType;
 
+typedef enum {
+    DATA_NULL,
+    DATA_INT,
+    DATA_FLOAT,
+    DATA_STR,
+    DATA_BOOL,
+    DATA_PTR,
+    DATA_HEX,
+} DataType;
+
 typedef struct {
     ValueType type;
     union {

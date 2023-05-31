@@ -39,14 +39,6 @@
 
 Compiler compiler;
 
-static void init_file_array() {
-    compiler.files.start = 4;
-    compiler.files.count = 0;
-    compiler.files.capacity = 0;
-    compiler.files.filenames = NULL;
-    compiler.files.sources = NULL;
-}
-
 static void init_clib_array() {
     compiler.clibs.start = 4;
     compiler.clibs.count = 0;
@@ -125,7 +117,6 @@ int main(int argc, const char **argv) {
         print_cli_error();
     }
 
-    init_file_array();
     init_clib_array();
 
     parse_arguments(argc, argv);
