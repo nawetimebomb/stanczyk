@@ -32,6 +32,8 @@
 #include "constant.h"
 #include "chunk.h"
 
+#define MAX_FUNCTION_ARGUMENTS 10
+
 typedef enum {
     OBJECT_STRING,
     OBJECT_FUNCTION,
@@ -52,18 +54,19 @@ struct String {
 typedef struct {
     Object obj;
     int arity;
-    Chunk chunk;
+    DataType arguments[MAX_FUNCTION_ARGUMENTS];
+    DataType ret;
     String *name;
+    bool called;
 } Function;
 
 typedef struct {
     Object obj;
-    int start;
-    int count;
-    int capacity;
+    int arity;
     String *name;
     String *cname;
-    String **regs;
+    DataType arguments[MAX_FUNCTION_ARGUMENTS];
+    DataType ret;
 } CFunction;
 
 #define OBJECT_TYPE(value) (AS_OBJECT(value)->type)
@@ -78,9 +81,7 @@ typedef struct {
 #define AS_CFUNCTION(value) ((CFunction *)AS_OBJECT(value))
 
 Function *new_function();
-
 CFunction *new_cfunction();
-void cfunction_add_reg(CFunction *, String *);
 
 String *copy_string(const char *, int );
 void print_object(Value value);
