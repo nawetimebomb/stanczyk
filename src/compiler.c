@@ -34,7 +34,7 @@
 #include "common.h"
 #include "chunk.h"
 #include "compiler.h"
-#include "ir.h"
+#include "frontend.h"
 #include "memory.h"
 #include "fileman.h"
 #include "debug.h"
