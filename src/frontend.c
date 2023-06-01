@@ -39,6 +39,7 @@
 #include "memory.h"
 #include "object.h"
 #include "printer.h"
+#include "logger.h"
 
 typedef struct {
     int start;
@@ -290,20 +291,8 @@ static void init_bytecode() {
 static void error_at(Token *token, const char *message) {
     if (parser.panic) return;
     parser.panic = true;
-    // TODO: It should use specific file by context
-    fprintf(stderr, "\n%s:%d:%d: " STYLE_UNDERLINE"ERROR",
-            token->filename, token->line, token->column);
-
-    if (token->type == TOKEN_EOF) {
-        fprintf(stderr, " at end of file");
-    } else if (token->type == TOKEN_ERROR) {
-        fprintf(stderr, " while lexing");
-    } else {
-        fprintf(stderr, " at '%.*s'", token->length, token->start);
-    }
-
-    fprintf(stderr, STYLE_OFF": %s\n\n", message);
     parser.erred = true;
+    PARSING_ERROR(token, message);
 }
 
 static void error(const char *message) {
