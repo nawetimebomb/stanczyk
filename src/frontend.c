@@ -279,14 +279,10 @@ static void init_bytecode() {
     init_function_array(&current->functions);
 }
 
-/*
- *    __ __    __
- *   / // /__ / /__  ___ _______
- *  / _  / -_) / _ \/ -_) __(_-<
- * /_//_/\__/_/ .__/\__/_/ /___/
- *         /_/
- * Functions that change the state of the compiler. Move through the
- * parsed code, open/close compiler instances and erroring.
+/*    ___ ___ ___  ___  ___  ___
+ *   | __| _ \ _ \/ _ \| _ \/ __|
+ *   | _||   /   / (_) |   /\__ \
+ *   |___|_|_\_|_\\___/|_|_\|___/
  */
 static void error_at(Token *token, const char *message) {
     if (parser.panic) return;
@@ -303,6 +299,11 @@ static void error_at_current(const char *message) {
     error_at(&parser.current, message);
 }
 
+/*     ___  _   ___  ___ ___ ___
+ *    | _ \/_\ | _ \/ __| __| _ \
+ *    |  _/ _ \|   /\__ \ _||   /
+ *    |_|/_/ \_\_|_\|___/___|_|_\
+ */
 static void advance() {
     parser.previous = parser.current;
 
@@ -338,6 +339,11 @@ static bool check_from(TokenArray *statement, int index, TokenType type) {
     return (statement->tokens[index].type == type);
 }
 
+/*     ___ ___
+ *    |_ _| _ \
+ *     | ||   /
+ *    |___|_|_\
+ */
 static void emit_byte(u8 byte) {
     write_chunk(current_chunk(), byte, parser.previous.line);
 }
@@ -383,16 +389,11 @@ static void emit_end() {
     emit_byte(OP_END);
 }
 
-/*
- *
- *   _____                _ __     __  _
- *  / ___/__  __ _  ___  (_) /__ _/ /_(_)__  ___
- * / /__/ _ \/  ' \/ _ \/ / / _ `/ __/ / _ \/ _ \
- * \___/\___/_/_/_/ .__/_/_/\_,_/\__/_/\___/_//_/
- *               /_/
- * Functions that compile each expression and statement in the language
+/*     ___ ___  __  __ ___ ___ _      _ _____ ___ ___  _  _
+ *    / __/ _ \|  \/  | _ \_ _| |    /_\_   _|_ _/ _ \| \| |
+ *   | (_| (_) | |\/| |  _/| || |__ / _ \| |  | | (_) | .` |
+ *    \___\___/|_|  |_|_| |___|____/_/ \_\_| |___\___/|_|\_|
  */
-
 static ParseRule *get_rule(TokenType);
 static void parse_next();
 static void  parse_this_from(TokenArray *, int);
