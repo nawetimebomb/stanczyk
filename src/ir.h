@@ -25,13 +25,13 @@
  * ███████║   ██║   ██║  ██║██║ ╚████║╚██████╗███████╗   ██║   ██║  ██╗
  * ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝╚══════╝   ╚═╝   ╚═╝  ╚═╝
  */
-#ifndef STANCZYK_BYTECODE_H
-#define STANCZYK_BYTECODE_H
+#ifndef STANCZYK_IR_H
+#define STANCZYK_IR_H
 
 #include "common.h"
 #include "chunk.h"
 #include "compiler.h"
 
-Chunk *bytecode(Compiler *);
+Chunk *create_intermediate_representation(Compiler *);
 
 #endif
