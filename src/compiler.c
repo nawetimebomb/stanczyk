@@ -34,7 +34,7 @@
 #include "common.h"
 #include "chunk.h"
 #include "compiler.h"
-#include "bytecode.h"
+#include "ir.h"
 #include "memory.h"
 #include "fileman.h"
 #include "debug.h"
@@ -78,7 +78,7 @@ CompilerResult compile(Compiler *compiler) {
     init_writer_array(&writer.mems);
     init_writer_array(&writer.flts);
 
-    chunk = bytecode(compiler);
+    chunk = create_intermediate_representation(compiler);
 
     if (chunk->erred) {
         compiler->failed = true;

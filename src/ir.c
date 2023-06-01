@@ -35,7 +35,7 @@
 #include "chunk.h"
 #include "constant.h"
 #include "scanner.h"
-#include "bytecode.h"
+#include "ir.h"
 #include "memory.h"
 #include "object.h"
 #include "printer.h"
@@ -983,7 +983,7 @@ static void run_compilation_tokens(int index) {
     }
 }
 
-Chunk *bytecode(Compiler *compiler) {
+Chunk *create_intermediate_representation(Compiler *compiler) {
     double START = (double)clock() / CLOCKS_PER_SEC;
 
     init_bytecode();
