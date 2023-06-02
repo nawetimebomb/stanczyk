@@ -38,7 +38,5 @@
 #define PRINTF_RED(str) printf("%s%s%s", COLOR_RED, str, STYLE_OFF)
 
 void print_cli(const char *, const char *);
-void print_help();
-void print_cli_error();
 
 #endif

@@ -31,7 +31,7 @@
 #include <string.h>
 #include <time.h>
 
-#include "common.h"
+#include "stanczyk.h"
 #include "chunk.h"
 #include "compiler.h"
 #include "frontend.h"

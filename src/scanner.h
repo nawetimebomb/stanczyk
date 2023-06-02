@@ -28,7 +28,7 @@
 #ifndef STANCZYK_SCANNER_H
 #define STANCZYK_SCANNER_H
 
-#include "common.h"
+#include "stanczyk.h"
 
 typedef enum {
     TOKEN_INT,

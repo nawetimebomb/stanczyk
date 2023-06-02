@@ -32,12 +32,20 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "common.h"
-#include "printer.h"
+#include "stanczyk.h"
+#include "tasker.h"
+#include "logger.h"
+
 #include "compiler.h"
 #include "memory.h"
 
 Compiler compiler;
+Stanczyk *stanczyk;
+
+static void start_stanczyk() {
+    stanczyk = malloc(sizeof(Stanczyk));
+    memset(stanczyk, 0, sizeof(Stanczyk));
+}
 
 static void init_clib_array() {
     compiler.clibs.start = 4;
@@ -46,7 +54,7 @@ static void init_clib_array() {
     compiler.clibs.libs = NULL;
 }
 
-static char *get_workspace(const char *path) {
+static char *get_project_dir() {
     char *result = malloc(256);
     memset(result, 0, 256);
     getcwd(result, 256);
@@ -72,7 +80,6 @@ static char *get_compiler_dir(const char *path) {
 }
 
 static void parse_arguments(int argc, const char **argv) {
-    // Parse argv[1]
     if (strcmp(argv[1], "run") == 0) {
         compiler.options.run = true;
         compiler.options.clean = true;
@@ -80,12 +87,11 @@ static void parse_arguments(int argc, const char **argv) {
     } else if (strcmp(argv[1], "build") == 0) {
         compiler.options.debug = false;
     } else if (strcmp(argv[1], "help") == 0) {
-        print_help();
-        exit(0);
+        CLI_HELP();
     } else {
-        printf("ERROR: first argument should be 'run' or 'build'\n");
-        print_cli_error();
-        exit(1);
+        CLI_ERROR("first argument should be a command but instead got %s\n"
+                  "E.g.\n" "\tskc run myfile.sk\n" "\t    ^^^\n"
+                  "See below for allowed commands", argv[1]);
     }
 
     for (int i = 2; i < argc; i++) {
@@ -107,47 +113,44 @@ static void parse_arguments(int argc, const char **argv) {
             compiler.ready = true;
             compiler.options.entry_file = argv[i];
         } else {
-            print_cli_error();
+            CLI_ERROR("unknown option %s in arguments\n"
+                      "You can get a list of allowed arguments "
+                      "by running skc -help\n", argv[i]);
         }
     }
 }
 
 int main(int argc, const char **argv) {
     if (argc < 2) {
-        print_cli_error();
+        CLI_WELCOME();
     }
+
+    start_stanczyk();
 
     init_clib_array();
 
     parse_arguments(argc, argv);
 
     if (!compiler.ready) {
-        printf("ERROR: missing entry file\n");
-        print_cli_error();
-        exit(1);
+        CLI_ERROR("missing entry file in the arguments given to skc\n"
+                  "You need to provide an .sk file as an argument, after the command\n"
+                  "E.g.:\n" "\tskc run myfile.sk\n" "\t        ^^^^^^^^^\n");
     }
 
-    compiler.options.workspace = get_workspace(compiler.options.entry_file);
+    stanczyk->workspace.project_dir = get_project_dir();
+    stanczyk->workspace.compiler_dir = get_compiler_dir(argv[0]);
+
+    run_tasker();
+
+    compiler.options.workspace = get_project_dir();
     compiler.options.compiler_dir = get_compiler_dir(argv[0]);
 
-    CompilerResult result = compile(&compiler);
-    Timers *timers = &compiler.timers;
-
-    if (!compiler.options.silent) {
-        double total_time = timers->frontend + timers->generator +
-            timers->writer + timers->backend;
-        print_cli("[ info ]", "Compilation timers:");
-        printf("\tFront-end compiler : %fs\n", timers->frontend);
-        printf("\tCode generator     : %fs\n", timers->generator);
-        printf("\tAssembly output    : %fs\n", timers->writer);
-        printf("\tBack-end compiler  : %fs\n", timers->backend);
-        printf(STYLE_BOLD"\tTotal time         : %fs%s\n", total_time, STYLE_OFF);
-    }
+    compile(&compiler);
 
     if (compiler.options.run && !compiler.failed) {
         system("./output");
         if (compiler.options.clean) system("rm ./output");
     }
 
-    return result;
+    return stanczyk->result;
 }

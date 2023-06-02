@@ -28,7 +28,7 @@
 #ifndef STANCZYK_OBJECT_H
 #define STANCZYK_OBJECT_H
 
-#include "common.h"
+#include "stanczyk.h"
 #include "constant.h"
 #include "chunk.h"
 
