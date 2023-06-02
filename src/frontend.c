@@ -39,8 +39,8 @@
 #include "frontend.h"
 #include "memory.h"
 #include "object.h"
-#include "printer.h"
 #include "logger.h"
+#include "printer.h"
 
 typedef struct {
     int start;
@@ -740,7 +740,7 @@ static void hash_include() {
 
     if (library_exists(the_compiler, name->chars)) {
         if (library_not_processed(the_compiler, name->chars)) {
-            process_and_save(the_compiler, name->chars);
+            process_and_save_file(the_compiler, name->chars);
         }
     } else {
         error_at(&parser.previous, "failed to find library to include: %s\n"
@@ -928,8 +928,8 @@ static void function_statement() {
 }
 
 static void run_preprocessor_tokens(int index) {
-    const char *filename = get_file_name(index);
-    const char *source = get_file_source(index);
+    const char *filename = get_filename(index);
+    const char *source = get_filesource(index);
 
     init_scanner(filename, source);
     advance();
@@ -950,8 +950,8 @@ static void run_preprocessor_tokens(int index) {
 }
 
 static void run_compilation_tokens(int index) {
-    const char *filename = get_file_name(index);
-    const char *source = get_file_source(index);
+    const char *filename = get_filename(index);
+    const char *source = get_filesource(index);
 
     init_scanner(filename, source);
     advance();
@@ -965,14 +965,13 @@ Chunk *create_intermediate_representation(Compiler *compiler) {
     double START = (double)clock() / CLOCKS_PER_SEC;
 
     init_bytecode();
-    init_file_manager();
     the_compiler = compiler;
 
     // Save libs/basics.sk
-    process_and_save(the_compiler, "basics");
+    process_and_save_file(the_compiler, "basics");
 
     // Save the entry file
-    process_and_save(the_compiler, the_compiler->options.entry_file);
+    process_and_save_file(the_compiler, the_compiler->options.entry_file);
 
     // Check for #includes, save macros, const and functions
     for (int index = 0; index < get_files_count(); index++) {
@@ -991,7 +990,7 @@ Chunk *create_intermediate_representation(Compiler *compiler) {
     double END = (double)clock() / CLOCKS_PER_SEC;
     compiler->timers.frontend = END - START;
 
-    free_file_manager();
+    stop_filemanager();
 
     return &current->chunk;
 }

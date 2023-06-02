@@ -28,7 +28,7 @@
 #ifndef STANCZYK_FRONTEND_H
 #define STANCZYK_FRONTEND_H
 
-#include "common.h"
+#include "stanczyk.h"
 #include "chunk.h"
 #include "compiler.h"
 

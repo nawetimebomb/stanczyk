@@ -28,7 +28,7 @@
 #ifndef STANCZYK_CHUNK_H
 #define STANCZYK_CHUNK_H
 
-#include "common.h"
+#include "stanczyk.h"
 #include "constant.h"
 
 typedef enum {

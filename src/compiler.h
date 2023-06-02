@@ -28,7 +28,7 @@
 #ifndef COMPILER_STANCZYK_H
 #define COMPILER_STANCZYK_H
 
-#include "common.h"
+#include "stanczyk.h"
 #include "chunk.h"
 
 typedef struct {
@@ -81,11 +81,11 @@ typedef struct {
 } Writer;
 
 typedef enum {
-    COMPILER_OK,
-    COMPILER_BYTECODE_ERROR,
-    COMPILER_WRITER_ERROR,
-    COMPILER_OS_ERROR,
-    COMPILER_GENERATOR_ERROR
+  COMPILER_OK,
+  COMPILER_BYTECODE_ERROR,
+  COMPILER_WRITER_ERROR,
+  COMPILER_OS_ERROR,
+  COMPILER_GENERATOR_ERROR
 } CompilerResult;
 
 CompilerResult compile(Compiler *);

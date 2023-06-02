@@ -28,7 +28,7 @@
 #ifndef STANCZYK_MEMORY_H
 #define STANCZYK_MEMORY_H
 
-#include "common.h"
+#include "stanczyk.h"
 #include "object.h"
 
 #define MEM_SCALAR 2

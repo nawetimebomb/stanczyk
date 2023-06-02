@@ -29,7 +29,7 @@
 #define STANCZYK_TABLE_H
 
 #include "constant.h"
-#include "common.h"
+#include "stanczyk.h"
 
 typedef struct {
     String *key;

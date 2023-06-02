@@ -30,12 +30,12 @@
 
 #include "compiler.h"
 
-void init_file_manager();
-void free_file_manager();
-int get_files_count();
-const char *get_file_name(int);
-const char *get_file_source(int);
-void process_and_save(Compiler *, const char*);
+void start_filemanager(void);
+void stop_filemanager(void);
+int get_files_count(void);
+const char *get_filename(int);
+const char *get_filesource(int);
+void process_and_save_file(Compiler *, const char*);
 bool library_exists(Compiler *, const char *);
 bool library_not_processed(Compiler *, const char *);
 
