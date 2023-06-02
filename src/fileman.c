@@ -46,7 +46,6 @@ typedef struct {
 } FileManager;
 
 FileManager *filemanager;
-extern Stanczyk *stanczyk;
 
 // TODO: Most of this code is unsafe because we never check the length of the
 // input and limit it to be the expected one, so we might end with buffer
@@ -90,17 +89,17 @@ static char *get_word_in_name(const char *name) {
     return result;
 }
 
-static char *get_file_path(Compiler *compiler, const char *name) {
+static char *get_file_path(const char *name) {
     bool is_dev_lib = strstr(name, ".sk");
     char *filepath = ALLOCATE(char, 256);
     memset(filepath, 0, sizeof(char) * 256);
 
     if (is_dev_lib) {
-        strcpy(filepath, compiler->options.workspace);
+        strcpy(filepath, get_project_dir());
         strcat(filepath, "/");
         strcat(filepath, get_word_in_name(name));
     } else {
-        strcpy(filepath, compiler->options.compiler_dir);
+        strcpy(filepath, get_compiler_dir());
         strcat(filepath, "/libs/");
         strcat(filepath, get_word_in_name(name));
         strcat(filepath, ".sk");
@@ -195,14 +194,14 @@ static const char *process_source(const char *source) {
     return p;
 }
 
-void process_and_save_file(Compiler *compiler, const char*file) {
-    const char *path = get_file_path(compiler, file);
+void process_and_save_file(const char*file) {
+    const char *path = get_file_path(file);
     const char *source = process_source(read_file(path));
     add_processed_file(path, source);
 }
 
-bool library_exists(Compiler *compiler, const char *file) {
-    const char *path = get_file_path(compiler, file);
+bool library_exists(const char *file) {
+    const char *path = get_file_path(file);
     if (access(path, F_OK) == -1) {
         return false;
     }
@@ -210,8 +209,8 @@ bool library_exists(Compiler *compiler, const char *file) {
     return true;
 }
 
-bool library_not_processed(Compiler *compiler, const char *file) {
-    const char *path = get_file_path(compiler, file);
+bool library_not_processed(const char *file) {
+    const char *path = get_file_path(file);
     int filename_len = strlen(path);
 
     for (int i = 0; i < filemanager->count; i++) {
