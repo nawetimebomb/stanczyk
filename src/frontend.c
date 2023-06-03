@@ -990,7 +990,12 @@ Chunk *create_intermediate_representation(Compiler *compiler) {
     double END = (double)clock() / CLOCKS_PER_SEC;
     compiler->timers.frontend = END - START;
 
+    // TODO: Move to tasker, after this compile has run
     stop_filemanager();
 
     return &current->chunk;
+}
+
+void frontend_compile() {
+
 }

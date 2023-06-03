@@ -25,23 +25,47 @@
  * ███████║   ██║   ██║  ██║██║ ╚████║╚██████╗███████╗   ██║   ██║  ██╗
  * ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝╚══════╝   ╚═╝   ╚═╝  ╚═╝
  */
-#ifndef STANCZYK_LOGGER_H
-#define STANCZYK_LOGGER_H
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
 
 #include "stanczyk.h"
 
-#include "scanner.h"
+#include "timer.h"
+#include "logger.h"
 
-typedef enum {
-    PREFIX_NONE,
-    PREFIX_STANCZYK
-} PrefixType;
+typedef struct {
+    bool started;
+    StanczykSteps step;
+    double value;
+} Timer;
 
-void CLI_ERROR(const char *format, ...);
-const char *CLI_GET_STEP_NAME(StanczykSteps step);
-void CLI_HELP(void);
-void CLI_MESSAGE(PrefixType prefix, const char *format, ...);
-void CLI_WELCOME(void);
-void PARSING_ERROR(Token *token, const char *msg);
+Timer *timer;
 
-#endif
+void start_timer(void) {
+    timer = malloc(sizeof(Timer));
+    memset(timer, 0, sizeof(Timer));
+}
+
+void stop_timer(void) {
+    free(timer);
+}
+
+void timer_control(StanczykSteps step, bool start) {
+    // Never start a new timer if the previous timer hasn't ended.
+    assert((start && !timer->started) || (!start && timer->started));
+
+    double now = (double)clock() / CLOCKS_PER_SEC;
+
+    timer->started = start;
+
+    if (start) {
+        CLI_MESSAGE(PREFIX_STANCZYK, "%s ", CLI_GET_STEP_NAME(step));
+        timer->value = now;
+        timer->step = step;
+    } else {
+        // Step should be the same as when the timer started.
+        assert(step == timer->step);
+        CLI_MESSAGE(PREFIX_NONE, "→ done in %fs\n", now - timer->value);
+    }
+}
