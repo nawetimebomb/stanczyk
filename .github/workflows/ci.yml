@@ -10,4 +10,4 @@ jobs:
                    sudo apt-get update
                    sudo apt-get install -qq gcc make
                    make release
-                   time bash ./test.sh
+                   bash ./test.sh
