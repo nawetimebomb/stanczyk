@@ -32,17 +32,6 @@
 #include "chunk.h"
 
 typedef struct {
-    const char *entry_file;
-    const char *out_file;
-    const char *workspace;
-    const char *compiler_dir;
-    bool run;
-    bool clean;
-    bool debug;
-    bool silent;
-} CompilerOptions;
-
-typedef struct {
     double frontend;
     double generator;
     double writer;
@@ -57,7 +46,6 @@ typedef struct {
 } ClibArray;
 
 typedef struct {
-    CompilerOptions options;
     Timers timers;
     ClibArray clibs;
     bool ready;
