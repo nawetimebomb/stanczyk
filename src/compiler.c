@@ -43,8 +43,6 @@
 #include "task.h"
 #include "typechecker.h"
 
-extern CompilerOptions options;
-
 Writer writer;
 
 static void init_writer_array(OutputArray *array) {

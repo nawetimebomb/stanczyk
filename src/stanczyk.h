@@ -54,6 +54,18 @@ typedef enum {
     COMPILATION_BACKEND_ERROR
 } CompilationResult;
 
+typedef enum {
+    COMPILATION_MODE_RUN,
+    COMPILATION_MODE_BUILD
+} CompilationMode;
+
+typedef enum {
+    COMPILATION_FLAG_RUN,
+    COMPILATION_FLAG_CLEAN,
+    COMPILATION_FLAG_DEBUG,
+    COMPILATION_FLAG_SILENT
+} CompilationFlag;
+
 typedef struct {
     // workspace: List of constants used throughout the compiling
     // process to find files, check which one to compile and build the
@@ -131,10 +143,18 @@ typedef struct {
 void start_stanczyk(void);
 void stop_stanczyk(void);
 
-const char *get_entry_file(void);
+const char *get_entry(void);
+const char *get_out(void);
 const char *get_compiler_dir(void);
 const char *get_project_dir(void);
+bool get_flag(CompilationFlag);
+bool compilation_ready(void);
+bool compilation_failed(void);
+
 void set_directories(const char *, const char *);
-void set_entry_file(const char *);
+void set_entry(const char *);
+void set_output(const char *);
+void set_mode(CompilationMode);
+void set_flag(CompilationFlag, bool);
 
 #endif

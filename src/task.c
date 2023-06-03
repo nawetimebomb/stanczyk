@@ -35,8 +35,6 @@
 #include "printer.h"
 #include "task.h"
 
-extern CompilerOptions options;
-
 static CompilerResult write(Writer *writer, Compiler *compiler) {
     double START = (double)clock() / CLOCKS_PER_SEC;
     // TODO: Select name of file dinamically
