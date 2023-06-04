@@ -51,8 +51,8 @@
 ;; The Stańczyk Basics Library
 ;
 
-:> + set __SYS_ADD              end
-:> - set __SYS_SUB              end
-:> * set __SYS_MUL              end
-:> / set __SYS_DIVMOD swap drop end
-:> % set __SYS_DIVMOD drop      end
+macro +: __SYS_ADD              .
+macro -: __SYS_SUB              .
+macro *: __SYS_MUL              .
+; macro /: __SYS_DIVMOD swap drop .
+; macro %: __SYS_DIVMOD drop      .

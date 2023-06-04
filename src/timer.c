@@ -33,6 +33,7 @@
 
 #include "timer.h"
 #include "logger.h"
+#include "memory.h"
 
 typedef struct {
     bool started;
@@ -43,29 +44,31 @@ typedef struct {
 Timer *timer;
 
 void start_timer(void) {
-    timer = malloc(sizeof(Timer));
-    memset(timer, 0, sizeof(Timer));
+    timer = ALLOCATE(Timer);
 }
 
 void stop_timer(void) {
+    TIMER(TOTAL);
     free(timer);
 }
 
-void timer_control(StanczykSteps step, bool start) {
-    // Never start a new timer if the previous timer hasn't ended.
-    assert((start && !timer->started) || (!start && timer->started));
-
+void TIMER(StanczykSteps step) {
     double now = (double)clock() / CLOCKS_PER_SEC;
 
-    timer->started = start;
+    if (step == TOTAL) {
+        timer->started = false;
+        CLI_MESSAGE(PREFIX_NONE, "→ done in %fs\n", now - timer->value);
+        return;
+    }
 
-    if (start) {
+    if (timer->started) {
+        timer->started = false;
+        CLI_MESSAGE(PREFIX_NONE, "→ done in %fs\n", now - timer->value);
+        TIMER(step);
+    } else {
+        timer->started = true;
         CLI_MESSAGE(PREFIX_STANCZYK, "%s ", CLI_GET_STEP_NAME(step));
         timer->value = now;
         timer->step = step;
-    } else {
-        // Step should be the same as when the timer started.
-        assert(step == timer->step);
-        CLI_MESSAGE(PREFIX_NONE, "→ done in %fs\n", now - timer->value);
     }
 }

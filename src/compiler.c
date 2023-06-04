@@ -41,7 +41,7 @@
 #include "generator.h"
 #include "printer.h"
 #include "task.h"
-#include "typechecker.h"
+#include "memory.h"
 
 Writer writer;
 
@@ -69,14 +69,14 @@ static CompilerResult generate() {
 }
 
 CompilerResult compile(Compiler *compiler) {
-    Chunk *chunk = malloc(sizeof(Chunk));
+    Chunk *chunk = ALLOCATE(Chunk);
 
     init_writer_array(&writer.code);
     init_writer_array(&writer.strs);
     init_writer_array(&writer.mems);
     init_writer_array(&writer.flts);
 
-    chunk = create_intermediate_representation(compiler);
+    //chunk = create_intermediate_representation(compiler);
 
     if (chunk->erred) {
         compiler->failed = true;

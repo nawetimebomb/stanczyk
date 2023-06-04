@@ -85,7 +85,8 @@
 //   OP_FUNCTION_END,
 
 //   // Special
-//   OP_END
+//   OP_END,
+//   OP_EOC
 // } OpCode;
 
 typedef struct {
@@ -102,8 +103,9 @@ typedef struct {
     int *lines;
 } IRCodeChunk;
 
-void init_ir_code_chunk(IRCodeChunk *);
-void write_ir_code_chunk(IRCodeChunk *, Code, int);
-void free_ir_code_chunk(IRCodeChunk *);
+IRCodeChunk *start_ir_code_chunk(void);
+void stop_ir_code_chunk(IRCodeChunk *chunk);
+void write_ir_code_chunk(IRCodeChunk *chunk, Code code);
+
 
 #endif

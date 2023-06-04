@@ -33,8 +33,10 @@
 
 #define MEM_SCALAR 2
 
-#define ALLOCATE(type, count)                                                  \
-  (type *)reallocate(NULL, 0, sizeof(type) * (count))
+#define ALLOCATE_AMOUNT(type, count)                    \
+    (type *)reallocate(NULL, 0, sizeof(type) * (count))
+
+#define ALLOCATE(type) (type *)allocate(sizeof(type))
 
 #define FREE(type, pointer) reallocate(pointer, sizeof(type), 0)
 
@@ -49,6 +51,7 @@
   reallocate(pointer, sizeof(type) * (prev_count), 0)
 
 void *reallocate(void *, size_t, size_t);
+void *allocate(size_t size);
 void free_object(Object *);
 
 #endif

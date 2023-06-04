@@ -51,8 +51,7 @@ FileManager *filemanager;
 // input and limit it to be the expected one, so we might end with buffer
 // overflow.
 void start_filemanager(void) {
-    filemanager = malloc(sizeof(FileManager));
-    memset(filemanager, 0, sizeof(FileManager));
+    filemanager = ALLOCATE(FileManager);
     filemanager->start = 4;
 }
 
@@ -75,7 +74,7 @@ const char *get_filesource(int index) {
 }
 
 static char *get_word_in_name(const char *name) {
-    char *result = ALLOCATE(char, 32);
+    char *result = ALLOCATE_AMOUNT(char, 32);
     memset(result, 0, sizeof(char) * 32);
     int i = 0;
 
@@ -91,7 +90,7 @@ static char *get_word_in_name(const char *name) {
 
 static char *get_file_path(const char *name) {
     bool is_dev_lib = strstr(name, ".sk");
-    char *filepath = ALLOCATE(char, 256);
+    char *filepath = ALLOCATE_AMOUNT(char, 256);
     memset(filepath, 0, sizeof(char) * 256);
 
     if (is_dev_lib) {
@@ -120,9 +119,9 @@ static void add_processed_file(const char *filename, const char *source) {
 
     int filename_len = strlen(filename) + 1;
     int source_len = strlen(source) + 1;
-    filemanager->files[filemanager->count] = ALLOCATE(char, filename_len);
+    filemanager->files[filemanager->count] = ALLOCATE_AMOUNT(char, filename_len);
     memset(filemanager->files[filemanager->count], 0, sizeof(char) * filename_len);
-    filemanager->sources[filemanager->count] = ALLOCATE(char, source_len);
+    filemanager->sources[filemanager->count] = ALLOCATE_AMOUNT(char, source_len);
     memset(filemanager->sources[filemanager->count], 0, sizeof(char) * source_len);
     memcpy(filemanager->files[filemanager->count], filename, filename_len);
     memcpy(filemanager->sources[filemanager->count], source, source_len);
@@ -161,7 +160,7 @@ static char *read_file(const char *path) {
 
 static const char *process_source(const char *source) {
     int length = strlen(source) + 1;
-    char *p = ALLOCATE(char, length);
+    char *p = ALLOCATE_AMOUNT(char, length);
     memset(p, 0, length);
     int i = 0;
 

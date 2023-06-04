@@ -78,7 +78,7 @@ static String *allocate_string(char* chars, int length, u32 hash) {
 
 String *copy_string(const char *chars, int length) {
     u32 hash = hash_string(chars, length);
-    char *heapChars = ALLOCATE(char, length + 1);
+    char *heapChars = ALLOCATE_AMOUNT(char, length + 1);
     memcpy(heapChars, chars, length);
     heapChars[length] = '\0';
     return allocate_string(heapChars, length, hash);
