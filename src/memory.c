@@ -56,6 +56,12 @@ void *reallocate(void *pointer, size_t prev_size, size_t new_size) {
     return result;
 }
 
+void *allocate(size_t size) {
+    void *result = malloc(size);
+    memset(result, 0, size);
+    return result;
+}
+
 void free_object(Object *object) {
     switch (object->type) {
         case OBJECT_STRING: {

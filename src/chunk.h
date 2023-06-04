@@ -83,7 +83,8 @@ typedef enum {
     OP_FUNCTION_END,
 
     // Special
-    OP_END
+    OP_END,
+    OP_EOC
 } Op;
 
 typedef struct {

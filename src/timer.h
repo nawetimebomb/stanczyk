@@ -30,12 +30,9 @@
 
 #include "stanczyk.h"
 
-#define START_TIMER(step) timer_control(step, true)
-#define END_TIMER(step)   timer_control(step, false)
-
 void start_timer(void);
 void stop_timer(void);
 
-void timer_control(StanczykSteps step, bool start);
+void TIMER(StanczykSteps step);
 
 #endif

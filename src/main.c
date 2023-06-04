@@ -25,7 +25,7 @@
  * ███████║   ██║   ██║  ██║██║ ╚████║╚██████╗███████╗   ██║   ██║  ██╗
  * ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝╚══════╝   ╚═╝   ╚═╝  ╚═╝
  */
-#define COMPILER_VERSION "0.1"
+#define COMPILER_VERSION "0.2"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -34,20 +34,9 @@
 
 #include "stanczyk.h"
 
-#include "tasker.h"
 #include "logger.h"
-
-#include "compiler.h"
 #include "memory.h"
-
-Compiler compiler;
-
-static void init_clib_array() {
-    compiler.clibs.start = 4;
-    compiler.clibs.count = 0;
-    compiler.clibs.capacity = 0;
-    compiler.clibs.libs = NULL;
-}
+#include "tasker.h"
 
 static char *find_project_dir() {
     char *result = malloc(256);
@@ -119,8 +108,6 @@ int main(int argc, const char **argv) {
 
     start_stanczyk();
 
-    init_clib_array();
-
     parse_arguments(argc, argv);
 
     if (!compilation_ready()) {
@@ -132,8 +119,6 @@ int main(int argc, const char **argv) {
     set_directories(find_compiler_dir(argv[0]), find_project_dir());
 
     run_tasker();
-
-    compile(&compiler);
 
     if (get_flag(COMPILATION_FLAG_RUN) && !compilation_failed()) {
         system("./output");
