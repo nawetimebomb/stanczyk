@@ -26,9 +26,13 @@
  * ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝╚══════╝   ╚═╝   ╚═╝  ╚═╝
  */
 #include "stanczyk.h"
-
 #include "tasker.h"
+
+#include "assembly.h"
+#include "backend.h"
+#include "codegen.h"
 #include "memory.h"
+#include "output.h"
 #include "fileman.h"
 #include "timer.h"
 #include "frontend.h"
@@ -46,19 +50,19 @@ void run_tasker(void) {
     TIMER(TYPECHECK);
     typecheck_run(chunk);
 
-    // TIMER(CODEGEN);
-    // AssemblyCode *assembly = start_assembly_code();
-    // codegen(chunk, assembly);
+    TIMER(CODEGEN);
+    Assembly *assembly = start_assembly();
+    codegen_run(chunk, assembly);
 
     stop_ir_code_chunk(chunk);
 
-    // TIMER(OUTPUT);
-    // output(assembly);
+    TIMER(OUTPUT);
+    output_run(assembly);
 
-    // stop_assembly_code(assembly);
+    stop_assembly(assembly);
 
-    // TIMER(BACKEND);
-    // backend();
+    TIMER(BACKEND);
+    backend_run();
 
     stop_timer();
     stop_filemanager();

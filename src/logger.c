@@ -153,6 +153,11 @@ void TYPECHECK_ERROR(Token *token, const char *format, ...) {
     exit(COMPILATION_TYPECHECK_ERROR);
 }
 
+void CODEGEN_ERROR(const char *msg) {
+    fprintf(stderr, _BOLD_ _RED_ "ERROR: " _RESET_ "%s\n", msg);
+    exit(COMPILATION_CODEGEN_ERROR);
+}
+
 void UNREACHABLE_CODE(const char *place) {
     fprintf(stderr, "Reached 'Unreachable code' at %s\n", place);
 }

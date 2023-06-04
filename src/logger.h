@@ -44,6 +44,7 @@ void CLI_MESSAGE(PrefixType prefix, const char *format, ...);
 void CLI_WELCOME(void);
 void PARSING_ERROR(Token *token, const char *msg);
 void TYPECHECK_ERROR(Token *token, const char *format, ...);
+void CODEGEN_ERROR(const char *msg);
 void UNREACHABLE_CODE(const char *place);
 
 #endif
