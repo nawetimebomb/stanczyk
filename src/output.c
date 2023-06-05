@@ -25,11 +25,21 @@
  * ███████║   ██║   ██║  ██║██║ ╚████║╚██████╗███████╗   ██║   ██║  ██╗
  * ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝╚══════╝   ╚═╝   ╚═╝  ╚═╝
  */
-#ifndef STANCZYK_TASK_H
-#define STANCZYK_TASK_H
+#include <stdio.h>
 
-#include "compiler.h"
+#include "output.h"
+#include "assembly.h"
 
-CompilerResult run(Writer *, Compiler *);
+void output_run(Assembly *assembly) {
+    FILE *out = fopen("output.asm", "w");
 
-#endif
+    for (int i = 0; i < assembly->text.count; i++) {
+        fprintf(out, "%s\n", assembly->text.lines[i]);
+    }
+
+    for (int i = 0; i < assembly->data.count; i++) {
+        fprintf(out, "%s\n", assembly->data.lines[i]);
+    }
+
+    fclose(out);
+}

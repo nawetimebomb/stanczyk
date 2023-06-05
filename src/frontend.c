@@ -847,11 +847,6 @@ static void synch_after_error() {
     while (parser.current.type != TOKEN_EOF) {
         if (parser.previous.type == TOKEN_DOT) return;
         switch (parser.current.type) {
-            case TOKEN_ELSE:
-            case TOKEN_END:
-            case TOKEN_HASH_INCLUDE:
-            case TOKEN_IF:
-            case TOKEN_LOOP:
             case TOKEN_MACRO:
             case TOKEN_PRINT:
                 return;
@@ -866,8 +861,8 @@ static void synch_after_error() {
  *  |  _/   / _||  _/   / (_) | (__| _|\__ \__ \ (_) |   /
  *  |_| |_|_\___|_| |_|_\\___/ \___|___|___/___/\___/|_|_\
  */
-static void hash_include() {
-    consume(TOKEN_STR, ERROR__INCLUDE__FILE_OR_NAME_MISSING);
+static void using_statement() {
+    consume(TOKEN_STR, ERROR__USING__FILE_OR_NAME_MISSING);
     String *name = copy_string(parser.previous.start + 1, parser.previous.length - 2);
 
     if (library_exists(name->chars)) {
@@ -876,7 +871,7 @@ static void hash_include() {
         }
     } else {
         error_at(&parser.previous,
-                 ERROR__INCLUDE__FAILED_TO_FIND_FILE, name->chars);
+                 ERROR__USING__FAILED_TO_FIND_FILE, name->chars);
     }
 }
 
@@ -890,7 +885,7 @@ static void macro_statement() {
         return;
     }
 
-    consume(TOKEN_COLON, ERROR__MACRO__MISSING_COLON);
+    consume(TOKEN_DO, ERROR__MACRO__MISSING_DO);
 
     if (match(TOKEN_DOT)) {
         error_at(&parser.previous, ERROR__MACRO__MISSING_CONTENT);
@@ -902,7 +897,7 @@ static void macro_statement() {
     while (!check(TOKEN_DOT) && !check(TOKEN_EOF)) {
         advance();
         Token token = parser.previous;
-        if (token.type == TOKEN_IF || token.type == TOKEN_LOOP || token.type == TOKEN_MACRO) {
+        if (token.type == TOKEN_MACRO) {
             error_at(&token, ERROR__MACRO__BLOCKS_NOT_ALLOWED);
         } else {
             append_token(statement, token);
@@ -921,12 +916,8 @@ static void compile_preprocessors(int index) {
     while (!match(TOKEN_EOF)) {
         advance();
         switch (parser.previous.type) {
-            case TOKEN_HASH_INCLUDE : hash_include();        break;
+            case TOKEN_USING        : using_statement();        break;
             case TOKEN_MACRO        : macro_statement();     break;
-                // case TOKEN_HASH_CLIB    : clib_include();        break;
-            // case TOKEN_CONST        : const_statement();     break;
-            // case TOKEN_C_FUNCTION   : cfunction_statement(); break;
-            // case TOKEN_FUNCTION     : function_statement();  break;
             default: break;
         }
         if (parser.panic) synch_after_error();
@@ -957,7 +948,14 @@ static void parse_token(Token token) {
     code.token = token;
 
     switch (token.type) {
-        case TOKEN_HASH_INCLUDE: advance(); return;
+        case TOKEN_DO:
+        case TOKEN_DOT:
+        case TOKEN_ERROR: {
+            UNREACHABLE_CODE("frontend.c->parse_token");
+        } return;
+        case TOKEN_EOF: break;
+
+        case TOKEN_USING: advance(); return;
         case TOKEN_MACRO: while (!match(TOKEN_DOT)) advance(); return;
 
         case TOKEN_INT: {
@@ -973,31 +971,69 @@ static void parse_token(Token token) {
             code.operand = OBJECT_VALUE(str);
             emit(code);
         } return;
-        case TOKEN_WORD: word(token); return;
 
-        case TOKEN___SYS_ADD: {
-            code.type = OP_ADD;
+        // Intrinsics
+        case TOKEN_DROP: {
+            code.type = OP_DROP;
             emit(code);
         } return;
-        case TOKEN___SYS_SUB: {
+        case TOKEN_MINUS: {
             code.type = OP_SUBSTRACT;
             emit(code);
         } return;
-        case TOKEN___SYS_MUL: {
-            code.type = OP_MULTIPLY;
+        case TOKEN_PERCENT: {
+            code.type = OP_MODULO;
             emit(code);
         } return;
-        case TOKEN___SYS_DIVMOD: {
-            code.type = OP_DIVIDE;
+        case TOKEN_PLUS: {
+            code.type = OP_ADD;
             emit(code);
         } return;
         case TOKEN_PRINT: {
             code.type = OP_PRINT;
             emit(code);
         } return;
+        case TOKEN_SLASH: {
+            code.type = OP_DIVIDE;
+            emit(code);
+        } return;
+        case TOKEN_STAR: {
+            code.type = OP_MULTIPLY;
+            emit(code);
+        } return;
+        case TOKEN___SYSCALL0: {
+            code.type = OP_SYSCALL0;
+            emit(code);
+        } break;
+        case TOKEN___SYSCALL1: {
+            code.type = OP_SYSCALL1;
+            emit(code);
+        } break;
+        case TOKEN___SYSCALL2: {
+            code.type = OP_SYSCALL2;
+            emit(code);
+        } break;
+        case TOKEN___SYSCALL3: {
+            code.type = OP_SYSCALL3;
+            emit(code);
+        } break;
+        case TOKEN___SYSCALL4: {
+            code.type = OP_SYSCALL4;
+            emit(code);
+        } break;
+        case TOKEN___SYSCALL5: {
+            code.type = OP_SYSCALL5;
+            emit(code);
+        } break;
+        case TOKEN___SYSCALL6: {
+            code.type = OP_SYSCALL6;
+            emit(code);
+        } break;
 
+        // Special
+        case TOKEN_WORD: word(token); return;
 
-        default: UNREACHABLE_CODE("frontend.c->compile_file"); return;
+            //default: UNREACHABLE_CODE("frontend.c->compile_file"); return;
     }
 }
 

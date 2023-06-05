@@ -28,64 +28,35 @@
 #ifndef STANCZYK_IR_CODE_H
 #define STANCZYK_IR_CODE_H
 
-// TODO: remove after refactor
-#include "chunk.h"
 #include "constant.h"
 #include "scanner.h"
 
 typedef enum {
     // Constants
     OP_PUSH_INT,
-    OP_PUSH_FLOAT,
-    OP_PUSH_HEX,
     OP_PUSH_STR,
-    OP_PUSH_PTR,
-
-    // Keywords
-    OP_JUMP,
-    OP_JUMP_IF_FALSE,
-    OP_LOOP,
 
     // Intrinsics
     OP_ADD,
-    OP_AND,
-    OP_CALL_CFUNC,
-    OP_DEC,
-    OP_DEFINE_PTR,
     OP_DIVIDE,
     OP_DROP,
-    OP_DUP,
-    OP_EQUAL,
-    OP_GREATER,
-    OP_GREATER_EQUAL,
-    OP_INC,
-    OP_LESS,
-    OP_LESS_EQUAL,
-    OP_LOAD8,
+    OP_MODULO,
     OP_MULTIPLY,
-    OP_NOT_EQUAL,
-    OP_OR,
-    OP_OVER,
     OP_PRINT,
-    OP_RETURN,
-    OP_SAVE8,
     OP_SUBSTRACT,
-    OP_SWAP,
-    OP_SYS0,
-    OP_SYS1,
-    OP_SYS2,
-    OP_SYS3,
-    OP_SYS4,
-    OP_SYS5,
-    OP_SYS6,
-    OP_TAKE,
 
-    OP_CALL,
-    OP_DEFINE_FUNCTION,
-    OP_FUNCTION_END,
+    // Syscalls
+    // TODO: Replace with functions that pop to specific
+    // registers and then do the call
+    OP_SYSCALL0,
+    OP_SYSCALL1,
+    OP_SYSCALL2,
+    OP_SYSCALL3,
+    OP_SYSCALL4,
+    OP_SYSCALL5,
+    OP_SYSCALL6,
 
     // Special
-    OP_END,
     OP_EOC
 } OpCode;
 

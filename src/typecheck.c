@@ -25,6 +25,10 @@
  * ███████║   ██║   ██║  ██║██║ ╚████║╚██████╗███████╗   ██║   ██║  ██╗
  * ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝╚══════╝   ╚═╝   ╚═╝  ╚═╝
  */
+#if DEBUG_MODE
+#include <stdio.h>
+#endif
+
 #include "typecheck.h"
 #include "errors.h"
 #include "memory.h"
@@ -36,6 +40,10 @@
 #define ASSERT_NUM_OF_ARGUMENTS(given, expected, token)                 \
     if (given < expected)                                               \
         TYPECHECK_ERROR(token, ERROR__TYPECHECK__INSUFFICIENT_ARGUMENTS, expected, given);
+// TODO: Should check for multiple types
+#define ASSERT_TYPE(given, expected, token)                             \
+    if (given != expected)                                              \
+        TYPECHECK_ERROR(token, ERROR__TYPECHECK__INCORRECT_TYPE, get_type_name(expected), get_type_name(given));
 
 typedef struct {
     IRCodeChunk *chunk;
@@ -45,6 +53,19 @@ typedef struct {
 } Typecheck;
 
 Typecheck *typecheck;
+
+static const char *get_type_name(DataType type) {
+    switch (type) {
+        case DATA_BOOL:  return "bool";
+        case DATA_FLOAT: return "float";
+        case DATA_HEX:   return "hex";
+        case DATA_INT:   return "int";
+        case DATA_NULL:  return "null";
+        case DATA_PTR:   return "ptr";
+        case DATA_STR:   return "str";
+        default: UNREACHABLE_CODE("typecheck.c->get_type_name"); return "Unreachable";
+    }
+}
 
 static void reset_stack() {
     typecheck->stack_top = typecheck->stack;
@@ -77,10 +98,24 @@ static int run() {
     int stack_count = 0;
 
     for (;;) {
+#ifdef DEBUG_MODE
+        printf("          ");
+        for (DataType* slot = typecheck->stack; slot < typecheck->stack_top; slot++) {
+            printf("[ ");
+            printf("%s", get_type_name(*slot));
+            printf(" ]");
+        }
+        printf("\n");
+#endif
         Code instruction = NEXT_BYTE();
         Token *token = &instruction.token;
 
         switch (instruction.type) {
+            /*    ___             _            _
+             *   / __|___ _ _  __| |_ __ _ _ _| |_ ___
+             *  | (__/ _ \ ' \(_-<  _/ _` | ' \  _(_-<
+             *   \___\___/_||_/__/\__\__,_|_||_\__/__/
+             */
             case OP_PUSH_INT: {
                 push(DATA_INT);
                 stack_count++;
@@ -91,24 +126,60 @@ static int run() {
                 stack_count += 2;
             } break;
 
-            case OP_ADD: {
+
+            /*   ___     _       _         _
+             *  |_ _|_ _| |_ _ _(_)_ _  __(_)__ ___
+             *   | || ' \  _| '_| | ' \(_-< / _(_-<
+             *  |___|_||_\__|_| |_|_||_/__/_\__/__/
+             */
+            case OP_ADD:
+            case OP_SUBSTRACT: {
                 ASSERT_NUM_OF_ARGUMENTS(stack_count, 2, token);
-                DataType a = pop();
                 DataType b = pop();
+                DataType a = pop();
+                ASSERT_TYPE(b, DATA_INT, token);
+                ASSERT_TYPE(a, DATA_INT, token);
                 push(DATA_INT);
                 stack_count--;
             } break;
-
+            case OP_MULTIPLY:
+            case OP_DIVIDE:
+            case OP_MODULO: {
+                ASSERT_NUM_OF_ARGUMENTS(stack_count, 2, token);
+                DataType b = pop();
+                DataType a = pop();
+                ASSERT_TYPE(b, DATA_INT, token);
+                ASSERT_TYPE(a, DATA_INT, token);
+                push(DATA_INT);
+                stack_count--;
+            } break;
+            case OP_DROP: {
+                ASSERT_NUM_OF_ARGUMENTS(stack_count, 1, token);
+                pop();
+                stack_count--;
+            } break;
             case OP_PRINT: {
                 ASSERT_NUM_OF_ARGUMENTS(stack_count, 1, token);
                 DataType a = pop();
+                ASSERT_TYPE(a, DATA_INT, token);
                 stack_count--;
             } break;
+            case OP_SYSCALL3: {
+                ASSERT_NUM_OF_ARGUMENTS(stack_count, 4, token);
+                pop(); pop(); pop(); pop();
+                push(DATA_INT);
+                stack_count -= 3;
+            } break;
 
+            /*   _  __                           _
+             *  | |/ /___ _  ___ __ _____ _ _ __| |___
+             *  | ' </ -_) || \ V  V / _ \ '_/ _` (_-<
+             *  |_|\_\___|\_, |\_/\_/\___/_| \__,_/__/
+             *            |__/
+             */
             case OP_EOC: {
                 return stack_count;
             } break;
-            default: UNREACHABLE_CODE("typecheck.c->run"); break;
         }
     }
 #undef NEXT_BYTE
