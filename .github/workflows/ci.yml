@@ -8,6 +8,6 @@ jobs:
             - name: run tests
               run: |
                    sudo apt-get update
-                   sudo apt-get install -qq gcc make
+                   sudo apt-get install -qq gcc make yasm
                    make release
                    bash ./test.sh
