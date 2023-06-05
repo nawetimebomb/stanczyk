@@ -28,7 +28,7 @@
 #ifndef STANCZYK_FILEMAN_H
 #define STANCZYK_FILEMAN_H
 
-#include "compiler.h"
+#include "stanczyk.h"
 
 void start_filemanager(void);
 void stop_filemanager(void);

@@ -28,9 +28,9 @@
 #ifndef STANCZYK_DEBUG_H
 #define STANCZYK_DEBUG_H
 
-#include "chunk.h"
+#include "ir_code.h"
 
-void disassemble_chunk(Chunk *, const char *);
-int disassemble_instruction(Chunk *, int);
+void disassemble_chunk(IRCodeChunk *, const char *);
+int disassemble_instruction(IRCodeChunk *, int);
 
 #endif

@@ -25,11 +25,15 @@
  * ███████║   ██║   ██║  ██║██║ ╚████║╚██████╗███████╗   ██║   ██║  ██╗
  * ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝╚══════╝   ╚═╝   ╚═╝  ╚═╝
  */
-#ifndef STANCZYK_GENERATOR_H
-#define STANCZYK_GENERATOR_H
+#include <stdlib.h>
 
-#include "compiler.h"
+#include "backend.h"
 
-CompilerResult generate_x64_linux(Writer *);
-
-#endif
+void backend_run(void) {
+    // TODO: Handle windows and others
+    // TODO: Handle errors
+    // TODO: Construct commands depending on the users inputs
+    system("yasm -f elf64 -g dwarf2 output.asm");
+    system("ld -o output output.o");
+    // TODO: Remove object and asm files
+}

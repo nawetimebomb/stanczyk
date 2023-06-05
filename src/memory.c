@@ -28,7 +28,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "chunk.h"
 #include "memory.h"
 #include "object.h"
 
