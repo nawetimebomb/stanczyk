@@ -50,3 +50,18 @@
 
 ;; The Stańczyk Basics Library
 ;
+
+; inline function and bool bool -> bool do
+;   bind a b
+;   (int)a (int)b & (bool)
+; .
+
+; inline function or bool bool -> bool do
+;   bind a b
+;   (int)a (int)b | (bool)
+; .
+
+; inline function not bool -> bool do
+;   bind a
+;   (int)a 1 swap - (bool)
+; .
