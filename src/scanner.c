@@ -140,6 +140,7 @@ static TokenType keyword_type() {
             if (check_if_keyword(1, 9, "_SYSCALL5"))   return TOKEN___SYSCALL5;
             if (check_if_keyword(1, 9, "_SYSCALL6"))   return TOKEN___SYSCALL6;
         } break;
+        case 'b': return check_keyword(1, 3, "ool", TOKEN_DTYPE_BOOL);
         case 'd': {
             if (scanner.current - scanner.start > 1) {
                 switch (scanner.start[1]) {
@@ -148,8 +149,16 @@ static TokenType keyword_type() {
                 }
             }
         } break;
+        case 'i': return check_keyword(1, 2, "nt", TOKEN_DTYPE_INT);
         case 'm': return check_keyword(1, 4, "acro", TOKEN_MACRO);
-        case 'p': return check_keyword(1, 4, "rint", TOKEN_PRINT);
+        case 'p': {
+            if (scanner.current - scanner.start > 1) {
+                switch (scanner.start[1]) {
+                    case 'r': return check_keyword(2, 3, "int", TOKEN_PRINT);
+                    case 't': return check_keyword(2, 1, "r", TOKEN_DTYPE_PTR);
+                }
+            }
+        } break;
         case 'u': return check_keyword(1, 4, "sing", TOKEN_USING);
     }
 
@@ -200,6 +209,8 @@ Token scan_token() {
     if (is_digit(c)) return number();
 
     switch (c) {
+        case '(': return make_token(TOKEN_LEFT_PAREN);
+        case ')': return make_token(TOKEN_RIGHT_PAREN);
         case '.': return make_token(TOKEN_DOT);
         case '+': return make_token(TOKEN_PLUS);
         case '-': return make_token(TOKEN_MINUS);

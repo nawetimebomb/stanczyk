@@ -35,6 +35,10 @@ typedef enum {
     TOKEN_INT,
     TOKEN_STR,
 
+    TOKEN_DTYPE_INT,
+    TOKEN_DTYPE_BOOL,
+    TOKEN_DTYPE_PTR,
+
     // Intrinsics
     TOKEN_BANG_EQUAL,
     TOKEN_DROP,
@@ -52,6 +56,8 @@ typedef enum {
 
     // Symbols
     TOKEN_DOT,
+    TOKEN_LEFT_PAREN,
+    TOKEN_RIGHT_PAREN,
 
     // Keywords
     TOKEN_DO,
