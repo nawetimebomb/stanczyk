@@ -40,11 +40,8 @@ typedef enum {
 typedef enum {
     DATA_NULL,
     DATA_INT,
-    DATA_FLOAT,
-    DATA_STR,
     DATA_BOOL,
-    DATA_PTR,
-    DATA_HEX,
+    DATA_PTR
 } DataType;
 
 typedef struct {

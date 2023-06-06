@@ -206,6 +206,14 @@ Token scan_token() {
         case '*': return make_token(TOKEN_STAR);
         case '/': return make_token(TOKEN_SLASH);
         case '%': return make_token(TOKEN_PERCENT);
+        case '=': return make_token(TOKEN_EQUAL);
+        case '!': {
+            if (match('=')) {
+                return make_token(TOKEN_BANG_EQUAL);
+            }
+        } break;
+        case '<': return make_token(match('=') ? TOKEN_LESS_EQUAL : TOKEN_LESS);
+        case '>': return make_token(match('=') ? TOKEN_GREATER_EQUAL : TOKEN_GREATER);
         case '"': return string();
         default: return keyword();
     }

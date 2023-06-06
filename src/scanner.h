@@ -36,11 +36,17 @@ typedef enum {
     TOKEN_STR,
 
     // Intrinsics
+    TOKEN_BANG_EQUAL,
     TOKEN_DROP,
-    TOKEN_PRINT,
+    TOKEN_EQUAL,
+    TOKEN_GREATER,
+    TOKEN_GREATER_EQUAL,
+    TOKEN_LESS,
+    TOKEN_LESS_EQUAL,
     TOKEN_MINUS,
     TOKEN_PERCENT,
     TOKEN_PLUS,
+    TOKEN_PRINT,
     TOKEN_SLASH,
     TOKEN_STAR,
 
