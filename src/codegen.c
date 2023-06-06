@@ -158,7 +158,13 @@ static void generate_linux_x86() {
                 write_assembly(text, "    push str_%d", data->count);
                 write_assembly(data, "str_%d: db %s", data->count, ascii_str);
             } break;
-
+            case OP_PUSH_BOOL: {
+                int value = AS_INT(instruction.operand);
+                write_assembly(text, ";; %.*s (%s:%d:%d)", token->length, token->start,
+                               token->filename, token->line, token->column);
+                write_assembly(text, "    mov rax, %d", value);
+                write_assembly(text, "    push rax");
+            } break;
 
             /*   ___     _       _         _
              *  |_ _|_ _| |_ _ _(_)_ _  __(_)__ ___

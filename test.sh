@@ -12,6 +12,8 @@ RESET="\033[0m"
 PURPLE="\033[35m"
 BOLD="\033[1m"
 
+ERRORS=""
+
 echo -e $RED
 echo -e '┏━  The Stańczyk Programming Language  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃                                                                      ┃
@@ -64,9 +66,11 @@ for FILE in tests/*.sk; do
             echo -ne "${GREEN}✔ success${RESET}"
             SUCCESS=$(($SUCCESS + 1))
         else
-            echo -ne "${RED}✗ fail${RESET}"
-            echo $RESULT
+            echo -ne "${RED}✗ fail${RESET}   "
             FAIL=$(($FAIL + 1))
+            if [ "$1" == "show" ]; then
+                ERRORS+="${BOLD}  ¤ ${TEST_NAME}.sk${RESET}\n\t- ${RESULT}\n"
+            fi
         fi
 
         echo -e $RED'  ┃'
@@ -86,4 +90,11 @@ printf "${RED}┃${RESET}                                   ${RCOLOR}${BOLD}TOTA
 echo -e $RED'  ┃'
 echo -e $RED'┃                                                                      ┃
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  The Stańczyk Programming Language  ━┛'
+
+if [ "$1" == "show" ]; then
+    echo -e "${RESET}"
+    echo -e "Errors:"
+    echo -e "${ERRORS}"
+fi
+
 exit $FAIL
