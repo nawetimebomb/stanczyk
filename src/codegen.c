@@ -58,14 +58,18 @@ static void stop_codegen() {
 }
 
 static char *str_ascii(String *str) {
+    if (str->length > 255) {
+        CODEGEN_ERROR("String has more than 255 characters. Split the string");
+    }
     char *result = ALLOCATE_AMOUNT(char, 255);
-    char *num = ALLOCATE_AMOUNT(char, 2);
+    char *num = ALLOCATE_AMOUNT(char, 1);
 
     for (char c = *str->chars; c; c = *++str->chars) {
         if (c == '\\') {
             c = *++str->chars;
             switch (c) {
                 case 'n': sprintf(num, "%d", 10); break;
+                case 't': sprintf(num, "%d", 9);  break;
             }
         } else {
             sprintf(num, "%u", (u8)c);
@@ -74,7 +78,8 @@ static char *str_ascii(String *str) {
         strcat(result, num);
         strcat(result, ",");
     }
-
+    strcat(result, "0");
+    FREE(char, num);
     return result;
 }
 
@@ -145,12 +150,13 @@ static void generate_linux_x86() {
             } break;
             case OP_PUSH_STR: {
                 String *value = AS_STRING(instruction.operand);
+                char *ascii_str = str_ascii(value);
                 write_assembly(text, ";; %s (%s:%d:%d)", value->chars,
                                token->filename, token->line, token->column);
                 write_assembly(text, "    mov rax, %d", value->length);
                 write_assembly(text, "    push rax");
                 write_assembly(text, "    push str_%d", data->count);
-                write_assembly(data, "str_%d: db %s", data->count, str_ascii(value));
+                write_assembly(data, "str_%d: db %s", data->count, ascii_str);
             } break;
 
 
@@ -200,6 +206,72 @@ static void generate_linux_x86() {
                 write_assembly(text, "    pop rax");
                 write_assembly(text, "    div rbx");
                 write_assembly(text, "    push rdx");
+            } break;
+            case OP_EQUAL: {
+                write_assembly(text, ";; = (%s:%d:%d)",
+                               token->filename, token->line, token->column);
+                write_assembly(text, "    xor rcx, rcx");
+                write_assembly(text, "    mov rdx, 1");
+                write_assembly(text, "    pop rax");
+                write_assembly(text, "    pop rbx");
+                write_assembly(text, "    cmp rax, rbx");
+                write_assembly(text, "    cmove rcx, rdx");
+                write_assembly(text, "    push rcx");
+            } break;
+            case OP_NOT_EQUAL: {
+                write_assembly(text, ";; != (%s:%d:%d)",
+                               token->filename, token->line, token->column);
+                write_assembly(text, "    xor rcx, rcx");
+                write_assembly(text, "    mov rdx, 1");
+                write_assembly(text, "    pop rax");
+                write_assembly(text, "    pop rbx");
+                write_assembly(text, "    cmp rax, rbx");
+                write_assembly(text, "    cmovne rcx, rdx");
+                write_assembly(text, "    push rcx");
+            } break;
+            case OP_LESS: {
+                write_assembly(text, ";; < (%s:%d:%d)",
+                               token->filename, token->line, token->column);
+                write_assembly(text, "    xor rcx, rcx");
+                write_assembly(text, "    mov rdx, 1");
+                write_assembly(text, "    pop rbx");
+                write_assembly(text, "    pop rax");
+                write_assembly(text, "    cmp rax, rbx");
+                write_assembly(text, "    cmovl rcx, rdx");
+                write_assembly(text, "    push rcx");
+            } break;
+            case OP_LESS_EQUAL: {
+                write_assembly(text, ";; <= (%s:%d:%d)",
+                               token->filename, token->line, token->column);
+                write_assembly(text, "    xor rcx, rcx");
+                write_assembly(text, "    mov rdx, 1");
+                write_assembly(text, "    pop rbx");
+                write_assembly(text, "    pop rax");
+                write_assembly(text, "    cmp rax, rbx");
+                write_assembly(text, "    cmovle rcx, rdx");
+                write_assembly(text, "    push rcx");
+            } break;
+            case OP_GREATER: {
+                write_assembly(text, ";; > (%s:%d:%d)",
+                               token->filename, token->line, token->column);
+                write_assembly(text, "    xor rcx, rcx");
+                write_assembly(text, "    mov rdx, 1");
+                write_assembly(text, "    pop rbx");
+                write_assembly(text, "    pop rax");
+                write_assembly(text, "    cmp rax, rbx");
+                write_assembly(text, "    cmovg rcx, rdx");
+                write_assembly(text, "    push rcx");
+            } break;
+            case OP_GREATER_EQUAL: {
+                write_assembly(text, ";; >= (%s:%d:%d)",
+                               token->filename, token->line, token->column);
+                write_assembly(text, "    xor rcx, rcx");
+                write_assembly(text, "    mov rdx, 1");
+                write_assembly(text, "    pop rbx");
+                write_assembly(text, "    pop rax");
+                write_assembly(text, "    cmp rax, rbx");
+                write_assembly(text, "    cmovge rcx, rdx");
+                write_assembly(text, "    push rcx");
             } break;
             case OP_DROP: {
                 write_assembly(text, ";; drop (%s:%d:%d)",

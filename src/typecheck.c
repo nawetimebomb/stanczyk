@@ -37,14 +37,6 @@
 
 #define STACK_MAX 32
 
-#define ASSERT_NUM_OF_ARGUMENTS(given, expected, token)                 \
-    if (given < expected)                                               \
-        TYPECHECK_ERROR(token, ERROR__TYPECHECK__INSUFFICIENT_ARGUMENTS, expected, given);
-// TODO: Should check for multiple types
-#define ASSERT_TYPE(given, expected, token)                             \
-    if (given != expected)                                              \
-        TYPECHECK_ERROR(token, ERROR__TYPECHECK__INCORRECT_TYPE, get_type_name(expected), get_type_name(given));
-
 typedef struct {
     IRCodeChunk *chunk;
     Code *ip;
@@ -57,13 +49,33 @@ Typecheck *typecheck;
 static const char *get_type_name(DataType type) {
     switch (type) {
         case DATA_BOOL:  return "bool";
-        case DATA_FLOAT: return "float";
-        case DATA_HEX:   return "hex";
         case DATA_INT:   return "int";
         case DATA_NULL:  return "null";
         case DATA_PTR:   return "ptr";
-        case DATA_STR:   return "str";
         default: UNREACHABLE_CODE("typecheck.c->get_type_name"); return "Unreachable";
+    }
+}
+
+static void ASSERT_NUM_OF_ARGUMENTS(int given, int expected, Token *token) {
+    if (given < expected) {
+        TYPECHECK_ERROR(token, ERROR__TYPECHECK__INSUFFICIENT_ARGUMENTS, expected, given);
+    }
+}
+
+static void ASSERT_TYPE(DataType given, DataType expected[], int ecount, Token *token) {
+    bool allowed = false;
+
+    for (int i = 0; i < ecount; i++) {
+        if (given == expected[i]) {
+            allowed = true;
+        }
+    }
+
+    if (!allowed) {
+        // TODO: It should show all "expected" values
+        TYPECHECK_ERROR(token, ERROR__TYPECHECK__INCORRECT_TYPE,
+                        get_type_name(expected[0]),
+                        get_type_name(given));
     }
 }
 
@@ -122,7 +134,7 @@ static int run() {
             } break;
             case OP_PUSH_STR: {
                 push(DATA_INT);
-                push(DATA_STR);
+                push(DATA_PTR);
                 stack_count += 2;
             } break;
 
@@ -137,8 +149,9 @@ static int run() {
                 ASSERT_NUM_OF_ARGUMENTS(stack_count, 2, token);
                 DataType b = pop();
                 DataType a = pop();
-                ASSERT_TYPE(b, DATA_INT, token);
-                ASSERT_TYPE(a, DATA_INT, token);
+                DataType expected[1] = {DATA_INT};
+                ASSERT_TYPE(b, expected, 1, token);
+                ASSERT_TYPE(a, expected, 1, token);
                 push(DATA_INT);
                 stack_count--;
             } break;
@@ -148,9 +161,25 @@ static int run() {
                 ASSERT_NUM_OF_ARGUMENTS(stack_count, 2, token);
                 DataType b = pop();
                 DataType a = pop();
-                ASSERT_TYPE(b, DATA_INT, token);
-                ASSERT_TYPE(a, DATA_INT, token);
+                DataType expected[1] = {DATA_INT};
+                ASSERT_TYPE(b, expected, 1, token);
+                ASSERT_TYPE(a, expected, 1, token);
                 push(DATA_INT);
+                stack_count--;
+            } break;
+            case OP_EQUAL:
+            case OP_NOT_EQUAL:
+            case OP_LESS:
+            case OP_LESS_EQUAL:
+            case OP_GREATER:
+            case OP_GREATER_EQUAL: {
+                ASSERT_NUM_OF_ARGUMENTS(stack_count, 2, token);
+                DataType b = pop();
+                DataType a = pop();
+                DataType expected[1] = {DATA_INT};
+                ASSERT_TYPE(b, expected, 1, token);
+                ASSERT_TYPE(a, expected, 1, token);
+                push(DATA_BOOL);
                 stack_count--;
             } break;
             case OP_DROP: {
@@ -161,7 +190,8 @@ static int run() {
             case OP_PRINT: {
                 ASSERT_NUM_OF_ARGUMENTS(stack_count, 1, token);
                 DataType a = pop();
-                ASSERT_TYPE(a, DATA_INT, token);
+                DataType expected[2] = {DATA_INT, DATA_BOOL};
+                ASSERT_TYPE(a, expected, 2, token);
                 stack_count--;
             } break;
             case OP_SYSCALL3: {

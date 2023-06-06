@@ -1001,6 +1001,30 @@ static void parse_token(Token token) {
             code.type = OP_MULTIPLY;
             emit(code);
         } return;
+        case TOKEN_EQUAL: {
+            code.type = OP_EQUAL;
+            emit(code);
+        } return;
+        case TOKEN_BANG_EQUAL: {
+            code.type = OP_NOT_EQUAL;
+            emit(code);
+        } return;
+        case TOKEN_LESS: {
+            code.type = OP_LESS;
+            emit(code);
+        } return;
+        case TOKEN_LESS_EQUAL: {
+            code.type = OP_LESS_EQUAL;
+            emit(code);
+        } return;
+        case TOKEN_GREATER: {
+            code.type = OP_GREATER;
+            emit(code);
+        } return;
+        case TOKEN_GREATER_EQUAL: {
+            code.type = OP_GREATER_EQUAL;
+            emit(code);
+        } return;
         case TOKEN___SYSCALL0: {
             code.type = OP_SYSCALL0;
             emit(code);
