@@ -1,19 +1,64 @@
+using "io"
+
 ;; Test: arithmetics
 ;; Description:
 ;    Simple arithmetics test. Printing the results so they can be compared.
 
-2 2 +                print ; 4
-10 1 + 2 +           print ; 13
-2 3 + 5 + 3 +        print ; 13
-2 2 -                print ; 0
-25 3 - 9 -           print ; 13
-50 10 - 20 - 3 - 4 - print ; 13
-2 3 *                print ; 6
-2 2 * 2 *            print ; 8
-2 2 2 2 2 * * * *    print ; 32
-10 2 /               print ; 5
+"2 + 2 = 4\n" puts
+2 2 +                print
+"-----------\n" puts
+
+"10 + 1 + 2 = 13\n" puts
+10 1 + 2 +           print
+"-----------\n" puts
+
+"2 + 3 + 5 + 3 = 13 \n" puts
+2 3 + 5 + 3 +        print
+"-----------\n" puts
+
+"2 - 2 = 0\n" puts
+2 2 -                print
+"-----------\n" puts
+
+"25 - 3 - 9 = 13\n" puts
+25 3 - 9 -           print
+"-----------\n" puts
+
+"50 - 10 - 20 - 3 - 4 = 13\n" puts
+50 10 - 20 - 3 - 4 - print
+"-----------\n" puts
+
+"2 * 3 = 6\n" puts
+2 3 *                print
+"-----------\n" puts
+
+"2 * 2 * 2 = 8\n" puts
+2 2 * 2 *            print
+"-----------\n" puts
+
+"2 * 2 * 2 * 2 * 2 = 32\n" puts
+2 2 2 2 2 * * * *    print
+"-----------\n" puts
+
+"10 / 2 = 5\n" puts
+10 2 /               print
+"-----------\n" puts
+
+"32 / (2 / 2 / 2) = 16\n" puts
 32 2 2 2 / / /       print ; 16 (32 2 2 2 / / / -> 32 2 1 / / -> 32 2 / -> 16)
+"-----------\n" puts
+
+"((32 / 2) / 2) / 2 = 4\n" puts
 32 2 / 2 / 2 /       print ; 4
+"-----------\n" puts
+
+"10 % 3 = 1\n" puts
 10 3 %               print ; 1
+"-----------\n" puts
+
+"3 + 4 + 7 - 1 = 13\n" puts
 3 4 + 7 + 1 -        print ; 13
+"-----------\n" puts
+
+"10 / 5 + 3 * 5 - 12 = 13\n" puts
 10 5 / 3 + 5 * 12 -  print ; 13

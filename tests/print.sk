@@ -1,11 +1,36 @@
+using "io"
+
 ;; Test: print
 ;; Description:
 ;    print numbers on the screen. Numbers with snake_case should print without the _.
+
+"1\n" puts
 1                           print
+"-----------\n" puts
+
+"13\n" puts
 13                          print
+"-----------\n" puts
+
+"666\n" puts
 666                         print
+"-----------\n" puts
+
+"1889\n" puts
 1889                        print
+"-----------\n" puts
+
+"92720\n" puts
 92720                       print
+"-----------\n" puts
+
+"121911\n" puts
 121991                      print
+"-----------\n" puts
+
+"1000000\n" puts
 1_000_000                   print
+"-----------\n" puts
+
+"2000000000\n" puts
 2_000_000_000               print
