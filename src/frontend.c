@@ -973,19 +973,19 @@ static void parse_token(Token token) {
     code.token = token;
 
     switch (token.type) {
+        case TOKEN_DO:
+        case TOKEN_DOT:
         case TOKEN_DTYPE_BOOL:
         case TOKEN_DTYPE_INT:
         case TOKEN_DTYPE_PTR:
-        case TOKEN_RIGHT_PAREN:
-        case TOKEN_DO:
-        case TOKEN_DOT:
-        case TOKEN_ERROR: {
+        case TOKEN_ERROR:
+        case TOKEN_RIGHT_PAREN: {
             UNREACHABLE_CODE("frontend.c->parse_token");
         } return;
         case TOKEN_EOF: break;
 
-        case TOKEN_USING: advance(); return;
         case TOKEN_MACRO: while (!match(TOKEN_DOT)) advance(); return;
+        case TOKEN_USING: advance(); return;
 
         case TOKEN_INT: {
             long value = strtol(token.start, NULL, 10);
@@ -1052,6 +1052,16 @@ static void parse_token(Token token) {
         } return;
         case TOKEN_GREATER_EQUAL: {
             code.type = OP_GREATER_EQUAL;
+            emit(code);
+        } return;
+        case TOKEN_FALSE: {
+            code.type = OP_PUSH_BOOL;
+            code.operand = INT_VALUE(0);
+            emit(code);
+        } return;
+        case TOKEN_TRUE: {
+            code.type = OP_PUSH_BOOL;
+            code.operand = INT_VALUE(1);
             emit(code);
         } return;
         case TOKEN___SYSCALL0: {

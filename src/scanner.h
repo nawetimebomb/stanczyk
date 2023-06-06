@@ -40,9 +40,9 @@ typedef enum {
     TOKEN_DTYPE_PTR,
 
     // Intrinsics
-    TOKEN_BANG_EQUAL,
     TOKEN_DROP,
     TOKEN_EQUAL,
+    TOKEN_FALSE,
     TOKEN_GREATER,
     TOKEN_GREATER_EQUAL,
     TOKEN_LESS,
@@ -53,6 +53,8 @@ typedef enum {
     TOKEN_PRINT,
     TOKEN_SLASH,
     TOKEN_STAR,
+    TOKEN_TRUE,
+    TOKEN_BANG_EQUAL,
 
     // Symbols
     TOKEN_DOT,

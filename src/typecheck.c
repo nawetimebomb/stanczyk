@@ -137,7 +137,10 @@ static int run() {
                 push(DATA_PTR);
                 stack_count += 2;
             } break;
-
+            case OP_PUSH_BOOL: {
+                push(DATA_BOOL);
+                stack_count++;
+            } break;
 
             /*   ___     _       _         _
              *  |_ _|_ _| |_ _ _(_)_ _  __(_)__ ___
