@@ -57,7 +57,7 @@ Make sure you have the following dependencies in your system before building Sta
 A simple *Hello, Stańczyk* program could be:
 
 ```
-#include "io"
+using "io"
 
 "Hello, Stańczyk\n" write
 ```
