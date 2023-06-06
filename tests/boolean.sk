@@ -10,4 +10,3 @@ true print
 
 "false value:\n" puts
 false print
-"-----------\n" puts
