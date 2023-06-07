@@ -65,3 +65,6 @@
 ;   bind a
 ;   (int)a 1 swap - (bool)
 ; .
+
+macro inc do 1 + .
+macro dec do 1 - .
