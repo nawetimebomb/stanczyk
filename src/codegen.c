@@ -284,11 +284,38 @@ static void generate_linux_x86() {
                                token->filename, token->line, token->column);
                 write_assembly(text, "    pop rax");
             } break;
+            case OP_DUP: {
+                write_assembly(text, ";; dup (%s:%d:%d)",
+                               token->filename, token->line, token->column);
+                write_assembly(text, "    pop rax");
+                write_assembly(text, "    push rax");
+                write_assembly(text, "    push rax");
+            } break;
             case OP_PRINT: {
                 write_assembly(text, ";; print (%s:%d:%d)",
                                token->filename, token->line, token->column);
                 write_assembly(text, "    pop rdi");
                 write_assembly(text, "    call print");
+            } break;
+            case OP_JUMP_IF_FALSE: {
+                int value = AS_INT(instruction.operand);
+                write_assembly(text, ";; do (%s:%d:%d)",
+                               token->filename, token->line, token->column);
+                write_assembly(text, "    pop rax");
+                write_assembly(text, "    test rax, rax");
+                write_assembly(text, "    jz ip_%d", value);
+            } break;
+            case OP_JUMP: {
+                int value = AS_INT(instruction.operand);
+                write_assembly(text, ";; else (%s:%d:%d)",
+                               token->filename, token->line, token->column);
+                write_assembly(text, "    jmp ip_%d", value);
+            } break;
+            case OP_LOOP: {
+                int value = AS_INT(instruction.operand);
+                write_assembly(text, ";; loop (%s:%d:%d)",
+                               token->filename, token->line, token->column);
+                write_assembly(text, "    jmp ip_%d", value);
             } break;
             case OP_SYSCALL3: {
                 write_assembly(text, ";; __SYSCALL3 (%s:%d:%d)",
@@ -308,7 +335,10 @@ static void generate_linux_x86() {
              *  |_|\_\___|\_, |\_/\_/\___/_| \__,_/__/
              *            |__/
              */
-            case OP_CAST: break;
+            case OP_CAST:
+            case OP_END_IF:
+            case OP_END_LOOP: break;
+
             case OP_EOC: {
                 write_assembly(text, ";; eof (%s:%d:%d)",
                                token->filename, token->line, token->column);
@@ -318,8 +348,6 @@ static void generate_linux_x86() {
             } return;
         }
     }
-    CODEGEN_ERROR("Sorry, this Operating System is not supported at this moment");
-
 #undef NEXT_BYTE
 }
 

@@ -27,6 +27,7 @@
  */
 #include <stdio.h>
 #include <stdarg.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "assembly.h"
@@ -61,7 +62,7 @@ void stop_assembly(Assembly *assembly) {
 
 void write_assembly(AssemblyChunk *chunk, const char *format, ...) {
     va_list args;
-    char *line = ALLOCATE_AMOUNT(char, 128);
+    char line[256];
     va_start(args, format);
     vsprintf(line, format, args);
     va_end(args);
@@ -76,5 +77,5 @@ void write_assembly(AssemblyChunk *chunk, const char *format, ...) {
     chunk->lines[chunk->count] = ALLOCATE_AMOUNT(char, len);
     memcpy(chunk->lines[chunk->count], line, len);
     chunk->count++;
-    FREE(char, line);
+    //FREE(char, line);
 }

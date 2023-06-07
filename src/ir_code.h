@@ -42,6 +42,7 @@ typedef enum {
     OP_CAST,
     OP_DIVIDE,
     OP_DROP,
+    OP_DUP,
     OP_EQUAL,
     OP_GREATER,
     OP_GREATER_EQUAL,
@@ -52,6 +53,13 @@ typedef enum {
     OP_NOT_EQUAL,
     OP_PRINT,
     OP_SUBSTRACT,
+
+    OP_IF,
+    OP_JUMP_IF_FALSE,
+    OP_JUMP,
+    OP_LOOP,
+    OP_END_IF,
+    OP_END_LOOP,
 
     // Syscalls
     // TODO: Replace with functions that pop to specific
