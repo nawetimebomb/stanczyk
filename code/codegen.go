@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"runtime"
 )
 
 type Codegen struct {
@@ -12,19 +13,28 @@ type Codegen struct {
 var codegen Codegen
 
 func getAsciiValues(s string) (string, int) {
-	result := ""
 	count := 0
+	nextEscaped := false
+	result := ""
 
-	for index := 0; index < len(s); index++ {
-		c := s[index]
-
+	for _, c := range s {
 		if c == '\\' {
-			index++
-			c = s[index]
+			nextEscaped = true
+			continue
+		}
+
+		if nextEscaped {
 			switch c {
-			case 't': c = 9
-			case 'n': c = 10
+			case 't':
+				result += "9,"
+				count++
+			case 'n':
+				result += "10,"
+				count++
 			}
+
+			nextEscaped = false
+			continue
 		}
 
 		val := fmt.Sprintf("%v,", c)
@@ -87,6 +97,11 @@ func generateLinuxX86() {
 
 		switch instruction {
 		// Constants
+		case OP_PUSH_BOOL:
+			boolText := map[int]string{1:"true", 0:"false"} [value.(int)]
+			asm.WriteText(";; %s (%s:%d:%d)", boolText, loc.f, loc.l, loc.c)
+			asm.WriteText("    mov rax, %d", value)
+			asm.WriteText("    push rax")
 		case OP_PUSH_INT:
 			asm.WriteText(";; %d (%s:%d:%d)", value, loc.f, loc.l, loc.c)
 			asm.WriteText("    mov rax, %d", value)
@@ -106,13 +121,39 @@ func generateLinuxX86() {
 			asm.WriteText("    pop rbx")
 			asm.WriteText("    add rax, rbx")
 			asm.WriteText("    push rax")
+		case OP_DIVIDE:
+			asm.WriteText(";; / (%s:%d:%d)", loc.f, loc.l, loc.c)
+			asm.WriteText("    xor rdx, rdx");
+			asm.WriteText("    pop rbx");
+			asm.WriteText("    pop rax");
+			asm.WriteText("    div rbx");
+			asm.WriteText("    push rax");
 		case OP_DROP:
 			asm.WriteText(";; drop (%s:%d:%d)", loc.f, loc.l, loc.c)
 			asm.WriteText("    pop rax")
+		case OP_MODULO:
+			asm.WriteText(";; % (%s:%d:%d)", loc.f, loc.l, loc.c)
+			asm.WriteText("    xor rdx, rdx");
+			asm.WriteText("    pop rbx");
+			asm.WriteText("    pop rax");
+			asm.WriteText("    div rbx");
+			asm.WriteText("    push rdx")
+		case OP_MULTIPLY:
+			asm.WriteText(";; * (%s:%d:%d)", loc.f, loc.l, loc.c)
+			asm.WriteText("    pop rax");
+			asm.WriteText("    pop rbx");
+			asm.WriteText("    mul rbx");
+			asm.WriteText("    push rax");
 		case OP_PRINT:
 			asm.WriteText(";; print (%s:%d:%d)", loc.f, loc.l, loc.c)
 			asm.WriteText("    pop rdi")
 			asm.WriteText("    call print")
+		case OP_SUBSTRACT:
+			asm.WriteText(";; - (%s:%d:%d)", loc.f, loc.l, loc.c)
+			asm.WriteText("    pop rbx");
+			asm.WriteText("    pop rax");
+			asm.WriteText("    sub rax, rbx");
+			asm.WriteText("    push rax");
 		case OP_SYSCALL3:
 			asm.WriteText(";; SYSCALL3 (%s:%d:%d)", loc.f, loc.l, loc.c)
 			asm.WriteText("    pop rax")
@@ -136,6 +177,10 @@ func CodegenRun(chunk Chunk, asm *Assembly) {
 	codegen.chunk = chunk
 	codegen.asm = asm
 
-	// TODO: Add different OS check
-	generateLinuxX86()
+	switch runtime.GOOS {
+	case "linux":
+		generateLinuxX86()
+	default:
+		Stanczyk.Error("OS currently not supported")
+	}
 }

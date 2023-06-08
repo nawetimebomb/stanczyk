@@ -4,13 +4,18 @@ type OpCode int
 
 const (
 	// Constants
-	OP_PUSH_INT OpCode = iota
+	OP_PUSH_BOOL OpCode = iota
+	OP_PUSH_INT
 	OP_PUSH_STR
 
 	// Intrinscis
 	OP_ADD
+	OP_DIVIDE
 	OP_DROP
+	OP_MODULO
+	OP_MULTIPLY
 	OP_PRINT
+	OP_SUBSTRACT
 	OP_SYSCALL3
 
 	// Special
