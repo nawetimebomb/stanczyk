@@ -161,7 +161,7 @@ macro LINUX_SYS_WRITE do 1 .
 ; const LINUX_SYS_TIMES          100 end
 
 ;; Helper macros
-macro write do stdout LINUX_SYS_WRITE __SYSCALL3 .
+macro write do stdout LINUX_SYS_WRITE syscall3   .
 macro puts  do write drop                        .
 ; macro read  set stdin  LINUX_SYS_READ  __SYS_CALL3 end
 ; macro write set stdout LINUX_SYS_WRITE __SYS_CALL3 end

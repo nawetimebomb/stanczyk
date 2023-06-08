@@ -9,5 +9,5 @@ jobs:
               run: |
                    sudo apt-get update
                    sudo apt-get install -qq gcc make yasm
-                   make release
+                   make go
                    bash ./test.sh
