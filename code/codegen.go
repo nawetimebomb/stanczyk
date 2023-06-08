@@ -15,7 +15,7 @@ var codegen Codegen
 func getAsciiValues(s string) (string, int) {
 	count := 0
 	nextEscaped := false
-	result := ""
+	ascii := ""
 
 	for _, c := range s {
 		if c == '\\' {
@@ -26,10 +26,10 @@ func getAsciiValues(s string) (string, int) {
 		if nextEscaped {
 			switch c {
 			case 't':
-				result += "9,"
+				ascii += "9,"
 				count++
 			case 'n':
-				result += "10,"
+				ascii += "10,"
 				count++
 			}
 
@@ -38,53 +38,53 @@ func getAsciiValues(s string) (string, int) {
 		}
 
 		val := fmt.Sprintf("%v,", c)
-		result += val
+		ascii += val
 		count++
 	}
 
-	return result, count
+	return ascii, count
 }
 
 func generateLinuxX86() {
 	asm := codegen.asm
 
-	asm.WriteText("section .text");
-    asm.WriteText("global _start");
-    asm.WriteText("print:");
-    asm.WriteText("    mov     r9, -3689348814741910323");
-    asm.WriteText("    sub     rsp, 40");
-    asm.WriteText("    mov     BYTE [rsp+31], 10");
-    asm.WriteText("    lea     rcx, [rsp+30]");
-    asm.WriteText(".L2:");
-    asm.WriteText("    mov     rax, rdi");
-    asm.WriteText("    lea     r8, [rsp+32]");
-    asm.WriteText("    mul     r9");
-    asm.WriteText("    mov     rax, rdi");
-    asm.WriteText("    sub     r8, rcx");
-    asm.WriteText("    shr     rdx, 3");
-    asm.WriteText("    lea     rsi, [rdx+rdx*4]");
-    asm.WriteText("    add     rsi, rsi");
-    asm.WriteText("    sub     rax, rsi");
-    asm.WriteText("    add     eax, 48");
-    asm.WriteText("    mov     BYTE [rcx], al");
-    asm.WriteText("    mov     rax, rdi");
-    asm.WriteText("    mov     rdi, rdx");
-    asm.WriteText("    mov     rdx, rcx");
-    asm.WriteText("    sub     rcx, 1");
-    asm.WriteText("    cmp     rax, 9");
-    asm.WriteText("    ja      .L2");
-    asm.WriteText("    lea     rax, [rsp+32]");
-    asm.WriteText("    mov     edi, 1");
-    asm.WriteText("    sub     rdx, rax");
-    asm.WriteText("    xor     eax, eax");
-    asm.WriteText("    lea     rsi, [rsp+32+rdx]");
-    asm.WriteText("    mov     rdx, r8");
-    asm.WriteText("    mov     rax, 1");
-    asm.WriteText("    syscall");
-    asm.WriteText("    add     rsp, 40");
-    asm.WriteText("    ret");
-    asm.WriteText("_start:");
-    asm.WriteText(";; user program definitions starts here");
+	asm.WriteText("section .text")
+    asm.WriteText("global _start")
+    asm.WriteText("print:")
+    asm.WriteText("    mov     r9, -3689348814741910323")
+    asm.WriteText("    sub     rsp, 40")
+    asm.WriteText("    mov     BYTE [rsp+31], 10")
+    asm.WriteText("    lea     rcx, [rsp+30]")
+    asm.WriteText(".L2:")
+    asm.WriteText("    mov     rax, rdi")
+    asm.WriteText("    lea     r8, [rsp+32]")
+    asm.WriteText("    mul     r9")
+    asm.WriteText("    mov     rax, rdi")
+    asm.WriteText("    sub     r8, rcx")
+    asm.WriteText("    shr     rdx, 3")
+    asm.WriteText("    lea     rsi, [rdx+rdx*4]")
+    asm.WriteText("    add     rsi, rsi")
+    asm.WriteText("    sub     rax, rsi")
+    asm.WriteText("    add     eax, 48")
+    asm.WriteText("    mov     BYTE [rcx], al")
+    asm.WriteText("    mov     rax, rdi")
+    asm.WriteText("    mov     rdi, rdx")
+    asm.WriteText("    mov     rdx, rcx")
+    asm.WriteText("    sub     rcx, 1")
+    asm.WriteText("    cmp     rax, 9")
+    asm.WriteText("    ja      .L2")
+    asm.WriteText("    lea     rax, [rsp+32]")
+    asm.WriteText("    mov     edi, 1")
+    asm.WriteText("    sub     rdx, rax")
+    asm.WriteText("    xor     eax, eax")
+    asm.WriteText("    lea     rsi, [rsp+32+rdx]")
+    asm.WriteText("    mov     rdx, r8")
+    asm.WriteText("    mov     rax, 1")
+    asm.WriteText("    syscall")
+    asm.WriteText("    add     rsp, 40")
+    asm.WriteText("    ret")
+    asm.WriteText("_start:")
+    asm.WriteText(";; user program definitions starts here")
 
 	asm.WriteData("section .data")
 
@@ -107,12 +107,12 @@ func generateLinuxX86() {
 			asm.WriteText("    mov rax, %d", value)
 			asm.WriteText("    push rax")
 		case OP_PUSH_STR:
-			str, length := getAsciiValues(value.(string))
-			asm.WriteText(";; %s (%s:%d:%d)", value, loc.f, loc.l, loc.c)
+			ascii, length := getAsciiValues(value.(string))
+			asm.WriteText(";; \"%s\" (%s:%d:%d)", value, loc.f, loc.l, loc.c)
 			asm.WriteText("    mov rax, %d", length)
 			asm.WriteText("    push rax")
 			asm.WriteText("    push str_%d", len(asm.data))
-			asm.WriteData("str_%d: db %s", len(asm.data), str)
+			asm.WriteData("str_%d: db %s", len(asm.data), ascii)
 
 		// Intrinsics
 		case OP_ADD:
@@ -123,37 +123,37 @@ func generateLinuxX86() {
 			asm.WriteText("    push rax")
 		case OP_DIVIDE:
 			asm.WriteText(";; / (%s:%d:%d)", loc.f, loc.l, loc.c)
-			asm.WriteText("    xor rdx, rdx");
-			asm.WriteText("    pop rbx");
-			asm.WriteText("    pop rax");
-			asm.WriteText("    div rbx");
-			asm.WriteText("    push rax");
+			asm.WriteText("    xor rdx, rdx")
+			asm.WriteText("    pop rbx")
+			asm.WriteText("    pop rax")
+			asm.WriteText("    div rbx")
+			asm.WriteText("    push rax")
+			asm.WriteText("    push rdx")
 		case OP_DROP:
 			asm.WriteText(";; drop (%s:%d:%d)", loc.f, loc.l, loc.c)
 			asm.WriteText("    pop rax")
-		case OP_MODULO:
-			asm.WriteText(";; % (%s:%d:%d)", loc.f, loc.l, loc.c)
-			asm.WriteText("    xor rdx, rdx");
-			asm.WriteText("    pop rbx");
-			asm.WriteText("    pop rax");
-			asm.WriteText("    div rbx");
-			asm.WriteText("    push rdx")
 		case OP_MULTIPLY:
 			asm.WriteText(";; * (%s:%d:%d)", loc.f, loc.l, loc.c)
-			asm.WriteText("    pop rax");
-			asm.WriteText("    pop rbx");
-			asm.WriteText("    mul rbx");
-			asm.WriteText("    push rax");
+			asm.WriteText("    pop rax")
+			asm.WriteText("    pop rbx")
+			asm.WriteText("    mul rbx")
+			asm.WriteText("    push rax")
 		case OP_PRINT:
 			asm.WriteText(";; print (%s:%d:%d)", loc.f, loc.l, loc.c)
 			asm.WriteText("    pop rdi")
 			asm.WriteText("    call print")
 		case OP_SUBSTRACT:
 			asm.WriteText(";; - (%s:%d:%d)", loc.f, loc.l, loc.c)
-			asm.WriteText("    pop rbx");
-			asm.WriteText("    pop rax");
-			asm.WriteText("    sub rax, rbx");
-			asm.WriteText("    push rax");
+			asm.WriteText("    pop rbx")
+			asm.WriteText("    pop rax")
+			asm.WriteText("    sub rax, rbx")
+			asm.WriteText("    push rax")
+		case OP_SWAP:
+			asm.WriteText(";; swap (%s:%d:%d)", loc.f, loc.l, loc.c)
+			asm.WriteText("    pop rax")
+			asm.WriteText("    pop rbx")
+			asm.WriteText("    push rax")
+			asm.WriteText("    push rbx")
 		case OP_SYSCALL3:
 			asm.WriteText(";; SYSCALL3 (%s:%d:%d)", loc.f, loc.l, loc.c)
 			asm.WriteText("    pop rax")

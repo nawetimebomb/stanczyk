@@ -66,5 +66,7 @@
 ;   (int)a 1 swap - (bool)
 ; .
 
-macro inc do 1 + .
-macro dec do 1 - .
+macro ++ do 1 + .
+macro -- do 1 - .
+macro / do div drop .
+macro % do div swap drop .

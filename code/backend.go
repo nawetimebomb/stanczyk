@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os/exec"
 	"strings"
 )
@@ -16,10 +17,18 @@ func BackendRun() {
 
 	if Stanczyk.options.clean {
 		_, err = exec.Command("rm", "output.o").Output()
+		_, err = exec.Command("rm", "output.asm").Output()
 	}
 
-	// if Stanczyk.options.run {
-	// 	_, err = exec.Command("./output").Output()
-	// 	check(err)
-	// }
+	if Stanczyk.options.run {
+		b := new(strings.Builder)
+		cmd := exec.Command("./output")
+		cmd.Stdout = b
+		cmd.Run()
+		fmt.Print(b.String())
+
+		if Stanczyk.options.clean {
+			_, err = exec.Command("rm", "output").Output()
+		}
+	}
 }

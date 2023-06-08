@@ -10,28 +10,32 @@ type TokenType int
 
 const (
 	// Constants
-	TOKEN_FALSE TokenType = iota
-	TOKEN_INT
+	TOKEN_INT TokenType = iota
 	TOKEN_STR
-	TOKEN_TRUE
 
-	// Intrinsics
-	TOKEN_DROP
-	TOKEN_MINUS
-	TOKEN_PERCENT
-	TOKEN_PLUS
-	TOKEN_PRINT
-	TOKEN_SLASH
-	TOKEN_STAR
-	TOKEN_SYSCALL3
-
-	// Keywords
+	// Reserved Words
+	TOKEN_BANG_EQUAL
+	TOKEN_DIV
 	TOKEN_DO
 	TOKEN_DOT
+	TOKEN_DROP
+	TOKEN_EQUAL
+	TOKEN_FALSE
+	TOKEN_GREATER
+	TOKEN_GREATER_EQUAL
+	TOKEN_LESS
+	TOKEN_LESS_EQUAL
 	TOKEN_MACRO
+	TOKEN_MINUS
+	TOKEN_PLUS
+	TOKEN_PRINT
+	TOKEN_STAR
+	TOKEN_SWAP
+	TOKEN_SYSCALL3
+	TOKEN_TRUE
 	TOKEN_USING
 
-	// Special
+	// Specials
 	TOKEN_EOF
 	TOKEN_WORD
 )
@@ -41,15 +45,23 @@ type reserved struct {
 	typ  TokenType
 }
 
-var reservedWords = [8]reserved{
+var reservedWords = [16]reserved{
+	reserved{name: "+",         typ: TOKEN_PLUS},
+	reserved{name: "-",         typ: TOKEN_MINUS},
+	reserved{name: "*",         typ: TOKEN_STAR},
+	reserved{name: ".",         typ: TOKEN_DOT},
+	reserved{name: "=",         typ: TOKEN_EQUAL},
+	reserved{name: "!=",        typ: TOKEN_BANG_EQUAL},
+	reserved{name: "div",		typ: TOKEN_DIV},
 	reserved{name: "do",		typ: TOKEN_DO},
 	reserved{name: "drop",      typ: TOKEN_DROP},
 	reserved{name: "false",		typ: TOKEN_FALSE},
 	reserved{name: "macro",		typ: TOKEN_MACRO},
 	reserved{name: "print",		typ: TOKEN_PRINT},
+	reserved{name: "swap",      typ: TOKEN_SWAP},
+	reserved{name: "syscall3",	typ: TOKEN_SYSCALL3},
 	reserved{name: "true",		typ: TOKEN_TRUE},
 	reserved{name: "using",		typ: TOKEN_USING},
-	reserved{name: "syscall3",	typ: TOKEN_SYSCALL3},
 }
 
 type Location struct {
@@ -149,15 +161,12 @@ func TokenizeFile(f string, s string) []Token {
 			}
 
 			switch {
-			case c == '+': makeToken(TOKEN_PLUS)
-			case c == '-': makeToken(TOKEN_MINUS)
-			case c == '*': makeToken(TOKEN_STAR)
-			case c == '/': makeToken(TOKEN_SLASH)
-			case c == '%': makeToken(TOKEN_PERCENT)
-			case c == '.': makeToken(TOKEN_DOT)
-			case c == '"': makeString(c, line, &index)
-			case IsDigit(c): makeNumber(c, line, &index)
-			default: makeWord(c, line, &index)
+			case c == '"':
+				makeString(c, line, &index)
+			case IsDigit(c):
+				makeNumber(c, line, &index)
+			default:
+				makeWord(c, line, &index)
 			}
 		}
 

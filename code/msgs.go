@@ -1,31 +1,30 @@
 package main
 
 const (
-	_BOLD_      = "\033[1m"
-	_RED_       = "\033[31m"
-	_RESET_     = "\033[0m"
-	_UNDERLINE_ = "\033[4m"
-)
-
-const (
-	CodeOK = iota
-	CodeCliError
-)
-
-const (
 	TodoRemoveCliCannotGetDirectory = "Unable to find compiler directory, this is required to make the compiler work, and if not provided we cannot continue. [COMPILER BUG]\n\nFile Reporting: %s\nOS Reported error: %s"
 
-	MsgCliPrefix = _RED_ + "[Stanczyk]" + _RESET_
-	MsgCliUnknownArgument = "argument %s is not a known argument. Please, check the allowed arguments by using: skc help"
+	MsgCliPrefix = "[Stanczyk] "
+	MsgErrorPrefix = "%s:%d:%d: "
+
+	MsgCliUnknownArgument =
+		"argument %s is not a known argument. Please, check the allowed arguments by using: skc help"
 	MsgCliUnknownCommand =
 		"first argument should be a known command, but instead got %s\nE.g.\n" +
-			"\tskc run myfile.sk\n" + _RED_ +
-			"\t    ^^^" + _RESET_
+			"\tskc run myfile.sk\n" +
+			"\t    ^^^"
 	MsgCliWelcome =
-		_BOLD_ + "Usage:\n" + _RESET_ +
-			"\tskc " + _UNDERLINE_ + "command" + _RESET_ + " [arguments]\n" +
-			_BOLD_ + "Commands:\n" + _RESET_ +
+		"Usage:\n" +
+			"\tskc <command> [arguments]\n" +
+			"Commands:\n" +
 			"\tbuild  compile the entry .sk file and it's includes.\n" +
 			"\trun    same as 'build', but it runs the result and cleans up the executable.\n\n" +
 			"For more information about what the compiler can do, you can use: skc help.\n"
+
+	MsgParseMacroMissingWord =
+		"a valid word is expected after the macro definition symbol\nE.g.:\n" +
+			"\t:> my-macro : [...] .\n" +
+			"\t   ^^^^^^^^\n" +
+			"Name may be any word starting with a lowercase or uppercase character, but it may contain numbers, _ or -"
+
+	MsgParseWordNotFound = "undefined word %s"
 )
