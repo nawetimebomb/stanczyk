@@ -68,17 +68,15 @@ func logo() {
 ███████║   ██║   ██║  ██║██║ ╚████║╚██████╗███████╗   ██║   ██║  ██╗
 ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝╚══════╝   ╚═╝   ╚═╝  ╚═╝
                                                The Stańczyk Compiler`
-	fmt.Printf(_RED_ + "%s\n" + _RESET_, logo)
+	fmt.Printf("\033[31m%s\n\033[0m", logo)
 }
 
 func (this *CLI) Error(e string, val ...any) {
 	errorMessage := fmt.Sprintf(e, val...)
 
-	fmt.Fprintf(os.Stderr,
-		_BOLD_ + _RED_ + "ERROR: " + _RESET_ + "%s\n",
-		errorMessage)
+	fmt.Fprintf(os.Stderr, "ERROR: %s\n", errorMessage)
 	this.Welcome()
-	os.Exit(CodeCliError)
+	ExitWithError(CodeCliError)
 }
 
 func (this *CLI) Help() {
@@ -96,5 +94,5 @@ func (this *CLI) Message(e string, val ...any) {
 func (this *CLI) Welcome() {
 	logo()
     fmt.Fprintf(os.Stderr, MsgCliWelcome)
-	os.Exit(CodeCliError)
+	ExitWithError(CodeCliError)
 }

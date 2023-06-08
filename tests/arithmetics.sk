@@ -4,61 +4,65 @@ using "io"
 ;; Description:
 ;    Simple arithmetics test. Printing the results so they can be compared.
 
-"2 + 2 = 4  " puts
-2 2 +                print
+"2 + 2 = 4  "   puts
+2 2 +           print
 "-----------\n" puts
 
 "10 + 1 + 2 = 13  " puts
-10 1 + 2 +           print
-"-----------\n" puts
+10 1 + 2 +          print
+"-----------\n"     puts
 
 "2 + 3 + 5 + 3 = 13  " puts
-2 3 + 5 + 3 +        print
+2 3 + 5 + 3 +          print
+"-----------\n"        puts
+
+"2 - 2 = 0  "   puts
+2 2 -           print
 "-----------\n" puts
 
-"2 - 2 = 0  " puts
-2 2 -                print
-"-----------\n" puts
-
-"25 - 3 - 9 = 13  " puts
+"25 - 3 - 9 = 13  "  puts
 25 3 - 9 -           print
-"-----------\n" puts
+"-----------\n"      puts
 
 "50 - 10 - 20 - 3 - 4 = 13  " puts
-50 10 - 20 - 3 - 4 - print
-"-----------\n" puts
+50 10 - 20 - 3 - 4 -          print
+"-----------\n"               puts
 
-"2 * 3 = 6  " puts
-2 3 *                print
+"2 * 3 = 6  "   puts
+2 3 *           print
 "-----------\n" puts
 
 "2 * 2 * 2 = 8  " puts
-2 2 * 2 *            print
-"-----------\n" puts
+2 2 * 2 *         print
+"-----------\n"   puts
 
 "2 * 2 * 2 * 2 * 2 = 32  " puts
-2 2 2 2 2 * * * *    print
-"-----------\n" puts
+2 2 2 2 2 * * * *          print
+"-----------\n"            puts
 
-"10 / 2 = 5  " puts
-10 2 /               print
+"10 / 2 = 5  "  puts
+10 2 /          print
 "-----------\n" puts
 
 "32 / (2 / 2 / 2) = 16  " puts
-32 2 2 2 / / /       print
-"-----------\n" puts
+32 2 2 2 / / /            print
+"-----------\n"           puts
 
 "((32 / 2) / 2) / 2 = 4  " puts
-32 2 / 2 / 2 /       print
-"-----------\n" puts
+32 2 / 2 / 2 /             print
+"-----------\n"            puts
 
-"10 % 3 = 1  " puts
-10 3 %               print
+"10 % 3 = 1  "  puts
+10 3 %          print
 "-----------\n" puts
 
 "3 + 4 + 7 - 1 = 13  " puts
-3 4 + 7 + 1 -        print
-"-----------\n" puts
+3 4 + 7 + 1 -          print
+"-----------\n"        puts
 
 "10 / 5 + 3 * 5 - 12 = 13  " puts
-10 5 / 3 + 5 * 12 -  print
+10 5 / 3 + 5 * 12 -          print
+"-----------\n"              puts
+
+"10 ++ ++ ++ ++ -- = 13  " puts
+10 ++ ++ ++ ++ --          print
