@@ -110,22 +110,42 @@ func parseToken(token Token) {
 
 	switch token.typ {
 	// Constants
+	case TOKEN_FALSE:
+		code.op = OP_PUSH_BOOL
+		code.value = 0
+		emit(code)
 	case TOKEN_INT:
 		code.op = OP_PUSH_INT
 		emit(code)
 	case TOKEN_STR:
 		code.op = OP_PUSH_STR
 		emit(code)
+	case TOKEN_TRUE:
+		code.op = OP_PUSH_BOOL
+		code.value = 1
+		emit(code)
 
 	// Intrinsics
 	case TOKEN_DROP:
 		code.op = OP_DROP
+		emit(code)
+	case TOKEN_MINUS:
+		code.op = OP_SUBSTRACT
+		emit(code)
+	case TOKEN_PERCENT:
+		code.op = OP_MODULO
 		emit(code)
 	case TOKEN_PLUS:
 		code.op = OP_ADD
 		emit(code)
 	case TOKEN_PRINT:
 		code.op = OP_PRINT
+		emit(code)
+	case TOKEN_SLASH:
+		code.op = OP_DIVIDE
+		emit(code)
+	case TOKEN_STAR:
+		code.op = OP_MULTIPLY
 		emit(code)
 	case TOKEN_SYSCALL3:
 		code.op = OP_SYSCALL3
@@ -142,19 +162,32 @@ func compile(index int) {
 	source := file.source[index]
 	tokens := TokenizeFile(filename, source)
 
-	for index := 0; index < len(tokens); index++ {
-		token := tokens[index]
+	skipNext := false
+	skipUntilBlockEnds := false
 
-		// TODO: There should be a better way to handle these
+	for _, token := range tokens {
+		// TODO: There should be a way where I just parse this by block reference
+		if skipNext {
+			skipNext = false
+			continue
+		}
+
 		if token.typ == TOKEN_MACRO {
-			for token.typ != TOKEN_DOT {
-				index++
-				token = tokens[index]
-			}
+			skipUntilBlockEnds = true
+			continue
+		}
+
+		if token.typ == TOKEN_DOT && skipUntilBlockEnds {
+			skipUntilBlockEnds = false
+			continue
+		}
+
+		if skipUntilBlockEnds {
+			continue
 		}
 
 		if token.typ == TOKEN_USING {
-			index++
+			skipNext = true
 			continue
 		}
 
