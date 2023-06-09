@@ -4,7 +4,8 @@ const (
 	TodoRemoveCliCannotGetDirectory = "Unable to find compiler directory, this is required to make the compiler work, and if not provided we cannot continue. [COMPILER BUG]\n\nFile Reporting: %s\nOS Reported error: %s"
 
 	MsgCliPrefix = "[Stanczyk] "
-	MsgErrorPrefix = "%s:%d:%d: "
+	MsgErrorPrefix = "%s:%d:%d:"
+
 
 	MsgCliUnknownArgument =
 		"argument %s is not a known argument. Please, check the allowed arguments by using: skc help"
@@ -20,11 +21,28 @@ const (
 			"\trun    same as 'build', but it runs the result and cleans up the executable.\n\n" +
 			"For more information about what the compiler can do, you can use: skc help.\n"
 
+
 	MsgParseMacroMissingWord =
-		"a valid word is expected after the macro definition symbol\nE.g.:\n" +
-			"\t:> my-macro : [...] .\n" +
-			"\t   ^^^^^^^^\n" +
-			"Name may be any word starting with a lowercase or uppercase character, but it may contain numbers, _ or -"
+		"invalid or missing word\n" +
+			"macro name required. Name may be any word except for the reserved ones\n" +
+			"\t\tmacro my-macro do [...] .\n" +
+			"\t\t      ^^^^^^^^"
+	MsgParseMacroMissingDo =
+		"missing 'do' keyword\n" +
+			"blocks in Stańczyk use the keyword do for block initiation\n" +
+			"\t\tmacro my-macro do [...] .\n" +
+			"\t\t               ^^"
+	MsgParseMacroMissingContent =
+		"empty macro\n" +
+			"macros must have content in Stańczyk\n" +
+			"\t\tmacro my-macro do [...] .\n" +
+			"\t\t                  ^^^^^"
+	MsgParseMacroMissingDot =
+		"missing '.'\n" +
+			"macro definition must end with a '.' (dot)\n" +
+			"\t\tmacro my-macro do [...] .\n" +
+			"\t\t                        ^"
+
 
 	MsgParseWordNotFound = "undefined word %s"
 )
