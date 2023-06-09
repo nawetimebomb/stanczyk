@@ -43,6 +43,12 @@ const (
 			"\t\tmacro my-macro do [...] .\n" +
 			"\t\t                        ^"
 
+	MsgParseDoOrphanTokenFound =
+		"only use 'do' when starting a block statement\nE.g.:\n\tif [condition] do [...] else [...] .\n\t^^             ^^\n'do' can be used in other blocks like function and loops"
+
+	MsgParseElseOrphanTokenFound =
+		"only use 'else' after starting an 'if' statement\nE.g.:\n\tif [condition] do [...] else [...] .\n\t^^                      ^^^^"
+
 
 	MsgParseWordNotFound = "undefined word %s"
 )

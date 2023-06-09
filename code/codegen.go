@@ -132,12 +132,71 @@ func generateLinuxX86() {
 		case OP_DROP:
 			asm.WriteText(";; drop (%s:%d:%d)", loc.f, loc.l, loc.c)
 			asm.WriteText("    pop rax")
+		case OP_DUP:
+			asm.WriteText(";; dup (%s:%d:%d)", loc.f, loc.l, loc.c)
+			asm.WriteText("    pop rax")
+			asm.WriteText("    push rax")
+			asm.WriteText("    push rax")
+		case OP_EQUAL:
+			asm.WriteText(";; = (%s:%d:%d)", loc.f, loc.l, loc.c)
+			asm.WriteText("    xor rcx, rcx")
+			asm.WriteText("    mov rdx, 1")
+			asm.WriteText("    pop rax")
+			asm.WriteText("    pop rbx")
+			asm.WriteText("    cmp rax, rbx")
+			asm.WriteText("    cmove rcx, rdx")
+			asm.WriteText("    push rcx")
+		case OP_GREATER:
+			asm.WriteText(";; > (%s:%d:%d)", loc.f, loc.l, loc.c)
+			asm.WriteText("    xor rcx, rcx")
+			asm.WriteText("    mov rdx, 1")
+			asm.WriteText("    pop rbx")
+			asm.WriteText("    pop rax")
+			asm.WriteText("    cmp rax, rbx")
+			asm.WriteText("    cmovg rcx, rdx")
+			asm.WriteText("    push rcx")
+		case OP_GREATER_EQUAL:
+			asm.WriteText(";; >= (%s:%d:%d)", loc.f, loc.l, loc.c)
+			asm.WriteText("    xor rcx, rcx")
+			asm.WriteText("    mov rdx, 1")
+			asm.WriteText("    pop rbx")
+			asm.WriteText("    pop rax")
+			asm.WriteText("    cmp rax, rbx")
+			asm.WriteText("    cmovge rcx, rdx")
+			asm.WriteText("    push rcx")
+		case OP_LESS:
+			asm.WriteText(";; < (%s:%d:%d)", loc.f, loc.l, loc.c)
+			asm.WriteText("    xor rcx, rcx")
+			asm.WriteText("    mov rdx, 1")
+			asm.WriteText("    pop rbx")
+			asm.WriteText("    pop rax")
+			asm.WriteText("    cmp rax, rbx")
+			asm.WriteText("    cmovl rcx, rdx")
+			asm.WriteText("    push rcx")
+		case OP_LESS_EQUAL:
+			asm.WriteText(";; <= (%s:%d:%d)", loc.f, loc.l, loc.c)
+			asm.WriteText("    xor rcx, rcx")
+			asm.WriteText("    mov rdx, 1")
+			asm.WriteText("    pop rbx")
+			asm.WriteText("    pop rax")
+			asm.WriteText("    cmp rax, rbx")
+			asm.WriteText("    cmovle rcx, rdx")
+			asm.WriteText("    push rcx")
 		case OP_MULTIPLY:
 			asm.WriteText(";; * (%s:%d:%d)", loc.f, loc.l, loc.c)
 			asm.WriteText("    pop rax")
 			asm.WriteText("    pop rbx")
 			asm.WriteText("    mul rbx")
 			asm.WriteText("    push rax")
+		case OP_NOT_EQUAL:
+			asm.WriteText(";; != (%s:%d:%d)", loc.f, loc.l, loc.c)
+			asm.WriteText("    xor rcx, rcx")
+			asm.WriteText("    mov rdx, 1")
+			asm.WriteText("    pop rax")
+			asm.WriteText("    pop rbx")
+			asm.WriteText("    cmp rax, rbx")
+			asm.WriteText("    cmovne rcx, rdx")
+			asm.WriteText("    push rcx")
 		case OP_PRINT:
 			asm.WriteText(";; print (%s:%d:%d)", loc.f, loc.l, loc.c)
 			asm.WriteText("    pop rdi")
@@ -164,6 +223,22 @@ func generateLinuxX86() {
 			asm.WriteText("    push rax")
 
 		// Special
+		case OP_END_IF, OP_END_LOOP:
+			asm.WriteText(";; . (%s:%d:%d)", loc.f, loc.l, loc.c)
+		case OP_IF:
+			asm.WriteText(";; if (%s:%d:%d)", loc.f, loc.l, loc.c)
+		case OP_JUMP:
+			asm.WriteText(";; else (%s:%d:%d)", loc.f, loc.l, loc.c)
+			asm.WriteText("    jmp ip_%d", value)
+		case OP_JUMP_IF_FALSE:
+			asm.WriteText(";; do (%s:%d:%d)", loc.f, loc.l, loc.c)
+			asm.WriteText("    pop rax")
+			asm.WriteText("    test rax, rax")
+			asm.WriteText("    jz ip_%d", value)
+		case OP_LOOP:
+			asm.WriteText(";; loop (%s:%d:%d)", loc.f, loc.l, loc.c)
+			asm.WriteText("    jmp ip_%d", value)
+
 		case OP_EOC:
 			asm.WriteText(";; user program definition ends here")
 			asm.WriteText("    mov rax, 60")
