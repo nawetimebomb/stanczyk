@@ -10,7 +10,7 @@ if true do
 .
 "-----------\n" puts
 
-"if false -> (nothing)  \n" puts
+"if false -> (nothing)\n" puts
 if false do
   13 print
 .
@@ -27,7 +27,7 @@ else
 "loop 0 to 5\n" puts
 0 loop dup 5 <= do
   dup print
-  inc
+  ++
 . drop
 "-----------\n" puts
 
@@ -36,7 +36,7 @@ else
   if dup 2 % 0 != do
     dup print
   .
-  inc
+  ++
 . drop
 "-----------\n" puts
 
@@ -45,7 +45,7 @@ else
   if dup 2 % 0 = do
     dup print
   .
-  inc
+  ++
 . drop
 "-----------\n" puts
 
@@ -54,6 +54,6 @@ else
   if dup 3 % 0 = do
     dup print
   .
-  dec
+  --
 . drop
 "-----------\n" puts

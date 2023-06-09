@@ -19,12 +19,16 @@ const (
 	TOKEN_DO
 	TOKEN_DOT
 	TOKEN_DROP
+	TOKEN_DUP
+	TOKEN_ELSE
 	TOKEN_EQUAL
 	TOKEN_FALSE
 	TOKEN_GREATER
 	TOKEN_GREATER_EQUAL
+	TOKEN_IF
 	TOKEN_LESS
 	TOKEN_LESS_EQUAL
+	TOKEN_LOOP
 	TOKEN_MACRO
 	TOKEN_MINUS
 	TOKEN_PLUS
@@ -45,23 +49,31 @@ type reserved struct {
 	typ  TokenType
 }
 
-var reservedWords = [16]reserved{
-	reserved{name: "+",         typ: TOKEN_PLUS},
-	reserved{name: "-",         typ: TOKEN_MINUS},
-	reserved{name: "*",         typ: TOKEN_STAR},
-	reserved{name: ".",         typ: TOKEN_DOT},
-	reserved{name: "=",         typ: TOKEN_EQUAL},
-	reserved{name: "!=",        typ: TOKEN_BANG_EQUAL},
-	reserved{name: "div",		typ: TOKEN_DIV},
-	reserved{name: "do",		typ: TOKEN_DO},
-	reserved{name: "drop",      typ: TOKEN_DROP},
-	reserved{name: "false",		typ: TOKEN_FALSE},
-	reserved{name: "macro",		typ: TOKEN_MACRO},
-	reserved{name: "print",		typ: TOKEN_PRINT},
-	reserved{name: "swap",      typ: TOKEN_SWAP},
-	reserved{name: "syscall3",	typ: TOKEN_SYSCALL3},
-	reserved{name: "true",		typ: TOKEN_TRUE},
-	reserved{name: "using",		typ: TOKEN_USING},
+var reservedWords = [24]reserved{
+	reserved{typ: TOKEN_PLUS,			name: "+"		},
+	reserved{typ: TOKEN_MINUS,			name: "-"		},
+	reserved{typ: TOKEN_STAR,			name: "*"		},
+	reserved{typ: TOKEN_DOT,			name: "."		},
+	reserved{typ: TOKEN_EQUAL,			name: "="		},
+	reserved{typ: TOKEN_BANG_EQUAL,		name: "!="		},
+	reserved{typ: TOKEN_GREATER,		name: ">"		},
+	reserved{typ: TOKEN_GREATER_EQUAL,	name: ">="		},
+	reserved{typ: TOKEN_LESS,			name: "<"		},
+	reserved{typ: TOKEN_LESS_EQUAL,		name: "<="		},
+	reserved{typ: TOKEN_DIV,			name: "div"		},
+	reserved{typ: TOKEN_DO,				name: "do"		},
+	reserved{typ: TOKEN_DROP,			name: "drop"	},
+	reserved{typ: TOKEN_DUP,			name: "dup"		},
+	reserved{typ: TOKEN_ELSE,			name: "else"	},
+	reserved{typ: TOKEN_FALSE,			name: "false"	},
+	reserved{typ: TOKEN_IF,				name: "if"		},
+	reserved{typ: TOKEN_LOOP,			name: "loop"	},
+	reserved{typ: TOKEN_MACRO,			name: "macro"	},
+	reserved{typ: TOKEN_PRINT,			name: "print"	},
+	reserved{typ: TOKEN_SWAP,			name: "swap"	},
+	reserved{typ: TOKEN_SYSCALL3,		name: "syscall3"},
+	reserved{typ: TOKEN_TRUE,			name: "true"	},
+	reserved{typ: TOKEN_USING,			name: "using"	},
 }
 
 type Location struct {
