@@ -154,20 +154,27 @@ func makeWord(c byte, line string, index *int) {
 
 func crossRefMacros() {
 	scope := 0
-	macroIndex := 0
+	macroIndex := -1
 
 	for index, token := range scanner.tokens {
-		// TODO: Handle errors like when scope == 0 and TOKEN_DOT exists
+		tt := token.typ
 
-		if token.typ == TOKEN_MACRO {
+		switch {
+		case tt == TOKEN_MACRO:
 			scope++
 			macroIndex = index
-		}
-
-		if scope > 0 && token.typ == TOKEN_DOT {
-			scope--
-			if scope == 0 {
-				scanner.tokens[macroIndex].value = index
+		case tt == TOKEN_IF, tt == TOKEN_LOOP:
+			scope++
+		case tt == TOKEN_DOT:
+			if scope > 0 {
+				scope--
+				if scope == 0 && macroIndex != -1 {
+					scanner.tokens[macroIndex].value = index
+					macroIndex = -1
+			 	}
+			} else {
+				ReportErrorAtLocation(MsgParseMacroMissingDot, token.loc)
+				ExitWithError(CodeParseError)
 			}
 		}
 	}

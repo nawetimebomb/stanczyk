@@ -11,10 +11,15 @@ const (
 	CodeOK ErrorCode = iota
 	CodeCliError
 	CodeParseError
+	CodeTypecheckError
 )
 
-func ReportParseError(msg string, file string, line int, column int) {
-	prefix := fmt.Sprintf(MsgErrorPrefix, file, line, column)
+func ReportErrorAtEOF(msg string) {
+	fmt.Fprintf(os.Stderr, "Error at end of file: %s\n", msg);
+}
+
+func ReportErrorAtLocation(msg string, loc Location) {
+	prefix := fmt.Sprintf(MsgErrorPrefix, loc.f, loc.l, loc.c)
 	fmt.Fprintf(os.Stderr, "%s %s\n", prefix, msg);
 }
 
