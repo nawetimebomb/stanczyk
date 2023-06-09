@@ -9,7 +9,6 @@ type Parser struct {
 	current  Token
 	tokens   []Token
 	index    int
-	length   int
 }
 
 type Macro struct {
@@ -55,7 +54,6 @@ func errorAt(token *Token, format string, values ...any) {
 func startParser(filename string, source string) {
 	parser.index = 0
 	parser.tokens = TokenizeFile(filename, source)
-	parser.length = len(parser.tokens)
 	parser.current = parser.tokens[parser.index]
 }
 
@@ -67,8 +65,8 @@ func advance() {
 
 func jumpTo(index int) {
 	parser.index = index
-	parser.previous = parser.tokens[index]
-	parser.current = parser.tokens[index + 1]
+	parser.current = parser.tokens[index]
+	advance()
 }
 
 func consume(tt TokenType, err string) {
@@ -148,11 +146,10 @@ func preprocess(index int) {
 	source := file.source[index]
 
 	startParser(filename, source)
+
 	for !check(TOKEN_EOF) {
 		advance()
-		token := parser.previous
-
-		switch token.typ {
+		switch parser.previous.typ {
 		case TOKEN_MACRO: macroStatement()
 		case TOKEN_USING:
 			advance()
@@ -241,6 +238,9 @@ func parseToken(token Token) {
 	case TOKEN_MINUS:
 		code.op = OP_SUBSTRACT
 		emit(code)
+	case TOKEN_OVER:
+		code.op = OP_OVER
+		emit(code)
 	case TOKEN_PLUS:
 		code.op = OP_ADD
 		emit(code)
@@ -311,11 +311,6 @@ func parseToken(token Token) {
 		} else {
 			errorAt(&token, "TODO add error orphan dot")
 		}
-
-	case TOKEN_USING:
-		advance()
-	case TOKEN_MACRO:
-		jumpTo(code.value.(int))
 	}
 }
 
@@ -327,7 +322,18 @@ func compile(index int) {
 
 	for !check(TOKEN_EOF) {
 		advance()
-		parseToken(parser.previous)
+		token := parser.previous
+
+		switch token.typ {
+		case TOKEN_USING:
+			advance()
+			continue
+		case TOKEN_MACRO:
+			jumpTo(token.value.(int))
+			continue
+		}
+
+		parseToken(token)
 	}
 }
 

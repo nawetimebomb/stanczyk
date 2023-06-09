@@ -197,6 +197,13 @@ func generateLinuxX86() {
 			asm.WriteText("    cmp rax, rbx")
 			asm.WriteText("    cmovne rcx, rdx")
 			asm.WriteText("    push rcx")
+		case OP_OVER:
+			asm.WriteText(";; over (%s:%d:%d)", loc.f, loc.l, loc.c)
+			asm.WriteText("    pop rax")
+			asm.WriteText("    pop rbx")
+			asm.WriteText("    push rbx")
+			asm.WriteText("    push rax")
+			asm.WriteText("    push rbx")
 		case OP_PRINT:
 			asm.WriteText(";; print (%s:%d:%d)", loc.f, loc.l, loc.c)
 			asm.WriteText("    pop rdi")

@@ -16,7 +16,7 @@ const (
 
 type Typecheck struct {
 	chunk      Chunk
-	stack      [32]DataType
+	stack      [10]DataType
 	stackCount int
 	scope      int
 }
@@ -168,6 +168,13 @@ func typecheckApplication() {
 		case OP_JUMP_IF_FALSE:
 			a := tc.pop()
 			assertArgumentType(dtArray(a), dtArray(DATA_BOOL), instruction, loc)
+		case OP_OVER:
+			b := tc.pop()
+			a := tc.pop()
+			assertArgumentType(dtArray(a, b), dtArray(DATA_ANY, DATA_ANY), instruction, loc)
+			tc.push(a)
+			tc.push(b)
+			tc.push(a)
 		case OP_PRINT:
 			a := tc.pop()
 			assertArgumentType(dtArray(a), dtArray(DATA_ANY), instruction, loc)
