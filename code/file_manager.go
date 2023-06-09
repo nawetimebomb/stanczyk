@@ -13,7 +13,7 @@ type FileManager struct {
 
 func getParsedSourceFile(path string) string {
 	f, err := os.Open(path)
-	check(err, "file_manager.go-1")
+	CheckError(err, "file_manager.go-1")
 	defer f.Close()
 
 	var result strings.Builder
@@ -79,7 +79,7 @@ func (this *FileManager) Open(filename string) {
 	}
 
 	_, err := os.Stat(path)
-	check(err, "file_manager.go-2")
+	CheckError(err, "file_manager.go-2")
 
 	this.filename = append(this.filename, path)
 	this.source = append(this.source, getParsedSourceFile(path))

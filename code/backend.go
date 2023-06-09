@@ -11,9 +11,9 @@ func BackendRun() {
 	linkerArgs := strings.Split("-o output output.o", " ")
 
 	_, err := exec.Command("yasm", compilerArgs...).Output()
-	check(err, "backend.go-1")
+	CheckError(err, "backend.go-1")
 	_, err = exec.Command("ld", linkerArgs...).Output()
-	check(err, "backend.go-2")
+	CheckError(err, "backend.go-2")
 
 	if Stanczyk.options.clean {
 		_, err = exec.Command("rm", "output.o").Output()
