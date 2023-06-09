@@ -64,7 +64,7 @@ func RunTasks() {
 	FrontendRun(&chunk)
 
 	timedFunction(stepTypecheck)
-	// typecheck.Run()
+	TypecheckRun(chunk)
 
 	timedFunction(stepCodegen)
 	CodegenRun(chunk, &asm)

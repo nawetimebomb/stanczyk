@@ -22,6 +22,11 @@ const (
 			"For more information about what the compiler can do, you can use: skc help.\n"
 
 
+	/*    ___ ___  __  __ ___ ___ _      _ _____ ___ ___  _  _
+	 *   / __/ _ \|  \/  | _ \_ _| |    /_\_   _|_ _/ _ \| \| |
+	 *  | (_| (_) | |\/| |  _/| || |__ / _ \| |  | | (_) | .` |
+	 *   \___\___/|_|  |_|_| |___|____/_/ \_\_| |___\___/|_|\_|
+	 */
 	MsgParseMacroMissingWord =
 		"invalid or missing word\n" +
 			"macro name required. Name may be any word except for the reserved ones\n" +
@@ -51,4 +56,23 @@ const (
 
 
 	MsgParseWordNotFound = "undefined word %s"
+
+
+
+	/*   _______   _____ ___ ___ _  _ ___ ___ _  __
+	 *  |_   _\ \ / / _ \ __/ __| || | __/ __| |/ /
+	 *    | |  \ V /|  _/ _| (__| __ | _| (__| ' <
+	 *    |_|   |_| |_| |___\___|_||_|___\___|_|\_\
+	 */
+	MsgTypecheckNotEnoughArguments =
+		"not enough arguments to call %s\n" +
+			"\thave (%d)\n" +
+			"\twant (%d)"
+	MsgTypecheckArgumentsTypeMismatch =
+		"not enough arguments to call %s\n" +
+			"\thave (%s)\n" +
+			"\twant (%s)"
+	MsgTypecheckUnhandledStack =
+		"unhandled stack values\n" +
+			"\t(%s)"
 )
