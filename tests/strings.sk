@@ -3,9 +3,10 @@ using "io"
 ;; Test: strings
 ;; Description:
 ;    String writing and string length checking
+function main do
+  ; Check the length
+  "Hello, World\n" drop print
 
-; Check the length
-"Hello, World\n" drop print
-
-; Print something
-"Hello, Stańczyk!\n" puts
+  ; Print something
+  "Hello, Stańczyk!\n" puts
+.

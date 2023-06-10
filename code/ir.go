@@ -10,12 +10,15 @@ const (
 
 	// Intrinscis
 	OP_ADD
+	OP_CALL
 	OP_DIVIDE
 	OP_DROP
 	OP_DUP
+	OP_END_FUNC
 	OP_END_IF
 	OP_END_LOOP
 	OP_EQUAL
+	OP_FUNC_DEFINE
 	OP_GREATER
 	OP_GREATER_EQUAL
 	OP_IF
@@ -40,6 +43,7 @@ type Code struct {
 	loc   Location
 	op    OpCode
 	value any
+	id    int
 }
 
 type Chunk struct {

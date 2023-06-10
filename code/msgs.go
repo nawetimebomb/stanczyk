@@ -54,8 +54,32 @@ const (
 	MsgParseElseOrphanTokenFound =
 		"only use 'else' after starting an 'if' statement\nE.g.:\n\tif [condition] do [...] else [...] .\n\t^^                      ^^^^"
 
+	MsgParseDotOrphanTokenFound =
+		"'.' must have an associated block\n" +
+			"E.g.:\n" +
+			"\t\tif [condition] do [...] else [...] .\n" +
+			"\t\t^^                                 ^\n"
+
+	MsgParseCallMainFunctionMissing =
+		"entry point is not defined\n" +
+			"define a 'main' function"
+
 
 	MsgParseWordNotFound = "undefined word %s"
+
+	MsgParseErrorProgramScope =
+		"cannot do this in global scope"
+
+	MsgParseFunctionMissingName =
+		"invalid or missing word\n" +
+			"function name is required\n" +
+			"\t\tfunction my-func do [...] . \n" +
+			"\t\t         ^^^^^^^"
+	MsgParseFunctionMissingDo =
+		"missing 'do' keyword\n" +
+			"blocks in Stańczyk use the keyword do for block initiation\n" +
+			"\t\tfunction my-func do [...] .\n" +
+			"\t\t                 ^^"
 
 
 
