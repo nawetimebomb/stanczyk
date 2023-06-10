@@ -3,38 +3,39 @@ using "io"
 ;; Test: comparison
 ;; Description:
 ;    Comparing values and checking the results
+function main do
+  "equal\n" puts
+  "2 2 = -> 1 " puts 2 2 = print
+  "2 3 = -> 0 " puts 2 3 = print
+  "3 2 = -> 0 " puts 3 2 = print
+  "-----------\n" puts
 
-"equal\n" puts
-"2 2 = -> 1 " puts 2 2 = print
-"2 3 = -> 0 " puts 2 3 = print
-"3 2 = -> 0 " puts 3 2 = print
-"-----------\n" puts
+  "not equal\n" puts
+  "2 3 != -> 1 " puts 2 3 != print
+  "3 2 != -> 1 " puts 3 2 != print
+  "2 2 != -> 0 " puts 2 2 != print
+  "-----------\n" puts
 
-"not equal\n" puts
-"2 3 != -> 1 " puts 2 3 != print
-"3 2 != -> 1 " puts 3 2 != print
-"2 2 != -> 0 " puts 2 2 != print
-"-----------\n" puts
+  "less\n" puts
+  "3 2 > -> 1 " puts 3 2 > print
+  "2 3 > -> 0 " puts 2 3 > print
+  "3 3 > -> 0 " puts 3 3 > print
+  "-----------\n" puts
 
-"less\n" puts
-"3 2 > -> 1 " puts 3 2 > print
-"2 3 > -> 0 " puts 2 3 > print
-"3 3 > -> 0 " puts 3 3 > print
-"-----------\n" puts
+  "less equal\n" puts
+  "3 3 >= -> 1 " puts 3 3 >= print
+  "3 2 >= -> 1 " puts 3 2 >= print
+  "2 3 >= -> 0 " puts 2 3 >= print
+  "-----------\n" puts
 
-"less equal\n" puts
-"3 3 >= -> 1 " puts 3 3 >= print
-"3 2 >= -> 1 " puts 3 2 >= print
-"2 3 >= -> 0 " puts 2 3 >= print
-"-----------\n" puts
+  "greater\n" puts
+  "2 3 < -> 1 " puts 2 3 < print
+  "3 2 < -> 0 " puts 3 2 < print
+  "2 2 < -> 0 " puts 2 2 < print
+  "-----------\n" puts
 
-"greater\n" puts
-"2 3 < -> 1 " puts 2 3 < print
-"3 2 < -> 0 " puts 3 2 < print
-"2 2 < -> 0 " puts 2 2 < print
-"-----------\n" puts
-
-"greater equal\n" puts
-"2 2 <= -> 1 " puts 2 2 <= print
-"2 3 <= -> 1 " puts 2 3 <= print
-"3 2 <= -> 0 " puts 3 2 <= print
+  "greater equal\n" puts
+  "2 2 <= -> 1 " puts 2 2 <= print
+  "2 3 <= -> 1 " puts 2 3 <= print
+  "3 2 <= -> 0 " puts 3 2 <= print
+.

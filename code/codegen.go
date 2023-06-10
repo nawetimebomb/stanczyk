@@ -84,9 +84,16 @@ func generateLinuxX86() {
     asm.WriteText("    add     rsp, 40")
     asm.WriteText("    ret")
     asm.WriteText("_start:")
+	asm.WriteText("    mov rax, ret_stack_end")
+	asm.WriteText("    mov [ret_stack_rsp], rax")
     asm.WriteText(";; user program definitions starts here")
 
 	asm.WriteData("section .data")
+
+	asm.WriteBss("section .bss")
+	asm.WriteBss("ret_stack_rsp: resq 1")
+	asm.WriteBss("ret_stack: resb 65536")
+	asm.WriteBss("ret_stack_end:")
 
 	for index, code := range codegen.chunk.code {
 		instruction := code.op
@@ -121,6 +128,13 @@ func generateLinuxX86() {
 			asm.WriteText("    pop rbx")
 			asm.WriteText("    add rax, rbx")
 			asm.WriteText("    push rax")
+		case OP_CALL:
+			asm.WriteText(";; fs_%d (%s:%d:%d)", value, loc.f, loc.l, loc.c)
+			asm.WriteText("    mov rax, rsp")
+			asm.WriteText("    mov rsp, [ret_stack_rsp]")
+			asm.WriteText("    call fs_%d", value)
+			asm.WriteText("    mov [ret_stack_rsp], rsp")
+			asm.WriteText("    mov rsp, rax")
 		case OP_DIVIDE:
 			asm.WriteText(";; / (%s:%d:%d)", loc.f, loc.l, loc.c)
 			asm.WriteText("    xor rdx, rdx")
@@ -146,6 +160,13 @@ func generateLinuxX86() {
 			asm.WriteText("    cmp rax, rbx")
 			asm.WriteText("    cmove rcx, rdx")
 			asm.WriteText("    push rcx")
+		case OP_FUNC_DEFINE:
+			asm.WriteText(";; function (%s:%d:%d)", loc.f, loc.l, loc.c)
+			asm.WriteText("    jmp ip_%d", value)
+			asm.WriteText("fs_%d:", code.id)
+			asm.WriteText("    sub rsp, 8")
+			asm.WriteText("    mov [ret_stack_rsp], rsp")
+			asm.WriteText("    mov rsp, rax")
 		case OP_GREATER:
 			asm.WriteText(";; > (%s:%d:%d)", loc.f, loc.l, loc.c)
 			asm.WriteText("    xor rcx, rcx")
@@ -230,8 +251,17 @@ func generateLinuxX86() {
 			asm.WriteText("    push rax")
 
 		// Special
-		case OP_END_IF, OP_END_LOOP:
-			asm.WriteText(";; . (%s:%d:%d)", loc.f, loc.l, loc.c)
+		case OP_END_IF:
+			asm.WriteText(";; . [if] (%s:%d:%d)", loc.f, loc.l, loc.c)
+		case OP_END_LOOP:
+			asm.WriteText(";; . [loop] (%s:%d:%d)", loc.f, loc.l, loc.c)
+		case OP_END_FUNC:
+			asm.WriteText(";; . [function] (%s:%d:%d)", loc.f, loc.l, loc.c)
+			asm.WriteText("fe_%d:", code.id)
+			asm.WriteText("    mov rax, rsp")
+			asm.WriteText("    mov rsp, [ret_stack_rsp]")
+			asm.WriteText("    add rsp, 8")
+			asm.WriteText("    ret")
 		case OP_IF:
 			asm.WriteText(";; if (%s:%d:%d)", loc.f, loc.l, loc.c)
 		case OP_JUMP:
@@ -245,6 +275,7 @@ func generateLinuxX86() {
 		case OP_LOOP:
 			asm.WriteText(";; loop (%s:%d:%d)", loc.f, loc.l, loc.c)
 			asm.WriteText("    jmp ip_%d", value)
+
 
 		case OP_EOC:
 			asm.WriteText(";; user program definition ends here")

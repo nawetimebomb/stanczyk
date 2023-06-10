@@ -4,6 +4,13 @@ import (
 	"fmt"
 )
 
+type ScopeName int
+
+const (
+	SCOPE_PROGRAM ScopeName = iota
+	SCOPE_FUNCTION
+)
+
 type Parser struct {
 	previous Token
 	current  Token
@@ -16,18 +23,26 @@ type Macro struct {
 	tokens []Token
 }
 
+type Function struct {
+	name  string
+	arity int
+	id    int
+}
+
 type Scope struct {
-	tt     TokenType
-	thenIP int
-	loopIP int
+	tt       TokenType
+	thenIP   int
+	loopIP   int
 }
 
 type Frontend struct {
-	error   bool
-	current	*Chunk
-	macros  []Macro
-	sLevel  int
-	scope   [255]Scope
+	error     bool
+	current	  *Chunk
+	macros    []Macro
+	functions []Function
+	sLevel    int
+	sName     ScopeName
+	scope     [255]Scope
 }
 
 var file FileManager
@@ -100,6 +115,27 @@ func emit(code Code) {
 	frontend.current.Write(code)
 }
 
+func emitCallMainFunction() {
+	mainId := -1
+	for _, f := range frontend.functions {
+		if f.name == "main" {
+			mainId = f.id
+			break
+		}
+	}
+
+	if mainId == -1 {
+		ReportErrorAtEOF(MsgParseCallMainFunctionMissing)
+		ExitWithError(CodeParseError)
+	}
+
+	code := Code{
+		op: OP_CALL,
+		value: mainId,
+	}
+	emit(code)
+}
+
 func emitEndOfCode() {
 	code := Code{
 		op: OP_EOC,
@@ -163,24 +199,65 @@ func preprocess(index int) {
  *  | (_| (_) | |\/| |  _/| || |__ / _ \| |  | | (_) | .` |
  *   \___\___/|_|  |_|_| |___|____/_/ \_\_| |___\___/|_|\_|
  */
-func expandMacro(token Token) {
+func expandMacro(index int) {
+	for _, t := range frontend.macros[index].tokens {
+		parseToken(t)
+	}
+}
+
+func expandWord(token Token) {
 	word := token.value
-	macroIndex := -1
 
 	for x, m := range frontend.macros {
 		if m.word == word {
-			macroIndex = x
-			break
+			expandMacro(x)
+			return
 		}
 	}
 
-	if macroIndex == -1 {
-		errorAt(&token, MsgParseWordNotFound, word)
-		return
+	for _, f := range frontend.functions {
+		if f.name == word {
+			code := Code{ op: OP_CALL, loc: token.loc, value: f.id, }
+			emit(code)
+			return
+		}
 	}
 
-	for _, t := range frontend.macros[macroIndex].tokens {
-		parseToken(t)
+	msg := fmt.Sprintf(MsgParseWordNotFound, word)
+	errorAt(&token, msg)
+}
+
+func defineFunction(token Token) {
+	var startCode Code
+	sLevel := &frontend.sLevel
+
+	if !match(TOKEN_WORD) {
+		errorAt(&token, MsgParseFunctionMissingName)
+		ExitWithError(CodeParseError)
+	}
+
+	word := parser.previous
+	name := word.value.(string)
+	id := len(frontend.functions)
+
+	*sLevel++
+	frontend.scope[*sLevel].tt = token.typ
+	frontend.scope[*sLevel].thenIP = len(frontend.current.code)
+
+	startCode.op = OP_FUNC_DEFINE
+	startCode.loc = word.loc
+	startCode.id = id
+	emit(startCode)
+
+	frontend.functions = append(frontend.functions, Function{
+		name: name, arity: 0, id: id,
+	})
+
+	consume(TOKEN_DO, MsgParseFunctionMissingDo)
+
+	for *sLevel == 0 {
+		advance()
+		parseToken(parser.previous)
 	}
 }
 
@@ -189,6 +266,13 @@ func parseToken(token Token) {
 	code.loc = token.loc
 	code.value = token.value
 	sLevel := &frontend.sLevel
+
+	if frontend.sName == SCOPE_PROGRAM {
+		if token.typ != TOKEN_FUNCTION {
+			ReportErrorAtLocation(MsgParseErrorProgramScope, token.loc)
+			ExitWithError(CodeParseError)
+		}
+	}
 
 	switch token.typ {
 	// Constants
@@ -259,7 +343,10 @@ func parseToken(token Token) {
 
 	// Special
 	case TOKEN_WORD:
-		expandMacro(token)
+		expandWord(token)
+	case TOKEN_FUNCTION:
+		frontend.sName = SCOPE_FUNCTION
+		defineFunction(token)
 	case TOKEN_IF:
 		*sLevel++
 		frontend.scope[*sLevel].tt = token.typ
@@ -304,12 +391,19 @@ func parseToken(token Token) {
 				endLoop.loc = token.loc
 				endLoop.op = OP_END_LOOP
 				emit(endLoop)
+			case TOKEN_FUNCTION:
+				frontend.sName = SCOPE_PROGRAM
+				var endCode Code
+				endCode.op = OP_END_FUNC
+				endCode.loc = token.loc
+				endCode.id = frontend.current.code[cScope.thenIP].id
+				emit(endCode)
 			}
 
 			frontend.current.code[cScope.thenIP].value = len(frontend.current.code)
 			*sLevel--
 		} else {
-			errorAt(&token, "TODO add error orphan dot")
+			errorAt(&token, MsgParseDotOrphanTokenFound)
 		}
 	}
 }
@@ -362,5 +456,6 @@ func FrontendRun(chunk *Chunk) {
 		ExitWithError(CodeParseError)
 	}
 
+	emitCallMainFunction()
 	emitEndOfCode()
 }
