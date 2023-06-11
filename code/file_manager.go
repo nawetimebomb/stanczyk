@@ -6,9 +6,14 @@ import (
 	"strings"
 )
 
+type File struct {
+	filename string
+	source   string
+	internal bool
+}
+
 type FileManager struct {
-	filename []string
-	source   []string
+	files []File
 }
 
 func getParsedSourceFile(path string) string {
@@ -69,38 +74,23 @@ func getParsedSourceFile(path string) string {
 	return result.String()
 }
 
-func (this *FileManager) SortFilesForCompiling() {
-	var newFilenames []string
-	var newSources []string
-
-	for i, _ := range this.filename {
-		if i == 1 {
-			continue
-		}
-
-		newFilenames = append(newFilenames, this.filename[i])
-		newSources = append(newSources, this.source[i])
-	}
-
-	newFilenames = append(newFilenames, this.filename[1])
-	newSources = append(newSources, this.source[1])
-
-	this.filename = newFilenames
-	this.source = newSources
-}
-
 func (this *FileManager) Open(filename string) {
 	path := ""
+	internal := false
 
 	if (strings.Contains(filename, ".sk")) {
 		path = Stanczyk.workspace.pDir + "/" + filename
 	} else {
 		path = Stanczyk.workspace.cDir + "/libs/" + filename + ".sk"
+		internal = true
 	}
 
 	_, err := os.Stat(path)
 	CheckError(err, "file_manager.go-2")
 
-	this.filename = append(this.filename, path)
-	this.source = append(this.source, getParsedSourceFile(path))
+	this.files = append(this.files, File{
+		filename: path,
+		source: getParsedSourceFile(path),
+		internal: internal,
+	})
 }

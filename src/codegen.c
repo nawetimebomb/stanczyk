@@ -68,8 +68,8 @@ static char *str_ascii(String *str) {
         if (c == '\\') {
             c = *++str->chars;
             switch (c) {
-                case 'n': sprintf(num, "%d", 10); break;
                 case 't': sprintf(num, "%d", 9);  break;
+                case 'n': sprintf(num, "%d", 10); break;
             }
         } else {
             sprintf(num, "%u", (u8)c);

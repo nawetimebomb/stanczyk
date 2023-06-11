@@ -15,6 +15,7 @@ type Parser struct {
 	previous Token
 	current  Token
 	tokens   []Token
+	internal bool
 	index    int
 }
 
@@ -60,10 +61,11 @@ func errorAt(token *Token, format string, values ...any) {
  *  |  _/ _ \|   /\__ \ _||   /
  *  |_|/_/ \_\_|_\|___/___|_|_\
  */
-func startParser(filename string, source string) {
+func startParser(f File) {
 	parser.index = 0
-	parser.tokens = TokenizeFile(filename, source)
+	parser.tokens = TokenizeFile(f.filename, f.source)
 	parser.current = parser.tokens[parser.index]
+	parser.internal = f.internal
 }
 
 func advance() {
@@ -152,10 +154,10 @@ func newMacro() {
 
 func newFunction(token Token) {
 	var function Function
+	emitSyscall := token.typ == TOKEN_FUNCTION_STAR
 	function.ip = len(TheProgram.chunks)
 	function.loc = token.loc
-	function.sys = token.typ == TOKEN_FUNCTION_STAR
-
+	function.internal = parser.internal
 	frontend.current = &function
 
 	if !match(TOKEN_WORD) {
@@ -222,7 +224,7 @@ func newFunction(token Token) {
 		parseToken(parser.previous)
 	}
 
-	if function.sys {
+	if emitSyscall {
 		emit(Code{
 			op: OP_SYSCALL,
 			loc: function.loc,
@@ -235,10 +237,9 @@ func newFunction(token Token) {
 }
 
 func compile(index int) {
-	filename := file.filename[index]
-	source := file.source[index]
+	f := file.files[index]
 
-	startParser(filename, source)
+	startParser(f)
 
 	for !check(TOKEN_EOF) {
 		advance()
@@ -428,7 +429,7 @@ func FrontendRun() {
 	// User entry file
 	file.Open(Stanczyk.workspace.entry)
 
-	for index := 0; index < len(file.filename); index++ {
+	for index := 0; index < len(file.files); index++ {
 		compile(index)
 	}
 
