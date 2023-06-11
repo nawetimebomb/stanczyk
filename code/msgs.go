@@ -71,15 +71,23 @@ const (
 		"cannot do this in global scope"
 
 	MsgParseFunctionMissingName =
-		"invalid or missing word\n" +
-			"function name is required\n" +
-			"\t\tfunction my-func do [...] . \n" +
+		"invalid or missing function name\n" +
+			"\t\tfunction my-func do [...] .\n" +
 			"\t\t         ^^^^^^^"
+	MsgParseFunctionUnknownType =
+		"type '%s' is unknown"
+	MsgParseFunctionNoReturnSpecified =
+		"no return values specified after '->'\n" +
+			"\t\tfunction my-func -> do [...] .\n" +
+			"\t\t                 ^^"
 	MsgParseFunctionMissingDo =
 		"missing 'do' keyword\n" +
-			"blocks in Stańczyk use the keyword do for block initiation\n" +
 			"\t\tfunction my-func do [...] .\n" +
 			"\t\t                 ^^"
+	MsgParseFunctionMissingDot =
+		"missing '.'\n" +
+			"\t\tfunction my-func do [...] .\n" +
+			"\t\t                          ^"
 
 
 
@@ -88,15 +96,16 @@ const (
 	 *    | |  \ V /|  _/ _| (__| __ | _| (__| ' <
 	 *    |_|   |_| |_| |___\___|_||_|___\___|_|\_\
 	 */
-	MsgTypecheckNotEnoughArguments =
-		"not enough arguments to call %s\n" +
-			"\thave (%d)\n" +
-			"\twant (%d)"
+	MsgTypecheckMainFunctionNoArgumentsOrReturn =
+		"function main must have no arguments and no return values"
 	MsgTypecheckArgumentsTypeMismatch =
-		"not enough arguments to call %s\n" +
-			"\thave (%s)\n" +
-			"\twant (%s)"
-	MsgTypecheckUnhandledStack =
+		"incorrect arguments to call %s\n" +
+			"\t\thave (%s)\n" +
+			"\t\twant (%s)"
+	MsgTypecheckNotExplicitlyReturned =
 		"unhandled stack values\n" +
-			"\t(%s)"
+			"\t\tfunction %s\n" +
+			"\t\t(%s)"
+	MsgTypecheckMissingEntryPoint =
+		"function main is undeclared"
 )
