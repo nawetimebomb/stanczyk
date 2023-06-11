@@ -10,15 +10,12 @@ const (
 
 	// Intrinscis
 	OP_ADD
-	OP_CALL
 	OP_DIVIDE
 	OP_DROP
 	OP_DUP
-	OP_END_FUNC
 	OP_END_IF
 	OP_END_LOOP
 	OP_EQUAL
-	OP_FUNC_DEFINE
 	OP_GREATER
 	OP_GREATER_EQUAL
 	OP_IF
@@ -31,25 +28,51 @@ const (
 	OP_NOT_EQUAL
 	OP_OVER
 	OP_PRINT
+	OP_RET
 	OP_SUBSTRACT
 	OP_SWAP
-	OP_SYSCALL3
+	OP_SYSCALL
 
 	// Special
+	OP_WORD
 	OP_EOC
 )
+
+type DataType int
+
+const (
+	DATA_EMPTY DataType = iota
+	DATA_BOOL
+	DATA_INT
+	DATA_PTR
+	DATA_ANY
+)
+
+type Program struct {
+	chunks []Function
+}
+
+type Function struct {
+	name   string
+	loc    Location
+	args   []DataType
+	rets   []DataType
+	code   []Code
+	called bool
+	sys    bool
+	ip     int
+}
 
 type Code struct {
 	loc   Location
 	op    OpCode
 	value any
-	id    int
 }
 
 type Chunk struct {
 	code []Code
 }
 
-func (this *Chunk) Write(code Code) {
+func (this *Function) WriteCode(code Code) {
 	this.code = append(this.code, code)
 }

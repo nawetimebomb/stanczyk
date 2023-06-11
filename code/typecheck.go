@@ -4,19 +4,10 @@ import (
 	"fmt"
 )
 
-type DataType int
-
-const (
-	DATA_EMPTY DataType = iota
-	DATA_BOOL
-	DATA_INT
-	DATA_PTR
-	DATA_ANY
-)
+const STACK_SIZE = 10
 
 type Typecheck struct {
-	chunk      Chunk
-	stack      [10]DataType
+	stack      [STACK_SIZE]DataType
 	stackCount int
 	scope      int
 }
@@ -37,9 +28,9 @@ func getStackValues() string {
 	return r
 }
 
-func getOperationName(op OpCode) string {
+func getOperationName(code Code) string {
 	name := "Unhandled"
-	switch op {
+	switch code.op {
 	case OP_ADD: name = "+ (add)"
 	case OP_DIVIDE: name = "div"
 	case OP_DROP: name = "drop"
@@ -47,6 +38,7 @@ func getOperationName(op OpCode) string {
 	case OP_PRINT: name = "print"
 	case OP_SUBSTRACT: name = "- (substract)"
 	case OP_SWAP: name = "swap"
+	case OP_WORD: name = code.value.(string)
 	}
 
 	return name
@@ -77,7 +69,7 @@ func getDataTypeNames(dt []DataType) string {
 	return r
 }
 
-func assertArgumentType(test []DataType, want []DataType, op OpCode, loc Location) {
+func assertArgumentType(test []DataType, want []DataType, code Code, loc Location) {
 	errFound := false
 
 	for i, t := range test {
@@ -96,10 +88,15 @@ func assertArgumentType(test []DataType, want []DataType, op OpCode, loc Locatio
 
 	if errFound {
 		msg := fmt.Sprintf(MsgTypecheckArgumentsTypeMismatch,
-			getOperationName(op), getDataTypeNames(test), getDataTypeNames(want))
+			getOperationName(code), getDataTypeNames(test), getDataTypeNames(want))
 		ReportErrorAtLocation(msg, loc)
 		ExitWithError(CodeTypecheckError)
 	}
+}
+
+func (this *Typecheck) reset() {
+	this.stack = [STACK_SIZE]DataType{}
+	this.stackCount = 0
 }
 
 func (this *Typecheck) push(t DataType) {
@@ -125,86 +122,125 @@ func dtArray(values ...DataType) []DataType {
 	return r
 }
 
-func typecheckApplication() {
-	for _, code := range tc.chunk.code {
-		instruction := code.op
-		loc := code.loc
-
-		switch instruction {
-		// Constants
-		case OP_PUSH_BOOL:
-			tc.push(DATA_BOOL)
-		case OP_PUSH_INT:
-			tc.push(DATA_INT)
-		case OP_PUSH_STR:
-			tc.push(DATA_INT)
-			tc.push(DATA_PTR)
-
-		// Intrinsics
-		case OP_ADD, OP_SUBSTRACT, OP_MULTIPLY:
-			b := tc.pop()
-			a := tc.pop()
-			assertArgumentType(dtArray(a, b), dtArray(DATA_INT, DATA_INT), instruction, loc)
-			tc.push(DATA_INT)
-		case OP_DIVIDE:
-			b := tc.pop()
-			a := tc.pop()
-			assertArgumentType(dtArray(a, b), dtArray(DATA_INT, DATA_INT), instruction, loc)
-			tc.push(DATA_INT)
-			tc.push(DATA_INT)
-		case OP_DROP:
-			a := tc.pop()
-			assertArgumentType(dtArray(a), dtArray(DATA_ANY), instruction, loc)
-		case OP_DUP:
-			a := tc.pop()
-			assertArgumentType(dtArray(a), dtArray(DATA_ANY), instruction, loc)
-			tc.push(a)
-			tc.push(a)
-		case OP_EQUAL, OP_NOT_EQUAL, OP_GREATER, OP_GREATER_EQUAL, OP_LESS, OP_LESS_EQUAL:
-			b := tc.pop()
-			a := tc.pop()
-			assertArgumentType(dtArray(a, b), dtArray(DATA_INT, DATA_INT), instruction, loc)
-			tc.push(DATA_BOOL)
-		case OP_JUMP_IF_FALSE:
-			a := tc.pop()
-			assertArgumentType(dtArray(a), dtArray(DATA_BOOL), instruction, loc)
-		case OP_OVER:
-			b := tc.pop()
-			a := tc.pop()
-			assertArgumentType(dtArray(a, b), dtArray(DATA_ANY, DATA_ANY), instruction, loc)
-			tc.push(a)
-			tc.push(b)
-			tc.push(a)
-		case OP_PRINT:
-			a := tc.pop()
-			assertArgumentType(dtArray(a), dtArray(DATA_ANY), instruction, loc)
-		case OP_SYSCALL3:
-			d := tc.pop()
-			c := tc.pop()
-			b := tc.pop()
-			a := tc.pop()
-			assertArgumentType(dtArray(a, b, c, d),
-				dtArray(DATA_INT, DATA_PTR, DATA_INT, DATA_INT), instruction, loc)
-			tc.push(DATA_INT)
-		case OP_SWAP:
-			b := tc.pop()
-			a := tc.pop()
-			assertArgumentType(dtArray(a, b), dtArray(DATA_ANY, DATA_ANY), instruction, loc)
-			tc.push(b)
-			tc.push(a)
-
-		case OP_EOC:
-			if tc.stackCount > 0 {
-				msg := fmt.Sprintf(MsgTypecheckUnhandledStack, getStackValues())
-				ReportErrorAtEOF(msg)
+func TypecheckRun() {
+	mainHandled := false
+	for _, function := range TheProgram.chunks {
+		if function.name == "main" {
+			mainHandled = true
+			if len(function.args) > 0 || len(function.rets) > 0 {
+				ReportErrorAtLocation(MsgTypecheckMainFunctionNoArgumentsOrReturn, function.loc)
 				ExitWithError(CodeTypecheckError)
 			}
 		}
+
+		expectedReturnCount := len(function.rets)
+
+		for _, dt := range function.args {
+			tc.push(dt)
+		}
+
+		for _, code := range function.code {
+			instruction := code.op
+			loc := code.loc
+
+			switch instruction {
+			// Constants
+			case OP_PUSH_BOOL:
+				tc.push(DATA_BOOL)
+			case OP_PUSH_INT:
+				tc.push(DATA_INT)
+			case OP_PUSH_STR:
+				tc.push(DATA_INT)
+				tc.push(DATA_PTR)
+
+				// Intrinsics
+			case OP_ADD, OP_SUBSTRACT, OP_MULTIPLY:
+				b := tc.pop()
+				a := tc.pop()
+				assertArgumentType(dtArray(a, b), dtArray(DATA_INT, DATA_INT), code, loc)
+				tc.push(DATA_INT)
+			case OP_DIVIDE:
+				b := tc.pop()
+				a := tc.pop()
+				assertArgumentType(dtArray(a, b), dtArray(DATA_INT, DATA_INT), code, loc)
+				tc.push(DATA_INT)
+				tc.push(DATA_INT)
+			case OP_DROP:
+				a := tc.pop()
+				assertArgumentType(dtArray(a), dtArray(DATA_ANY), code, loc)
+			case OP_DUP:
+				a := tc.pop()
+				assertArgumentType(dtArray(a), dtArray(DATA_ANY), code, loc)
+				tc.push(a)
+				tc.push(a)
+			case OP_EQUAL, OP_NOT_EQUAL, OP_GREATER, OP_GREATER_EQUAL, OP_LESS, OP_LESS_EQUAL:
+				b := tc.pop()
+				a := tc.pop()
+				assertArgumentType(dtArray(a, b), dtArray(DATA_INT, DATA_INT), code, loc)
+				tc.push(DATA_BOOL)
+			case OP_JUMP_IF_FALSE:
+				a := tc.pop()
+				assertArgumentType(dtArray(a), dtArray(DATA_BOOL), code, loc)
+			case OP_OVER:
+				b := tc.pop()
+				a := tc.pop()
+				assertArgumentType(dtArray(a, b), dtArray(DATA_ANY, DATA_ANY), code, loc)
+				tc.push(a)
+				tc.push(b)
+				tc.push(a)
+			case OP_PRINT:
+				a := tc.pop()
+				assertArgumentType(dtArray(a), dtArray(DATA_ANY), code, loc)
+			case OP_SWAP:
+				b := tc.pop()
+				a := tc.pop()
+				assertArgumentType(dtArray(a, b), dtArray(DATA_ANY, DATA_ANY), code, loc)
+				tc.push(b)
+				tc.push(a)
+
+			// Special
+			case OP_SYSCALL:
+				var have []DataType
+
+				for range function.args {
+					t := tc.pop()
+					have = append([]DataType{t}, have...)
+				}
+
+				assertArgumentType(have, function.args, code, loc)
+
+				for _, dt := range function.rets {
+					tc.push(dt)
+				}
+			case OP_WORD:
+				var have []DataType
+				fnCall := FindFunction(code)
+
+				for range fnCall.args {
+					t := tc.pop()
+					have = append([]DataType{t}, have...)
+				}
+
+				assertArgumentType(have, fnCall.args, code, loc)
+
+				for _, dt := range fnCall.rets {
+					tc.push(dt)
+				}
+			}
+		}
+
+		if tc.stackCount != expectedReturnCount {
+			msg := fmt.Sprintf(MsgTypecheckNotExplicitlyReturned,
+				function.name, getStackValues())
+			ReportErrorAtEOF(msg)
+			ExitWithError(CodeTypecheckError)
+		}
+
+		tc.reset()
 	}
-}
 
-func TypecheckRun(chunk Chunk) {
-	tc.chunk = chunk
-
-	typecheckApplication()
+	if !mainHandled {
+		ReportErrorAtEOF(MsgTypecheckMissingEntryPoint)
+		ExitWithError(CodeTypecheckError)
+	}
 }

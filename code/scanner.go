@@ -13,6 +13,11 @@ const (
 	TOKEN_INT TokenType = iota
 	TOKEN_STR
 
+	// Types
+	TOKEN_DTYPE_BOOL
+	TOKEN_DTYPE_INT
+	TOKEN_DTYPE_PTR
+
 	// Reserved Words
 	TOKEN_BANG_EQUAL
 	TOKEN_DIV
@@ -36,9 +41,9 @@ const (
 	TOKEN_OVER
 	TOKEN_PLUS
 	TOKEN_PRINT
+	TOKEN_RIGHT_ARROW
 	TOKEN_STAR
 	TOKEN_SWAP
-	TOKEN_SYSCALL3
 	TOKEN_TRUE
 	TOKEN_USING
 
@@ -52,34 +57,37 @@ type reserved struct {
 	typ   TokenType
 }
 
-var reservedWords = [27]reserved{
-	reserved{typ: TOKEN_BANG_EQUAL,		word: "!="			},
-	reserved{typ: TOKEN_DIV,			word: "div"			},
-	reserved{typ: TOKEN_DO,				word: "do"			},
-	reserved{typ: TOKEN_DOT,			word: "."			},
-	reserved{typ: TOKEN_DROP,			word: "drop"		},
-	reserved{typ: TOKEN_DUP,			word: "dup"			},
-	reserved{typ: TOKEN_ELSE,			word: "else"		},
-	reserved{typ: TOKEN_EQUAL,			word: "="			},
-	reserved{typ: TOKEN_FALSE,			word: "false"		},
-	reserved{typ: TOKEN_FUNCTION,		word: "function"	},
-	reserved{typ: TOKEN_FUNCTION_STAR,	word: "function*"	},
-	reserved{typ: TOKEN_GREATER,		word: ">"			},
-	reserved{typ: TOKEN_GREATER_EQUAL,	word: ">="			},
-	reserved{typ: TOKEN_IF,				word: "if"			},
-	reserved{typ: TOKEN_LESS,			word: "<"			},
-	reserved{typ: TOKEN_LESS_EQUAL,		word: "<="			},
-	reserved{typ: TOKEN_LOOP,			word: "loop"		},
-	reserved{typ: TOKEN_MACRO,			word: "macro"		},
-	reserved{typ: TOKEN_MINUS,			word: "-"			},
-	reserved{typ: TOKEN_OVER,           word: "over"		},
-	reserved{typ: TOKEN_PLUS,			word: "+"			},
-	reserved{typ: TOKEN_PRINT,			word: "print"		},
-	reserved{typ: TOKEN_STAR,			word: "*"			},
-	reserved{typ: TOKEN_SWAP,			word: "swap"		},
-	reserved{typ: TOKEN_SYSCALL3,		word: "syscall3"	},
-	reserved{typ: TOKEN_TRUE,			word: "true"		},
-	reserved{typ: TOKEN_USING,			word: "using"		},
+var reservedWords = [30]reserved{
+	reserved{typ: TOKEN_BANG_EQUAL,		word: "!="		  },
+	reserved{typ: TOKEN_DIV,			word: "div"		  },
+	reserved{typ: TOKEN_DO,				word: "do"		  },
+	reserved{typ: TOKEN_DOT,			word: "."		  },
+	reserved{typ: TOKEN_DROP,			word: "drop"	  },
+	reserved{typ: TOKEN_DTYPE_BOOL,     word: "bool"      },
+	reserved{typ: TOKEN_DTYPE_INT,      word: "int"       },
+	reserved{typ: TOKEN_DTYPE_PTR,      word: "ptr"       },
+	reserved{typ: TOKEN_DUP,			word: "dup"		  },
+	reserved{typ: TOKEN_ELSE,			word: "else"	  },
+	reserved{typ: TOKEN_EQUAL,			word: "="		  },
+	reserved{typ: TOKEN_FALSE,			word: "false"	  },
+	reserved{typ: TOKEN_FUNCTION,		word: "function"  },
+	reserved{typ: TOKEN_FUNCTION_STAR,	word: "function*" },
+	reserved{typ: TOKEN_GREATER,		word: ">"		  },
+	reserved{typ: TOKEN_GREATER_EQUAL,	word: ">="		  },
+	reserved{typ: TOKEN_IF,				word: "if"		  },
+	reserved{typ: TOKEN_LESS,			word: "<"		  },
+	reserved{typ: TOKEN_LESS_EQUAL,		word: "<="		  },
+	reserved{typ: TOKEN_LOOP,			word: "loop"	  },
+	reserved{typ: TOKEN_MACRO,			word: "macro"	  },
+	reserved{typ: TOKEN_MINUS,			word: "-"		  },
+	reserved{typ: TOKEN_OVER,           word: "over"	  },
+	reserved{typ: TOKEN_PLUS,			word: "+"		  },
+	reserved{typ: TOKEN_PRINT,			word: "print"	  },
+	reserved{typ: TOKEN_RIGHT_ARROW,    word: "->"   	  },
+	reserved{typ: TOKEN_STAR,			word: "*"		  },
+	reserved{typ: TOKEN_SWAP,			word: "swap"	  },
+	reserved{typ: TOKEN_TRUE,			word: "true"	  },
+	reserved{typ: TOKEN_USING,			word: "using"	  },
 }
 
 type Location struct {
