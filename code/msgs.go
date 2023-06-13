@@ -29,22 +29,18 @@ const (
 	 */
 	MsgParseMacroMissingWord =
 		"invalid or missing word\n" +
-			"macro name required. Name may be any word except for the reserved ones\n" +
 			"\t\tmacro my-macro do [...] .\n" +
 			"\t\t      ^^^^^^^^"
 	MsgParseMacroMissingDo =
 		"missing 'do' keyword\n" +
-			"blocks in Stańczyk use the keyword do for block initiation\n" +
 			"\t\tmacro my-macro do [...] .\n" +
 			"\t\t               ^^"
 	MsgParseMacroMissingContent =
 		"empty macro\n" +
-			"macros must have content in Stańczyk\n" +
 			"\t\tmacro my-macro do [...] .\n" +
 			"\t\t                  ^^^^^"
 	MsgParseMacroMissingDot =
 		"missing '.'\n" +
-			"macro definition must end with a '.' (dot)\n" +
 			"\t\tmacro my-macro do [...] .\n" +
 			"\t\t                        ^"
 
@@ -89,6 +85,24 @@ const (
 			"\t\tfunction my-func do [...] .\n" +
 			"\t\t                          ^"
 
+	MsgParseConstMissingWord =
+		"invalid or missing word\n" +
+			"\t\tconst my-const [...] .\n" +
+			"\t\t      ^^^^^^^^"
+	MsgParseConstMissingContent =
+		"const cannot be empty\n" +
+			"\t\tconst my-const [...] .\n" +
+			"\t\t               ^^^^^"
+	MsgParseConstInvalidContent =
+		"const %s can only have int or simple arithmetic operations (+ or *)\n" +
+			"\t\tconst my-const 32 1024 * .\n" +
+			"\t\t               ^^^^^^^^^"
+	MsgParseConstMissingDot =
+		"missing '.'\n" +
+			"\t\tconst my-const [...] .\n" +
+			"\t\t                     ^"
+	MsgParseConstOverrideNotAllowed =
+		"const %s already exists\n"
 
 
 	/*   _______   _____ ___ ___ _  _ ___ ___ _  __

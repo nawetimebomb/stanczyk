@@ -20,6 +20,7 @@ const (
 
 	// Reserved Words
 	TOKEN_BANG_EQUAL
+	TOKEN_CONST
 	TOKEN_DIV
 	TOKEN_DO
 	TOKEN_DOT
@@ -58,8 +59,9 @@ type reserved struct {
 	typ   TokenType
 }
 
-var reservedWords = [31]reserved{
+var reservedWords = [32]reserved{
 	reserved{typ: TOKEN_BANG_EQUAL,		word: "!="		  },
+	reserved{typ: TOKEN_CONST,   		word: "const"	  },
 	reserved{typ: TOKEN_DIV,			word: "div"		  },
 	reserved{typ: TOKEN_DO,				word: "do"		  },
 	reserved{typ: TOKEN_DOT,			word: "."		  },
@@ -179,7 +181,8 @@ func crossRefMacros() {
 		case tt == TOKEN_MACRO:
 			scope++
 			macroIndex = index
-		case tt == TOKEN_IF, tt == TOKEN_LOOP, tt == TOKEN_FUNCTION, tt == TOKEN_FUNCTION_STAR:
+		case tt == TOKEN_CONST, tt == TOKEN_IF, tt == TOKEN_LOOP,
+			tt == TOKEN_FUNCTION, tt == TOKEN_FUNCTION_STAR:
 			scope++
 		case tt == TOKEN_DOT:
 			if scope > 0 {

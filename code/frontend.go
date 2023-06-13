@@ -11,12 +11,9 @@ const (
 	SCOPE_FUNCTION
 )
 
-type Parser struct {
-	previous Token
-	current  Token
-	tokens   []Token
-	internal bool
-	index    int
+type Constant struct {
+	word  string
+	value int
 }
 
 type Macro struct {
@@ -31,13 +28,22 @@ type Scope struct {
 }
 
 type Frontend struct {
-	words     []string
-	error     bool
+	constants []Constant
 	current	  *Function
+	error     bool
 	macros    []Macro
 	sLevel    int
 	sName     ScopeName
 	scope     [10]Scope
+	words     []string
+}
+
+type Parser struct {
+	previous Token
+	current  Token
+	tokens   []Token
+	internal bool
+	index    int
 }
 
 var file FileManager
@@ -152,6 +158,56 @@ func newMacro() {
 	consume(TOKEN_DOT, MsgParseMacroMissingDot)
 }
 
+func newConstant(token Token) {
+	var constant Constant
+	var tokens []Token
+
+	if !match(TOKEN_WORD) {
+		errorAt(&parser.previous, MsgParseMacroMissingWord)
+		return
+	}
+
+	constant.word = parser.previous.value.(string)
+
+	for _, c := range frontend.constants {
+		if c.word == constant.word {
+			msg := fmt.Sprintf(MsgParseConstOverrideNotAllowed, constant.word)
+			errorAt(&parser.previous, msg)
+			return
+		}
+	}
+
+	if match(TOKEN_DOT) {
+		msg := fmt.Sprintf(MsgParseConstInvalidContent, constant.word)
+		errorAt(&token, msg)
+	}
+
+	for !check(TOKEN_DOT) && !check(TOKEN_EOF) {
+		advance()
+		tokens = append(tokens, parser.previous)
+	}
+
+	if len(tokens) > 3 || len(tokens) == 2 {
+		msg := fmt.Sprintf(MsgParseConstInvalidContent, constant.word)
+		errorAt(&token, msg)
+		return
+	} else if len(tokens) == 3 {
+		left := tokens[0].value.(int)
+		right := tokens[1].value.(int)
+
+		switch tokens[2].typ {
+		case TOKEN_PLUS: constant.value = left + right
+		case TOKEN_STAR: constant.value = left * right
+		}
+	} else if len(tokens) == 1 {
+		constant.value = tokens[0].value.(int)
+	}
+
+	frontend.constants = append(frontend.constants, constant)
+
+	consume(TOKEN_DOT, MsgParseConstMissingDot)
+}
+
 func newFunction(token Token) {
 	var function Function
 	emitSyscall := token.typ == TOKEN_FUNCTION_STAR
@@ -245,13 +301,15 @@ func compile(index int) {
 		advance()
 		token := parser.previous
 		switch token.typ {
+		case TOKEN_CONST:
+			newConstant(token)
+		case TOKEN_FUNCTION, TOKEN_FUNCTION_STAR:
+			newFunction(token)
 		case TOKEN_MACRO:
 			newMacro()
 		case TOKEN_USING:
 			advance()
 			file.Open(parser.previous.value.(string))
-		case TOKEN_FUNCTION, TOKEN_FUNCTION_STAR:
-			newFunction(token)
 		default:
 			ReportErrorAtLocation(MsgParseErrorProgramScope, token.loc)
 			ExitWithError(CodeParseError)
@@ -281,7 +339,14 @@ func expandWord(token Token) {
 		}
 	}
 
-	emit(Code{ op: OP_WORD, loc: token.loc, value: word,})
+	for _, c := range frontend.constants {
+		if c.word == word {
+			emit(Code{op: OP_PUSH_INT, loc: token.loc, value: c.value,})
+			return
+		}
+	}
+
+	emit(Code{op: OP_WORD, loc: token.loc, value: word,})
 }
 
 func addWord(token Token) {
