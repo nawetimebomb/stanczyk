@@ -357,6 +357,10 @@ func parseToken(token Token) {
 	case TOKEN_PRINT:
 		code.op = OP_PRINT
 		emit(code)
+	case TOKEN_RET:
+		code.op = OP_RET
+		code.value = 0
+		emit(code)
 	case TOKEN_STAR:
 		code.op = OP_MULTIPLY
 		emit(code)
