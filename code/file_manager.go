@@ -85,6 +85,13 @@ func (this *FileManager) Open(filename string) {
 		internal = true
 	}
 
+	for _, f := range this.files {
+		if f.filename == path {
+			// File already opened so we don't need to do it again
+			return
+		}
+	}
+
 	_, err := os.Stat(path)
 	CheckError(err, "file_manager.go-2")
 
