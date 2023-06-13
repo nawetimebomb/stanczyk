@@ -41,6 +41,7 @@ const (
 	TOKEN_OVER
 	TOKEN_PLUS
 	TOKEN_PRINT
+	TOKEN_RET
 	TOKEN_RIGHT_ARROW
 	TOKEN_STAR
 	TOKEN_SWAP
@@ -57,7 +58,7 @@ type reserved struct {
 	typ   TokenType
 }
 
-var reservedWords = [30]reserved{
+var reservedWords = [31]reserved{
 	reserved{typ: TOKEN_BANG_EQUAL,		word: "!="		  },
 	reserved{typ: TOKEN_DIV,			word: "div"		  },
 	reserved{typ: TOKEN_DO,				word: "do"		  },
@@ -83,6 +84,7 @@ var reservedWords = [30]reserved{
 	reserved{typ: TOKEN_OVER,           word: "over"	  },
 	reserved{typ: TOKEN_PLUS,			word: "+"		  },
 	reserved{typ: TOKEN_PRINT,			word: "print"	  },
+	reserved{typ: TOKEN_RET,            word: "ret"   	  },
 	reserved{typ: TOKEN_RIGHT_ARROW,    word: "->"   	  },
 	reserved{typ: TOKEN_STAR,			word: "*"		  },
 	reserved{typ: TOKEN_SWAP,			word: "swap"	  },
