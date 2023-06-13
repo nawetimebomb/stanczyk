@@ -1,0 +1,43 @@
+using "io"
+
+;; Test: functions
+;; Description:
+;    simple function composition
+
+function S do
+  "S" puts
+.
+
+function t do
+  "t" puts
+.
+
+function a do
+  "a" puts
+.
+
+function ń do
+  "ń" puts
+.
+
+function c do
+  "c" puts
+.
+
+function z do
+  "z" puts
+.
+
+function y do
+  "y" puts
+.
+
+function k do
+  "k" puts
+.
+
+function main do
+  "Stańczyk  " puts
+  S t a ń c z y k
+  "\n" puts
+.
