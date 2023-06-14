@@ -1,8 +1,8 @@
 # The Stańczyk Programming Language
 
-![Build](https://img.shields.io/github/actions/workflow/status/elnawe/stanczyk/ci.yml)
-![Commits](https://img.shields.io/github/commit-activity/w/elnawe/stanczyk)
-![LICENSE](https://img.shields.io/github/license/elnawe/stanczyk)
+[![CI](https://img.shields.io/github/actions/workflow/status/elnawe/stanczyk/ci.yml?style=for-the-badge)](https://github.com/elnawe/stanczyk/actions/workflows/ci.yml)
+[![Commits](https://img.shields.io/github/commit-activity/w/elnawe/stanczyk?style=for-the-badge)](https://github.com/elnawe/stanczyk/commits/main)
+[![License](https://img.shields.io/github/license/elnawe/stanczyk?style=for-the-badge)](https://github.com/elnawe/stanczyk/blob/main/LICENSE)
 
 ```
             ¿«fº"└└-.`└└*∞▄_              ╓▄∞╙╙└└└╙╙*▄▄
