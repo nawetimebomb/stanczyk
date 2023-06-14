@@ -1,0 +1,12 @@
+using "io"
+
+function sum int int -> int do
+  +
+.
+
+function main do
+  "adding to a ptr only works when type casting the pointer to int\n" puts
+  "Stańczyk" (int) sum
+  "4202569  " puts
+  print
+.

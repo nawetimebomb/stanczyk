@@ -1,0 +1,9 @@
+using "io"
+
+function main do
+  "1  " puts
+  argc print
+
+  "./output  " puts
+  8 0 []argv puts "\n" puts
+.

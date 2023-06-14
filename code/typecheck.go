@@ -36,7 +36,11 @@ func getOperationName(code Code) string {
 	case OP_DROP: name = "drop"
 	case OP_JUMP_IF_FALSE: name = "do"
 	case OP_MULTIPLY: name = "* (multiply)"
+	case OP_LOAD8, OP_LOAD16, OP_LOAD32, OP_LOAD64:
+		name = "load"
 	case OP_PRINT: name = "print"
+	case OP_STORE8, OP_STORE16, OP_STORE32, OP_STORE64:
+		name = "store"
 	case OP_SUBSTRACT: name = "- (substract)"
 	case OP_SWAP: name = "swap"
 	case OP_WORD: name = code.value.(string)
@@ -165,6 +169,14 @@ func TypecheckRun() {
 				a := tc.pop()
 				assertArgumentType(dtArray(a, b), dtArray(DATA_INT, DATA_INT), code, loc)
 				tc.push(DATA_INT)
+			case OP_ARGC:
+				tc.push(DATA_INT)
+			case OP_ARGV:
+				tc.push(DATA_PTR)
+			case OP_CAST:
+				a := tc.pop()
+				assertArgumentType(dtArray(a), dtArray(DATA_ANY), code, loc)
+				tc.push(code.value.(DataType))
 			case OP_DIVIDE:
 				b := tc.pop()
 				a := tc.pop()
@@ -187,6 +199,10 @@ func TypecheckRun() {
 			case OP_JUMP_IF_FALSE:
 				a := tc.pop()
 				assertArgumentType(dtArray(a), dtArray(DATA_BOOL), code, loc)
+			case OP_LOAD8, OP_LOAD16, OP_LOAD32, OP_LOAD64:
+				a := tc.pop()
+				assertArgumentType(dtArray(a), dtArray(DATA_PTR), code, loc)
+				tc.push(DATA_PTR)
 			case OP_OVER:
 				b := tc.pop()
 				a := tc.pop()
@@ -197,6 +213,10 @@ func TypecheckRun() {
 			case OP_PRINT:
 				a := tc.pop()
 				assertArgumentType(dtArray(a), dtArray(DATA_ANY), code, loc)
+			case OP_STORE8, OP_STORE16, OP_STORE32, OP_STORE64:
+				b := tc.pop()
+				a := tc.pop()
+				assertArgumentType(dtArray(a, b), dtArray(DATA_PTR, DATA_PTR), code, loc)
 			case OP_SWAP:
 				b := tc.pop()
 				a := tc.pop()

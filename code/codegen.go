@@ -91,6 +91,7 @@ func generateLinuxX86() {
 	asm.WriteData("section .data")
 
 	asm.WriteBss("section .bss")
+	asm.WriteBss("args_ptr: resq 1")
 	asm.WriteBss("return_stack_rsp: resq 1")
 	asm.WriteBss("return_stack: resb 65536")
 	asm.WriteBss("return_stack_rsp_end:")
@@ -143,6 +144,19 @@ func generateLinuxX86() {
 				asm.WriteText("    pop rbx")
 				asm.WriteText("    add rax, rbx")
 				asm.WriteText("    push rax")
+			case OP_ARGC:
+				asm.WriteText(";; argc (%s:%d:%d)", loc.f, loc.l, loc.c)
+				asm.WriteText("    mov rax, [args_ptr]")
+                asm.WriteText("    mov rax, [rax]")
+                asm.WriteText("    push rax")
+			case OP_ARGV:
+				asm.WriteText(";; argv (%s:%d:%d)", loc.f, loc.l, loc.c)
+				asm.WriteText("    mov rax, [args_ptr]")
+				asm.WriteText("    add rax, 8")
+                asm.WriteText("    push rax")
+			case OP_CAST:
+				asm.WriteText(";; cast to %s (%s:%d:%d)",
+					getDataTypeName(value.(DataType)), loc.f, loc.l, loc.c)
 			case OP_DIVIDE:
 				asm.WriteText(";; / (%s:%d:%d)", loc.f, loc.l, loc.c)
 				asm.WriteText("    xor rdx, rdx")
@@ -204,6 +218,26 @@ func generateLinuxX86() {
 				asm.WriteText("    cmp rax, rbx")
 				asm.WriteText("    cmovle rcx, rdx")
 				asm.WriteText("    push rcx")
+			case OP_LOAD8:
+				asm.WriteText("    pop rax")
+                asm.WriteText("    xor rbx, rbx")
+                asm.WriteText("    mov bl, [rax]")
+                asm.WriteText("    push rbx")
+			case OP_LOAD16:
+				asm.WriteText("    pop rax")
+                asm.WriteText("    xor rbx, rbx")
+                asm.WriteText("    mov bx, [rax]")
+                asm.WriteText("    push rbx")
+			case OP_LOAD32:
+				asm.WriteText("    pop rax")
+                asm.WriteText("    xor rbx, rbx")
+                asm.WriteText("    mov ebx, [rax]")
+                asm.WriteText("    push rbx")
+			case OP_LOAD64:
+				asm.WriteText("    pop rax")
+                asm.WriteText("    xor rbx, rbx")
+                asm.WriteText("    mov rbx, [rax]")
+                asm.WriteText("    push rbx")
 			case OP_MULTIPLY:
 				asm.WriteText(";; * (%s:%d:%d)", loc.f, loc.l, loc.c)
 				asm.WriteText("    pop rax")
@@ -236,6 +270,22 @@ func generateLinuxX86() {
 				asm.WriteText("    pop rax")
 				asm.WriteText("    sub rax, rbx")
 				asm.WriteText("    push rax")
+			case OP_STORE8:
+                asm.WriteText("    pop rax")
+                asm.WriteText("    pop rbx")
+                asm.WriteText("    mov [rax], bl")
+			case OP_STORE16:
+                asm.WriteText("    pop rax")
+                asm.WriteText("    pop rbx")
+                asm.WriteText("    mov [rax], bx")
+			case OP_STORE32:
+                asm.WriteText("    pop rax")
+                asm.WriteText("    pop rbx")
+                asm.WriteText("    mov [rax], ebx")
+			case OP_STORE64:
+                asm.WriteText("    pop rax")
+                asm.WriteText("    pop rbx")
+                asm.WriteText("    mov [rax], rbx")
 			case OP_SWAP:
 				asm.WriteText(";; swap (%s:%d:%d)", loc.f, loc.l, loc.c)
 				asm.WriteText("    pop rax")
@@ -294,6 +344,7 @@ func generateLinuxX86() {
 
 	asm.WriteText(";; user program definition ends here")
 	asm.WriteText("_start:")
+	asm.WriteText("    mov [args_ptr], rsp")
 	asm.WriteText("    mov rax, return_stack_rsp_end")
 	asm.WriteText("    mov [return_stack_rsp], rax")
 	asm.WriteText("    call fn%d", mainFuncIP)
