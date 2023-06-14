@@ -1,6 +1,6 @@
 # The Stańczyk Programming Language
 
-![Build](https://img.shields.io/appveyor/build/elnawe/stanczyk)
+![Build](https://img.shields.io/github/actions/workflow/status/elnawe/stanczyk/ci.yml)
 ![Commits](https://img.shields.io/github/commit-activity/w/elnawe/stanczyk)
 ![LICENSE](https://img.shields.io/github/license/elnawe/stanczyk)
 
