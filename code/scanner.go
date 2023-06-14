@@ -19,7 +19,12 @@ const (
 	TOKEN_DTYPE_PTR
 
 	// Reserved Words
+	TOKEN_ARGC
+	TOKEN_ARGV
 	TOKEN_BANG_EQUAL
+	TOKEN_CAST_BOOL
+	TOKEN_CAST_INT
+	TOKEN_CAST_PTR
 	TOKEN_CONST
 	TOKEN_DIV
 	TOKEN_DO
@@ -36,6 +41,10 @@ const (
 	TOKEN_IF
 	TOKEN_LESS
 	TOKEN_LESS_EQUAL
+	TOKEN_LOAD8
+	TOKEN_LOAD16
+	TOKEN_LOAD32
+	TOKEN_LOAD64
 	TOKEN_LOOP
 	TOKEN_MACRO
 	TOKEN_MINUS
@@ -45,6 +54,10 @@ const (
 	TOKEN_RET
 	TOKEN_RIGHT_ARROW
 	TOKEN_STAR
+	TOKEN_STORE8
+	TOKEN_STORE16
+	TOKEN_STORE32
+	TOKEN_STORE64
 	TOKEN_SWAP
 	TOKEN_TRUE
 	TOKEN_USING
@@ -59,8 +72,13 @@ type reserved struct {
 	typ   TokenType
 }
 
-var reservedWords = [32]reserved{
+var reservedWords = [45]reserved{
+	reserved{typ: TOKEN_ARGC,	        word: "argc"	  },
+	reserved{typ: TOKEN_ARGV,		    word: "argv"	  },
 	reserved{typ: TOKEN_BANG_EQUAL,		word: "!="		  },
+	reserved{typ: TOKEN_CAST_BOOL,      word: "(bool)"    },
+	reserved{typ: TOKEN_CAST_INT,       word: "(int)"     },
+	reserved{typ: TOKEN_CAST_PTR,       word: "(ptr)"     },
 	reserved{typ: TOKEN_CONST,   		word: "const"	  },
 	reserved{typ: TOKEN_DIV,			word: "div"		  },
 	reserved{typ: TOKEN_DO,				word: "do"		  },
@@ -80,6 +98,10 @@ var reservedWords = [32]reserved{
 	reserved{typ: TOKEN_IF,				word: "if"		  },
 	reserved{typ: TOKEN_LESS,			word: "<"		  },
 	reserved{typ: TOKEN_LESS_EQUAL,		word: "<="		  },
+	reserved{typ: TOKEN_LOAD8,			word: "->8" 	  },
+	reserved{typ: TOKEN_LOAD16,			word: "->16" 	  },
+	reserved{typ: TOKEN_LOAD32,			word: "->32" 	  },
+	reserved{typ: TOKEN_LOAD64,			word: "->64" 	  },
 	reserved{typ: TOKEN_LOOP,			word: "loop"	  },
 	reserved{typ: TOKEN_MACRO,			word: "macro"	  },
 	reserved{typ: TOKEN_MINUS,			word: "-"		  },
@@ -89,6 +111,10 @@ var reservedWords = [32]reserved{
 	reserved{typ: TOKEN_RET,            word: "ret"   	  },
 	reserved{typ: TOKEN_RIGHT_ARROW,    word: "->"   	  },
 	reserved{typ: TOKEN_STAR,			word: "*"		  },
+	reserved{typ: TOKEN_STORE8,			word: "<-8" 	  },
+	reserved{typ: TOKEN_STORE16,		word: "<-16" 	  },
+	reserved{typ: TOKEN_STORE32,		word: "<-32" 	  },
+	reserved{typ: TOKEN_STORE64,		word: "<-64" 	  },
 	reserved{typ: TOKEN_SWAP,			word: "swap"	  },
 	reserved{typ: TOKEN_TRUE,			word: "true"	  },
 	reserved{typ: TOKEN_USING,			word: "using"	  },
