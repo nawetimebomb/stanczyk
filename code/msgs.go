@@ -108,4 +108,6 @@ const (
 			"\t\t(%s)"
 	MsgTypecheckMissingEntryPoint =
 		"function main is undeclared"
+	MsgTypecheckWarningNotCalled =
+		"Warning: function %s declared but not in use\n"
 )

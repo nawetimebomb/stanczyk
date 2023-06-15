@@ -30,6 +30,9 @@ func getAsciiValues(s string) (string, int) {
 			case 'n':
 				ascii += "10,"
 				count++
+			case 'e':
+				ascii += "27,"
+				count++
 			}
 
 			nextEscaped = false
@@ -112,7 +115,7 @@ func generateLinuxX86() {
 			loc := code.loc
 			value := code.value
 
-			asm.WriteText(".fn%dip%d:", function.ip, index)
+			asm.WriteText("fn%dip%d:", function.ip, index)
 
 			switch instruction {
 			// Constants
@@ -273,15 +276,15 @@ func generateLinuxX86() {
 				asm.WriteText(";; if (%s:%d:%d)", loc.f, loc.l, loc.c)
 			case OP_JUMP:
 				asm.WriteText(";; else (%s:%d:%d)", loc.f, loc.l, loc.c)
-				asm.WriteText("    jmp .fn%dip%d", function.ip, value)
+				asm.WriteText("    jmp fn%dip%d", function.ip, value)
 			case OP_JUMP_IF_FALSE:
 				asm.WriteText(";; do (%s:%d:%d)", loc.f, loc.l, loc.c)
 				asm.WriteText("    pop rax")
 				asm.WriteText("    test rax, rax")
-				asm.WriteText("    jz .fn%dip%d", function.ip, value)
+				asm.WriteText("    jz fn%dip%d", function.ip, value)
 			case OP_LOOP:
 				asm.WriteText(";; loop (%s:%d:%d)", loc.f, loc.l, loc.c)
-				asm.WriteText("    jmp .fn%dip%d", function.ip, value)
+				asm.WriteText("    jmp fn%dip%d", function.ip, value)
 			}
 		}
 

@@ -53,14 +53,14 @@ type Program struct {
 }
 
 type Function struct {
-	name   string
-	loc    Location
-	args   []DataType
-	rets   []DataType
-	code   []Code
-	called bool
-	sys    bool
-	ip     int
+	ip       int
+	name     string
+	loc      Location
+	args     []DataType
+	rets     []DataType
+	code     []Code
+	called   bool
+	internal bool
 }
 
 type Code struct {

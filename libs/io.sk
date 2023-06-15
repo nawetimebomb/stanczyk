@@ -64,3 +64,7 @@ function* __sys_puts int ptr int int do .
 function puts int ptr do
   stdout LINUX_WRITE __sys_puts
 .
+
+function clear do
+  "\e[H\e[2J" puts
+.

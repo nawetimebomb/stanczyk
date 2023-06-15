@@ -125,6 +125,11 @@ func dtArray(values ...DataType) []DataType {
 func TypecheckRun() {
 	mainHandled := false
 	for _, function := range TheProgram.chunks {
+		if !function.called && !function.internal {
+			msg := fmt.Sprintf(MsgTypecheckWarningNotCalled, function.name)
+			ReportErrorAtLocation(msg, function.loc)
+		}
+
 		if function.name == "main" {
 			mainHandled = true
 			if len(function.args) > 0 || len(function.rets) > 0 {
