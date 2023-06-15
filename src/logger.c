@@ -97,8 +97,8 @@ void CLI_MESSAGE(PrefixType prefix, const char *format, ...) {
     va_end(args);
 
     switch (prefix) {
-        case PREFIX_NONE: break;
-        case PREFIX_STANCZYK: fprintf(stdout, _BOLD_ _RED_ "[Stanczyk] "_RESET_); break;
+        case PREFIX_NONE     : break;
+        case PREFIX_STANCZYK : fprintf(stdout, _BOLD_ _RED_ "[Stanczyk] "_RESET_); break;
     }
 
     fprintf(stdout, "%s", msg);
