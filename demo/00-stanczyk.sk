@@ -1,0 +1,147 @@
+;; Run this demo with `skc demo/00-stanczyk`
+
+;;
+;;            ¿«fº"└└-.`└└*∞▄_              ╓▄∞╙╙└└└╙╙*▄▄
+;;         J^. ,▄▄▄▄▄▄_      └▀████▄ç    JA▀            └▀v
+;;       ,┘ ▄████████████▄¿     ▀██████▄▀└      ╓▄██████▄¿ "▄_
+;;      ,─╓██▀└└└╙▀█████████      ▀████╘      ▄████████████_`██▄
+;;     ;"▄█└      ,██████████-     ▐█▀      ▄███████▀▀J█████▄▐▀██▄
+;;     ▌█▀      _▄█▀▀█████████      █      ▄██████▌▄▀╙     ▀█▐▄,▀██▄
+;;    ▐▄▀     A└-▀▌  █████████      ║     J███████▀         ▐▌▌╙█µ▀█▄
+;;  A╙└▀█∩   [    █  █████████      ▌     ███████H          J██ç ▀▄╙█_
+;; █    ▐▌    ▀▄▄▀  J█████████      H    ████████          █    █  ▀▄▌
+;;  ▀▄▄█▀.          █████████▌           ████████          █ç__▄▀ ╓▀└ ╙%_
+;;                 ▐█████████      ▐    J████████▌          .└╙   █¿   ,▌
+;;                 █████████▀╙╙█▌└▐█╙└██▀▀████████                 ╙▀▀▀▀
+;;                ▐██▀┘Å▀▄A └▓█╓▐█▄▄██▄J▀@└▐▄Å▌▀██▌
+;;                █▄▌▄█M╨╙└└-           .└└▀**▀█▄,▌
+;;                ²▀█▄▄L_                  _J▄▄▄█▀└
+;;                     └╙▀▀▀▀▀MMMR████▀▀▀▀▀▀▀└
+;;
+;;
+;; ███████╗████████╗ █████╗ ███╗   ██╗ ██████╗███████╗██╗   ██╗██╗  ██╗
+;; ██╔════╝╚══██╔══╝██╔══██╗████╗  ██║██╔════╝╚══███╔╝╚██╗ ██╔╝██║ ██╔╝
+;; ███████╗   ██║   ███████║██╔██╗ ██║██║       ███╔╝  ╚████╔╝ █████╔╝
+;; ╚════██║   ██║   ██╔══██║██║╚██╗██║██║      ███╔╝    ╚██╔╝  ██╔═██╗
+;; ███████║   ██║   ██║  ██║██║ ╚████║╚██████╗███████╗   ██║   ██║  ██╗
+;; ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝╚══════╝   ╚═╝   ╚═╝  ╚═╝
+
+;; Stańczyk is a concatenate and stack-oriented programming language. To write an
+;; application, you have to think about it a little bit different than you usually do.
+
+;; Concatenate programming languages are usually written in Reverse Polish Notation
+;; (RPN. more info: https://en.wikipedia.org/wiki/Reverse_Polish_notation).
+;; At first, this seems difficult to understand, but once you get the grasp of what
+;; is happening, it will be pretty easy.
+
+
+;;  ___       _                 _            _   _
+;; |_ _|_ __ | |_ _ __ ___   __| |_   _  ___| |_(_) ___  _ __
+;;  | || '_ \| __| '__/ _ \ / _` | | | |/ __| __| |/ _ \| '_ \
+;;  | || | | | |_| | | (_) | (_| | |_| | (__| |_| | (_) | | | |
+;; |___|_| |_|\__|_|  \___/ \__,_|\__,_|\___|\__|_|\___/|_| |_|
+
+
+;; As any stack-oriented programming language (a lot of them are), any expressions is
+;; pushed into the stack. And statements operate over whatever is in the stack.
+;; RPN works really well here because we can understand right away what is happening
+;; behind the scenes, making programming in Stańczyk a very transparent process.
+
+;; For our first demo, we want to print the number 3. In order for that to happen,
+;; we need to first move the number 3 into the stack. That's easy!
+3
+
+;; Now the first position of the stack has the number 3. Any other expression
+;; literal (like a value) would put that new value into the second position of the
+;; stack. We don't want that right now. What we want is to do an operation on that
+;; first position of the stack by running a statement.
+;; Statements take "stacked" values and do things with them. We have a couple of
+;; options here, like print or drop. But we now we want to print it, so:
+print
+
+;; And if we run this program, we would see the number 3 on the console.
+;; You can write it like this too:
+3 print
+
+;; Now that we know the stack and how it works, lets get the number 13 by doing a
+;; simple arithmetic operation. Lets sum 4 and 9.
+4
+
+;; Now we have 4 in the stack. The first position is taken, but we can use more of
+;; the stack to do binary operations.
+9
+
+;; We have 4 and 9 on the first and second position respectively. Now, lets do the
+;; operation. If we say that in general mathematics we do 4 + 9 (infix sign),
+;; and we also say that Stańczyk uses RPN (postfix sign), then naturally we are just
+;; missing the operator sign here.
++
+
+;; Most operations in Stańczyk are binary. That means, it will take the last two
+;; stack values, operate over them, and push the result back to the stack. So,
+;; naturally, we have 13 now on the stack. We need to do something with it, lets
+;; show it on the screen!
+print
+
+;; That was easy enough, right? You can also write it like:
+;;;; Note: I'm discarding the value because I don't want to show it this time.
+4 9 + drop
+
+;; Drop may be useful if we don't care about the stack value. I'm sure you'll find
+;; uses for it. Once we go deeper into Stańczyk, you'll see how it can be used in
+;; some examples.
+
+
+;;  _____                    _   _       _
+;; | ____|___ ___  ___ _ __ | |_(_) __ _| |___
+;; |  _| / __/ __|/ _ \ '_ \| __| |/ _` | / __|
+;; | |___\__ \__ \  __/ | | | |_| | (_| | \__ \
+;; |_____|___/___/\___|_| |_|\__|_|\__,_|_|___/
+
+;; What is a programming language without variables? Imaginate having to look
+;; into the stack all the time? Don't worry, Stańczyk does have variables.
+;; They do take advantance of the stack too! When you define one, the
+;; expression is evaluated and push to the stack, then saved on a constant
+;; table. When you ask for them (by just simply using it for their name),
+;; the value will be put into the stack on demand.
+
+;; If you don't define a value for a variable, we got you covered! The default
+;; value is 'nil'. This is called "declaring".
+;; Note: Technically, variables in Stańczyk are called "symbols". You can call
+;; them whatever you want.
+;; Note: A symbol name starts with an alphabetic character (a-z or A-Z), or an
+;; `_` (underscore) character, but it can have numbers or `-` "dash" after the
+;; first character.
+
+;; You declare a variable by doing:
+:= declared-symbol .
+;; Note: don't forget the `.` (dot) at the end! It's telling the compiler that
+;; the declaration ends there. The `.` (dot) is used a lot in Stańczyk.
+
+;; And define one by doing
+:= defined-symbol 13 .
+
+;; Symbols can store strings too! And after you declare a symbol, you can
+;; assign values to it by doing
+= declared-symbol "Hello, Stańczyk" .
+
+;; And you can use symbols in statements too:
+declared-symbol print     ;; "Hello, Stańczyk"
+defined-symbol 13 + print ;; 26
+
+;; These are considered global symbols, because we declared them at top of the
+;; scope. You can declare local symbols when inside a scope using the same
+;; semantics. Local symbols are usually better because Stańczyk does lexical
+;; bindings for them, so those are taking care of during compile-time.
+
+;; A quick block scoping example using the keyword `do` and ending with `.`
+;; Note: We re-define "declared-symbol", but the new definition will only
+;; affect the local scoping.
+do
+    := declared-symbol "Bye bye, Stańczyk" .
+    declared-symbol print ;; "Bye bye, Stańczyk"
+.
+
+;; We cleared the local symbols as soon as we exit the scope, so when we
+;; print the symbol again, we will get the global definition.
+declared-symbol print     ;; "Hello, Stańczyk"

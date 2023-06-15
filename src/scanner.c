@@ -114,18 +114,13 @@ static token_type_t symbol_type() {
                 }
             }
         }
-        case 'f': {
-            if (scanner.current - scanner.start > 1) {
-                switch (scanner.start[1]) {
-                    case 'a': return check_keyword(2, 3, "lse", TOKEN_FALSE);
-                    case 'o': return check_keyword(2, 1, "r", TOKEN_FOR);
-                }
-            }
-        } break;
+        case 'e': return check_keyword(1, 3, "lse", TOKEN_ELSE);
+        case 'f': return check_keyword(1, 3, "alse", TOKEN_FALSE);
         case 'i': return check_keyword(1, 1, "f", TOKEN_IF);
         case 'n': return check_keyword(1, 2, "il", TOKEN_NIL);
         case 'o': return check_keyword(1, 1, "r", TOKEN_OR);
         case 'p': return check_keyword(1, 4, "rint", TOKEN_PRINT);
+        case 'q': return check_keyword(1, 3, "uit", TOKEN_QUIT);
         case 't': return check_keyword(1, 3, "rue", TOKEN_TRUE);
     }
 

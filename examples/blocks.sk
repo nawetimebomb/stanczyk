@@ -3,11 +3,6 @@
 ;; declaring and using a variable within a block
 do
     := local-bind "and this is local" .
-    ;; TODO: Research this bug where the following line is adding the variable
-    ;; to the local scope and not modifying the global one.
-    ;; A good fix for this would be to have different keywords for saving global variables and
-    ;; local ones. For example, locals could use "let" (as in lexical bindings), while global
-    ;; use the := format. Though these are really different.
     = global global " " + local-bind + .
 .
 

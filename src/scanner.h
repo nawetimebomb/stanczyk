@@ -33,12 +33,13 @@ typedef enum {
   TOKEN_DO,
   TOKEN_DROP,
   TOKEN_DUP,
+  TOKEN_ELSE,
   TOKEN_FALSE,
-  TOKEN_FOR,
   TOKEN_IF,
   TOKEN_NIL,
   TOKEN_OR,
   TOKEN_PRINT,
+  TOKEN_QUIT,
   TOKEN_TRUE,
 
   // Special
