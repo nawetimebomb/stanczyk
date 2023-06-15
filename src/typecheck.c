@@ -38,10 +38,18 @@
 #define STACK_MAX 32
 
 typedef struct {
+    DataType stack[STACK_MAX];
+    int stack_count;
+} Snapshot;
+
+typedef struct {
     IRCodeChunk *chunk;
     Code *ip;
     DataType stack[STACK_MAX];
     DataType *stack_top;
+    Snapshot snapshot[STACK_MAX];
+    int stack_count;
+    int scope_level;
 } Typecheck;
 
 Typecheck *typecheck;
@@ -79,6 +87,24 @@ static void ASSERT_TYPE(DataType given, DataType expected[], int ecount, Token *
     }
 }
 
+static void ASSERT_STACK_SNAPSHOT(Token *token) {
+    bool diff_found = false;
+    Snapshot *ss = &typecheck->snapshot[typecheck->scope_level];
+    if (ss->stack_count != typecheck->stack_count) {
+        TYPECHECK_ERROR(token, ERROR__TYPECHECK__STACK_SIZE_CHANGE);
+    }
+
+    for (int i = 0; i < typecheck->stack_count; i++) {
+        if (ss->stack[i] != typecheck->stack[i]) {
+            diff_found = true;
+        }
+    }
+
+    if (diff_found) {
+        TYPECHECK_ERROR(token, ERROR__TYPECHECK__STACK_TYPE_CHANGE);
+    }
+}
+
 static void reset_stack() {
     typecheck->stack_top = typecheck->stack;
 }
@@ -88,6 +114,8 @@ static void start_typecheck(IRCodeChunk chunk) {
     typecheck->chunk = ALLOCATE(IRCodeChunk);
     typecheck->chunk = &chunk;
     typecheck->ip = chunk.code;
+    typecheck->stack_count = 0;
+    typecheck->scope_level = 0;
     reset_stack();
 }
 
@@ -105,10 +133,8 @@ static void push(DataType type) {
     typecheck->stack_top++;
 }
 
-static int run() {
+static void run(void) {
 #define NEXT_BYTE() (*typecheck->ip++)
-    int stack_count = 0;
-
     for (;;) {
 #ifdef DEBUG_MODE
         printf("          ");
@@ -130,16 +156,16 @@ static int run() {
              */
             case OP_PUSH_INT: {
                 push(DATA_INT);
-                stack_count++;
+                typecheck->stack_count++;
             } break;
             case OP_PUSH_STR: {
                 push(DATA_INT);
                 push(DATA_PTR);
-                stack_count += 2;
+                typecheck->stack_count += 2;
             } break;
             case OP_PUSH_BOOL: {
                 push(DATA_BOOL);
-                stack_count++;
+                typecheck->stack_count++;
             } break;
 
             /*   ___     _       _         _
@@ -149,32 +175,32 @@ static int run() {
              */
             case OP_CAST: {
                 DataType dtype = AS_DTYPE(instruction.operand);
-                ASSERT_NUM_OF_ARGUMENTS(stack_count, 1, token);
+                ASSERT_NUM_OF_ARGUMENTS(typecheck->stack_count, 1, token);
                 pop();
                 push(dtype);
             } break;
             case OP_ADD:
             case OP_SUBSTRACT: {
-                ASSERT_NUM_OF_ARGUMENTS(stack_count, 2, token);
+                ASSERT_NUM_OF_ARGUMENTS(typecheck->stack_count, 2, token);
                 DataType b = pop();
                 DataType a = pop();
                 DataType expected[1] = {DATA_INT};
                 ASSERT_TYPE(b, expected, 1, token);
                 ASSERT_TYPE(a, expected, 1, token);
                 push(DATA_INT);
-                stack_count--;
+                typecheck->stack_count--;
             } break;
             case OP_MULTIPLY:
             case OP_DIVIDE:
             case OP_MODULO: {
-                ASSERT_NUM_OF_ARGUMENTS(stack_count, 2, token);
+                ASSERT_NUM_OF_ARGUMENTS(typecheck->stack_count, 2, token);
                 DataType b = pop();
                 DataType a = pop();
                 DataType expected[1] = {DATA_INT};
                 ASSERT_TYPE(b, expected, 1, token);
                 ASSERT_TYPE(a, expected, 1, token);
                 push(DATA_INT);
-                stack_count--;
+                typecheck->stack_count--;
             } break;
             case OP_EQUAL:
             case OP_NOT_EQUAL:
@@ -182,32 +208,70 @@ static int run() {
             case OP_LESS_EQUAL:
             case OP_GREATER:
             case OP_GREATER_EQUAL: {
-                ASSERT_NUM_OF_ARGUMENTS(stack_count, 2, token);
+                ASSERT_NUM_OF_ARGUMENTS(typecheck->stack_count, 2, token);
                 DataType b = pop();
                 DataType a = pop();
                 DataType expected[1] = {DATA_INT};
                 ASSERT_TYPE(b, expected, 1, token);
                 ASSERT_TYPE(a, expected, 1, token);
                 push(DATA_BOOL);
-                stack_count--;
+                typecheck->stack_count--;
             } break;
             case OP_DROP: {
-                ASSERT_NUM_OF_ARGUMENTS(stack_count, 1, token);
+                ASSERT_NUM_OF_ARGUMENTS(typecheck->stack_count, 1, token);
                 pop();
-                stack_count--;
+                typecheck->stack_count--;
+            } break;
+            case OP_DUP: {
+                ASSERT_NUM_OF_ARGUMENTS(typecheck->stack_count, 1, token);
+                DataType a = pop();
+                push(a);
+                push(a);
+                typecheck->stack_count++;
             } break;
             case OP_PRINT: {
-                ASSERT_NUM_OF_ARGUMENTS(stack_count, 1, token);
+                ASSERT_NUM_OF_ARGUMENTS(typecheck->stack_count, 1, token);
                 DataType a = pop();
                 DataType expected[2] = {DATA_INT, DATA_BOOL};
                 ASSERT_TYPE(a, expected, 2, token);
-                stack_count--;
+                typecheck->stack_count--;
+            } break;
+            case OP_IF: {
+                typecheck->scope_level++;
+                Snapshot *ss = &typecheck->snapshot[typecheck->scope_level];
+                ss->stack_count = typecheck->stack_count;
+                for (int i = 0; i < typecheck->stack_count; i++) {
+                    ss->stack[i] = typecheck->stack[i];
+                }
+            } break;
+            case OP_LOOP: {
+                typecheck->scope_level++;
+                Snapshot *ss = &typecheck->snapshot[typecheck->scope_level];
+                ss->stack_count = typecheck->stack_count;
+                for (int i = 0; i < typecheck->stack_count; i++) {
+                    ss->stack[i] = typecheck->stack[i];
+                }
+            } break;
+            case OP_JUMP_IF_FALSE: {
+                ASSERT_NUM_OF_ARGUMENTS(typecheck->stack_count, 1, token);
+                DataType a = pop();
+                DataType expected[1] = {DATA_BOOL};
+                ASSERT_TYPE(a, expected, 1, token);
+                typecheck->stack_count--;
+            } break;
+            case OP_JUMP: {
+                // TODO: Check if the stack changes in this section and together with OP_END_IF
+            } break;
+            case OP_END_IF:
+            case OP_END_LOOP: {
+                ASSERT_STACK_SNAPSHOT(token);
+                typecheck->scope_level--;
             } break;
             case OP_SYSCALL3: {
-                ASSERT_NUM_OF_ARGUMENTS(stack_count, 4, token);
+                ASSERT_NUM_OF_ARGUMENTS(typecheck->stack_count, 4, token);
                 pop(); pop(); pop(); pop();
                 push(DATA_INT);
-                stack_count -= 3;
+                typecheck->stack_count -= 3;
             } break;
 
             /*   _  __                           _
@@ -216,9 +280,7 @@ static int run() {
              *  |_|\_\___|\_, |\_/\_/\___/_| \__,_/__/
              *            |__/
              */
-            case OP_EOC: {
-                return stack_count;
-            } break;
+            case OP_EOC: return;
         }
     }
 #undef NEXT_BYTE
@@ -227,9 +289,9 @@ static int run() {
 void typecheck_run(IRCodeChunk *chunk) {
     start_typecheck(*chunk);
 
-    int stack_result = run();
+    run();
 
-    if (stack_result != 0) {
+    if (typecheck->stack_count != 0) {
         // TODO: Improve the following error
         TYPECHECK_ERROR(NULL, "Unhandled values on the stack");
     }

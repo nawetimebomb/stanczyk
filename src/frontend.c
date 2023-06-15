@@ -669,8 +669,16 @@ typedef struct {
 } Macros;
 
 typedef struct {
+    TokenType token_type;
+    int then_ip;
+    int loop_ip;
+} Scope;
+
+typedef struct {
     IRCodeChunk *current;
     Macros macros;
+    int scope_level;
+    Scope scope[255];
 } Frontend;
 
 Frontend *frontend;
@@ -686,6 +694,7 @@ static void start_frontend(IRCodeChunk *chunk) {
     frontend->macros.capacity = 0;
     frontend->macros.names = NULL;
     frontend->macros.statements = NULL;
+    frontend->scope_level = 0;
 }
 
 static void stop_frontend() {
@@ -973,97 +982,100 @@ static void parse_token(Token token) {
     code.token = token;
 
     switch (token.type) {
-        case TOKEN_DO:
-        case TOKEN_DOT:
         case TOKEN_DTYPE_BOOL:
         case TOKEN_DTYPE_INT:
         case TOKEN_DTYPE_PTR:
         case TOKEN_ERROR:
         case TOKEN_RIGHT_PAREN: {
+            error_at(&token, ERROR__FRONTEND__REACHED_UNREACHABLE_CODE, GIT_URL);
             UNREACHABLE_CODE("frontend.c->parse_token");
-        } return;
+        } break;
         case TOKEN_EOF: break;
 
-        case TOKEN_MACRO: while (!match(TOKEN_DOT)) advance(); return;
-        case TOKEN_USING: advance(); return;
+        case TOKEN_MACRO: while (!match(TOKEN_DOT)) advance(); break;
+        case TOKEN_USING: advance(); break;
 
         case TOKEN_INT: {
             long value = strtol(token.start, NULL, 10);
             code.type = OP_PUSH_INT;
             code.operand = INT_VALUE(value);
             emit(code);
-        } return;
+        } break;
         case TOKEN_STR: {
             String *str = copy_string(token.start + 1,
                                       token.length - 2);
             code.type = OP_PUSH_STR;
             code.operand = OBJECT_VALUE(str);
             emit(code);
-        } return;
+        } break;
 
         // Intrinsics
         case TOKEN_DROP: {
             code.type = OP_DROP;
             emit(code);
-        } return;
+        } break;
+        case TOKEN_DUP: {
+            code.type = OP_DUP;
+            emit(code);
+        } break;
         case TOKEN_MINUS: {
             code.type = OP_SUBSTRACT;
             emit(code);
-        } return;
+        } break;
         case TOKEN_PERCENT: {
             code.type = OP_MODULO;
             emit(code);
-        } return;
+        } break;
         case TOKEN_PLUS: {
             code.type = OP_ADD;
             emit(code);
-        } return;
+        } break;
         case TOKEN_PRINT: {
             code.type = OP_PRINT;
             emit(code);
-        } return;
+        } break;
         case TOKEN_SLASH: {
             code.type = OP_DIVIDE;
             emit(code);
-        } return;
+        } break;
         case TOKEN_STAR: {
             code.type = OP_MULTIPLY;
             emit(code);
-        } return;
+        } break;
         case TOKEN_EQUAL: {
             code.type = OP_EQUAL;
             emit(code);
-        } return;
+        } break;
         case TOKEN_BANG_EQUAL: {
             code.type = OP_NOT_EQUAL;
             emit(code);
-        } return;
+        } break;
         case TOKEN_LESS: {
             code.type = OP_LESS;
             emit(code);
-        } return;
+        } break;
         case TOKEN_LESS_EQUAL: {
             code.type = OP_LESS_EQUAL;
             emit(code);
-        } return;
+        } break;
         case TOKEN_GREATER: {
             code.type = OP_GREATER;
             emit(code);
-        } return;
+        } break;
         case TOKEN_GREATER_EQUAL: {
             code.type = OP_GREATER_EQUAL;
             emit(code);
-        } return;
+        } break;
         case TOKEN_FALSE: {
             code.type = OP_PUSH_BOOL;
             code.operand = INT_VALUE(0);
             emit(code);
-        } return;
+        } break;
         case TOKEN_TRUE: {
             code.type = OP_PUSH_BOOL;
             code.operand = INT_VALUE(1);
             emit(code);
-        } return;
+        } break;
         case TOKEN___SYSCALL0: {
             code.type = OP_SYSCALL0;
             emit(code);
@@ -1094,10 +1106,76 @@ static void parse_token(Token token) {
         } break;
 
         // Special
-        case TOKEN_LEFT_PAREN: cast(); return;
-        case TOKEN_WORD: word(token); return;
+        case TOKEN_LEFT_PAREN: cast(); break;
+        case TOKEN_WORD: word(token); break;
 
-            //default: UNREACHABLE_CODE("frontend.c->compile_file"); return;
+
+        case TOKEN_IF: {
+            frontend->scope_level++;
+            frontend->scope[frontend->scope_level].token_type = token.type;
+            code.type = OP_IF;
+            emit(code);
+        } break;
+        case TOKEN_ELSE: {
+            if (frontend->scope_level < 1) {
+                error_at(&token, ERROR__ELSE__ORPHAN_TOKEN_FOUND);
+            } else {
+                int scope_level = frontend->scope_level;
+                int prev_then_ip = frontend->scope[scope_level].then_ip;
+                frontend->scope[scope_level].then_ip = frontend->current->count;
+                code.type = OP_JUMP;
+                emit(code);
+                frontend->current->code[prev_then_ip].operand =
+                    INT_VALUE(frontend->current->count);
+            }
+        } break;
+        case TOKEN_LOOP: {
+            frontend->scope_level++;
+            Scope *scope = &frontend->scope[frontend->scope_level];
+            scope->token_type = token.type;
+            scope->loop_ip = frontend->current->count;
+        } break;
+        case TOKEN_DO: {
+            if (frontend->scope_level > 0) {
+                frontend->scope[frontend->scope_level].then_ip = frontend->current->count;
+                code.type = OP_JUMP_IF_FALSE;
+                emit(code);
+            } else {
+                error_at(&token, ERROR__DO__ORPHAN_TOKEN_FOUND);
+            }
+        } break;
+        case TOKEN_DOT: {
+            if (frontend->scope_level > 0) {
+                Scope *current_scope = &frontend->scope[frontend->scope_level];
+                int then_ip = current_scope->then_ip;
+                TokenType token_type = current_scope->token_type;
+
+                switch (token_type) {
+                    case TOKEN_LOOP: {
+                        code.type = OP_LOOP;
+                        code.operand = INT_VALUE(current_scope->loop_ip);
+                        emit(code);
+
+                        Code end_loop;
+                        end_loop.token = token;
+                        end_loop.type = OP_END_LOOP;
+                        emit(end_loop);
+                    } break;
+                    case TOKEN_IF: {
+                        code.type = OP_END_IF;
+                        emit(code);
+                    } break;
+                    default: {
+                        UNREACHABLE_CODE("frontend.c->parse_token()->TOKEN_DOT");
+                        FRONTEND_ERROR(ERROR__FRONTEND__REACHED_UNREACHABLE_CODE);
+                    }
+                }
+
+                frontend->current->code[then_ip].operand =
+                    INT_VALUE(frontend->current->count);
+                frontend->scope_level--;
+            }
+        } break;
     }
 }
 

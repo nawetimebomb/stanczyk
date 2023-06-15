@@ -33,10 +33,14 @@
  *  | (_| (_) | |\/| |  _/| || |__ / _ \| |  | | (_) | .` |
  *   \___\___/|_|  |_|_| |___|____/_/ \_\_| |___\___/|_|\_|
  */
-#define ERROR__FRONTEND__ERRORS_FOUND "errors found during front-end compilation. Please, check above and fix the errors before continuing"
+#define ERROR__CAST__MISSING_RIGHT_PAREN "expected ')' after type in casting procedure\nE.g.:\n\t1(bool)\n\t      ^\nType casting needs to go between '(' and ')'"
 
-#define ERROR__USING__FILE_OR_NAME_MISSING "file or library name expected after 'using'\nE.g.:\n\tusing \"io\"\n\t       ^^^^\nYou can find a list of available libraries running skc -help"
-#define ERROR__USING__FAILED_TO_FIND_FILE  "failed to find library to use: %s\nMake sure the name is correct. If it is an internal Stańczyk library, you\nmust omit the '.sk' in the name. If it is your code, then you must have '.sk'\nThe relative path to your libraries starts from the entry point base path\nE.g.:\n\tusing \"my/code.sk\"\nThis means the file is inside a folder called 'my', sibling to the entry file"
+#define ERROR__DO__ORPHAN_TOKEN_FOUND "only use 'do' when starting a block statement\nE.g.:\n\tif [condition] do [...] else [...] .\n\t^^             ^^\n'do' can be used in other blocks like function and loops"
+
+#define ERROR__ELSE__ORPHAN_TOKEN_FOUND "only use 'else' after starting an 'if' statement\nE.g.:\n\tif [condition] do [...] else [...] .\n\t^^                      ^^^^"
+
+#define ERROR__FRONTEND__ERRORS_FOUND "errors found during front-end compilation. Please, check above and fix the errors before continuing"
+#define ERROR__FRONTEND__REACHED_UNREACHABLE_CODE "found a case where unreachable code has been reached during compilation\nThis is a bug in the compiler, please report it at %s"
 
 #define ERROR__MACRO__MISSING_NAME "a valid word is expected after the macro definition symbol\nE.g.:\n\t:> my-macro : [...] .\n\t   ^^^^^^^^\nName may be any word starting with a lowercase or uppercase character, but it may contain numbers, _ or -"
 #define ERROR__MACRO__ALREADY_IN_USE "word %s already in use\nYou cannot override existing declarations in Stańczyk,\nmust select a different name for this macro"
@@ -45,16 +49,19 @@
 #define ERROR__MACRO__BLOCKS_NOT_ALLOWED "block starter keywords are not allowed inside a macro\nYou cannot use 'if', 'loop' or 'macro' as this macro content."
 #define ERROR__MACRO__MISSING_DOT "'.' symbol expected after macro declaration\nE.g.:\n\t:> my-macro do [...] .\n\t                     ^\nMacro declaration must end with the '.' (dot) symbol"
 
-#define ERROR__WORD__UNKNOWN_WORD "unknown word\nThe word definition has not been found yet in the code\nCheck if the definition is after this line or if you mispelled the word"
+#define ERROR__USING__FILE_OR_NAME_MISSING "file or library name expected after 'using'\nE.g.:\n\tusing \"io\"\n\t       ^^^^\nYou can find a list of available libraries running skc -help"
+#define ERROR__USING__FAILED_TO_FIND_FILE  "failed to find library to use: %s\nMake sure the name is correct. If it is an internal Stańczyk library, you\nmust omit the '.sk' in the name. If it is your code, then you must have '.sk'\nThe relative path to your libraries starts from the entry point base path\nE.g.:\n\tusing \"my/code.sk\"\nThis means the file is inside a folder called 'my', sibling to the entry file"
 
-#define ERROR__CAST__MISSING_RIGHT_PAREN "expected ')' after type in casting procedure\nE.g.:\n\t1(bool)\n\t      ^\nType casting needs to go between '(' and ')'"
+#define ERROR__WORD__UNKNOWN_WORD "unknown word\nThe word definition has not been found yet in the code\nCheck if the definition is after this line or if you mispelled the word"
 
 /*   _______   _____ ___ ___ _  _ ___ ___ _  __
  *  |_   _\ \ / / _ \ __/ __| || | __/ __| |/ /
  *    | |  \ V /|  _/ _| (__| __ | _| (__| ' <
  *    |_|   |_| |_| |___\___|_||_|___\___|_|\_\
  */
-#define ERROR__TYPECHECK__INSUFFICIENT_ARGUMENTS "Not enough arguments to do this operation. Expected %d but got %d"
-#define ERROR__TYPECHECK__INCORRECT_TYPE "Incorrect type of value for operation. Expected %s, got %s"
+#define ERROR__TYPECHECK__INSUFFICIENT_ARGUMENTS "not enough arguments to do this operation. Expected %d but got %d"
+#define ERROR__TYPECHECK__INCORRECT_TYPE "incorrect type of value for operation. Expected %s, got %s"
+#define ERROR__TYPECHECK__STACK_SIZE_CHANGE "stack size cannot change during a block statement"
+#define ERROR__TYPECHECK__STACK_TYPE_CHANGE "stack types cannot change during a block statement"
 
 #endif

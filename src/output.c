@@ -26,19 +26,26 @@
  * ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝╚══════╝   ╚═╝   ╚═╝  ╚═╝
  */
 #include <stdio.h>
+#include <string.h>
 
 #include "output.h"
 #include "assembly.h"
+#include "memory.h"
 
 void output_run(Assembly *assembly) {
     FILE *out = fopen("output.asm", "w");
+    char buffer[256];
 
     for (int i = 0; i < assembly->text.count; i++) {
-        fprintf(out, "%s\n", assembly->text.lines[i]);
+        sprintf(buffer, "%s\n", assembly->text.lines[i]);
+        fwrite(buffer, sizeof(char), strlen(buffer), out);;
     }
 
+    fprintf(out, "\n");
+
     for (int i = 0; i < assembly->data.count; i++) {
-        fprintf(out, "%s\n", assembly->data.lines[i]);
+        sprintf(buffer, "%s\n", assembly->data.lines[i]);
+        fwrite(buffer, sizeof(char), strlen(buffer), out);;
     }
 
     fclose(out);

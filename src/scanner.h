@@ -41,6 +41,7 @@ typedef enum {
 
     // Intrinsics
     TOKEN_DROP,
+    TOKEN_DUP,
     TOKEN_EQUAL,
     TOKEN_FALSE,
     TOKEN_GREATER,
@@ -63,7 +64,10 @@ typedef enum {
 
     // Keywords
     TOKEN_DO,
+    TOKEN_ELSE,
+    TOKEN_IF,
     TOKEN_MACRO,
+    TOKEN_LOOP,
     TOKEN_USING,
 
     // Special
