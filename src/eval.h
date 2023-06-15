@@ -3,6 +3,6 @@
 
 #include "nexp.h"
 
-nexp_t *eval_nexp(nexp_t *nexp);
+nexp_t *eval_nexp(scope_t *, nexp_t *);
 
 #endif

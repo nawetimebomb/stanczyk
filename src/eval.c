@@ -1,11 +1,12 @@
 #include "eval.h"
 #include "nexp.h"
 #include "builtin.h"
+#include "scope.h"
 
-static nexp_t *eval_Sexpr(nexp_t *nexp) {
+static nexp_t *eval_Sexpr(scope_t *scope, nexp_t *nexp) {
     // Evaluate all children
     for (u32 i = 0; i < nexp->count; i++)
-        nexp->children[i] = eval_nexp(nexp->children[i]);
+        nexp->children[i] = eval_nexp(scope, nexp->children[i]);
 
     // Report found errors.
     // TODO: This is not a good implementation because it reports the first error found.
@@ -19,19 +20,26 @@ static nexp_t *eval_Sexpr(nexp_t *nexp) {
 
     // Make sure the first element is always a symbol
     nexp_t *found = nexp_pop(nexp, 0);
-    if (found->type != NEXP_TYPE_SYMBOL) {
-        nexp_delete(found);
+    if (found->type != NEXP_TYPE_PROC) {
         nexp_delete(nexp);
-        return nexp_new_error("expression is not a symbol");
+        nexp_delete(found);
+        return nexp_new_error("expression is not a procedure");
     }
 
-    nexp_t *result = builtin(nexp, found->symbol);
+    nexp_t *result = found->proc(scope, nexp);
     nexp_delete(found);
     return result;
 }
 
-nexp_t *eval_nexp(nexp_t *nexp) {
-    // Only act over S-expressions. Otherwise, just return the same.
-    if (nexp->type == NEXP_TYPE_SEXPR) return eval_Sexpr(nexp);
+nexp_t *eval_nexp(scope_t *scope, nexp_t *nexp) {
+    // Act on symbols (if they exists in scope) and S-expressions.
+    if (nexp->type == NEXP_TYPE_SYMBOL) {
+        nexp_t *found = scope_get(scope, nexp);
+        nexp_delete(nexp);
+        return found;
+    }
+
+    if (nexp->type == NEXP_TYPE_SEXPR) return eval_Sexpr(scope, nexp);
+
     return nexp;
 }

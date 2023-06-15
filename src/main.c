@@ -4,6 +4,8 @@
 #include "intrinsics.h"
 #include "nexp.h"
 #include "parser.h"
+#include "scope.h"
+#include "builtin.h"
 
 #ifdef _WIN32
 #include "cli_windows.h"
@@ -21,8 +23,7 @@ int main() {
     mpca_lang(MPCA_LANG_DEFAULT,
               "                                                         \
                   number    : /-?[0-9]+/ ;                              \
-                  symbol    : \"list\" | \"eval\"                       \
-                            | '+' | '-' | '*' | '/' ;                   \
+                  symbol    : /[a-zA-Z0-9_+\\-*\\/\\\\=<>!&:]+/ ;        \
                   Sexpr     : '(' <expr>* ')' ;                         \
                   Bexpr     : '{' <expr>* '}' ;                         \
                   expr      : <number> | <symbol> | <Sexpr> | <Bexpr> ; \
@@ -31,6 +32,9 @@ int main() {
     puts("Nihilisp REPL v0.1");
     puts("Press Ctrl+C to Exit\n");
 
+    scope_t *scope = scope_new();
+    init_builtins(scope);
+
     while (1) {
         char *input = readline("> ");
         add_history(input);
@@ -38,7 +42,7 @@ int main() {
         mpc_result_t r;
 
         if (mpc_parse("<stdin>", input, Sexpr, &r)) {
-            nexp_t *result = eval_nexp(parse_expr(r.output));
+            nexp_t *result = eval_nexp(scope, parse_expr(r.output));
             nexp_print(result);
             nexp_delete(result);
         } else {
@@ -49,9 +53,8 @@ int main() {
         free(input);
     }
 
-    // Make sure I clean up the new types
-    assert(5 == NEXP_TYPE_COUNT);
-    mpc_cleanup(NEXP_TYPE_COUNT, number, symbol, Sexpr, Bexpr, expr);
+    scope_delete(scope);
+    mpc_cleanup(5, number, symbol, Sexpr, Bexpr, expr);
 
     return 0;
 }
