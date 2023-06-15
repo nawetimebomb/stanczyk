@@ -37,8 +37,44 @@
 #include "util.h"
 #include "common.h"
 
+typedef struct {
+    int start;
+    int capacity;
+    int count;
+    char **files;
+    char **sources;
+} FileManager;
+
+FileManager fileman;
+
 // TODO: Most of this code is unsafe because we never check the length of the
-// input and limit it to be the expected one, so we might end with buffer overflow.
+// input and limit it to be the expected one, so we might end with buffer
+// overflow.
+void init_file_manager() {
+    fileman.start = 4;
+    fileman.count = 0;
+    fileman.capacity = 0;
+    fileman.files = NULL;
+    fileman.sources = NULL;
+}
+
+void free_file_manager() {
+    FREE_ARRAY(char *, fileman.files, fileman.capacity);
+    FREE_ARRAY(char *, fileman.sources, fileman.capacity);
+    init_file_manager();
+}
+
+int get_files_count() {
+    return fileman.count;
+}
+
+const char *get_file_name(int index) {
+    return fileman.files[index];
+}
+
+const char *get_file_source(int index) {
+    return fileman.sources[index];
+}
 
 static char *get_word_in_name(const char *name) {
     char *result = ALLOCATE(char, 32);
@@ -74,32 +110,25 @@ static char *get_file_path(Compiler *compiler, const char *name) {
     return filepath;
 }
 
-Filename get_full_path(Compiler *compiler, const char *name) {
-    Filename result;
-    result.name = get_file_path(compiler, name);
-    return result;
-}
-
-static void add_processed_file(FileArray *array,
-                               const char *filename, const char *source) {
-    if (array->capacity < array->count + 1) {
-        int prev_capacity = array->capacity;
-        array->capacity = GROW_CAPACITY(prev_capacity, array->start);
-        array->filenames = GROW_ARRAY(char *, array->filenames,
-                                      prev_capacity, array->capacity);
-        array->sources = GROW_ARRAY(char *, array->sources,
-                                    prev_capacity, array->capacity);
+static void add_processed_file(const char *filename, const char *source) {
+    if (fileman.capacity < fileman.count + 1) {
+        int prev_capacity = fileman.capacity;
+        fileman.capacity = GROW_CAPACITY(prev_capacity, fileman.start);
+        fileman.files = GROW_ARRAY(char *, fileman.files,
+                                      prev_capacity, fileman.capacity);
+        fileman.sources = GROW_ARRAY(char *, fileman.sources,
+                                    prev_capacity, fileman.capacity);
     }
 
     int filename_len = strlen(filename) + 1;
     int source_len = strlen(source) + 1;
-    array->filenames[array->count] = ALLOCATE(char, filename_len);
-    memset(array->filenames[array->count], 0, sizeof(char) * filename_len);
-    array->sources[array->count] = ALLOCATE(char, source_len);
-    memset(array->sources[array->count], 0, sizeof(char) * source_len);
-    memcpy(array->filenames[array->count], filename, filename_len);
-    memcpy(array->sources[array->count], source, source_len);
-    array->count++;
+    fileman.files[fileman.count] = ALLOCATE(char, filename_len);
+    memset(fileman.files[fileman.count], 0, sizeof(char) * filename_len);
+    fileman.sources[fileman.count] = ALLOCATE(char, source_len);
+    memset(fileman.sources[fileman.count], 0, sizeof(char) * source_len);
+    memcpy(fileman.files[fileman.count], filename, filename_len);
+    memcpy(fileman.sources[fileman.count], source, source_len);
+    fileman.count++;
 }
 
 static char *read_file(const char *path) {
@@ -167,27 +196,30 @@ static const char *process_source(const char *source) {
     return p;
 }
 
-void process_and_save(Compiler *compiler, Filename *file) {
-    const char *source = process_source(read_file(file->name));
-    add_processed_file(&compiler->files, file->name, source);
+void process_and_save(Compiler *compiler, const char*file) {
+    const char *path = get_file_path(compiler, file);
+    const char *source = process_source(read_file(path));
+    add_processed_file(path, source);
 }
 
-bool library_exists(Filename *file) {
-    if (access(file->name, F_OK) == -1) {
+bool library_exists(Compiler *compiler, const char *file) {
+    const char *path = get_file_path(compiler, file);
+    if (access(path, F_OK) == -1) {
         return false;
     }
 
     return true;
 }
 
-bool library_not_processed(Compiler *compiler, Filename *file) {
-    int filename_len = strlen(file->name);
+bool library_not_processed(Compiler *compiler, const char *file) {
+    const char *path = get_file_path(compiler, file);
+    int filename_len = strlen(path);
 
-    for (int i = 0; i < compiler->files.count; i++) {
-        const char *name = compiler->files.filenames[i];
+    for (int i = 0; i < fileman.count; i++) {
+        const char *name = fileman.files[i];
         int name_len = strlen(name);
 
-        if (filename_len == name_len && memcmp(file->name, name, filename_len) == 0) {
+        if (filename_len == name_len && memcmp(path, name, filename_len) == 0) {
             return false;
         }
     }

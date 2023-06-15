@@ -76,6 +76,11 @@ typedef enum {
     OP_SYS4,
     OP_SYS5,
     OP_SYS6,
+    OP_TAKE,
+
+    OP_CALL,
+    OP_DEFINE_FUNCTION,
+    OP_FUNCTION_END,
 
     // Special
     OP_END

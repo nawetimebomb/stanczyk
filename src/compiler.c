@@ -41,6 +41,7 @@
 #include "generator.h"
 #include "printer.h"
 #include "task.h"
+#include "typechecker.h"
 
 extern CompilerOptions options;
 
@@ -83,6 +84,8 @@ CompilerResult compile(Compiler *compiler) {
         compiler->failed = true;
         return COMPILER_BYTECODE_ERROR;
     }
+
+    //run_typechecker(*chunk);
 
     writer.chunk = chunk;
     writer.ip = chunk->code;

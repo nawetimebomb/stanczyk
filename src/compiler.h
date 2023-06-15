@@ -53,20 +53,11 @@ typedef struct {
     int start;
     int capacity;
     int count;
-    char **filenames;
-    char **sources;
-} FileArray;
-
-typedef struct {
-    int start;
-    int capacity;
-    int count;
     String **libs;
 } ClibArray;
 
 typedef struct {
     CompilerOptions options;
-    FileArray files;
     Timers timers;
     ClibArray clibs;
     bool ready;

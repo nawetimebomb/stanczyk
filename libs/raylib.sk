@@ -1,60 +1,58 @@
-#clib raylib
-#clib pthread
-#clib m
-#clib dl
+#clib "raylib"
+#clib "pthread"
+#clib "m"
+#clib "dl"
 
-c-function rl-InitWindow   InitWindow   (rdi rsi rdx)           end
-c-function rl-BeginDrawing BeginDrawing ()                      end
-c-function rl-EndDrawing   EndDrawing   ()                      end
-c-function rl-WindowShouldClose  WindowShouldClose ()           end
-c-function rl-CloseWindow  CloseWindow  ()                      end
-c-function rl-ClearBackground ClearBackground (rdi)             end
-c-function rl-SetTargetFPS SetTargetFPS (rdi)                   end
-c-function rl-DrawRectangle DrawRectangle (rdi rsi rdx rcx r8) end
-c-function rl-DrawCircle DrawCircle (rdi rsi rdx xmm0)          end
+;; Raylib Core
+c-function rl-InitWindow               InitWindow  Int Int Str             end
+c-function rl-WindowShouldClose        WindowShouldClose -> Bool           end
+c-function rl-CloseWindow              CloseWindow                         end
+c-function rl-IsWindowReady            IsWindowReady -> Bool               end
+c-function rl-IsWindowFullScreen       IsWindowFullscreen -> Bool          end
+c-function rl-IsWindowHidden           IsWindowHidden -> Bool              end
+c-function rl-IsWindowMinimized        IsWindowMinimized -> Bool           end
+c-function rl-IsWindowMaximized        IsWindowMaximized -> Bool           end
+c-function rl-IsWindowFocused          IsWindowFocused -> Bool             end
+c-function rl-IsWindowResized          IsWindowResized -> Bool             end
+c-function rl-IsWindowState            IsWindowState Int -> Bool           end
+c-function rl-SetWindowState           SetWindowState Int                  end
+c-function rl-ClearWindowState         ClearWindowState Int                end
+c-function rl-ToggleFullscreen         ToggleFullscreen                    end
+c-function rl-MaximizeWindow           MaximizeWindow                      end
+c-function rl-MinimizeWindow           MinimizeWindow                      end
+c-function rl-RestoreWindow            RestoreWindow                       end
+c-function rl-SetWIndowIcon            SetWindowIcon Ptr                   end
+c-function rl-SetWindowIcons           SetWindowIcons Ptr Int              end
+c-function rl-SetWindowTitle           SetWindowTitle Str                  end
+c-function rl-SetWindowPosition        SetWindowPosition Int Int           end
+c-function rl-SetWindowMonitor         SetWindowMonitor Int                end
+c-function rl-SetWindowMinSize         SetWindowMinSize Int Int            end
+c-function rl-SetWindowSize            SetWindowSize Int Int               end
+c-function rl-SetWindowOpacity         SetWindowOpacity Float              end
+c-function rl-GetWindowHandle          GetWindowHandle -> Ptr              end
+c-function rl-GetScreenWidth           GetScreenWidth -> Int               end
+c-function rl-GetScreenHeight          GetScreenHeight -> Int              end
+c-function rl-GetRenderWidth           GetRenderWidth -> Int               end
+c-function rl-GetRenderHeight          GetRenderHeight -> Int              end
+c-function rl-GetMonitorCount          GetMonitorCount -> Int              end
+c-function rl-GetCurrentMonitor        GetCurrentMonitor -> Int            end
+c-function rl-GetMonitorPosition       GetMonitorPosition Int -> Ptr       end
+c-function rl-GetMonitorWidth          GetMonitorWidth Int -> Int          end
+c-function rl-GetMonitorHeight         GetMonitorHeight Int -> Int         end
+c-function rl-GetMonitorPhysicalWidth  GetMonitorPhysicalWidth Int -> Int  end
+c-function rl-GetMonitorPhysicalHeight GetMonitorPhysicalHeight Int -> Int end
+c-function rl-GetMonitorRefreshRate    GetMonitorRefreshRate Int -> Int    end
+c-function rl-GetWindowPosition        GetWindowPosition -> Ptr            end
+c-function rl-GetWindowScaleDPI        GetWindowScaleDPI -> Ptr            end
+c-function rl-GetMonitorName           GetMonitorName -> Str               end
+c-function rl-SetClipboardText         SetClipboardText Str                end
+c-function rl-GetClipboardText         GetClipboardText -> Str             end
+c-function rl-EnableEventWaiting       EnableEventWaiting                  end
+c-function rl-DisableEventWaiting      DisableEventWaiting                 end
 
-; c-function rl-InitWindow InitWindow                             (Int Int Str) end
-; c-function rl-WindowShouldClose WindowShouldClose               ()            end
-; c-function rl-CloseWindow CloseWindow                           ()            end
-; c-function rl-IsWindowReady IsWindowReady                       ()    -> Bool end
-; c-function rl-IsWindowFullScreen IsWindowFullscreen             ()    -> Bool end
-; c-function rl-IsWindowHidden IsWindowHidden                     ()    -> Bool end
-; c-function rl-IsWindowMinimized IsWindowMinimized               ()    -> Bool end
-; c-function rl-IsWindowMaximized IsWindowMaximized               ()    -> Bool end
-; c-function rl-IsWindowFocused IsWindowFocused                   () Bool       end
-; c-function rl-IsWindowResized IsWindowResized                   () Bool       end
-; c-function rl-IsWindowState IsWindowState                       (Int) Bool    end
-; c-function rl-SetWindowState SetWindowState                     (Int)         end
-; c-function rl-ClearWindowState ClearWindowState                 (Int)         end
-; c-function rl-ToggleFullscreen ToggleFullscreen                 ()            end
-; c-function rl-MaximizeWindow MaximizeWindow                     ()            end
-; c-function rl-MinimizeWindow MinimizeWindow                     ()            end
-; c-function rl-RestoreWindow RestoreWindow                       ()            end
-; c-function rl-SetWIndowIcon SetWindowIcon                       (Ptr)         end
-; c-function rl-SetWindowIcons SetWindowIcons                     (Ptr Int)     end
-; c-function rl-SetWindowTitle SetWindowTitle                     (Str)         end
-; c-function rl-SetWindowPosition SetWindowPosition               (Int Int)     end
-; c-function rl-SetWindowMonitor SetWindowMonitor                 (Int)         end
-; c-function rl-SetWindowMinSize SetWindowMinSize                 (Int Int)     end
-; c-function rl-SetWindowSize SetWindowSize                       (Int Int)     end
-; c-function rl-SetWindowOpacity SetWindowOpacity                 (Float)       end
-; c-function rl-GetWindowHandle GetWindowHandle                   ()    -> Ptr  end
-; c-function rl-GetScreenWidth GetScreenWidth                     ()    -> Int  end
-; c-function rl-GetScreenHeight GetScreenHeight                   ()    -> Int  end
-; c-function rl-GetRenderWidth GetRenderWidth                     ()    -> Int  end
-; c-function rl-GetRenderHeight GetRenderHeight                   ()    -> Int  end
-; c-function rl-GetMonitorCount GetMonitorCount                   ()    -> Int  end
-; c-function rl-GetCurrentMonitor GetCurrentMonitor               ()    -> Int  end
-; c-function rl-GetMonitorPosition GetMonitorPosition             (Int) -> Ptr  end
-; c-function rl-GetMonitorWidth GetMonitorWidth                   (Int) -> Int  end
-; c-function rl-GetMonitorHeight GetMonitorHeight                 (Int) -> Int  end
-; c-function rl-GetMonitorPhysicalWidth GetMonitorPhysicalWidth   (Int) -> Int  end
-; c-function rl-GetMonitorPhysicalHeight GetMonitorPhysicalHeight (Int) -> Int  end
-; c-function rl-GetMonitorRefreshRate GetMonitorRefreshRate       (Int) -> Int  end
-; c-function rl-GetWindowPosition GetWindowPosition               ()    -> Ptr  end
-; c-function rl-GetWindowScaleDPI GetWindowScaleDPI               ()    -> Ptr  end
-; c-function rl-GetMonitorName GetMonitorName                     ()    -> Str  end
-; c-function rl-SetClipboardText SetClipboardText                 (Str)         end
-; c-function rl-GetClipboardText GetClipboardText                 ()    -> Str  end
-; c-function rl-EnableEventWaiting EnableEventWaiting             ()            end
-; c-function rl-DisableEventWaiting DisableEventWaiting           ()            end
+c-function rl-BeginDrawing    BeginDrawing                                 end
+c-function rl-ClearBackground ClearBackground Hex                          end
+c-function rl-DrawCircle      DrawCircle Int Int Hex Float                 end
+c-function rl-DrawRectangle   DrawRectangle Int Int Int Int Hex            end
+c-function rl-EndDrawing      EndDrawing                                   end
+c-function rl-SetTargetFPS    SetTargetFPS Int                             end

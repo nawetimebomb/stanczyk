@@ -29,6 +29,7 @@
 
 #include "debug.h"
 #include "constant.h"
+#include "object.h"
 
 void disassemble_chunk(Chunk *chunk, const char *name) {
     printf("== %s ==\n", name);
@@ -59,22 +60,6 @@ static int definition_instruction(const char *name, Chunk *chunk, int offset) {
     print_constant(chunk->constants.values[mem_bytes]);
     printf("'\n");
     return offset + 3;
-}
-
-static int function_instruction(const char *name, Chunk *chunk, int offset) {
-    u8 arity_number = chunk->code[offset + 1];
-    u8 cname = chunk->code[offset + 2];
-    int arity = AS_INT(chunk->constants.values[arity_number]);
-    printf("%-16s %4d '", name, arity);
-    print_constant(chunk->constants.values[cname]);
-    printf(" (");
-    for (int i = 0; i < arity; i++) {
-        u8 arg = chunk->code[offset + 3 + i];
-        if (i > 0) printf(" ");
-        print_constant(chunk->constants.values[arg]);
-    }
-    printf(")'\n");
-    return offset + 3 + arity;
 }
 
 static int jump_instruction(const char *name, int sign, Chunk *chunk, int offset) {
@@ -120,7 +105,7 @@ int disassemble_instruction(Chunk *chunk, int offset) {
         case OP_AND:
             return simple_instruction("OP_AND", offset);
         case OP_CALL_CFUNC:
-            return function_instruction("OP_CALL_CFUNC", chunk, offset);
+            return constant_instruction("OP_CALL_CFUNC", chunk, offset);
         case OP_DEC:
             return simple_instruction("OP_DEC", offset);
         case OP_DEFINE_PTR:
@@ -177,6 +162,8 @@ int disassemble_instruction(Chunk *chunk, int offset) {
             return simple_instruction("OP_SYS6", offset);
         case OP_SWAP:
             return simple_instruction("OP_SWAP", offset);
+        case OP_TAKE:
+            return simple_instruction("OP_TAKE", offset);
         // Special
         case OP_END:
             return simple_instruction("OP_END", offset);

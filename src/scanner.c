@@ -131,6 +131,12 @@ static TokenType check_keyword(int start, int length, const char *rest, TokenTyp
 
 static TokenType keyword_type() {
     switch (scanner.start[0]) {
+        case 'B': return check_keyword(1, 3, "ool", TOKEN_DATATYPE_BOOL);
+        case 'F': return check_keyword(1, 4, "loat", TOKEN_DATATYPE_FLOAT);
+        case 'H': return check_keyword(1, 2, "ex", TOKEN_DATATYPE_HEX);
+        case 'I': return check_keyword(1, 2, "nt", TOKEN_DATATYPE_INT);
+        case 'P': return check_keyword(1, 2, "tr", TOKEN_DATATYPE_PTR);
+        case 'S': return check_keyword(1, 2, "tr", TOKEN_DATATYPE_STR);
         case '#': {
             if (scanner.current - scanner.start > 1) {
                 switch (scanner.start[1]) {
@@ -153,6 +159,9 @@ static TokenType keyword_type() {
             if (check_if_keyword(1, 10, "_SYS_CALL5"))   return TOKEN___SYS_CALL5;
             if (check_if_keyword(1, 10, "_SYS_CALL6"))   return TOKEN___SYS_CALL6;
         } break;
+        case '-': {
+            if (match('>')) return TOKEN_RIGHT_ARROW;
+        }
         case 'a': return check_keyword(1, 2, "nd", TOKEN_AND);
         case 'c': {
             if (scanner.current - scanner.start > 1) {
@@ -209,6 +218,7 @@ static TokenType keyword_type() {
                 }
             }
         } break;
+        case 't': return check_keyword(1, 3, "ake", TOKEN_TAKE);
     }
 
     return TOKEN_WORD;
