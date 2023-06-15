@@ -52,17 +52,37 @@
 ;; TODO: Add descriptions
 
 ;; File descriptor (fd)
-macro stdin  do 0 .
-macro stdout do 1 .
-macro stderr do 2 .
+const STDIN  0 .
+const STDOUT 1 .
+const STDERR 2 .
 
-macro LINUX_WRITE do 1 .
+const LINUX_WRITE 1  .
+const LINUX_EXIT  60 .
+
+const READ      0   .
+const WRITE     1   .
+const READWRITE 2   .
+const CREATE    64  .
+const TRUNCATE  512 .
 
 
-function* __sys_puts int ptr int int do .
+function* SYSCALL_WRITE int ptr int int do .
+function* SYSCALL_EXIT  int int do .
 
-function puts int ptr do
-  stdout LINUX_WRITE __sys_puts
+function puts ptr do
+  dup strlen swap
+  STDOUT LINUX_WRITE SYSCALL_WRITE
+.
+
+function error ptr do
+  "ERROR: " dup strlen swap STDERR LINUX_WRITE SYSCALL_WRITE
+  dup strlen swap STDERR LINUX_WRITE SYSCALL_WRITE
+  1 "\n" STDERR LINUX_WRITE SYSCALL_WRITE
+  1 exit
+.
+
+function exit int do
+  LINUX_EXIT SYSCALL_EXIT
 .
 
 function clear do
@@ -71,4 +91,8 @@ function clear do
 
 function []argv int -> ptr do
   8 * argv (int) + (ptr) ->64
+  if dup (int) 0 = do
+    dup print
+    "argv empty" error
+  .
 .

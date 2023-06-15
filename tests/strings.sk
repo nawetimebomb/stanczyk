@@ -5,7 +5,7 @@ using "io"
 ;    String writing and string length checking
 function main do
   ; Check the length
-  "Hello, World\n" drop print
+  "Hello, World\n" strlen print
 
   ; Print something
   "Hello, Stańczyk!\n" puts

@@ -35,9 +35,11 @@ func getOperationName(code Code) string {
 	case OP_DIVIDE: name = "div"
 	case OP_DROP: name = "drop"
 	case OP_JUMP_IF_FALSE: name = "do"
-	case OP_MULTIPLY: name = "* (multiply)"
 	case OP_LOAD8, OP_LOAD16, OP_LOAD32, OP_LOAD64:
 		name = "load"
+	case OP_MULTIPLY: name = "* (multiply)"
+	case OP_NOT_EQUAL:
+		name = "!= (not equal)"
 	case OP_PRINT: name = "print"
 	case OP_STORE8, OP_STORE16, OP_STORE32, OP_STORE64:
 		name = "store"
@@ -160,10 +162,9 @@ func TypecheckRun() {
 			case OP_PUSH_INT:
 				tc.push(DATA_INT)
 			case OP_PUSH_STR:
-				tc.push(DATA_INT)
 				tc.push(DATA_PTR)
 
-				// Intrinsics
+			// Intrinsics
 			case OP_ADD, OP_SUBSTRACT, OP_MULTIPLY:
 				b := tc.pop()
 				a := tc.pop()
@@ -194,7 +195,7 @@ func TypecheckRun() {
 			case OP_EQUAL, OP_NOT_EQUAL, OP_GREATER, OP_GREATER_EQUAL, OP_LESS, OP_LESS_EQUAL:
 				b := tc.pop()
 				a := tc.pop()
-				assertArgumentType(dtArray(a, b), dtArray(DATA_INT, DATA_INT), code, loc)
+				assertArgumentType(dtArray(a, b), dtArray(DATA_ANY, DATA_ANY), code, loc)
 				tc.push(DATA_BOOL)
 			case OP_JUMP_IF_FALSE:
 				a := tc.pop()
