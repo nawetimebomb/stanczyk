@@ -33,5 +33,6 @@
 #include "compiler.h"
 
 Chunk *create_intermediate_representation(Compiler *);
+void frontend_compile();
 
 #endif

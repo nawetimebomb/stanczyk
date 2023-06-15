@@ -28,6 +28,7 @@
 #ifndef STANCZYK_STANCZYK_H
 #define STANCZYK_STANCZYK_H
 
+#include <assert.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -65,6 +66,15 @@ typedef enum {
     COMPILATION_FLAG_DEBUG,
     COMPILATION_FLAG_SILENT
 } CompilationFlag;
+
+typedef enum {
+    FRONTEND,
+    TYPECHECK,
+    CODEGEN,
+    OUTPUT,
+    BACKEND,
+    TOTAL
+} StanczykSteps;
 
 typedef struct {
     // workspace: List of constants used throughout the compiling
@@ -114,25 +124,6 @@ typedef struct {
         bool silent;
     } options;
 
-    // performance: Tracks the time it takes to complete every step.
-    // Useful information to print out after the compilation process.
-    struct {
-        // frontend: Time it took to compile to bytecode.
-        float frontend;
-
-        // typecheck: Time it took to do the typechecking.
-        float typecheck;
-
-        // codegen: Time it took to generate code for specific platform.
-        float codegen;
-
-        // output: Time it took to generate the output file.
-        float output;
-
-        // backend: Time it took for the assembler to run and compile.
-        float backend;
-    } performance;
-
     // result: flag that marks the compilation result throughout the process.
     CompilationResult result;
 
@@ -147,14 +138,15 @@ const char *get_entry(void);
 const char *get_out(void);
 const char *get_compiler_dir(void);
 const char *get_project_dir(void);
-bool get_flag(CompilationFlag);
+bool get_flag(CompilationFlag flag);
+
 bool compilation_ready(void);
 bool compilation_failed(void);
 
-void set_directories(const char *, const char *);
-void set_entry(const char *);
-void set_output(const char *);
-void set_mode(CompilationMode);
-void set_flag(CompilationFlag, bool);
+void set_directories(const char *compiler, const char *project);
+void set_entry(const char *entry);
+void set_output(const char *out);
+void set_mode(CompilationMode mode);
+void set_flag(CompilationFlag flag, bool value);
 
 #endif

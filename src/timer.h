@@ -25,23 +25,17 @@
  * ███████║   ██║   ██║  ██║██║ ╚████║╚██████╗███████╗   ██║   ██║  ██╗
  * ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝╚══════╝   ╚═╝   ╚═╝  ╚═╝
  */
-#ifndef STANCZYK_LOGGER_H
-#define STANCZYK_LOGGER_H
+#ifndef STANCZYK_TIMER_H
+#define STANCZYK_TIMER_H
 
 #include "stanczyk.h"
 
-#include "scanner.h"
+#define START_TIMER(step) timer_control(step, true)
+#define END_TIMER(step)   timer_control(step, false)
 
-typedef enum {
-    PREFIX_NONE,
-    PREFIX_STANCZYK
-} PrefixType;
+void start_timer(void);
+void stop_timer(void);
 
-void CLI_ERROR(const char *format, ...);
-const char *CLI_GET_STEP_NAME(StanczykSteps step);
-void CLI_HELP(void);
-void CLI_MESSAGE(PrefixType prefix, const char *format, ...);
-void CLI_WELCOME(void);
-void PARSING_ERROR(Token *token, const char *msg);
+void timer_control(StanczykSteps step, bool start);
 
 #endif

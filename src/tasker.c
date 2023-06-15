@@ -25,9 +25,20 @@
  * ███████║   ██║   ██║  ██║██║ ╚████║╚██████╗███████╗   ██║   ██║  ██╗
  * ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝╚══════╝   ╚═╝   ╚═╝  ╚═╝
  */
+#include "stanczyk.h"
+
 #include "tasker.h"
 #include "fileman.h"
+#include "timer.h"
+#include "frontend.h"
 
 void run_tasker(void) {
     start_filemanager();
+    start_timer();
+
+    START_TIMER(FRONTEND);
+    frontend_compile();
+    END_TIMER(FRONTEND);
+
+    stop_timer();
 }

@@ -51,24 +51,58 @@ static void CLI_LOGO() {
 }
 
 void CLI_ERROR(const char *format, ...) {
-    char *message = malloc(sizeof(char) * 1024);
-    memset(message, 0, sizeof(char) * 1024);
+    char *msg = malloc(sizeof(char) * 1024);
+    memset(msg, 0, sizeof(char) * 1024);
 
     va_list args;
 
     va_start(args, format);
-    vsprintf(message, format, args);
+    vsprintf(msg, format, args);
     va_end(args);
 
-    fprintf(stderr, _UNDERLINE_"ERROR:"_RESET_" %s", message);
+    fprintf(stderr, _BOLD_ _RED_ _UNDERLINE_"ERROR:"_RESET_" %s\n", msg);
     CLI_WELCOME();
+    free(msg);
     exit(COMPILATION_INPUT_ERROR);
+}
+
+const char *CLI_GET_STEP_NAME(StanczykSteps step) {
+    assert(step < TOTAL);
+    switch (step) {
+        case FRONTEND  : return "Front-end compilation";
+        case TYPECHECK : return "Typechecking";
+        case CODEGEN   : return "Code generation";
+        case OUTPUT    : return "Output to Assembly";
+        case BACKEND   : return "Back-end compilation";
+        default        : return "Unreachable";
+    }
 }
 
 void CLI_HELP(void) {
     // TODO: Add help message
     CLI_LOGO();
 
+}
+
+void CLI_MESSAGE(PrefixType prefix, const char *format, ...) {
+    if (get_flag(COMPILATION_FLAG_SILENT)) return;
+
+    char *msg = malloc(sizeof(char) * 128);
+    memset(msg, 0, sizeof(char) * 128);
+
+    va_list args;
+
+    va_start(args, format);
+    vsprintf(msg, format, args);
+    va_end(args);
+
+    switch (prefix) {
+        case PREFIX_NONE: break;
+        case PREFIX_STANCZYK: fprintf(stdout, _BOLD_ _RED_ "[Stanczyk] "_RESET_); break;
+    }
+
+    fprintf(stdout, "%s", msg);
+    free(msg);
 }
 
 void CLI_WELCOME(void) {
