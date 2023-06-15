@@ -37,6 +37,7 @@ static void free_object(obj_t *object) {
             free_chunk(&procedure->chunk);
             FREE(procedure_t, object);
         } break;
+        case OBJ_NATIVE: FREE(native_t, object); break;
         case OBJ_STRING: {
             string_t *string = (string_t *)object;
             FREE_ARRAY(char, string->chars, string->length + 1);

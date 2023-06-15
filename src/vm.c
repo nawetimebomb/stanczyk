@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
+#include <time.h>
 
 #include "chunk.h"
 #include "common.h"
@@ -9,6 +10,7 @@
 #include "object.h"
 #include "memory.h"
 #include "value.h"
+#include "natives.h"
 #include "vm.h"
 
 VM_t VM;
@@ -18,6 +20,7 @@ static void reset_stack() {
     VM.frame_count = 0;
 }
 
+// TODO: There's a bug in this function that it's not showing the second parameter.
 static void runtime_error(const char *format, ...) {
     va_list args;
 
@@ -42,6 +45,14 @@ static void runtime_error(const char *format, ...) {
     reset_stack();
 }
 
+static void define_native(const char *name, native_proc_t procedure, int num_args) {
+    push(OBJ_VAL(copy_string(name, (int)strlen(name))));
+    push(OBJ_VAL(new_native(procedure, num_args)));
+    table_set(&VM.symbols, AS_STRING(VM.stack[0]), VM.stack[1]);
+    pop();
+    pop();
+}
+
 static value_t peek(int distance) {
     return VM.stack_top[-1 - distance];
 }
@@ -64,11 +75,25 @@ static bool call(procedure_t *procedure, int arg_count) {
     return true;
 }
 
+static bool call_native(native_t *native, int arg_count) {
+    if (arg_count != native->arity) {
+        runtime_error("expected %d arguments, got $d.", native->arity, arg_count);
+        return false;
+    }
+    value_t result = native->call(arg_count, VM.stack_top - arg_count);
+    VM.stack_top -= arg_count + 1;
+    push(result);
+    return true;
+}
+
 static bool call_value(value_t callee, int arg_count) {
     if (IS_OBJ(callee)) {
         switch (OBJ_TYPE(callee)) {
             case OBJ_PROCEDURE:
                 return call(AS_PROCEDURE(callee), arg_count);
+            case OBJ_NATIVE: {
+                return call_native(AS_NATIVE(callee), arg_count);
+            }
             default: break;
         }
     }
@@ -98,6 +123,8 @@ void init_VM() {
     VM.objects = NULL;
     init_table(&VM.symbols);
     init_table(&VM.strings);
+
+    register_natives((define_native_func)define_native);
 }
 
 void free_VM() {

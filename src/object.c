@@ -28,6 +28,13 @@ procedure_t *new_procedure() {
     return procedure;
 }
 
+native_t *new_native(native_proc_t procedure, int arg_count) {
+    native_t *native = ALLOCATE_OBJ(native_t, OBJ_NATIVE);
+    native->call = procedure;
+    native->arity = arg_count;
+    return native;
+}
+
 static string_t *allocate_string(char *chars, int length, uint32_t hash) {
     string_t *string = ALLOCATE_OBJ(string_t, OBJ_STRING);
     string->length = length;
@@ -78,6 +85,7 @@ static void print_procedure(procedure_t *procedure) {
 void print_obj(value_t value) {
     switch (OBJ_TYPE(value)) {
         case OBJ_PROCEDURE: print_procedure(AS_PROCEDURE(value)); break;
-        case OBJ_STRING: printf("%s", AS_CSTRING(value)); break;
+        case OBJ_NATIVE:    printf("<native procedure>");         break;
+        case OBJ_STRING:    printf("%s", AS_CSTRING(value));      break;
     }
 }
