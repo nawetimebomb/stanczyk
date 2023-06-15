@@ -1,5 +1,5 @@
-#ifndef NLISP_COMMON_H
-#define NLISP_COMMON_H
+#ifndef STANCZYK_COMMON_H
+#define STANCZYK_COMMON_H
 
 #include <stdbool.h>
 #include <stddef.h>

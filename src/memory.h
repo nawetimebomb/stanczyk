@@ -1,5 +1,5 @@
-#ifndef NLISP_MEMORY_H
-#define NLISP_MEMORY_H
+#ifndef STANCZYK_MEMORY_H
+#define STANCZYK_MEMORY_H
 
 #include "common.h"
 #include "object.h"

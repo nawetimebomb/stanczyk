@@ -1,5 +1,5 @@
-#ifndef NLISP_VM_H
-#define NLISP_VM_H
+#ifndef STANCZYK_VM_H
+#define STANCZYK_VM_H
 
 #include "chunk.h"
 #include "common.h"

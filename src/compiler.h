@@ -1,5 +1,5 @@
-#ifndef NLISP_COMPILER_H
-#define NLISP_COMPILER_H
+#ifndef STANCZYK_COMPILER_H
+#define STANCZYK_COMPILER_H
 
 #include "object.h"
 #include "vm.h"
