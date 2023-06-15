@@ -35,8 +35,8 @@ void stop_filemanager(void);
 int get_files_count(void);
 const char *get_filename(int);
 const char *get_filesource(int);
-void process_and_save_file(Compiler *, const char*);
-bool library_exists(Compiler *, const char *);
-bool library_not_processed(Compiler *, const char *);
+void process_and_save_file(const char*);
+bool library_exists(const char *);
+bool library_not_processed(const char *);
 
 #endif

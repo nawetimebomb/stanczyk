@@ -128,4 +128,13 @@ typedef struct {
     bool ready;
 } Stanczyk;
 
+void start_stanczyk(void);
+void stop_stanczyk(void);
+
+const char *get_entry_file(void);
+const char *get_compiler_dir(void);
+const char *get_project_dir(void);
+void set_directories(const char *, const char *);
+void set_entry_file(const char *);
+
 #endif

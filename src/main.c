@@ -40,12 +40,6 @@
 #include "memory.h"
 
 Compiler compiler;
-Stanczyk *stanczyk;
-
-static void start_stanczyk() {
-    stanczyk = malloc(sizeof(Stanczyk));
-    memset(stanczyk, 0, sizeof(Stanczyk));
-}
 
 static void init_clib_array() {
     compiler.clibs.start = 4;
@@ -54,7 +48,7 @@ static void init_clib_array() {
     compiler.clibs.libs = NULL;
 }
 
-static char *get_project_dir() {
+static char *find_project_dir() {
     char *result = malloc(256);
     memset(result, 0, 256);
     getcwd(result, 256);
@@ -62,7 +56,7 @@ static char *get_project_dir() {
     return result;
 }
 
-static char *get_compiler_dir(const char *path) {
+static char *find_compiler_dir(const char *path) {
     int len = strlen(path);
     char *dir = malloc(len + 1);
     memset(dir, 0, len + 1);
@@ -112,6 +106,7 @@ static void parse_arguments(int argc, const char **argv) {
         } else if (strstr(argv[i], ".sk")) {
             compiler.ready = true;
             compiler.options.entry_file = argv[i];
+            set_entry_file(argv[i]);
         } else {
             CLI_ERROR("unknown option %s in arguments\n"
                       "You can get a list of allowed arguments "
@@ -137,13 +132,12 @@ int main(int argc, const char **argv) {
                   "E.g.:\n" "\tskc run myfile.sk\n" "\t        ^^^^^^^^^\n");
     }
 
-    stanczyk->workspace.project_dir = get_project_dir();
-    stanczyk->workspace.compiler_dir = get_compiler_dir(argv[0]);
+    set_directories(find_compiler_dir(argv[0]), find_project_dir());
 
     run_tasker();
 
-    compiler.options.workspace = get_project_dir();
-    compiler.options.compiler_dir = get_compiler_dir(argv[0]);
+    compiler.options.workspace = find_project_dir();
+    compiler.options.compiler_dir = find_compiler_dir(argv[0]);
 
     compile(&compiler);
 
@@ -152,5 +146,7 @@ int main(int argc, const char **argv) {
         if (compiler.options.clean) system("rm ./output");
     }
 
-    return stanczyk->result;
+    stop_stanczyk();
+
+    return 0;
 }

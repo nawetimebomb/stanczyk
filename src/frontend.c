@@ -738,9 +738,9 @@ static void hash_include() {
             "You can find a list of libraries running skc -help");
     String *name = copy_string(parser.previous.start + 1, parser.previous.length - 2);
 
-    if (library_exists(the_compiler, name->chars)) {
-        if (library_not_processed(the_compiler, name->chars)) {
-            process_and_save_file(the_compiler, name->chars);
+    if (library_exists(name->chars)) {
+        if (library_not_processed(name->chars)) {
+            process_and_save_file(name->chars);
         }
     } else {
         error_at(&parser.previous, "failed to find library to include: %s\n"
@@ -968,10 +968,10 @@ Chunk *create_intermediate_representation(Compiler *compiler) {
     the_compiler = compiler;
 
     // Save libs/basics.sk
-    process_and_save_file(the_compiler, "basics");
+    process_and_save_file("basics");
 
     // Save the entry file
-    process_and_save_file(the_compiler, the_compiler->options.entry_file);
+    process_and_save_file(get_entry_file());
 
     // Check for #includes, save macros, const and functions
     for (int index = 0; index < get_files_count(); index++) {
