@@ -27,7 +27,7 @@ static bool is_alpha(char c) {
 }
 
 static bool is_allowed_char(char c) {
-    return (c == '-');
+    return (c == '-' || c == '_');
 }
 
 static bool is_at_eof() {
