@@ -395,7 +395,7 @@ static interpret_result_t run() {
             } break;
             case OP_QUIT: {
                 if (!IS_BOOL(peek(0))) {
-                    runtime_error("'quit' needs a boolean on the stack");
+                    runtime_error("[quit] needs a boolean on the stack");
                     return INTERPRET_RUNTIME_ERROR;
                 }
                 uint16_t offset = READ_SHORT();
@@ -410,6 +410,46 @@ static interpret_result_t run() {
                 if (!call_value(peek(arg_count), arg_count))
                     return INTERPRET_RUNTIME_ERROR;
                 frame = &VM.frames[VM.frame_count - 1];
+            } break;
+            case OP_CAST: {
+                if (!IS_TYPE_DECL(peek(0))) {
+                    runtime_error("[@] type declaration is required");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                //type_decl_t new_type = AS_TYPE_DECL(pop());
+                // TODO: Handle type casting by type below. I should switch over possible
+                // types and make sure the previous value in the stack allows for that type
+                // casting.
+
+
+            } break;
+            case OP_JOIN: {
+                if (!IS_LIST(peek(0))) {
+                    runtime_error("[wrap] operand must be <list>.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                list_t *list = AS_LIST(pop());
+                char result[list->count];
+                for (int i = 0; i < list->count; i++) {
+                    if (i == 0)
+                        strcpy(result, AS_CSTRING(list->content[i]));
+                    else
+                        strcat(result, AS_CSTRING(list->content[i]));
+                }
+                push(OBJ_VAL(copy_string(result, list->count)));
+            } break;
+            case OP_SPLIT: {
+                if (!IS_STRING(peek(0))) {
+                    runtime_error("[unwrap] operand must be <str>.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                // TODO: Unwrap only support strings because other data types are not
+                // 100% defined. We would want to support other data types too.
+                char *value = AS_CSTRING(pop());
+                list_t *result = new_list();
+                for (int i = 0; i < strlen(value); i++)
+                    list_append(result, OBJ_VAL(copy_string(&value[i], 1)));
+                push(OBJ_VAL(result));
             } break;
             case OP_RETURN: {
                 value_t result = pop();

@@ -31,21 +31,37 @@ bool values_equal(value_t a, value_t b) {
     if (a.type != b.type) return false;
 
     switch (a.type) {
-        case VAL_BOOL:   return AS_BOOL(a) == AS_BOOL(b);
-        case VAL_NIL:    return true;
+        case VAL_BOOL:  return AS_BOOL(a) == AS_BOOL(b);
+        case VAL_NIL:   return true;
         case VAL_FLOAT: return AS_FLOAT(a) == AS_FLOAT(b);
-        case VAL_INT: return AS_INT(a) == AS_INT(b);
-        case VAL_OBJ:    return AS_OBJ(a) == AS_OBJ(b);
-        default:         return false;
+        case VAL_INT:   return AS_INT(a) == AS_INT(b);
+        case VAL_OBJ:   return AS_OBJ(a) == AS_OBJ(b);
+        default:        return false;
     }
+}
+
+static void print_type_description(value_t value) {
+    type_decl_t type = AS_TYPE_DECL(value);
+    char *type_string = "Not implemented";
+
+    switch (type) {
+        case TYPE_BOOL: type_string = "Bool"; break;
+        case TYPE_FLOAT: type_string = "Float"; break;
+        case TYPE_INT: type_string = "Int"; break;
+        case TYPE_STR: type_string = "Str"; break;
+        case TYPE_LIST: type_string =  "List"; break;
+    }
+
+    printf("%s", type_string);
 }
 
 void print_value(value_t value) {
     switch (value.type) {
-        case VAL_BOOL: printf(AS_BOOL(value) ? "true" : "false"); break;
-        case VAL_NIL: printf("nil"); break;
-        case VAL_FLOAT: printf("%g", AS_FLOAT(value)); break;
-        case VAL_INT: printf("%ld", AS_INT(value)); break;
-        case VAL_OBJ:    print_obj(value); break;
+        case VAL_BOOL:  printf(AS_BOOL(value) ? "true" : "false"); break;
+        case VAL_NIL:   printf("nil"); break;
+        case VAL_FLOAT: printf("%.2f", AS_FLOAT(value)); break;
+        case VAL_INT:   printf("%ld", AS_INT(value)); break;
+        case VAL_OBJ:   print_obj(value); break;
+        case VAL_TYPE_DECL: print_type_description(value); break;
     }
 }
