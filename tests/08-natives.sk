@@ -6,7 +6,7 @@
 .
 
 :: test-fread () do
-   fread("misc/fread_test.txt") print
+   fread("../misc/fread_test.txt") print
 .
 
 test-clock()
