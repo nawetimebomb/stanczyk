@@ -34,6 +34,7 @@ func getOperationName(code Code) string {
 	case OP_ADD: name = "+ (add)"
 	case OP_DIVIDE: name = "div"
 	case OP_DROP: name = "drop"
+	case OP_JUMP_IF_FALSE: name = "do"
 	case OP_MULTIPLY: name = "* (multiply)"
 	case OP_PRINT: name = "print"
 	case OP_SUBSTRACT: name = "- (substract)"

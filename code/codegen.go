@@ -91,9 +91,9 @@ func generateLinuxX86() {
 	asm.WriteData("section .data")
 
 	asm.WriteBss("section .bss")
-	asm.WriteBss("ret_stack_rsp: resq 1")
-	asm.WriteBss("ret_stack: resb 65536")
-	asm.WriteBss("ret_stack_end:")
+	asm.WriteBss("return_stack_rsp: resq 1")
+	asm.WriteBss("return_stack: resb 65536")
+	asm.WriteBss("return_stack_rsp_end:")
 
 	for _, function := range TheProgram.chunks {
 		if !function.called {
@@ -107,7 +107,7 @@ func generateLinuxX86() {
 		asm.WriteText(";; start function %s (%s:%d:%d)", function.name,
 			function.loc.f, function.loc.l, function.loc.c)
 		asm.WriteText("    sub rsp, 0")
-		asm.WriteText("    mov [ret_stack_rsp], rsp")
+		asm.WriteText("    mov [return_stack_rsp], rsp")
 		asm.WriteText("    mov rsp, rax")
 
 		for index, code := range function.code {
@@ -115,7 +115,7 @@ func generateLinuxX86() {
 			loc := code.loc
 			value := code.value
 
-			asm.WriteText("fn%dip%d:", function.ip, index)
+			asm.WriteText(".ip%d:", index)
 
 			switch instruction {
 			// Constants
@@ -245,7 +245,7 @@ func generateLinuxX86() {
 			case OP_RET:
 				asm.WriteText(";; ret (%s:%d:%d)", loc.f, loc.l, loc.c)
 				asm.WriteText("    mov rax, rsp")
-				asm.WriteText("    mov rsp, [ret_stack_rsp]")
+				asm.WriteText("    mov rsp, [return_stack_rsp]")
 				asm.WriteText("    add rsp, %d", value)
 				asm.WriteText("    ret")
 
@@ -264,9 +264,9 @@ func generateLinuxX86() {
 
 				asm.WriteText(";; call function %s (%s:%d:%d)", fnCall.name, loc.f, loc.l, loc.c)
 				asm.WriteText("    mov rax, rsp")
-				asm.WriteText("    mov rsp, [ret_stack_rsp]")
+				asm.WriteText("    mov rsp, [return_stack_rsp]")
 				asm.WriteText("    call fn%d", fnCall.ip)
-				asm.WriteText("    mov [ret_stack_rsp], rsp")
+				asm.WriteText("    mov [return_stack_rsp], rsp")
 				asm.WriteText("    mov rsp, rax")
 			case OP_END_IF:
 				asm.WriteText(";; . [if] (%s:%d:%d)", loc.f, loc.l, loc.c)
@@ -276,15 +276,15 @@ func generateLinuxX86() {
 				asm.WriteText(";; if (%s:%d:%d)", loc.f, loc.l, loc.c)
 			case OP_JUMP:
 				asm.WriteText(";; else (%s:%d:%d)", loc.f, loc.l, loc.c)
-				asm.WriteText("    jmp fn%dip%d", function.ip, value)
+				asm.WriteText("    jmp .ip%d", value)
 			case OP_JUMP_IF_FALSE:
 				asm.WriteText(";; do (%s:%d:%d)", loc.f, loc.l, loc.c)
 				asm.WriteText("    pop rax")
 				asm.WriteText("    test rax, rax")
-				asm.WriteText("    jz fn%dip%d", function.ip, value)
+				asm.WriteText("    jz .ip%d", value)
 			case OP_LOOP:
 				asm.WriteText(";; loop (%s:%d:%d)", loc.f, loc.l, loc.c)
-				asm.WriteText("    jmp fn%dip%d", function.ip, value)
+				asm.WriteText("    jmp .ip%d", value)
 			}
 		}
 
@@ -294,8 +294,8 @@ func generateLinuxX86() {
 
 	asm.WriteText(";; user program definition ends here")
 	asm.WriteText("_start:")
-	asm.WriteText("    mov rax, ret_stack_end")
-	asm.WriteText("    mov [ret_stack_rsp], rax")
+	asm.WriteText("    mov rax, return_stack_rsp_end")
+	asm.WriteText("    mov [return_stack_rsp], rax")
 	asm.WriteText("    call fn%d", mainFuncIP)
 	asm.WriteText("    mov rax, 60")
 	asm.WriteText("    mov rdi, 0")
