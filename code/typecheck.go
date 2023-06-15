@@ -13,6 +13,7 @@ type Typecheck struct {
 }
 
 var tc Typecheck
+var snapshots [10]Typecheck
 
 func getStackValues() string {
 	r := ""
@@ -32,18 +33,30 @@ func getOperationName(code Code) string {
 	name := "Unhandled"
 	switch code.op {
 	case OP_ADD: name = "+ (add)"
+	case OP_ARGC: name = "argc"
+	case OP_ARGV: name = "argv"
+	case OP_CAST: name = "cast to " + getDataTypeName(code.value.(DataType))
 	case OP_DIVIDE: name = "div"
 	case OP_DROP: name = "drop"
+	case OP_DUP: name = "dup"
+	case OP_EQUAL: name = "= (equal)"
+	case OP_GREATER: name = "> (greater)"
+	case OP_GREATER_EQUAL: name = ">= (greater equal)"
+	case OP_JUMP: name = "else"
 	case OP_JUMP_IF_FALSE: name = "do"
-	case OP_LOAD8, OP_LOAD16, OP_LOAD32, OP_LOAD64:
-		name = "load"
+	case OP_LESS: name = "< (less)"
+	case OP_LESS_EQUAL: name = "<= (less equal)"
+	case OP_LOAD8, OP_LOAD16, OP_LOAD32, OP_LOAD64: name = "load"
+	case OP_LOOP: name = "loop"
 	case OP_MULTIPLY: name = "* (multiply)"
-	case OP_NOT_EQUAL:
-		name = "!= (not equal)"
-	case OP_STORE8, OP_STORE16, OP_STORE32, OP_STORE64:
-		name = "store"
+	case OP_NOT_EQUAL: name = "!= (not equal)"
+	case OP_OVER: name = "over"
+	case OP_RET: name = "ret"
+	case OP_STORE8, OP_STORE16, OP_STORE32, OP_STORE64: name = "store"
 	case OP_SUBSTRACT: name = "- (substract)"
 	case OP_SWAP: name = "swap"
+	case OP_SYSCALL: name = "syscall"
+	case OP_TAKE: name = "take"
 	case OP_WORD: name = code.value.(string)
 	}
 
@@ -253,6 +266,8 @@ func TypecheckRun() {
 			case OP_JUMP_IF_FALSE:
 				a := tc.pop()
 				assertArgumentType(dtArray(a), dtArray(DATA_BOOL), code, loc)
+				tc.scope++
+				snapshots[tc.scope] = tc
 			case OP_LOAD8, OP_LOAD16, OP_LOAD32, OP_LOAD64:
 				a := tc.pop()
 				assertArgumentType(dtArray(a), dtArray(DATA_PTR), code, loc)
@@ -288,6 +303,17 @@ func TypecheckRun() {
 				assertArgumentType(dtArray(a), dtArray(DATA_ANY), code, loc)
 				tc.push(a)
 
+			case OP_END_IF, OP_END_LOOP:
+				if snapshots[tc.scope].stackCount != tc.stackCount {
+					ReportErrorAtLocation(MsgsTypecheckStackSizeChangedAfterBlock, loc)
+					ExitWithError(CodeTypecheckError)
+				}
+				if snapshots[tc.scope].stack != tc.stack {
+					ReportErrorAtLocation(MsgsTypecheckStackTypeChangedAfterBlock, loc)
+					ExitWithError(CodeTypecheckError)
+				}
+				tc.scope--
+
 			// Special
 			case OP_SYSCALL:
 				var have []DataType
@@ -316,6 +342,11 @@ func TypecheckRun() {
 				for _, dt := range fnCall.rets {
 					tc.push(dt)
 				}
+
+			case OP_JUMP, OP_LOOP, OP_RET:
+
+			default:
+				fmt.Println("Unhandled", getOperationName(code))
 			}
 		}
 
