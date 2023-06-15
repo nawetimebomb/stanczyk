@@ -98,6 +98,7 @@ print
 ;; | |___\__ \__ \  __/ | | | |_| | (_| | \__ \
 ;; |_____|___/___/\___|_| |_|\__|_|\__,_|_|___/
 
+
 ;; What is a programming language without variables? Imaginate having to look
 ;; into the stack all the time? Don't worry, Stańczyk does have variables.
 ;; They do take advantance of the stack too! When you define one, the

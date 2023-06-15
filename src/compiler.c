@@ -474,7 +474,8 @@ static void _loop() {
         // implicit true for infinite loops
         emit_byte(OP_TRUE);
     } else {
-        expression();
+        while (!check(TOKEN_RIGHT_BRACKET) && !check(TOKEN_EOF))
+            expression();
         consume(TOKEN_RIGHT_BRACKET, "expect '}' at the end of conditionals for loop");
     }
 
