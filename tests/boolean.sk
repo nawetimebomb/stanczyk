@@ -1,0 +1,13 @@
+using "io"
+
+;; Test: boolean
+;; Description:
+;    Check the values of pushed booleans to the stack
+
+"true value:\n" puts
+true print
+"-----------\n" puts
+
+"false value:\n" puts
+false print
+"-----------\n" puts

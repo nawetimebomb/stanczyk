@@ -149,6 +149,7 @@ static TokenType keyword_type() {
                 }
             }
         } break;
+        case 'f': return check_keyword(1, 4, "alse", TOKEN_FALSE);
         case 'i': return check_keyword(1, 2, "nt", TOKEN_DTYPE_INT);
         case 'm': return check_keyword(1, 4, "acro", TOKEN_MACRO);
         case 'p': {
@@ -159,6 +160,7 @@ static TokenType keyword_type() {
                 }
             }
         } break;
+        case 't': return check_keyword(1, 3, "rue", TOKEN_TRUE);
         case 'u': return check_keyword(1, 4, "sing", TOKEN_USING);
     }
 

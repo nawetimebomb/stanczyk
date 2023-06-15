@@ -35,22 +35,23 @@ typedef enum {
     // Constants
     OP_PUSH_INT,
     OP_PUSH_STR,
+    OP_PUSH_BOOL,
 
     // Intrinsics
     OP_ADD,
     OP_CAST,
     OP_DIVIDE,
     OP_DROP,
-    OP_MODULO,
-    OP_MULTIPLY,
-    OP_PRINT,
-    OP_SUBSTRACT,
     OP_EQUAL,
-    OP_NOT_EQUAL,
-    OP_LESS,
-    OP_LESS_EQUAL,
     OP_GREATER,
     OP_GREATER_EQUAL,
+    OP_LESS,
+    OP_LESS_EQUAL,
+    OP_MODULO,
+    OP_MULTIPLY,
+    OP_NOT_EQUAL,
+    OP_PRINT,
+    OP_SUBSTRACT,
 
     // Syscalls
     // TODO: Replace with functions that pop to specific
