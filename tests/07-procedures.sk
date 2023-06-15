@@ -13,6 +13,8 @@
    recursive(n 1 +) !
 .
 
-returning(1, 2, 3) print
-side-effect-nil-return() print
-recursive(1) print
+:: main () do
+  returning(1, 2, 3) print
+  side-effect-nil-return() print
+  recursive(1) print
+.

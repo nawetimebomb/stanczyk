@@ -1,15 +1,17 @@
-:= declared-nil .
-:= CAPS "CAPS" .
-:= try-bool true .
-:= try-number 13 .
-:= try-string "string" .
+ := declared-nil        .
+ := CAPS "CAPS"         .
+ := try-bool true       .
+ := try-number 13       .
+ := try-string "string" .
 
-declared-nil print
-CAPS print
-try-bool print
-try-number print
-try-string print
+:: main () do
+  declared-nil print
+  CAPS print
+  try-bool print
+  try-number print
+  try-string print
 
-= declared-nil "not nil" .
+  = declared-nil "not nil" .
 
-declared-nil print
+  declared-nil print
+.

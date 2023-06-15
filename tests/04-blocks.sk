@@ -1,24 +1,26 @@
 := global "in global scope" .
 
-do
-    ;; Using global scope
-    global print
+:: main () do
+	do
+		;; Using global scope
+	 	global print
 
-    ;; Re-defining to local
-    := global "its local now" .
-    global print
-.
+		;; Re-defining to local
+	 	:= global "its local now" .
+	 	global print
+	.
 
-;; test no override on global
-global print
+	;; test no override on global
+	global print
 
-do
-    := local-bind 13 .
-    local-bind print
+	do
+		:= local-bind 13 .
+		local-bind print
 
-    do
-        := second-block 26 .
-        second-block print
-        local-bind print
-    .
+		do
+			:= second-block 26 .
+			second-block print
+			local-bind print
+		.
+	.
 .
