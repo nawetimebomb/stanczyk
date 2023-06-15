@@ -35,7 +35,7 @@
 #include "chunk.h"
 #include "constant.h"
 #include "scanner.h"
-#include "ir.h"
+#include "frontend.h"
 #include "memory.h"
 #include "object.h"
 #include "printer.h"

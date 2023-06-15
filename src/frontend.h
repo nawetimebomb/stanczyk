@@ -25,8 +25,8 @@
  * ███████║   ██║   ██║  ██║██║ ╚████║╚██████╗███████╗   ██║   ██║  ██╗
  * ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝╚══════╝   ╚═╝   ╚═╝  ╚═╝
  */
-#ifndef STANCZYK_IR_H
-#define STANCZYK_IR_H
+#ifndef STANCZYK_FRONTEND_H
+#define STANCZYK_FRONTEND_H
 
 #include "common.h"
 #include "chunk.h"
