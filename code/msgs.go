@@ -97,17 +97,17 @@ const (
 	 *    |_|   |_| |_| |___\___|_||_|___\___|_|\_\
 	 */
 	MsgTypecheckMainFunctionNoArgumentsOrReturn =
-		"function main must have no arguments and no return values"
+		"function 'main' must have no arguments and no return values"
 	MsgTypecheckArgumentsTypeMismatch =
 		"incorrect arguments to call %s\n" +
 			"\t\thave (%s)\n" +
 			"\t\twant (%s)"
 	MsgTypecheckNotExplicitlyReturned =
 		"unhandled stack values\n" +
-			"\t\tfunction %s\n" +
+			"\t\tfunction '%s'\n" +
 			"\t\t(%s)"
 	MsgTypecheckMissingEntryPoint =
-		"function main is undeclared"
+		"function 'main' is undeclared"
 	MsgTypecheckWarningNotCalled =
-		"Warning: function %s declared but not in use\n"
+		"Warning: function '%s' declared but not in use\n"
 )
