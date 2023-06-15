@@ -34,6 +34,7 @@ typedef enum {
     TOKEN_INT,
     TOKEN_STR,
     TOKEN_FLOAT,
+    TOKEN_HEX,
 
     TOKEN_LEFT_PAREN,
     TOKEN_RIGHT_PAREN,

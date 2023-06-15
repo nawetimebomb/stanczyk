@@ -80,6 +80,12 @@ CompilerResult generate_x64_linux(Writer *writer) {
                 append(code, "    movss  float_%d(rip), xmm0", flts->count);
                 append(flts, "float_%d: .single %f\n", flts->count, value);
             } break;
+            case OP_PUSH_HEX: {
+                const char *hex = READ_STRING()->chars;
+                append(code, "    /*    %s    */", hex);
+                append(code, "    mov    $%s, rax", hex);
+                append(code, "    push   rax");
+            } break;
             case OP_PUSH_PTR: {
                 const char *name = READ_STRING()->chars;
                 append(code, "    /*    memory: %s    */", name);
@@ -135,6 +141,7 @@ CompilerResult generate_x64_linux(Writer *writer) {
 
                 //append(code, "    xor    rax, rax");
                 append(code, "    call   %s", cname);
+                append(code, "    push   rax");
             } break;
             case OP_DEC: {
                 append(code, "    /*    dec    */");

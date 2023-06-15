@@ -378,6 +378,10 @@ static void RULE_constant(Token token) {
             emit_constant(OP_PUSH_STR,
                           OBJECT_VALUE(copy_string(token.start + 1, token.length - 2)));
         } break;
+        case TOKEN_HEX: {
+            emit_constant(OP_PUSH_HEX,
+                          OBJECT_VALUE(copy_string(token.start, token.length)));
+        } break;
         case TOKEN_FLOAT: {
             double value = strtod(token.start, NULL);
             emit_constant(OP_PUSH_FLOAT, FLOAT_VALUE(value));
@@ -618,6 +622,7 @@ ParseRule rules[] = {
     [TOKEN_INT]           = {RULE_constant  },
     [TOKEN_STR]           = {RULE_constant  },
     [TOKEN_FLOAT]         = {RULE_constant  },
+    [TOKEN_HEX]           = {RULE_constant  },
 
     [TOKEN_IF]            = {RULE_keyword   },
     [TOKEN_LOOP]          = {RULE_keyword   },
