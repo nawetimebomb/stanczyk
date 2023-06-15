@@ -20,7 +20,6 @@ typedef enum {
     TOKEN_BANG,
     TOKEN_GREATER,
     TOKEN_LESS,
-    TOKEN_AT,
 
     // Double char tokens
     TOKEN_PLUS_PLUS,
@@ -34,12 +33,6 @@ typedef enum {
     TOKEN_LESS_GREATER,
     TOKEN_GREATER_LESS,
     TOKEN_DOT_DOT,
-
-    // Types
-    TOKEN_TYPE_LIST,
-    TOKEN_TYPE_STRING,
-    TOKEN_TYPE_FLOAT,
-    TOKEN_TYPE_INT,
 
     // Literals
     TOKEN_SYMBOL,

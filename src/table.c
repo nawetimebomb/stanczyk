@@ -20,7 +20,7 @@ void free_table(table_t *table) {
 }
 
 static entry_t *find_entry(entry_t *entries, int capacity, string_t *key) {
-    uint32_t index = key->hash % capacity;
+    uint32_t index = key->hash & (capacity - 1);
     entry_t *tombstone = NULL;
     for (;;) {
         entry_t *entry = &entries[index];
@@ -34,7 +34,7 @@ static entry_t *find_entry(entry_t *entries, int capacity, string_t *key) {
             return entry;
         }
 
-        index = (index + 1) % capacity;
+        index = (index + 1) & (capacity - 1);
     }
 }
 
@@ -108,7 +108,7 @@ void table_add_all(table_t *from, table_t *to) {
 string_t *table_find_string(table_t *table, const char *chars, int length, uint32_t hash) {
     if (table->count == 0) return NULL;
 
-    uint32_t index = hash % table->capacity;
+    uint32_t index = hash & (table->capacity - 1);
     for (;;) {
         entry_t *entry = &table->entries[index];
         if (entry->key == NULL) {
@@ -119,6 +119,23 @@ string_t *table_find_string(table_t *table, const char *chars, int length, uint3
             return entry->key;
         }
 
-        index = (index + 1) % table->capacity;
+        index = (index + 1) & (table->capacity - 1);
+    }
+}
+
+void table_remove_white(table_t *table) {
+    for (int i = 0; i < table->capacity; i++) {
+        entry_t *entry = &table->entries[i];
+        if (entry->key != NULL && !entry->key->obj.marked) {
+            table_delete(table, entry->key);
+        }
+    }
+}
+
+void mark_table(table_t *table) {
+    for (int i = 0; i < table->capacity; i++) {
+        entry_t *entry = &table->entries[i];
+        mark_object((obj_t *)entry->key);
+        mark_value(entry->value);
     }
 }

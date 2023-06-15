@@ -123,8 +123,6 @@ int disassemble_instruction(chunk_t *chunk, int offset) {
             return simple_instruction("OP_SPLIT", offset);
         case OP_JOIN:
             return simple_instruction("OP_JOIN", offset);
-        case OP_CAST:
-            return simple_instruction("OP_CAST", offset);
         case OP_RETURN:
             return simple_instruction("OP_RETURN", offset);
         default:

@@ -15,8 +15,14 @@ extern VM_t VM;
 static obj_t *allocate_object(size_t size, obj_type_t type) {
     obj_t *object = (obj_t *)reallocate(NULL, 0, size);
     object->type = type;
+    object->marked = false;
     object->next = VM.objects;
     VM.objects = object;
+
+#ifdef DEBUG_LOG_GC
+    printf("%p allocate %zu for %d\n", (void *)object, size, type);
+#endif
+
     return object;
 }
 
@@ -81,7 +87,9 @@ static string_t *allocate_string(char *chars, int length, uint32_t hash) {
     string->length = length;
     string->chars = chars;
     string->hash = hash;
+    push(OBJ_VAL(string));
     table_set(&VM.strings, string, NIL_VAL);
+    pop();
     return string;
 }
 

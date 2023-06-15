@@ -6,6 +6,7 @@
 #include "chunk.h"
 #include "common.h"
 #include "compiler.h"
+#include "memory.h"
 #include "debug.h"
 #include "object.h"
 #include "scanner.h"
@@ -440,12 +441,10 @@ static void _symbol() {
         emit_constant(INT_VAL(1));
         emit_byte(OP_ADD);
         named_symbol(name, true);
-        emit_byte(OP_DROP);
     } else if (match(TOKEN_MINUS_MINUS)) {
         emit_constant(INT_VAL(1));
         emit_byte(OP_SUBTRACT);
         named_symbol(name, true);
-        emit_byte(OP_DROP);
     }
 }
 
@@ -453,7 +452,6 @@ static void _stmt()  {
     token_type_t statement_type = parser.previous.type;
 
     switch (statement_type) {
-        case TOKEN_AT:           emit_byte(OP_CAST);  break;
         case TOKEN_PRINT:        emit_byte(OP_PRINT); break;
         case TOKEN_DO: {
             begin_scope();
@@ -715,19 +713,6 @@ static void _access() {
     emit_byte(OP_LIST_GET_INDEX);
 }
 
-// Type declaration
-static void _tdclr() {
-    token_type_t type = parser.previous.type;
-
-    switch (type) {
-        case TOKEN_TYPE_LIST:   emit_constant(TYPE_DECL_VAL(TYPE_LIST));  break;
-        case TOKEN_TYPE_STRING: emit_constant(TYPE_DECL_VAL(TYPE_STR));   break;
-        case TOKEN_TYPE_FLOAT:  emit_constant(TYPE_DECL_VAL(TYPE_FLOAT)); break;
-        case TOKEN_TYPE_INT:    emit_constant(TYPE_DECL_VAL(TYPE_INT));   break;
-        default: return;
-    }
-}
-
 parse_rule_t rules[] = {
     [TOKEN_LEFT_PAREN]    = {NULL,        _call,      PREC_CALL},
     [TOKEN_RIGHT_PAREN]   = {NULL,        NULL,       PREC_NONE},
@@ -762,16 +747,11 @@ parse_rule_t rules[] = {
     [TOKEN_PRINT]         = {_stmt,       NULL,       PREC_NONE},
     [TOKEN_DROP]          = {_stmt,       NULL,       PREC_NONE},
     [TOKEN_DUP]           = {_stmt,       NULL,       PREC_NONE},
-    [TOKEN_AT]            = {_stmt,       NULL,       PREC_NONE},
     [TOKEN_LESS_GREATER]  = {_stmt,       NULL,       PREC_NONE},
     [TOKEN_GREATER_LESS]  = {_stmt,       NULL,       PREC_NONE},
     [TOKEN_BANG]          = {NULL,        _return,    PREC_CALL},
     [TOKEN_NEG]           = {_neg,        NULL,       PREC_NONE},
     [TOKEN_QUIT]          = {_quit,       NULL,       PREC_NONE},
-    [TOKEN_TYPE_LIST]     = {_tdclr,      NULL,       PREC_NONE},
-    [TOKEN_TYPE_STRING]   = {_tdclr,      NULL,       PREC_NONE},
-    [TOKEN_TYPE_FLOAT]    = {_tdclr,      NULL,       PREC_NONE},
-    [TOKEN_TYPE_INT]      = {_tdclr,      NULL,       PREC_NONE},
     [TOKEN_ERROR]         = {NULL,        NULL,       PREC_NONE},
     [TOKEN_EOF]           = {NULL,        NULL,       PREC_NONE}
 };
@@ -844,4 +824,12 @@ procedure_t *compile(const char *source) {
 
     procedure_t *procedure = end_compiler();
     return parser.erred ? NULL : procedure;
+}
+
+void mark_compiler_roots() {
+    compiler_t *compiler = current;
+    while (compiler != NULL) {
+        mark_object((obj_t *)compiler->procedure);
+        compiler = compiler->enclosing;
+    }
 }

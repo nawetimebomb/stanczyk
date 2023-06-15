@@ -112,20 +112,27 @@ static bool is_falsey(value_t value) {
 }
 
 static void concatenate() {
-    string_t *b = AS_STRING(pop());
-    string_t *a = AS_STRING(pop());
+    string_t *b = AS_STRING(peek(0));
+    string_t *a = AS_STRING(peek(1));
     int length = a->length + b->length;
     char *chars = ALLOCATE(char, length + 1);
     memcpy(chars, a->chars, a->length);
     memcpy(chars + a->length, b->chars, b->length);
     chars[length] = '\0';
     string_t *result = take_string(chars, length);
+    pop();
+    pop();
     push(OBJ_VAL(result));
 }
 
 void init_VM() {
     reset_stack();
     VM.objects = NULL;
+    VM.bytes_alloc = 0;
+    VM.next_gc = 1024 * 1024;
+    VM.gray_capacity = 0;
+    VM.gray_count = 0;
+    VM.gray_stack = NULL;
     init_table(&VM.symbols);
     init_table(&VM.strings);
 
@@ -202,7 +209,6 @@ static interpret_result_t run() {
             case OP_GET_LOCAL: {
                 uint8_t slot = READ_BYTE();
                 push(frame->slots[slot]);
-                break;
             } break;
             case OP_LIST_CREATE: {
                 list_t *list = new_list();
@@ -410,18 +416,6 @@ static interpret_result_t run() {
                 if (!call_value(peek(arg_count), arg_count))
                     return INTERPRET_RUNTIME_ERROR;
                 frame = &VM.frames[VM.frame_count - 1];
-            } break;
-            case OP_CAST: {
-                if (!IS_TYPE_DECL(peek(0))) {
-                    runtime_error("[@] type declaration is required");
-                    return INTERPRET_RUNTIME_ERROR;
-                }
-                //type_decl_t new_type = AS_TYPE_DECL(pop());
-                // TODO: Handle type casting by type below. I should switch over possible
-                // types and make sure the previous value in the stack allows for that type
-                // casting.
-
-
             } break;
             case OP_JOIN: {
                 if (!IS_LIST(peek(0))) {
