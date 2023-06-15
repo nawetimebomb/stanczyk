@@ -81,3 +81,21 @@ function / int int -> int do
 function % int int -> int do
   div swap drop
 .
+
+function pdiff ptr ptr -> int do
+  swap (int)
+  swap (int)
+  -
+.
+
+function pointer+ ptr int -> ptr do
+  swap (int) swap (int) + (ptr)
+.
+
+function strlen ptr -> int do
+  dup
+  loop dup ->8 0 != do
+    1 pointer+
+  .
+  swap pdiff
+.

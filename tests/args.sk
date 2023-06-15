@@ -5,5 +5,5 @@ function main do
   argc print
 
   "./output  " puts
-  8 0 []argv puts "\n" puts
+  0 []argv puts "\n" puts
 .

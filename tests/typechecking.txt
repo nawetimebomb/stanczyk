@@ -1,2 +1,2 @@
 adding to a ptr only works when type casting the pointer to int
-4202569  4202569
+4202566  4202566
