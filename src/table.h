@@ -1,29 +1,54 @@
+/* The Stańczyk Programming Language
+ *
+ *            ¿«fº"└└-.`└└*∞▄_              ╓▄∞╙╙└└└╙╙*▄▄
+ *         J^. ,▄▄▄▄▄▄_      └▀████▄ç    JA▀            └▀v
+ *       ,┘ ▄████████████▄¿     ▀██████▄▀└      ╓▄██████▄¿ "▄_
+ *      ,─╓██▀└└└╙▀█████████      ▀████╘      ▄████████████_`██▄
+ *     ;"▄█└      ,██████████-     ▐█▀      ▄███████▀▀J█████▄▐▀██▄
+ *     ▌█▀      _▄█▀▀█████████      █      ▄██████▌▄▀╙     ▀█▐▄,▀██▄
+ *    ▐▄▀     A└-▀▌  █████████      ║     J███████▀         ▐▌▌╙█µ▀█▄
+ *  A╙└▀█∩   [    █  █████████      ▌     ███████H          J██ç ▀▄╙█_
+ * █    ▐▌    ▀▄▄▀  J█████████      H    ████████          █    █  ▀▄▌
+ *  ▀▄▄█▀.          █████████▌           ████████          █ç__▄▀ ╓▀└ ╙%_
+ *                 ▐█████████      ▐    J████████▌          .└╙   █¿   ,▌
+ *                 █████████▀╙╙█▌└▐█╙└██▀▀████████                 ╙▀▀▀▀
+ *                ▐██▀┘Å▀▄A └▓█╓▐█▄▄██▄J▀@└▐▄Å▌▀██▌
+ *                █▄▌▄█M╨╙└└-           .└└▀**▀█▄,▌
+ *                ²▀█▄▄L_                  _J▄▄▄█▀└
+ *                     └╙▀▀▀▀▀MMMR████▀▀▀▀▀▀▀└
+ *
+ *
+ * ███████╗████████╗ █████╗ ███╗   ██╗ ██████╗███████╗██╗   ██╗██╗  ██╗
+ * ██╔════╝╚══██╔══╝██╔══██╗████╗  ██║██╔════╝╚══███╔╝╚██╗ ██╔╝██║ ██╔╝
+ * ███████╗   ██║   ███████║██╔██╗ ██║██║       ███╔╝  ╚████╔╝ █████╔╝
+ * ╚════██║   ██║   ██╔══██║██║╚██╗██║██║      ███╔╝    ╚██╔╝  ██╔═██╗
+ * ███████║   ██║   ██║  ██║██║ ╚████║╚██████╗███████╗   ██║   ██║  ██╗
+ * ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝╚══════╝   ╚═╝   ╚═╝  ╚═╝
+ */
 #ifndef STANCZYK_TABLE_H
 #define STANCZYK_TABLE_H
 
+#include "constant.h"
 #include "common.h"
-#include "value.h"
 
 typedef struct {
-    string_t *key;
-    value_t value;
-} entry_t;
+    String *key;
+    Value value;
+} Entry;
 
 typedef struct {
+    int start;
     int count;
     int capacity;
-    entry_t *entries;
-} table_t;
+    Entry *entries;
+} Table;
 
-void init_table(table_t *table);
-void free_table(table_t *table);
-bool table_get(table_t *table, string_t *key, value_t *value);
-bool table_set(table_t *table, string_t *key, value_t value);
-bool table_delete(table_t *table, string_t *key);
-void table_add_all(table_t *from, table_t *to);
-string_t *table_find_string(table_t *table, const char *chars, int length,
-                            uint32_t hash);
-void table_remove_white(table_t *table);
-void mark_table(table_t *table);
+void init_table(Table *table);
+void free_table(Table *table);
+bool table_set(Table *table, String *key, Value value);
+bool table_delete(Table *table, String *key);
+bool table_get(Table *table, String *key, Value *value);
+void table_add_all(Table *from, Table *to);
+String *table_find_string(Table *table, const char *chars, int length, u32 hash);
 
 #endif

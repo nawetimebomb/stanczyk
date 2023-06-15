@@ -1,5 +1,11 @@
-:: main() do
-	"Hello, Stańczyk" print
-	"test" "ing" + print
-	"multiple" " " + "concatenation" + print
-.
+#include "io"
+
+;; Test: strings
+;; Description:
+;    String writing and string length checking
+
+; Check the length
+"Hello, World\n" drop print
+
+; Print something
+"Hello, Stańczyk!\n" write drop

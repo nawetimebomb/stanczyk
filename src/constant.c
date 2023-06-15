@@ -25,43 +25,41 @@
  * ███████║   ██║   ██║  ██║██║ ╚████║╚██████╗███████╗   ██║   ██║  ██╗
  * ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝╚══════╝   ╚═╝   ╚═╝  ╚═╝
  */
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
-#include "chunk.h"
-#include "constant.h"
 #include "memory.h"
+#include "constant.h"
+#include "object.h"
 
-void init_chunk(Chunk *chunk) {
-    chunk->start = 32;
-    chunk->count = 0;
-    chunk->capacity = 0;
-    chunk->erred = false;
-    chunk->code = NULL;
-    chunk->lines = NULL;
-    init_constants_array(&chunk->constants);
+void init_constants_array(ConstantArray *array) {
+    array->start = 8;
+    array->capacity = 0;
+    array->count = 0;
+    array->values = NULL;
 }
 
-void write_chunk(Chunk *chunk, u8 byte, int line) {
-    if (chunk->capacity < chunk->count + 1) {
-        int prev_capacity = chunk->capacity;
-        chunk->capacity = GROW_CAPACITY(prev_capacity, chunk->start);
-        chunk->code = GROW_ARRAY(u8, chunk->code, prev_capacity, chunk->capacity);
-        chunk->lines = GROW_ARRAY(int, chunk->lines, prev_capacity, chunk->capacity);
+void write_constants_array(ConstantArray* array, Value value) {
+    if (array->capacity < array->count + 1) {
+        int prev_capacity = array->capacity;
+        array->capacity = GROW_CAPACITY(prev_capacity, array->start);
+        array->values = GROW_ARRAY(Value, array->values, prev_capacity, array->capacity);
     }
 
-    chunk->code[chunk->count] = byte;
-    chunk->lines[chunk->count] = line;
-    chunk->count++;
+    array->values[array->count] = value;
+    array->count++;
 }
 
-int add_constant(Chunk *chunk, Value value) {
-    write_constants_array(&chunk->constants, value);
-    return chunk->constants.count - 1;
+void free_constants_array(ConstantArray* array) {
+    FREE_ARRAY(int, array->values, array->capacity);
+    init_constants_array(array);
 }
 
-void free_chunk(Chunk *chunk) {
-    FREE_ARRAY(u8, chunk->code, chunk->capacity);
-    FREE_ARRAY(int, chunk->lines, chunk->capacity);
-    free_constants_array(&chunk->constants);
-    init_chunk(chunk);
+void print_constant(Value value) {
+    switch(value.type) {
+        case VALUE_NUMBER: printf("%d", AS_NUMBER(value));  break;
+        case VALUE_OBJECT: printf("%s", AS_CSTRING(value)); break;
+    }
+
 }

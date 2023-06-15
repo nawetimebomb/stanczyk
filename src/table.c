@@ -1,31 +1,60 @@
+/* The Stańczyk Programming Language
+ *
+ *            ¿«fº"└└-.`└└*∞▄_              ╓▄∞╙╙└└└╙╙*▄▄
+ *         J^. ,▄▄▄▄▄▄_      └▀████▄ç    JA▀            └▀v
+ *       ,┘ ▄████████████▄¿     ▀██████▄▀└      ╓▄██████▄¿ "▄_
+ *      ,─╓██▀└└└╙▀█████████      ▀████╘      ▄████████████_`██▄
+ *     ;"▄█└      ,██████████-     ▐█▀      ▄███████▀▀J█████▄▐▀██▄
+ *     ▌█▀      _▄█▀▀█████████      █      ▄██████▌▄▀╙     ▀█▐▄,▀██▄
+ *    ▐▄▀     A└-▀▌  █████████      ║     J███████▀         ▐▌▌╙█µ▀█▄
+ *  A╙└▀█∩   [    █  █████████      ▌     ███████H          J██ç ▀▄╙█_
+ * █    ▐▌    ▀▄▄▀  J█████████      H    ████████          █    █  ▀▄▌
+ *  ▀▄▄█▀.          █████████▌           ████████          █ç__▄▀ ╓▀└ ╙%_
+ *                 ▐█████████      ▐    J████████▌          .└╙   █¿   ,▌
+ *                 █████████▀╙╙█▌└▐█╙└██▀▀████████                 ╙▀▀▀▀
+ *                ▐██▀┘Å▀▄A └▓█╓▐█▄▄██▄J▀@└▐▄Å▌▀██▌
+ *                █▄▌▄█M╨╙└└-           .└└▀**▀█▄,▌
+ *                ²▀█▄▄L_                  _J▄▄▄█▀└
+ *                     └╙▀▀▀▀▀MMMR████▀▀▀▀▀▀▀└
+ *
+ *
+ * ███████╗████████╗ █████╗ ███╗   ██╗ ██████╗███████╗██╗   ██╗██╗  ██╗
+ * ██╔════╝╚══██╔══╝██╔══██╗████╗  ██║██╔════╝╚══███╔╝╚██╗ ██╔╝██║ ██╔╝
+ * ███████╗   ██║   ███████║██╔██╗ ██║██║       ███╔╝  ╚████╔╝ █████╔╝
+ * ╚════██║   ██║   ██╔══██║██║╚██╗██║██║      ███╔╝    ╚██╔╝  ██╔═██╗
+ * ███████║   ██║   ██║  ██║██║ ╚████║╚██████╗███████╗   ██║   ██║  ██╗
+ * ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝╚══════╝   ╚═╝   ╚═╝  ╚═╝
+ */
 #include <stdlib.h>
 #include <string.h>
 
 #include "memory.h"
 #include "object.h"
 #include "table.h"
-#include "value.h"
+#include "constant.h"
 
 #define TABLE_MAX_LOAD 0.75
 
-void init_table(table_t *table) {
+void init_table(Table *table) {
+    table->start = 4;
     table->count = 0;
     table->capacity = 0;
     table->entries = NULL;
 }
 
-void free_table(table_t *table) {
-    FREE_ARRAY(entry_t, table->entries, table->capacity);
+void free_table(Table *table) {
+    FREE_ARRAY(Entry, table->entries, table->capacity);
     init_table(table);
 }
 
-static entry_t *find_entry(entry_t *entries, int capacity, string_t *key) {
-    uint32_t index = key->hash & (capacity - 1);
-    entry_t *tombstone = NULL;
+static Entry *find_entry(Entry *entries, int capacity, String *key) {
+    u32 index = key->hash & (capacity - 1);
+    Entry *tombstone = NULL;
+
     for (;;) {
-        entry_t *entry = &entries[index];
+        Entry *entry = &entries[index];
         if (entry->key == NULL) {
-            if (IS_NIL(entry->value)) {
+            if (AS_NUMBER(entry->value) != 0) {
                 return tombstone != NULL ? tombstone : entry;
             } else {
                 if (tombstone == NULL) tombstone = entry;
@@ -38,81 +67,83 @@ static entry_t *find_entry(entry_t *entries, int capacity, string_t *key) {
     }
 }
 
-bool table_get(table_t *table, string_t *key, value_t *value) {
+bool table_get(Table *table, String *key, Value *value) {
     if (table->count == 0) return false;
 
-    entry_t *entry = find_entry(table->entries, table->capacity, key);
+    Entry *entry = find_entry(table->entries, table->capacity, key);
     if (entry->key == NULL) return false;
+
     *value = entry->value;
     return true;
 }
 
-static void adjust_capacity(table_t *table, int capacity) {
-    entry_t *entries = ALLOCATE(entry_t, capacity);
+static void adjust_capacity(Table *table, int capacity) {
+    Entry *entries = ALLOCATE(Entry, capacity);
     for (int i = 0; i < capacity; i++) {
         entries[i].key = NULL;
-        entries[i].value = NIL_VAL;
+        entries[i].value = NUMBER_VALUE(0);
     }
 
     table->count = 0;
     for (int i = 0; i < table->capacity; i++) {
-        entry_t *entry = &table->entries[i];
+        Entry *entry = &table->entries[i];
         if (entry->key == NULL) continue;
 
-        entry_t *dest = find_entry(entries, capacity, entry->key);
+        Entry *dest = find_entry(entries, capacity, entry->key);
         dest->key = entry->key;
         dest->value = entry->value;
         table->count++;
     }
 
-    FREE_ARRAY(entry_t, table->entries, table->capacity);
+    FREE_ARRAY(Entry, table->entries, table->capacity);
     table->entries = entries;
     table->capacity = capacity;
 }
 
-bool table_set(table_t *table, string_t *key, value_t value) {
+bool table_set(Table *table, String *key, Value value) {
     if (table->count + 1 > table->capacity * TABLE_MAX_LOAD) {
-        int capacity = GROW_CAPACITY(table->capacity);
+        int capacity = GROW_CAPACITY(table->capacity, table->start);
         adjust_capacity(table, capacity);
     }
 
-    entry_t *entry = find_entry(table->entries, table->capacity, key);
+    Entry *entry = find_entry(table->entries, table->capacity, key);
     bool is_new = entry->key == NULL;
-    if (is_new && IS_NIL(entry->value)) table->count++;
+    if (is_new && AS_NUMBER(entry->value) != 0) table->count++;
 
     entry->key = key;
     entry->value = value;
     return is_new;
 }
 
-bool table_delete(table_t *table, string_t *key) {
+bool table_delete(Table *table, String *key) {
     if (table->count == 0) return false;
 
-    entry_t *entry = find_entry(table->entries, table->capacity, key);
+    Entry *entry = find_entry(table->entries, table->capacity, key);
     if (entry->key == NULL) return false;
 
     entry->key = NULL;
-    entry->value = BOOL_VAL(true);
+    entry->value = NUMBER_VALUE(0);
     return true;
 }
 
-void table_add_all(table_t *from, table_t *to) {
+void table_add_all(Table *from, Table *to) {
     for (int i = 0; i < from->capacity; i++) {
-        entry_t *entry = &from->entries[i];
+        Entry *entry = &from->entries[i];
         if (entry->key != NULL) {
             table_set(to, entry->key, entry->value);
         }
     }
 }
 
-string_t *table_find_string(table_t *table, const char *chars, int length, uint32_t hash) {
+String *table_find_string(Table *table, const char* chars, int length, u32 hash) {
     if (table->count == 0) return NULL;
 
-    uint32_t index = hash & (table->capacity - 1);
+    u32 index = hash & (table->capacity - 1);
+
     for (;;) {
-        entry_t *entry = &table->entries[index];
+        Entry *entry = &table->entries[index];
         if (entry->key == NULL) {
-            if (IS_NIL(entry->value)) return NULL;
+            if (AS_NUMBER(entry->value) != 0) return NULL;
         } else if (entry->key->length == length &&
                    entry->key->hash == hash &&
                    memcmp(entry->key->chars, chars, length) == 0) {
@@ -120,22 +151,5 @@ string_t *table_find_string(table_t *table, const char *chars, int length, uint3
         }
 
         index = (index + 1) & (table->capacity - 1);
-    }
-}
-
-void table_remove_white(table_t *table) {
-    for (int i = 0; i < table->capacity; i++) {
-        entry_t *entry = &table->entries[i];
-        if (entry->key != NULL && !entry->key->obj.marked) {
-            table_delete(table, entry->key);
-        }
-    }
-}
-
-void mark_table(table_t *table) {
-    for (int i = 0; i < table->capacity; i++) {
-        entry_t *entry = &table->entries[i];
-        mark_object((obj_t *)entry->key);
-        mark_value(entry->value);
     }
 }
