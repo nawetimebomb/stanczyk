@@ -4,32 +4,7 @@
 [![Commits](https://img.shields.io/github/commit-activity/w/elnawe/stanczyk?style=for-the-badge)](https://github.com/elnawe/stanczyk/commits/main)
 [![License](https://img.shields.io/github/license/elnawe/stanczyk?style=for-the-badge)](https://github.com/elnawe/stanczyk/blob/main/LICENSE)
 
-```
-            ¿«fº"└└-.`└└*∞▄_              ╓▄∞╙╙└└└╙╙*▄▄
-         J^. ,▄▄▄▄▄▄_      └▀████▄ç    JA▀            └▀v
-       ,┘ ▄████████████▄¿     ▀██████▄▀└      ╓▄██████▄¿ "▄_
-      ,─╓██▀└└└╙▀█████████      ▀████╘      ▄████████████_`██▄
-     ;"▄█└      ,██████████-     ▐█▀      ▄███████▀▀J█████▄▐▀██▄
-     ▌█▀      _▄█▀▀█████████      █      ▄██████▌▄▀╙     ▀█▐▄,▀██▄
-    ▐▄▀     A└-▀▌  █████████      ║     J███████▀         ▐▌▌╙█µ▀█▄
-  A╙└▀█∩   [    █  █████████      ▌     ███████H          J██ç ▀▄╙█_
- █    ▐▌    ▀▄▄▀  J█████████      H    ████████          █    █  ▀▄▌
-  ▀▄▄█▀.          █████████▌           ████████          █ç__▄▀ ╓▀└ ╙%_
-                 ▐█████████      ▐    J████████▌          .└╙   █¿   ,▌
-                 █████████▀╙╙█▌└▐█╙└██▀▀████████                 ╙▀▀▀▀
-                ▐██▀┘Å▀▄A └▓█╓▐█▄▄██▄J▀@└▐▄Å▌▀██▌
-                █▄▌▄█M╨╙└└-           .└└▀**▀█▄,▌
-                ²▀█▄▄L_                  _J▄▄▄█▀└
-                     └╙▀▀▀▀▀MMMR████▀▀▀▀▀▀▀└
-
-
- ███████╗████████╗ █████╗ ███╗   ██╗ ██████╗███████╗██╗   ██╗██╗  ██╗
- ██╔════╝╚══██╔══╝██╔══██╗████╗  ██║██╔════╝╚══███╔╝╚██╗ ██╔╝██║ ██╔╝
- ███████╗   ██║   ███████║██╔██╗ ██║██║       ███╔╝  ╚████╔╝ █████╔╝
- ╚════██║   ██║   ██╔══██║██║╚██╗██║██║      ███╔╝    ╚██╔╝  ██╔═██╗
- ███████║   ██║   ██║  ██║██║ ╚████║╚██████╗███████╗   ██║   ██║  ██╗
- ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝╚══════╝   ╚═╝   ╚═╝  ╚═╝
-```
+![Jan Matejko's Stańczyk](https://upload.wikimedia.org/wikipedia/commons/thumb/7/78/Jan_Matejko%2C_Sta%C5%84czyk.jpg/2560px-Jan_Matejko%2C_Sta%C5%84czyk.jpg)
 
 **NOTE: This is a work in progress, things can change without any notice. Use with discretion.**
 
