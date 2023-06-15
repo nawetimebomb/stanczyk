@@ -30,6 +30,9 @@
 
 #include "scanner.h"
 
+void CLI_ERROR(const char *, ...);
+void CLI_HELP(void);
+void CLI_WELCOME(void);
 void PARSING_ERROR(Token *, const char *);
 
 #endif
