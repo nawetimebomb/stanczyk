@@ -18,14 +18,13 @@ static void reset_stack() {
 
 static void runtime_error(const char *format, ...) {
     va_list args;
+    size_t instruction = VM.ip - VM.chunk->code - 1;
+    int line = VM.chunk->lines[instruction];
+    fprintf(stderr, COLOR_RED "\n[line %d] ", line);
     va_start(args, format);
     vfprintf(stderr, format, args);
     va_end(args);
     fputs("\n", stderr);
-
-    size_t instruction = VM.ip - VM.chunk->code - 1;
-    int line = VM.chunk->lines[instruction];
-    fprintf(stderr, "[line %d] in script\n", line);
     reset_stack();
 }
 
@@ -99,7 +98,16 @@ static interpret_result_t run() {
             case OP_NIL:      push(NIL_VAL); break;
             case OP_TRUE:     push(BOOL_VAL(true)); break;
             case OP_FALSE:    push(BOOL_VAL(false)); break;
-            case OP_GET_SYMBOL: {
+            case OP_GET_LOCAL: {
+                uint8_t slot = READ_BYTE();
+                push(VM.stack[slot]);
+                break;
+            } break;
+            case OP_SET_LOCAL: {
+                uint8_t slot = READ_BYTE();
+                VM.stack[slot] = peek(0);
+            } break;
+            case OP_GET_GLOBAL: {
                 string_t *name = READ_STRING();
                 value_t value;
                 if (!table_get(&VM.symbols, name, &value)) {
@@ -108,11 +116,20 @@ static interpret_result_t run() {
                 }
                 push(value);
             } break;
-            case OP_DEFINE_SYMBOL: {
+            case OP_DEFINE_GLOBAL: {
                 string_t *name = READ_STRING();
                 table_set(&VM.symbols, name, peek(0));
                 pop();
                 break;
+            } break;
+            case OP_SET_GLOBAL: {
+                string_t *name = READ_STRING();
+                if (table_set(&VM.symbols, name, peek(0))) {
+                    table_delete(&VM.symbols, name);
+                    runtime_error("undefined variable '%s'.", name->chars);
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                pop();
             } break;
             case OP_EQUAL: {
                 value_t b = pop();

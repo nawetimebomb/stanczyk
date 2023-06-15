@@ -8,11 +8,6 @@
 #include "debug.h"
 #include "vm.h"
 
-// Move to a printer file
-#define STYLE_BOLD "\033[1m"
-#define STYLE_ITALIC "\033[3m"
-#define STYLE_OFF   "\033[m"
-
 static void run_repl() {
     char line[1024];
 

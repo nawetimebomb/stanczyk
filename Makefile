@@ -8,4 +8,4 @@ OUT=nlc
 # 	@ $(CC) $(FLAGS) $(SOURCE_FILES) $(LIBS) -o $(OUT)
 
 all:
-	@ $(CC) $(FLAGS) vm/*.c -o nlc2
+	@ $(CC) $(FLAGS) vm/*.c -o skc
