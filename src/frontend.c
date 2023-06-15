@@ -692,10 +692,10 @@ static void stop_frontend() {
     Macros *macros = &frontend->macros;
 
     for (int i = 0; i < macros->count; i++) {
-        FREE_ARRAY(Token, macros->statements[i].tokens, macros->statements[i].count);
+        FREE_ARRAY(Token, macros->statements[i].tokens, macros->statements[i].capacity);
     }
 
-    FREE_ARRAY(String, macros->names, macros->count);
+    FREE_ARRAY(String, macros->names, macros->capacity);
     FREE(Frontend, frontend);
 }
 

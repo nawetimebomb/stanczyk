@@ -29,6 +29,7 @@
 #include <string.h>
 
 #include "chunk.h"
+#include "ir_code.h"
 #include "compiler.h"
 #include "object.h"
 #include "debug.h"
