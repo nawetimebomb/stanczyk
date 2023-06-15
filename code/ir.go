@@ -5,7 +5,9 @@ type OpCode int
 const (
 	// Constants
 	OP_PUSH_BOOL OpCode = iota
+	OP_PUSH_CHAR
 	OP_PUSH_INT
+	OP_PUSH_PTR
 	OP_PUSH_STR
 
 	// Intrinscis
@@ -34,7 +36,6 @@ const (
 	OP_MULTIPLY
 	OP_NOT_EQUAL
 	OP_OVER
-	OP_PRINT
 	OP_RET
 	OP_SUBSTRACT
 	OP_STORE8
@@ -43,6 +44,7 @@ const (
 	OP_STORE64
 	OP_SWAP
 	OP_SYSCALL
+	OP_TAKE
 
 	// Special
 	OP_WORD
@@ -54,13 +56,15 @@ type DataType int
 const (
 	DATA_EMPTY DataType = iota
 	DATA_BOOL
+	DATA_CHAR
 	DATA_INT
 	DATA_PTR
 	DATA_ANY
 )
 
 type Program struct {
-	chunks []Function
+	chunks   []Function
+	memories []Object
 }
 
 type Function struct {

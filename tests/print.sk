@@ -4,34 +4,26 @@ using "io"
 ;; Description:
 ;    print numbers on the screen. Numbers with snake_case should print without the _.
 function main do
-  "1  "           puts
-  1               print
+  "1  " puts 1 print
   "-----------\n" puts
 
-  "13  "          puts
-  13              print
+  "13  " puts 13 print
   "-----------\n" puts
 
-  "666  "         puts
-  666             print
+  "666  " puts 666 print
   "-----------\n" puts
 
-  "1889  "        puts
-  1889            print
+  "1889  " puts 1889 print
   "-----------\n" puts
 
-  "92720  "       puts
-  92720           print
+  "92720  " puts 92720 print
   "-----------\n" puts
 
-  "121911  "      puts
-  121991          print
+  "121911  " puts 121991 print
   "-----------\n" puts
 
-  "1000000  "     puts
-  1_000_000       print
+  "1000000  " puts 1_000_000 print
   "-----------\n" puts
 
-  "2000000000  " puts
-  2_000_000_000  print
+  "2000000000  " puts 2_000_000_000 print
 .
