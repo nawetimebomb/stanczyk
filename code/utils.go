@@ -20,3 +20,12 @@ func Advance(c *byte, line string, index *int) bool {
 	*c = line[*index]
 	return true
 }
+
+func Contains[T comparable](s []T, e T) bool {
+    for _, v := range s {
+        if v == e {
+            return true
+        }
+    }
+    return false
+}

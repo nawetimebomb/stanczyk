@@ -44,8 +44,7 @@ func errorAt(token *Token, format string, values ...any) {
 	frontend.error = true
 
 	msg := fmt.Sprintf(format, values...)
-	loc := token.loc
-	ReportParseError(msg, loc.f, loc.l, loc.c)
+	ReportErrorAtLocation(msg, token.loc)
 }
 
 /*   ___  _   ___  ___ ___ ___
@@ -118,6 +117,7 @@ func emitEndOfCode() {
  */
 func macroStatement() {
 	var macro Macro
+	endOfMacroIndex := parser.previous.value.(int)
 
 	if !match(TOKEN_WORD) {
 		errorAt(&parser.previous, MsgParseMacroMissingWord)
@@ -133,7 +133,7 @@ func macroStatement() {
 		return
 	}
 
-	for !check(TOKEN_DOT) && !check(TOKEN_MACRO) && !check(TOKEN_EOF) {
+	for parser.index < endOfMacroIndex {
 		advance()
 		macro.tokens = append(macro.tokens, parser.previous)
 	}
