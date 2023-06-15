@@ -128,9 +128,18 @@ func generateLinuxX86() {
 				asm.WriteText(";; %s (%s:%d:%d)", boolText, loc.f, loc.l, loc.c)
 				asm.WriteText("    mov rax, %d", value)
 				asm.WriteText("    push rax")
+			case OP_PUSH_CHAR:
+				asm.WriteText(";; '%d' (%s:%d:%d)", value, loc.f, loc.l, loc.c)
+				asm.WriteText("    mov rax, %d", value)
+				asm.WriteText("    push rax")
 			case OP_PUSH_INT:
 				asm.WriteText(";; %d (%s:%d:%d)", value, loc.f, loc.l, loc.c)
 				asm.WriteText("    mov rax, %d", value)
+				asm.WriteText("    push rax")
+			case OP_PUSH_PTR:
+				mem := value.(Object)
+				asm.WriteText(";; %s (%s:%d:%d)", mem.word, loc.f, loc.l, loc.c)
+				asm.WriteText("    mov rax, mem_%d", mem.id)
 				asm.WriteText("    push rax")
 			case OP_PUSH_STR:
 				ascii, _ := getAsciiValues(value.(string))
@@ -220,21 +229,25 @@ func generateLinuxX86() {
 				asm.WriteText("    cmovle rcx, rdx")
 				asm.WriteText("    push rcx")
 			case OP_LOAD8:
+				asm.WriteText(";; ->8 (%s:%d:%d)", loc.f, loc.l, loc.c)
 				asm.WriteText("    pop rax")
                 asm.WriteText("    xor rbx, rbx")
                 asm.WriteText("    mov bl, [rax]")
                 asm.WriteText("    push rbx")
 			case OP_LOAD16:
+				asm.WriteText(";; ->16 (%s:%d:%d)", loc.f, loc.l, loc.c)
 				asm.WriteText("    pop rax")
                 asm.WriteText("    xor rbx, rbx")
                 asm.WriteText("    mov bx, [rax]")
                 asm.WriteText("    push rbx")
 			case OP_LOAD32:
+				asm.WriteText(";; ->32 (%s:%d:%d)", loc.f, loc.l, loc.c)
 				asm.WriteText("    pop rax")
                 asm.WriteText("    xor rbx, rbx")
                 asm.WriteText("    mov ebx, [rax]")
                 asm.WriteText("    push rbx")
 			case OP_LOAD64:
+				asm.WriteText(";; ->64 (%s:%d:%d)", loc.f, loc.l, loc.c)
 				asm.WriteText("    pop rax")
                 asm.WriteText("    xor rbx, rbx")
                 asm.WriteText("    mov rbx, [rax]")
@@ -261,10 +274,6 @@ func generateLinuxX86() {
 				asm.WriteText("    push rbx")
 				asm.WriteText("    push rax")
 				asm.WriteText("    push rbx")
-			case OP_PRINT:
-				asm.WriteText(";; print (%s:%d:%d)", loc.f, loc.l, loc.c)
-				asm.WriteText("    pop rdi")
-				asm.WriteText("    call print")
 			case OP_SUBSTRACT:
 				asm.WriteText(";; - (%s:%d:%d)", loc.f, loc.l, loc.c)
 				asm.WriteText("    pop rbx")
@@ -272,20 +281,24 @@ func generateLinuxX86() {
 				asm.WriteText("    sub rax, rbx")
 				asm.WriteText("    push rax")
 			case OP_STORE8:
-                asm.WriteText("    pop rax")
+				asm.WriteText(";; <-8 (%s:%d:%d)", loc.f, loc.l, loc.c)
                 asm.WriteText("    pop rbx")
+                asm.WriteText("    pop rax")
                 asm.WriteText("    mov [rax], bl")
 			case OP_STORE16:
-                asm.WriteText("    pop rax")
+				asm.WriteText(";; <-16 (%s:%d:%d)", loc.f, loc.l, loc.c)
                 asm.WriteText("    pop rbx")
+                asm.WriteText("    pop rax")
                 asm.WriteText("    mov [rax], bx")
 			case OP_STORE32:
-                asm.WriteText("    pop rax")
+				asm.WriteText(";; <-32 (%s:%d:%d)", loc.f, loc.l, loc.c)
                 asm.WriteText("    pop rbx")
+                asm.WriteText("    pop rax")
                 asm.WriteText("    mov [rax], ebx")
 			case OP_STORE64:
-                asm.WriteText("    pop rax")
+				asm.WriteText(";; <-64 (%s:%d:%d)", loc.f, loc.l, loc.c)
                 asm.WriteText("    pop rbx")
+                asm.WriteText("    pop rax")
                 asm.WriteText("    mov [rax], rbx")
 			case OP_SWAP:
 				asm.WriteText(";; swap (%s:%d:%d)", loc.f, loc.l, loc.c)
@@ -293,6 +306,10 @@ func generateLinuxX86() {
 				asm.WriteText("    pop rbx")
 				asm.WriteText("    push rax")
 				asm.WriteText("    push rbx")
+			case OP_TAKE:
+				asm.WriteText(";; take (%s:%d:%d)", loc.f, loc.l, loc.c)
+				asm.WriteText("    pop rax")
+				asm.WriteText("    push rax")
 			case OP_RET:
 				asm.WriteText(";; ret (%s:%d:%d)", loc.f, loc.l, loc.c)
 				asm.WriteText("    mov rax, rsp")
@@ -352,6 +369,10 @@ func generateLinuxX86() {
 	asm.WriteText("    mov rax, 60")
 	asm.WriteText("    mov rdi, 0")
 	asm.WriteText("    syscall")
+
+	for _, m := range TheProgram.memories {
+		asm.WriteBss("mem_%d: resb %d", m.id, m.value)
+	}
 }
 
 func CodegenRun(asm *Assembly) {

@@ -1,0 +1,16 @@
+using "io"
+
+reserve number 32 .
+
+function main do
+  "Save the number to static memory and print it\n" puts
+  "The number is 1234567890123  " puts
+  1234567890123
+  loop dup intlen 0 > do
+    dup 10 % 48 +
+    over intlen 1 - number swap + swap (char) <-8
+    10 /
+  . drop
+  number puts
+  "\n" puts
+.

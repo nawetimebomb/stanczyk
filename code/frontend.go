@@ -11,9 +11,10 @@ const (
 	SCOPE_FUNCTION
 )
 
-type Constant struct {
-	word  string
+type Object struct {
+	id    int
 	value int
+	word  string
 }
 
 type Macro struct {
@@ -22,13 +23,14 @@ type Macro struct {
 }
 
 type Scope struct {
-	tt       TokenType
-	thenIP   int
-	loopIP   int
+	tt     TokenType
+	thenIP int
+	loopIP int
 }
 
 type Frontend struct {
-	constants []Constant
+	constants []Object
+	memories  []Object
 	current	  *Function
 	error     bool
 	macros    []Macro
@@ -159,7 +161,7 @@ func newMacro() {
 }
 
 func newConstant(token Token) {
-	var constant Constant
+	var constant Object
 	var tokens []Token
 
 	if !match(TOKEN_WORD) {
@@ -167,6 +169,7 @@ func newConstant(token Token) {
 		return
 	}
 
+	constant.id = len(frontend.constants)
 	constant.word = parser.previous.value.(string)
 
 	for _, c := range frontend.constants {
@@ -234,6 +237,7 @@ func newFunction(token Token) {
 
 			switch t.typ {
 			case TOKEN_DTYPE_BOOL: targ = DATA_BOOL
+			case TOKEN_DTYPE_CHAR: targ = DATA_CHAR
 			case TOKEN_DTYPE_INT:  targ = DATA_INT
 			case TOKEN_DTYPE_PTR:  targ = DATA_PTR
 			default:
@@ -258,6 +262,7 @@ func newFunction(token Token) {
 
 			switch t.typ {
 			case TOKEN_DTYPE_BOOL: tret = DATA_BOOL
+			case TOKEN_DTYPE_CHAR: tret = DATA_CHAR
 			case TOKEN_DTYPE_INT: tret = DATA_INT
 			case TOKEN_DTYPE_PTR: tret = DATA_PTR
 			default:
@@ -292,6 +297,54 @@ func newFunction(token Token) {
 	TheProgram.chunks = append(TheProgram.chunks, function)
 }
 
+func newReserve(token Token) {
+	var memory Object
+	if !match(TOKEN_WORD) {
+		errorAt(&token, MsgParseReserveMissingWord)
+		ExitWithError(CodeParseError)
+	}
+	memory.id = len(frontend.memories)
+	memory.word = parser.previous.value.(string)
+
+	for _, m := range frontend.memories {
+		if m.word == memory.word {
+			msg := fmt.Sprintf(MsgParseReserveOverrideNotAllowed, memory.word)
+			errorAt(&parser.previous, msg)
+			ExitWithError(CodeParseError)
+		}
+	}
+
+	advance()
+	vt := parser.previous
+
+	switch vt.typ {
+	case TOKEN_WORD:
+		found := false
+		for _, c := range frontend.constants {
+			if c.word == vt.value {
+				found = true
+				memory.value = c.value
+				break
+			}
+		}
+
+		if !found {
+			msg := fmt.Sprintf(MsgParseReserveValueIsNotConst, vt.value)
+			errorAt(&vt, msg)
+			ExitWithError(CodeParseError)
+		}
+	case TOKEN_INT:
+		memory.value = vt.value.(int)
+	default:
+		errorAt(&parser.previous, MsgParseReserveMissingValue)
+		ExitWithError(CodeParseError)
+	}
+
+	frontend.memories = append(frontend.memories, memory)
+
+	consume(TOKEN_DOT, MsgParseReserveMissingDot)
+}
+
 func compile(index int) {
 	f := file.files[index]
 
@@ -307,6 +360,8 @@ func compile(index int) {
 			newFunction(token)
 		case TOKEN_MACRO:
 			newMacro()
+		case TOKEN_RESERVE:
+			newReserve(token)
 		case TOKEN_USING:
 			advance()
 			file.Open(parser.previous.value.(string))
@@ -341,7 +396,14 @@ func expandWord(token Token) {
 
 	for _, c := range frontend.constants {
 		if c.word == word {
-			emit(Code{op: OP_PUSH_INT, loc: token.loc, value: c.value,})
+			emit(Code{op: OP_PUSH_INT, loc: token.loc, value: c.value})
+			return
+		}
+	}
+
+	for _, m := range frontend.memories {
+		if m.word == word {
+			emit(Code{op: OP_PUSH_PTR, loc: token.loc, value: m})
 			return
 		}
 	}
@@ -367,6 +429,9 @@ func parseToken(token Token) {
 
 	switch token.typ {
 	// Constants
+	case TOKEN_CHAR:
+		code.op = OP_PUSH_CHAR
+		emit(code)
 	case TOKEN_FALSE:
 		code.op = OP_PUSH_BOOL
 		code.value = 0
@@ -395,6 +460,10 @@ func parseToken(token Token) {
 	case TOKEN_CAST_BOOL:
 		code.op = OP_CAST
 		code.value = DATA_BOOL
+		emit(code)
+	case TOKEN_CAST_CHAR:
+		code.op = OP_CAST
+		code.value = DATA_CHAR
 		emit(code)
 	case TOKEN_CAST_INT:
 		code.op = OP_CAST
@@ -449,9 +518,6 @@ func parseToken(token Token) {
 	case TOKEN_PLUS:
 		code.op = OP_ADD
 		emit(code)
-	case TOKEN_PRINT:
-		code.op = OP_PRINT
-		emit(code)
 	case TOKEN_RET:
 		code.op = OP_RET
 		code.value = 0
@@ -473,6 +539,14 @@ func parseToken(token Token) {
 		emit(code)
 	case TOKEN_SWAP:
 		code.op = OP_SWAP
+		emit(code)
+	case TOKEN_TAKE:
+		code.op = OP_TAKE
+		emit(code)
+	case TOKEN_THIS:
+		loc := code.loc
+		code.op = OP_PUSH_STR
+		code.value = fmt.Sprintf("%s:%d:%d", loc.f, loc.l, loc.c)
 		emit(code)
 
 	// Special
@@ -555,6 +629,8 @@ func FrontendRun() {
 			f.called = true
 		}
 	}
+
+	TheProgram.memories = frontend.memories
 
 	if frontend.error {
 		ExitWithError(CodeParseError)
