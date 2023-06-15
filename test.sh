@@ -1,8 +1,8 @@
 #!/bin/bash
+
 FAIL=0
 SUCCESS=0
 TOTAL=0
-
 RED="\033[31m"
 GREEN="\033[32m"
 RESET="\033[0m"
@@ -14,12 +14,16 @@ base64 -d misc/logo.base64
 echo -e "${BOLD}Stańczyk Test Suite"
 echo -e $RESET
 
+
 for FILE in tests/*.sk; do
     if [ -f "$FILE" ]; then
         TOTAL=$(($TOTAL + 1))
         TEST_SRC="${FILE%.*}"
         TEST_NAME="${TEST_SRC##*/}"
-        RESULT=$(diff ${TEST_SRC}.txt <(./skc ${TEST_SRC}.sk))
+
+        ./skc ${TEST_SRC}.sk > result.txt
+
+        RESULT=$(diff ${TEST_SRC}.txt result.txt)
 
         echo -e "${BOLD}-- $TEST_NAME${RESET}"
 
@@ -31,6 +35,8 @@ for FILE in tests/*.sk; do
             echo $RESULT
             FAIL=$(($FAIL + 1))
         fi
+
+        rm result.txt
     fi
 done
 
