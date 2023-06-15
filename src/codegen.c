@@ -302,6 +302,7 @@ static void generate_linux_x86() {
              *  |_|\_\___|\_, |\_/\_/\___/_| \__,_/__/
              *            |__/
              */
+            case OP_CAST: break;
             case OP_EOC: {
                 write_assembly(text, ";; eof (%s:%d:%d)",
                                token->filename, token->line, token->column);

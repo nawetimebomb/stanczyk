@@ -34,6 +34,7 @@ typedef struct String String;
 typedef enum {
     VALUE_INT,
     VALUE_FLOAT,
+    VALUE_DTYPE,
     VALUE_OBJECT
 } ValueType;
 
@@ -50,6 +51,7 @@ typedef struct {
         int inumber;
         float fnumber;
         Object *obj;
+        DataType dtype;
     } as;
 } Value;
 
@@ -62,14 +64,17 @@ typedef struct {
 
 #define IS_INT(value) ((value).type == VALUE_INT)
 #define IS_FLOAT(value) ((value).type == VALUE_FLOAT)
+#define IS_DTYPE(value) ((value).type == VALUE_DTYPE)
 #define IS_OBJECT(value) ((value).type == VALUE_OBJECT)
 
 #define AS_INT(value) ((value).as.inumber)
 #define AS_FLOAT(value) ((value).as.fnumber)
+#define AS_DTYPE(value) ((value).as.dtype)
 #define AS_OBJECT(value) ((value).as.obj)
 
 #define INT_VALUE(value) ((Value){VALUE_INT, {.inumber = value}})
 #define FLOAT_VALUE(value) ((Value){VALUE_FLOAT, {.fnumber = value}})
+#define DTYPE_VALUE(value) ((Value){VALUE_DTYPE, {.dtype = value}})
 #define OBJECT_VALUE(object) ((Value){VALUE_OBJECT, {.obj = (Object *)object}})
 
 void init_constants_array(ConstantArray *);

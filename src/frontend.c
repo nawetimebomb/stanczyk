@@ -943,11 +943,40 @@ static void word(Token token) {
     }
 }
 
+static void cast(void) {
+    advance();
+    Code code;
+    DataType dtype;
+    Token token = parser.previous;
+    code.token = token;
+    code.type = OP_CAST;
+
+    switch (token.type) {
+        case TOKEN_DTYPE_BOOL: dtype = DATA_BOOL; break;
+        case TOKEN_DTYPE_INT:  dtype = DATA_INT;  break;
+        case TOKEN_DTYPE_PTR:  dtype = DATA_PTR;  break;
+        default: {
+            dtype = DATA_NULL;
+            UNREACHABLE_CODE("frontend.c->cast");
+        } break;
+    }
+
+    code.operand = DTYPE_VALUE(dtype);
+
+    consume(TOKEN_RIGHT_PAREN, ERROR__CAST__MISSING_RIGHT_PAREN);
+
+    emit(code);
+}
+
 static void parse_token(Token token) {
     Code code;
     code.token = token;
 
     switch (token.type) {
+        case TOKEN_DTYPE_BOOL:
+        case TOKEN_DTYPE_INT:
+        case TOKEN_DTYPE_PTR:
+        case TOKEN_RIGHT_PAREN:
         case TOKEN_DO:
         case TOKEN_DOT:
         case TOKEN_ERROR: {
@@ -1055,6 +1084,7 @@ static void parse_token(Token token) {
         } break;
 
         // Special
+        case TOKEN_LEFT_PAREN: cast(); return;
         case TOKEN_WORD: word(token); return;
 
             //default: UNREACHABLE_CODE("frontend.c->compile_file"); return;
@@ -1092,6 +1122,10 @@ void frontend_run(IRCodeChunk *chunk) {
     }
 
     emit_end_of_program();
+
+    if (parser.erred) {
+        FRONTEND_ERROR(ERROR__FRONTEND__ERRORS_FOUND);
+    }
 
     stop_frontend();
 }

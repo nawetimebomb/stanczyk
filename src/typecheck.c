@@ -144,6 +144,12 @@ static int run() {
              *   | || ' \  _| '_| | ' \(_-< / _(_-<
              *  |___|_||_\__|_| |_|_||_/__/_\__/__/
              */
+            case OP_CAST: {
+                DataType dtype = AS_DTYPE(instruction.operand);
+                ASSERT_NUM_OF_ARGUMENTS(stack_count, 1, token);
+                pop();
+                push(dtype);
+            } break;
             case OP_ADD:
             case OP_SUBSTRACT: {
                 ASSERT_NUM_OF_ARGUMENTS(stack_count, 2, token);

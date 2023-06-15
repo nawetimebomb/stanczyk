@@ -33,6 +33,8 @@
  *  | (_| (_) | |\/| |  _/| || |__ / _ \| |  | | (_) | .` |
  *   \___\___/|_|  |_|_| |___|____/_/ \_\_| |___\___/|_|\_|
  */
+#define ERROR__FRONTEND__ERRORS_FOUND "errors found during front-end compilation. Please, check above and fix the errors before continuing"
+
 #define ERROR__USING__FILE_OR_NAME_MISSING "file or library name expected after 'using'\nE.g.:\n\tusing \"io\"\n\t       ^^^^\nYou can find a list of available libraries running skc -help"
 #define ERROR__USING__FAILED_TO_FIND_FILE  "failed to find library to use: %s\nMake sure the name is correct. If it is an internal Stańczyk library, you\nmust omit the '.sk' in the name. If it is your code, then you must have '.sk'\nThe relative path to your libraries starts from the entry point base path\nE.g.:\n\tusing \"my/code.sk\"\nThis means the file is inside a folder called 'my', sibling to the entry file"
 
@@ -44,6 +46,8 @@
 #define ERROR__MACRO__MISSING_DOT "'.' symbol expected after macro declaration\nE.g.:\n\t:> my-macro do [...] .\n\t                     ^\nMacro declaration must end with the '.' (dot) symbol"
 
 #define ERROR__WORD__UNKNOWN_WORD "unknown word\nThe word definition has not been found yet in the code\nCheck if the definition is after this line or if you mispelled the word"
+
+#define ERROR__CAST__MISSING_RIGHT_PAREN "expected ')' after type in casting procedure\nE.g.:\n\t1(bool)\n\t      ^\nType casting needs to go between '(' and ')'"
 
 /*   _______   _____ ___ ___ _  _ ___ ___ _  __
  *  |_   _\ \ / / _ \ __/ __| || | __/ __| |/ /

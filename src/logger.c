@@ -116,7 +116,7 @@ void CLI_WELCOME(void) {
 }
 
 void PARSING_ERROR(Token *token, const char *msg) {
-    fprintf(stderr, "%s:%d:%d: " _UNDERLINE_"ERROR ",
+    fprintf(stderr, "%s:%d:%d: " _BOLD_ _RED_ "ERROR ",
             token->filename, token->line, token->column);
 
     if (TOKEN_EOF == token->type) {
@@ -127,14 +127,19 @@ void PARSING_ERROR(Token *token, const char *msg) {
         fprintf(stderr, "at %.*s", token->length, token->start);
     }
 
-    fprintf(stderr, _RESET_": %s\n", msg);
+    fprintf(stderr,": " _RESET_"%s\n", msg);
+}
+
+void FRONTEND_ERROR(const char *msg) {
+    fprintf(stderr, _BOLD_ _RED_"\nERROR: "_RESET_ "%s\n", msg);
+    exit(COMPILATION_FRONTEND_ERROR);
 }
 
 void TYPECHECK_ERROR(Token *token, const char *format, ...) {
     if (token == NULL) {
-        fprintf(stderr, _BOLD_ _RED_ "ERROR" _RESET_);
+        fprintf(stderr, _BOLD_ _RED_ "ERROR");
     } else {
-        fprintf(stderr, "%s:%d:%d: " _UNDERLINE_"ERROR ",
+        fprintf(stderr, "%s:%d:%d: " _BOLD_ _RED_"ERROR ",
                 token->filename, token->line, token->column);
 
         if (TOKEN_EOF == token->type) {
@@ -153,7 +158,7 @@ void TYPECHECK_ERROR(Token *token, const char *format, ...) {
     vsprintf(msg, format, args);
     va_end(args);
 
-    fprintf(stderr, _RESET_ ": %s\n", msg);
+    fprintf(stderr, ": " _RESET_ "%s\n", msg);
 
     free(msg);
     exit(COMPILATION_TYPECHECK_ERROR);

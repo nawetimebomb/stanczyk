@@ -15,7 +15,7 @@
 ;; TODO: memory buffer size should use the constant value.
 
 ; Stack: --- (empty)
-const NAME_CAP 32 end
+macro NAME_CAP do 32 .
 static name NAME_CAP end
 ; Stack: --- (empty)
 

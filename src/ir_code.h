@@ -38,6 +38,7 @@ typedef enum {
 
     // Intrinsics
     OP_ADD,
+    OP_CAST,
     OP_DIVIDE,
     OP_DROP,
     OP_MODULO,
