@@ -12,6 +12,7 @@ const (
 	CodeCliError
 	CodeParseError
 	CodeTypecheckError
+	CodeCodegenError
 )
 
 func ReportErrorAtEOF(msg string) {

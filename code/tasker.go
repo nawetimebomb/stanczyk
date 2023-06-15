@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"time"
 )
 
@@ -20,6 +21,9 @@ var (
 	startTime time.Time
 )
 
+var outputMsg string
+var TheProgram Program
+
 func getStepName(step CompilationStep) string {
 	switch step {
 	case stepFrontend:	return "Front-end compilation"
@@ -37,9 +41,11 @@ func timedFunction(step CompilationStep) {
 		ms := elapsed.Milliseconds()
 
 		if ms >= 1000 {
-			Stanczyk.Message("→ done in %.02fs\n", elapsed.Seconds())
+			msg := fmt.Sprintf("→ done in %.02fs\n", elapsed.Seconds())
+			outputMsg += msg
 		} else {
-			Stanczyk.Message("→ done in %dms\n", ms)
+			msg := fmt.Sprintf("→ done in %dms\n", ms)
+			outputMsg += msg
 		}
 		started = false
 
@@ -47,7 +53,8 @@ func timedFunction(step CompilationStep) {
 			timedFunction(step)
 		}
 	} else {
-		Stanczyk.Message("%s %-25s", MsgCliPrefix, getStepName(step))
+		msg := fmt.Sprintf("%s %-25s", MsgCliPrefix, getStepName(step))
+		outputMsg += msg
 		lastStep = step
 		startTime = time.Now()
 		started = true
@@ -56,18 +63,17 @@ func timedFunction(step CompilationStep) {
 
 func RunTasks() {
 	var (
-		chunk Chunk
 		asm   Assembly
 	)
 
 	timedFunction(stepFrontend)
-	FrontendRun(&chunk)
+	FrontendRun()
 
 	timedFunction(stepTypecheck)
-	// TypecheckRun(chunk)
+	TypecheckRun()
 
 	timedFunction(stepCodegen)
-	CodegenRun(chunk, &asm)
+	CodegenRun(&asm)
 
 	timedFunction(stepOutput)
 	OutputRun(asm)
@@ -76,4 +82,6 @@ func RunTasks() {
 	BackendRun()
 
 	timedFunction(lastStep)
+
+	Stanczyk.Message(outputMsg)
 }

@@ -69,6 +69,26 @@ func getParsedSourceFile(path string) string {
 	return result.String()
 }
 
+func (this *FileManager) SortFilesForCompiling() {
+	var newFilenames []string
+	var newSources []string
+
+	for i, _ := range this.filename {
+		if i == 1 {
+			continue
+		}
+
+		newFilenames = append(newFilenames, this.filename[i])
+		newSources = append(newSources, this.source[i])
+	}
+
+	newFilenames = append(newFilenames, this.filename[1])
+	newSources = append(newSources, this.source[1])
+
+	this.filename = newFilenames
+	this.source = newSources
+}
+
 func (this *FileManager) Open(filename string) {
 	path := ""
 

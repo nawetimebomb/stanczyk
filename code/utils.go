@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"strconv"
 )
 
@@ -28,4 +29,24 @@ func Contains[T comparable](s []T, e T) bool {
         }
     }
     return false
+}
+
+func FindFunction(code Code) Function {
+	var result Function
+	name := code.value.(string)
+
+	for _, f := range TheProgram.chunks {
+		if f.name == name {
+			result = f
+			break
+		}
+	}
+
+	if !result.called {
+		msg := fmt.Sprintf(MsgParseWordNotFound, name)
+		ReportErrorAtLocation(msg, code.loc)
+		ExitWithError(CodeCodegenError)
+	}
+
+	return result
 }
