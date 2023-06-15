@@ -5,6 +5,6 @@
 #include "vm.h"
 #include "chunk.h"
 
-bool compile(const char *source, chunk_t *chunk);
+procedure_t *compile(const char *source);
 
 #endif

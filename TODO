@@ -12,3 +12,13 @@ When using a global symbol like the one below, the code fails to compile
 
 * Strings do not support escaped characters                    :FEATURE:
 * Add UTF-8 support to strings                                 :MAYBE:
+
+* DONE Fix concatenated substractions [[file:tests/01-arithmetic.sk::;; -5 -3 - 2 - print ;; 0][example]] [[file:src/compiler.c::// TODO: This is buggy because it can't handle concatenated substractions][code]]               :BUG:
+CLOSED: [2023-05-18 Thu 08:41]
+:LOGBOOK:
+- State "DONE"       from              [2023-05-18 Thu 08:41]
+:END:
+Fixed by changing how negation works. Now we have the "neg" keyword that negates the next term,
+that is, if the term is a Boolean acts like !Boolean, if the term is a number acts like -number.
+
+This is closer to what Assembly does and also frees up the "-" and "!" characters.

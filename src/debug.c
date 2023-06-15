@@ -1,11 +1,19 @@
 #include <stdio.h>
+// TODO: remove when moved to printer file
+#include <string.h>
 
 #include "chunk.h"
 #include "debug.h"
 #include "value.h"
 
+// TODO: Move to a printer file
+static void print_center_text(const char *s) {
+    int position = strlen(s) / 2;
+    printf(STYLE_BOLD"===%*s%*s===\n"STYLE_OFF, 10 + position, s, 10 - position, "");
+}
+
 void disassemble_chunk(chunk_t *chunk, const char *name) {
-    printf("== %s ==\n", name);
+    print_center_text(name);
 
     for (int offset = 0; offset < chunk->count;) {
         offset = disassemble_instruction(chunk, offset);
@@ -85,14 +93,14 @@ int disassemble_instruction(chunk_t *chunk, int offset) {
             return simple_instruction("OP_MULTIPLY", offset);
         case OP_DIVIDE:
             return simple_instruction("OP_DIVIDE", offset);
-        case OP_NOT:
-            return simple_instruction("OP_NOT", offset);
         case OP_NEGATE:
             return simple_instruction("OP_NEGATE", offset);
         case OP_PRINT:
             return simple_instruction("OP_PRINT", offset);
         case OP_DROP:
             return simple_instruction("OP_DROP", offset);
+        case OP_DUP:
+            return simple_instruction("OP_DUP", offset);
         case OP_JUMP_IF_FALSE:
             return jump_instruction("OP_JUMP_IF_FALSE", 1, chunk, offset);
         case OP_JUMP:
@@ -101,6 +109,8 @@ int disassemble_instruction(chunk_t *chunk, int offset) {
             return jump_instruction("OP_QUIT", 1, chunk, offset);
         case OP_LOOP:
             return jump_instruction("OP_LOOP", -1, chunk, offset);
+        case OP_CALL:
+            return byte_instruction("OP_CALL", chunk, offset);
         case OP_RETURN:
             return simple_instruction("OP_RETURN", offset);
         default:
