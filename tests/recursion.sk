@@ -1,0 +1,20 @@
+using "io"
+
+;; Test: recursion
+;; Description:
+;    testing recusive functions
+macro original do 10 .
+
+function add-3-to-original int -> int do
+  if dup original 3 + = do
+    ret
+  else
+    ++ add-3-to-original ret
+  .
+.
+
+function main do
+  "define a recursive function that adds 3 (1 by 1) to 'original' of value 10 and returns it\n" puts
+  "add-3-to-original  13  " puts
+  original add-3-to-original print
+.
