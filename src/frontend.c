@@ -26,6 +26,7 @@
  * ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝╚══════╝   ╚═╝   ╚═╝  ╚═╝
  */
 #include <stdio.h>
+#include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -284,19 +285,18 @@ static void init_bytecode() {
  *   | _||   /   / (_) |   /\__ \
  *   |___|_|_\_|_\\___/|_|_\|___/
  */
-static void error_at(Token *token, const char *message) {
+static void error_at(Token *token, const char *format, ...) {
     if (parser.panic) return;
     parser.panic = true;
-    parser.erred = true;
+    char *message = ALLOCATE(char, 512);
+    va_list args;
+
+    va_start(args, format);
+    vsprintf(message, format, args);
+    va_end(args);
     PARSING_ERROR(token, message);
-}
-
-static void error(const char *message) {
-    error_at(&parser.previous, message);
-}
-
-static void error_at_current(const char *message) {
-    error_at(&parser.current, message);
+    parser.erred = true;
+    free(message);
 }
 
 /*     ___  _   ___  ___ ___ ___
@@ -311,7 +311,7 @@ static void advance() {
         parser.current = scan_token();
         if (parser.current.type != TOKEN_ERROR) break;
 
-        error_at_current(parser.current.start);
+        error_at(&parser.current, parser.current.start);
     }
 }
 
@@ -321,7 +321,7 @@ static bool consume(TokenType type, const char *message) {
         return true;
     }
 
-    error_at_current(message);
+    error_at(&parser.current, message);
     return false;
 }
 
@@ -517,7 +517,7 @@ static void static_memory_definition() {
     long number = 0;
 
     if (match(TOKEN_END)) {
-        error("expect Int after the memory name\n"
+        error_at(&parser.previous, "expect Int after the memory name\n"
             "E.g.:\n" "\tmemory buffer 1024 end\n" COLOR_RED "\t              ^^^^\n"STYLE_OFF
             "This number indicates how much memory (in bytes) is going to be saved");
         return;
@@ -584,7 +584,7 @@ static void RULE_word(Token token) {
     int function_index = find_function_index(word);
 
     if (macro_index < 0 && memory_index < 0 && cfunction_index < 0 && function_index < 0) {
-        error("unknown word\n" "The word definition has not been found yet in the code\n"
+        error_at(&parser.previous, "unknown word\n" "The word definition has not been found yet in the code\n"
               "Check if the definition is after this line or if you mispelled the word");
         return;
     }
@@ -689,7 +689,7 @@ static void parse_next() {
     Token token = parser.previous;
     ParseRule *rule = get_rule(token.type);
     if (rule->normal == NULL) {
-        error("unknown expression");
+        error_at(&parser.previous, "unknown expression");
         return;
     }
     rule->normal(token);
@@ -701,13 +701,10 @@ static void parse_this_from(TokenArray *statement, int index) {
 
     if (rule->normal == NULL) {
         String *token_name = copy_string(token.start, token.length);
-        char *error_message = ALLOCATE(char, 128);
-        sprintf(error_message, "unknown expression while expanding macro\n"
+        error_at(&token, "unknown expression while expanding macro\n"
                 "Failed to parse '%s' expression."
                 "This is most likely a bug in the compiler\n"
                 "Please, open a ticket at %s. Thank you!", token_name->chars, GIT_URL);
-        error_at(&token, error_message);
-        free(error_message);
         return;
     }
 
@@ -746,16 +743,13 @@ static void hash_include() {
             process_and_save(the_compiler, name->chars);
         }
     } else {
-        char *error_message = ALLOCATE(char, 400);
-        sprintf(error_message, "failed to find library to include: %s\n"
+        error_at(&parser.previous, "failed to find library to include: %s\n"
                 "Make sure the name is correct. If it is an internal Stańczyk library, you\n"
                 "must omit the '.sk' in the name. If it is your code, then you must have '.sk'\n"
                 "The relative path to your libraries starts from the entry point base path\n"
                 "E.g.:\n" "\t#include \"my/code.sk\"\n"
                 "This means the file is inside a folder called 'my', adjacent to the entry file",
                 name->chars);
-        error(error_message);
-        free(error_message);
     }
 }
 
@@ -789,12 +783,9 @@ static void macro_statement() {
     int macro_index = find_macro_index(word);
 
     if (macro_index != -1) {
-        char *error_message = ALLOCATE(char, 32);
-        memset(error_message, 0, sizeof(char) * 32);
-        sprintf(error_message, "word %s already in use\n"
+        error_at(&parser.previous, "word %s already in use\n"
                 "You cannot override existing declarations in Stańczyk,\n"
-                "must select a different name for this macro", word->chars);
-        error(error_message);
+                 "must select a different name for this macro", word->chars);
         return;
     }
 
@@ -804,7 +795,7 @@ static void macro_statement() {
             "Macro declaration statements must be enclosed in 'set' and 'end' keywords");
 
     if (match(TOKEN_END)) {
-        error("missing macro content after 'set'. Empty macros are not allowed\n" "E.g.:\n"
+        error_at(&parser.previous, "missing macro content after 'set'. Empty macros are not allowed\n" "E.g.:\n"
               "\t:> my-macro set [...] end\n" COLOR_RED
               "\t                ^^^^^\n"STYLE_OFF
               "Macro content may be anything, including other macros, but not the same macro");
@@ -840,17 +831,14 @@ static void const_statement() {
     int macro_index = find_macro_index(word);
 
     if (macro_index != -1) {
-        char *error_message = ALLOCATE(char, 32);
-        memset(error_message, 0, sizeof(char) * 32);
-        sprintf(error_message, "word %s already in use\n"
+        error_at(&parser.previous, "word %s already in use\n"
                 "You cannot override existing declarations in Stańczyk,\n"
                 "must select a different name for this const", word->chars);
-        error(error_message);
         return;
     }
 
     if (match(TOKEN_END)) {
-        error("missing const content after name. Empty const are not allowed\n" "E.g.:\n"
+        error_at(&parser.previous, "missing const content after name. Empty const are not allowed\n" "E.g.:\n"
               "\t:> my-const <value> end\n" COLOR_RED
               "\t            ^^^^^^^\n"STYLE_OFF
               "Const content may be a constant value, like an Int or Str");
@@ -863,7 +851,7 @@ static void const_statement() {
     if (token.type == TOKEN_INT || token.type == TOKEN_STR) {
         append_token(statement, token);
     } else {
-        error("you can only assign a constant value to a 'const'\n"
+        error_at(&parser.previous, "you can only assign a constant value to a 'const'\n"
               "Only an Int or Str is allowed to be used here");
     }
 
