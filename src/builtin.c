@@ -1,6 +1,8 @@
 #include <string.h>
+#include "includes/mpc.h"
 #include "builtin.h"
 #include "eval.h"
+#include "parser.h"
 #include "nexp.h"
 #include "intrinsics.h"
 #include "scope.h"
@@ -41,6 +43,49 @@ static nexp_t *b_eval(scope_t *scope, nexp_t *input) {
     nexp_t *result = nexp_take(input, 0);
     result->type = NEXP_TYPE_SEXPR;
     return eval_nexp(scope, result);
+}
+
+static nexp_t *b_load(scope_t *scope, nexp_t *input) {
+    NASSERT(input, input->count == 1,
+            "invalid number of arguments\n"
+            "\t-> Given: %d\n"
+            "\t-> Expected: %d",
+            input->count, 1);
+    NASSERT(input, input->children[0]->type == NEXP_TYPE_STRING,
+            "invalid argument type\n"
+            "\t-> Given: %s\n"
+            "\t-> Expected: %s",
+            nexp_describe_type(input->children[0]->type),
+            nexp_describe_type(NEXP_TYPE_STRING));
+
+    mpc_result_t r;
+
+    if (mpc_parse_contents(input->children[0]->string,
+                           get_parser_type(NEXP_PARSER_TYPE_SEXPR),
+                           &r)) {
+        nexp_t *expr = parse_expr(r.output);
+        mpc_ast_delete(r.output);
+
+        while (expr->count) {
+            nexp_t *result = eval_nexp(scope, nexp_pop(expr, 0));
+            if (result->type == NEXP_TYPE_ERROR) { nexp_print(result); }
+            nexp_delete(result);
+        }
+
+        nexp_delete(expr);
+        nexp_delete(input);
+
+        return nexp_new_Sexpr();
+    } else {
+        char *error_message = mpc_err_string(r.error);
+        mpc_err_delete(r.error);
+
+        nexp_t *error = nexp_new_error("failed loading library %s", error_message);
+        free(error_message);
+        nexp_delete(input);
+
+        return error;
+    }
 }
 
 static nexp_t *b_do(scope_t *scope, nexp_t *input) {
@@ -452,9 +497,10 @@ nexp_t *call_proc(scope_t *scope, nexp_t *found, nexp_t *input) {
 }
 
 void init_builtins(scope_t *scope) {
-    // Data structure operators
+    // Native functions
     add_builtin_internal(scope, "eval", b_eval,         NEXP_MODE_DEFAULT);
     add_builtin_internal(scope, "list", b_list,         NEXP_MODE_DEFAULT);
+    add_builtin_internal(scope, "load", b_load,         NEXP_MODE_DEFAULT);
     add_builtin_internal(scope, "do",   b_do,           NEXP_MODE_IMMEDIATE);
 
     // Arithmetic operators
