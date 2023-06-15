@@ -1,16 +1,15 @@
-CC          := gcc
-FLAGS       := -Wall -std=c99 -Wpedantic
-OUT_FOLDER  := build
-DEBUG_FLAGS := -DDEBUG_PRINT_CODE -DDEBUG_TRACE_EXECUTION -g -ggdb -O0
+PROJECT_NAME  := Stanczyk
+CC            := gcc
+CFLAGS        := -Wall -std=c99 -Wpedantic
+RELEASE_FLAGS := -O3
+DEBUG_FLAGS   := -DDEBUG_PRINT_CODE -DDEBUG_TRACE_EXECUTION -g -ggdb -O0
+NAME          := skc
+SRC  := $(wildcard src/*.c)
 
 default: main
 
-# clean:
-# 	@ rm -rf $(BUILD_DIR)
-# 	@ mkdir -p $(BUILD_DIR)
-
 main:
-	@ $(CC) $(FLAGS) -O3 src/*.c -o skc
+	@ $(CC) $(CFLAGS) $(RELEASE_FLAGS) $(SRC) -o $(NAME)
 
 debug:
-	@ $(CC) $(FLAGS) src/*.c -o skc $(DEBUG_FLAGS)
+	@ $(CC) $(CFLAGS) $(DEBUG_FLAGS) $(SRC) -o $(NAME)
