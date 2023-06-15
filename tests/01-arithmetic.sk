@@ -1,9 +1,9 @@
 10 3 + print
 20 7 - print
-neg 10 23 + print
+10 neg 23 + print
 13 1 * print
-neg 13 neg 1 * print
+13 neg 1 neg * print
 1337 100 / print
 1337 100.00 / print
 2 3 + dup dup dup * * * print
-neg 5 neg 3 - 2 - print
+5 neg 3 neg - 2 - print
