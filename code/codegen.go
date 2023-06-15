@@ -44,6 +44,9 @@ func getAsciiValues(s string) (string, int) {
 		count++
 	}
 
+	ascii += "0"
+	count++
+
 	return ascii, count
 }
 
@@ -130,10 +133,8 @@ func generateLinuxX86() {
 				asm.WriteText("    mov rax, %d", value)
 				asm.WriteText("    push rax")
 			case OP_PUSH_STR:
-				ascii, length := getAsciiValues(value.(string))
+				ascii, _ := getAsciiValues(value.(string))
 				asm.WriteText(";; \"%s\" (%s:%d:%d)", value, loc.f, loc.l, loc.c)
-				asm.WriteText("    mov rax, %d", length)
-				asm.WriteText("    push rax")
 				asm.WriteText("    push str_%d", len(asm.data))
 				asm.WriteData("str_%d: db %s", len(asm.data), ascii)
 
