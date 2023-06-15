@@ -132,10 +132,16 @@ void PARSING_ERROR(Token *token, const char *msg) {
 
 void TYPECHECK_ERROR(Token *token, const char *format, ...) {
     if (token == NULL) {
-        fprintf(stderr, _BOLD_ _RED_ "ERROR: " _RESET_);
+        fprintf(stderr, _BOLD_ _RED_ "ERROR" _RESET_);
     } else {
-        fprintf(stderr, _RED_ _BOLD_ "%s:%d:%d: ERROR: " _RESET_,
+        fprintf(stderr, "%s:%d:%d: " _UNDERLINE_"ERROR ",
                 token->filename, token->line, token->column);
+
+        if (TOKEN_EOF == token->type) {
+            fprintf(stderr, "at end of the file");
+        } else {
+            fprintf(stderr, "at %.*s", token->length, token->start);
+        }
     }
 
     char *msg = malloc(sizeof(char) * 128);
@@ -147,7 +153,7 @@ void TYPECHECK_ERROR(Token *token, const char *format, ...) {
     vsprintf(msg, format, args);
     va_end(args);
 
-    fprintf(stderr, "%s\n", msg);
+    fprintf(stderr, _RESET_ ": %s\n", msg);
 
     free(msg);
     exit(COMPILATION_TYPECHECK_ERROR);

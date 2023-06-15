@@ -44,6 +44,12 @@ typedef enum {
     OP_MULTIPLY,
     OP_PRINT,
     OP_SUBSTRACT,
+    OP_EQUAL,
+    OP_NOT_EQUAL,
+    OP_LESS,
+    OP_LESS_EQUAL,
+    OP_GREATER,
+    OP_GREATER_EQUAL,
 
     // Syscalls
     // TODO: Replace with functions that pop to specific
