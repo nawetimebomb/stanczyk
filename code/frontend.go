@@ -383,8 +383,26 @@ func parseToken(token Token) {
 		emit(code)
 
 	// Intrinsics
+	case TOKEN_ARGC:
+		code.op = OP_ARGC
+		emit(code)
+	case TOKEN_ARGV:
+		code.op = OP_ARGV
+		emit(code)
 	case TOKEN_BANG_EQUAL:
 		code.op = OP_NOT_EQUAL
+		emit(code)
+	case TOKEN_CAST_BOOL:
+		code.op = OP_CAST
+		code.value = DATA_BOOL
+		emit(code)
+	case TOKEN_CAST_INT:
+		code.op = OP_CAST
+		code.value = DATA_INT
+		emit(code)
+	case TOKEN_CAST_PTR:
+		code.op = OP_CAST
+		code.value = DATA_PTR
 		emit(code)
 	case TOKEN_DIV:
 		code.op = OP_DIVIDE
@@ -410,6 +428,18 @@ func parseToken(token Token) {
 	case TOKEN_LESS_EQUAL:
 		code.op = OP_LESS_EQUAL
 		emit(code)
+	case TOKEN_LOAD8:
+		code.op = OP_LOAD8
+		emit(code)
+	case TOKEN_LOAD16:
+		code.op = OP_LOAD16
+		emit(code)
+	case TOKEN_LOAD32:
+		code.op = OP_LOAD32
+		emit(code)
+	case TOKEN_LOAD64:
+		code.op = OP_LOAD64
+		emit(code)
 	case TOKEN_MINUS:
 		code.op = OP_SUBSTRACT
 		emit(code)
@@ -428,6 +458,18 @@ func parseToken(token Token) {
 		emit(code)
 	case TOKEN_STAR:
 		code.op = OP_MULTIPLY
+		emit(code)
+	case TOKEN_STORE8:
+		code.op = OP_STORE8
+		emit(code)
+	case TOKEN_STORE16:
+		code.op = OP_STORE16
+		emit(code)
+	case TOKEN_STORE32:
+		code.op = OP_STORE32
+		emit(code)
+	case TOKEN_STORE64:
+		code.op = OP_STORE64
 		emit(code)
 	case TOKEN_SWAP:
 		code.op = OP_SWAP

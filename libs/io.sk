@@ -68,3 +68,7 @@ function puts int ptr do
 function clear do
   "\e[H\e[2J" puts
 .
+
+function []argv int -> ptr do
+  8 * argv (int) + (ptr) ->64
+.
