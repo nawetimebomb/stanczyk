@@ -75,11 +75,9 @@ static char *find_compiler_dir(const char *path) {
 
 static void parse_arguments(int argc, const char **argv) {
     if (strcmp(argv[1], "run") == 0) {
-        compiler.options.run = true;
-        compiler.options.clean = true;
-        compiler.options.silent = true;
+        set_mode(COMPILATION_MODE_RUN);
     } else if (strcmp(argv[1], "build") == 0) {
-        compiler.options.debug = false;
+        set_mode(COMPILATION_MODE_BUILD);
     } else if (strcmp(argv[1], "help") == 0) {
         CLI_HELP();
     } else {
@@ -92,21 +90,19 @@ static void parse_arguments(int argc, const char **argv) {
         const char *input = argv[i];
 
         if ((strcmp(input, "-r") == 0) || (strcmp(input, "-run") == 0)) {
-            compiler.options.run = true;
+            set_flag(COMPILATION_FLAG_RUN, true);
         } else if ((strcmp(input, "-C") == 0) || (strcmp(input, "-clean") == 0)) {
-            compiler.options.run = true;
-            compiler.options.clean = true;
+            set_flag(COMPILATION_FLAG_RUN, true);
+            set_flag(COMPILATION_FLAG_CLEAN, true);
         } else if ((strcmp(input, "-d") == 0) || (strcmp(input, "-debug") == 0)) {
-            compiler.options.debug = true;
+            set_flag(COMPILATION_FLAG_DEBUG, true);
         } else if ((strcmp(input, "-o") == 0) || (strcmp(input, "-out") == 0)) {
             i++;
-            compiler.options.out_file = argv[i];
+            set_output(argv[i]);
         } else if ((strcmp(input, "-s") == 0) || (strcmp(input, "-silent") == 0)) {
-            compiler.options.silent = true;
+            set_flag(COMPILATION_FLAG_SILENT, true);
         } else if (strstr(argv[i], ".sk")) {
-            compiler.ready = true;
-            compiler.options.entry_file = argv[i];
-            set_entry_file(argv[i]);
+            set_entry(argv[i]);
         } else {
             CLI_ERROR("unknown option %s in arguments\n"
                       "You can get a list of allowed arguments "
@@ -126,7 +122,7 @@ int main(int argc, const char **argv) {
 
     parse_arguments(argc, argv);
 
-    if (!compiler.ready) {
+    if (!compilation_ready()) {
         CLI_ERROR("missing entry file in the arguments given to skc\n"
                   "You need to provide an .sk file as an argument, after the command\n"
                   "E.g.:\n" "\tskc run myfile.sk\n" "\t        ^^^^^^^^^\n");
@@ -136,14 +132,11 @@ int main(int argc, const char **argv) {
 
     run_tasker();
 
-    compiler.options.workspace = find_project_dir();
-    compiler.options.compiler_dir = find_compiler_dir(argv[0]);
-
     compile(&compiler);
 
-    if (compiler.options.run && !compiler.failed) {
+    if (get_flag(COMPILATION_FLAG_RUN) && !compilation_failed()) {
         system("./output");
-        if (compiler.options.clean) system("rm ./output");
+        if (get_flag(COMPILATION_FLAG_CLEAN)) system("rm ./output");
     }
 
     stop_stanczyk();

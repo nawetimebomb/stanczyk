@@ -29,13 +29,14 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "stanczyk.h"
 #include "printer.h"
 #include "compiler.h"
 
 extern Compiler compiler;
 
 void print_cli(const char *group, const char *message) {
-    if (!compiler.options.silent) {
+    if (!get_flag(COMPILATION_FLAG_SILENT)) {
         printf(STYLE_BOLD "%s" STYLE_OFF " %s\n", group, message);
     }
 }

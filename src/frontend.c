@@ -971,7 +971,7 @@ Chunk *create_intermediate_representation(Compiler *compiler) {
     process_and_save_file("basics");
 
     // Save the entry file
-    process_and_save_file(get_entry_file());
+    process_and_save_file(get_entry());
 
     // Check for #includes, save macros, const and functions
     for (int index = 0; index < get_files_count(); index++) {
