@@ -62,6 +62,7 @@ typedef struct {
     FileArray files;
     Timers timers;
     bool ready;
+    bool failed;
 } Compiler;
 
 typedef struct {
@@ -75,7 +76,8 @@ typedef struct {
     Chunk *chunk;
     u8    *ip;
     OutputArray code;
-    OutputArray writeable;
+    OutputArray strs;
+    OutputArray mems;
 } Writer;
 
 typedef enum {

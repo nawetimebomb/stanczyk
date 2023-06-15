@@ -1,25 +1,91 @@
 #include "io"
 
-; What is this?
-; * Asking the name to the user, reading it into a buffer and print it back.
+; What is this program doing?
+; * This program asks the name of the user, reads the result into a buffer and then
+; prints it back with a message
+; * Check the "Stack" comments to understand what's the stack after each operation.
+; NOTE: The example input from the user is "Stańczyk"
 
-; How does it work?
-; * First we print the message using the syscall for writing to a file descriptor (stdout).
-; * Then we read the input through stdin
-; * Finally we show the message back to stdout.
+; How to run?
+; Compile the Stańczyk Compiler and run with: skc run 02-name-game.sk
 
-; Saving "Hi, " to the buffer memory
-memory 0 + 72  !8
-memory 1 + 105 !8
-memory 2 + 44  !8
-memory 3 + 32  !8
+;; Program start:
 
-; Asking for the name to doing a syscall to stdout fd.
-"What's your name? " write drop
+; Creating the memory buffer to save the value read from the user input on the terminal.
+;; TODO: memory buffer size should use the constant value.
 
-; Letting the user input something in stdin by doing a read syscall
-; and saving it into the buffer memory.
-80 memory 4 + read
+; Stack: --- (empty)
+const NAME_CAP 32 end
+static name NAME_CAP end
+; Stack: --- (empty)
 
-; Showing the results with another write syscall to std fd.
-5 + memory write
+; Print the following text on the screen. "puts" is doing a write system call with the stdin
+; file descriptor. Check "libs/io.sk".
+
+"What's your name? "
+; Stack: [ (Int) length = 18 ][ (Str) pointer ]
+
+puts
+; Stack: --- (empty)
+
+; Wait for the user to input a value and read it. "read" is a read system call and it requires
+; the size of the buffer and a buffer to work.
+; The result of "read" is the length of the input
+
+NAME_CAP name
+; Stack: [ (Int) 32 ][ (Ptr) memory ]
+
+read
+; Stack: [ (Int) 8 ] <-- this is the length of the input, in this example, "Stańczyk
+
+; The following lines are removing the last character of the user input.
+; Since the input may end in "\n" (escaped character for new line, with value 10 in ASCII)
+; We load the value the last character from the buffer and check if it's value 10,
+; if true, we remove it.
+; The stack here is the following:
+
+name over
+; Stack: [ (Int) 8 ][ (Ptr) memory ][ (Int) 8 ]
+
++
+; Pointer arithmetics, we add the length to the pointer so we can get to the pointer position
+; where the last character + 1 is.
+; Stack: [ (Int) 8 ][ (Ptr) memory (last character + 1) ]
+
+1 -
+; Pointer arithmetics again, we go back 1 character.
+; Stack: [ (Int) 8 ][ (Ptr) memory (last character) ]
+
+@8
+; Stack: [ (Int) 8 ][ (Str) memory value ("Stańczyk\n") ]
+
+; [ (Int) 8 ][ (Str) memory value ("Stańczyk\n") ][ (Str) memory value ("Stańczyk\n") ][ (Int) 10 ]
+if dup 10 == do
+; We dup memory value and test with 10. These last two go away after the line evaluation
+; [ (Int) 8 ][ (Str) memory value ("Stańczyk\n") ]
+
+drop
+; [ (Int) 8 ]
+
+dec
+; if the last character is "\n", we will not show it because we're decreasing the length.
+; Stack: [ (Int) 7 ]
+.
+
+; Showing the results with another write syscall to stdout fd.
+
+"Hi, "
+; Stack: [ (Int) 7 ][ (Int) length = 4 ][ (Str) pointer ]
+puts
+; Stack: [ (Int) 7 ]
+
+name
+; Stack: [ (Int) 7 ][ (Ptr) memory ]
+puts
+; Stack: --- (empty)
+
+"!\n"
+; Stack: [ (Int) length = 2 ][ (Str) pointer ]
+
+puts
+; Stack: --- (empty)

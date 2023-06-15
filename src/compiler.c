@@ -56,7 +56,7 @@ static void init_writer_array(OutputArray *array) {
 static CompilerResult generate() {
 #if defined(__linux__)
     print_cli("[ info ]", "Compiling code for Linux");
-    return generate_x64_linux(&writer, &writer.code, &writer.writeable);
+    return generate_x64_linux(&writer, &writer.code, &writer.strs, &writer.mems);
 #elif defined(_WIN32) || defined(_WIN64) || defined(__CYGWIN__)
     print_cli("[ error ]", "Windows is not supported");
     return COMPILER_OS_ERROR;
@@ -73,11 +73,13 @@ CompilerResult compile(Compiler *compiler) {
     Chunk *chunk = malloc(sizeof(Chunk));
     init_chunk(chunk);
     init_writer_array(&writer.code);
-    init_writer_array(&writer.writeable);
+    init_writer_array(&writer.strs);
+    init_writer_array(&writer.mems);
 
     bytecode(compiler, chunk);
 
     if (chunk->erred) {
+        compiler->failed = true;
         return COMPILER_BYTECODE_ERROR;
     }
 
@@ -90,7 +92,10 @@ CompilerResult compile(Compiler *compiler) {
     compiler->timers.generator = END - START;
 
     // TODO: Improve the below
-    if (result) return result;
+    if (result) {
+        compiler->failed = true;
+        return result;
+    }
 
     return run(&writer, compiler);
 }

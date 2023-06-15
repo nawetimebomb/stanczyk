@@ -35,17 +35,18 @@ typedef enum {
     // Constants
     OP_PUSH_INT,
     OP_PUSH_STR,
+    OP_PUSH_PTR,
 
     // Keywords
     OP_JUMP,
     OP_JUMP_IF_FALSE,
     OP_LOOP,
-    OP_MEMORY,
 
     // Intrinsics
     OP_ADD,
     OP_AND,
     OP_DEC,
+    OP_DEFINE_PTR,
     OP_DIVIDE,
     OP_DROP,
     OP_DUP,

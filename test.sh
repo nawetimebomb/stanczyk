@@ -13,8 +13,35 @@ PURPLE="\033[35m"
 BOLD="\033[1m"
 
 echo -e $RED
-base64 -d misc/logo.base64
-echo -e $RESET
+echo -e '┏━  The Stańczyk Programming Language  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃                                                                      ┃
+┃            ¿«fº"└└-.`└└*∞▄_              ╓▄∞╙╙└└└╙╙*▄▄               ┃
+┃         J^. ,▄▄▄▄▄▄_      └▀████▄ç    JA▀            └▀v             ┃
+┃       ,┘ ▄████████████▄¿     ▀██████▄▀└      ╓▄██████▄¿ "▄_          ┃
+┃      ,─╓██▀└└└╙▀█████████      ▀████╘      ▄████████████_`██▄        ┃
+┃     ;"▄█└      ,██████████-     ▐█▀      ▄███████▀▀J█████▄▐▀██▄      ┃
+┃     ▌█▀      _▄█▀▀█████████      █      ▄██████▌▄▀╙     ▀█▐▄,▀██▄    ┃
+┃    ▐▄▀     A└-▀▌  █████████      ║     J███████▀         ▐▌▌╙█µ▀█▄   ┃
+┃  A╙└▀█∩   [    █  █████████      ▌     ███████H          J██ç ▀▄╙█_  ┃
+┃ █    ▐▌    ▀▄▄▀  J█████████      H    ████████          █    █  ▀▄▌  ┃
+┃  ▀▄▄█▀.          █████████▌           ████████          █ç__▄▀ ╓▀└╙%_┃
+┃                 ▐█████████      ▐    J████████▌          .└╙   █¿  ,▌┃
+┃                 █████████▀╙╙█▌└▐█╙└██▀▀████████                 ╙▀▀▀ ┃
+┃                ▐██▀┘Å▀▄A └▓█╓▐█▄▄██▄J▀@└▐▄Å▌▀██▌                     ┃
+┃                █▄▌▄█M╨╙└└-           .└└▀**▀█▄,▌                     ┃
+┃                ²▀█▄▄L_                  _J▄▄▄█▀└                     ┃
+┃                     └╙▀▀▀▀▀MMMR████▀▀▀▀▀▀▀└                          ┃
+┃                                                                      ┃
+┃                                                                      ┃
+┃ ███████╗████████╗ █████╗ ███╗   ██╗ ██████╗███████╗██╗   ██╗██╗  ██╗ ┃
+┃ ██╔════╝╚══██╔══╝██╔══██╗████╗  ██║██╔════╝╚══███╔╝╚██╗ ██╔╝██║ ██╔╝ ┃
+┃ ███████╗   ██║   ███████║██╔██╗ ██║██║       ███╔╝  ╚████╔╝ █████╔╝  ┃
+┃ ╚════██║   ██║   ██╔══██║██║╚██╗██║██║      ███╔╝    ╚██╔╝  ██╔═██╗  ┃
+┃ ███████║   ██║   ██║  ██║██║ ╚████║╚██████╗███████╗   ██║   ██║  ██╗ ┃
+┃ ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝╚══════╝   ╚═╝   ╚═╝  ╚═╝ ┃
+┃                                                                      ┃'
+
+echo -ne $RESET
 
 for FILE in tests/*.sk; do
     if [ -f "$FILE" ]; then
@@ -30,29 +57,33 @@ for FILE in tests/*.sk; do
         ./skc run ${TEST_SRC}.sk > result.txt
 
         RESULT=$(diff ${TEST_SRC}.txt result.txt)
-        printf "${BOLD} ¤ %-56s${RESET}" $TEST_NAME
+        echo -en $RED'┃'
+        printf "${RESET}${BOLD} ¤ %-56s${RESET}" $TEST_NAME
 
         if [ -z "$RESULT" ]; then
-            echo -e "${GREEN}✔ success${RESET}"
+            echo -ne "${GREEN}✔ success${RESET}"
             SUCCESS=$(($SUCCESS + 1))
         else
-            echo -e "${RED}✗ fail${RESET}"
+            echo -ne "${RED}✗ fail${RESET}"
             echo $RESULT
             FAIL=$(($FAIL + 1))
         fi
 
+        echo -e $RED'  ┃'
         rm result.txt
     fi
 done
 
+RCOLOR=""
 if [[ "$FAIL" -gt 0 ]]; then
-    echo -e "$RED"
+    RCOLOR="$RED"
 else
-    echo -e "$GREEN"
+    RCOLOR="$GREEN"
 fi
-
-printf "${BOLD}┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n"
-printf "┃  TOTAL %2d :: Success %2d | Fails %2d  ┃\n" $TOTAL $SUCCESS $FAIL
-printf "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛${RESET}\n"
-
+echo -e $RED'┃                                                                      ┃
+┃                                                                      ┃'
+printf "${RED}┃${RESET}                                   ${RCOLOR}${BOLD}TOTAL %2d :: Success %2d | Fails %2d${RESET}" $TOTAL $SUCCESS $FAIL
+echo -e $RED'  ┃'
+echo -e $RED'┃                                                                      ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  The Stańczyk Programming Language  ━┛'
 exit $FAIL
