@@ -11,8 +11,7 @@ type Codegen struct {
 
 var codegen Codegen
 
-func getAsciiValues(s string) (string, int) {
-	count := 0
+func getAsciiValues(s string) string {
 	nextEscaped := false
 	ascii := ""
 
@@ -26,28 +25,23 @@ func getAsciiValues(s string) (string, int) {
 			switch c {
 			case 't':
 				ascii += "9,"
-				count++
 			case 'n':
 				ascii += "10,"
-				count++
 			case 'e':
 				ascii += "27,"
-				count++
 			}
 
 			nextEscaped = false
 			continue
 		}
 
-		val := fmt.Sprintf("%v,", c)
+		val := fmt.Sprintf("%d,", c)
 		ascii += val
-		count++
 	}
 
 	ascii += "0"
-	count++
 
-	return ascii, count
+	return ascii
 }
 
 func generateLinuxX86() {
@@ -56,45 +50,12 @@ func generateLinuxX86() {
 
 	asm.WriteText("section .text")
     asm.WriteText("global _start")
-    asm.WriteText("print:")
-    asm.WriteText("    mov     r9, -3689348814741910323")
-    asm.WriteText("    sub     rsp, 40")
-    asm.WriteText("    mov     BYTE [rsp+31], 10")
-    asm.WriteText("    lea     rcx, [rsp+30]")
-    asm.WriteText(".L2:")
-    asm.WriteText("    mov     rax, rdi")
-    asm.WriteText("    lea     r8, [rsp+32]")
-    asm.WriteText("    mul     r9")
-    asm.WriteText("    mov     rax, rdi")
-    asm.WriteText("    sub     r8, rcx")
-    asm.WriteText("    shr     rdx, 3")
-    asm.WriteText("    lea     rsi, [rdx+rdx*4]")
-    asm.WriteText("    add     rsi, rsi")
-    asm.WriteText("    sub     rax, rsi")
-    asm.WriteText("    add     eax, 48")
-    asm.WriteText("    mov     BYTE [rcx], al")
-    asm.WriteText("    mov     rax, rdi")
-    asm.WriteText("    mov     rdi, rdx")
-    asm.WriteText("    mov     rdx, rcx")
-    asm.WriteText("    sub     rcx, 1")
-    asm.WriteText("    cmp     rax, 9")
-    asm.WriteText("    ja      .L2")
-    asm.WriteText("    lea     rax, [rsp+32]")
-    asm.WriteText("    mov     edi, 1")
-    asm.WriteText("    sub     rdx, rax")
-    asm.WriteText("    xor     eax, eax")
-    asm.WriteText("    lea     rsi, [rsp+32+rdx]")
-    asm.WriteText("    mov     rdx, r8")
-    asm.WriteText("    mov     rax, 1")
-    asm.WriteText("    syscall")
-    asm.WriteText("    add     rsp, 40")
-    asm.WriteText("    ret")
     asm.WriteText(";; user program definitions starts here")
 
 	asm.WriteData("section .data")
 
 	asm.WriteBss("section .bss")
-	asm.WriteBss("args_ptr: resq 1")
+	asm.WriteBss("args: resq 1")
 	asm.WriteBss("return_stack_rsp: resq 1")
 	asm.WriteBss("return_stack: resb 65536")
 	asm.WriteBss("return_stack_rsp_end:")
@@ -142,12 +103,12 @@ func generateLinuxX86() {
 				asm.WriteText("    mov rax, mem_%d", mem.id)
 				asm.WriteText("    push rax")
 			case OP_PUSH_STR:
-				ascii, _ := getAsciiValues(value.(string))
+				ascii := getAsciiValues(value.(string))
 				asm.WriteText(";; \"%s\" (%s:%d:%d)", value, loc.f, loc.l, loc.c)
 				asm.WriteText("    push str_%d", len(asm.data))
 				asm.WriteData("str_%d: db %s", len(asm.data), ascii)
 
-				// Intrinsics
+			// Intrinsics
 			case OP_ADD:
 				asm.WriteText(";; + (%s:%d:%d)", loc.f, loc.l, loc.c)
 				asm.WriteText("    pop rax")
@@ -156,12 +117,12 @@ func generateLinuxX86() {
 				asm.WriteText("    push rax")
 			case OP_ARGC:
 				asm.WriteText(";; argc (%s:%d:%d)", loc.f, loc.l, loc.c)
-				asm.WriteText("    mov rax, [args_ptr]")
+				asm.WriteText("    mov rax, [args]")
                 asm.WriteText("    mov rax, [rax]")
                 asm.WriteText("    push rax")
 			case OP_ARGV:
 				asm.WriteText(";; argv (%s:%d:%d)", loc.f, loc.l, loc.c)
-				asm.WriteText("    mov rax, [args_ptr]")
+				asm.WriteText("    mov rax, [args]")
 				asm.WriteText("    add rax, 8")
                 asm.WriteText("    push rax")
 			case OP_CAST:
@@ -340,8 +301,6 @@ func generateLinuxX86() {
 				asm.WriteText(";; . [if] (%s:%d:%d)", loc.f, loc.l, loc.c)
 			case OP_END_LOOP:
 				asm.WriteText(";; . [loop] (%s:%d:%d)", loc.f, loc.l, loc.c)
-			case OP_IF:
-				asm.WriteText(";; if (%s:%d:%d)", loc.f, loc.l, loc.c)
 			case OP_JUMP:
 				asm.WriteText(";; else (%s:%d:%d)", loc.f, loc.l, loc.c)
 				asm.WriteText("    jmp .ip%d", value)
@@ -362,7 +321,7 @@ func generateLinuxX86() {
 
 	asm.WriteText(";; user program definition ends here")
 	asm.WriteText("_start:")
-	asm.WriteText("    mov [args_ptr], rsp")
+	asm.WriteText("    mov [args], rsp")
 	asm.WriteText("    mov rax, return_stack_rsp_end")
 	asm.WriteText("    mov [return_stack_rsp], rax")
 	asm.WriteText("    call fn%d", mainFuncIP)

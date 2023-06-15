@@ -555,8 +555,6 @@ func parseToken(token Token) {
 	case TOKEN_IF:
 		*sLevel++
 		frontend.scope[*sLevel].tt = token.typ
-		code.op = OP_IF
-		emit(code)
 	case TOKEN_ELSE:
 		if *sLevel > 0 {
 			prevThen := frontend.scope[*sLevel].thenIP

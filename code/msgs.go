@@ -150,4 +150,9 @@ const (
 		"function 'main' is undeclared"
 	MsgTypecheckWarningNotCalled =
 		"Warning: function '%s' declared but not in use\n"
+
+	MsgsTypecheckStackSizeChangedAfterBlock =
+		"stack size cannot change after block statement"
+	MsgsTypecheckStackTypeChangedAfterBlock =
+		"stack types cannot change after block statement"
 )
