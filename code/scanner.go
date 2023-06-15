@@ -31,6 +31,7 @@ const (
 	TOKEN_LOOP
 	TOKEN_MACRO
 	TOKEN_MINUS
+	TOKEN_OVER
 	TOKEN_PLUS
 	TOKEN_PRINT
 	TOKEN_STAR
@@ -45,35 +46,36 @@ const (
 )
 
 type reserved struct {
-	name string
-	typ  TokenType
+	word  string
+	typ   TokenType
 }
 
-var reservedWords = [24]reserved{
-	reserved{typ: TOKEN_PLUS,			name: "+"		},
-	reserved{typ: TOKEN_MINUS,			name: "-"		},
-	reserved{typ: TOKEN_STAR,			name: "*"		},
-	reserved{typ: TOKEN_DOT,			name: "."		},
-	reserved{typ: TOKEN_EQUAL,			name: "="		},
-	reserved{typ: TOKEN_BANG_EQUAL,		name: "!="		},
-	reserved{typ: TOKEN_GREATER,		name: ">"		},
-	reserved{typ: TOKEN_GREATER_EQUAL,	name: ">="		},
-	reserved{typ: TOKEN_LESS,			name: "<"		},
-	reserved{typ: TOKEN_LESS_EQUAL,		name: "<="		},
-	reserved{typ: TOKEN_DIV,			name: "div"		},
-	reserved{typ: TOKEN_DO,				name: "do"		},
-	reserved{typ: TOKEN_DROP,			name: "drop"	},
-	reserved{typ: TOKEN_DUP,			name: "dup"		},
-	reserved{typ: TOKEN_ELSE,			name: "else"	},
-	reserved{typ: TOKEN_FALSE,			name: "false"	},
-	reserved{typ: TOKEN_IF,				name: "if"		},
-	reserved{typ: TOKEN_LOOP,			name: "loop"	},
-	reserved{typ: TOKEN_MACRO,			name: "macro"	},
-	reserved{typ: TOKEN_PRINT,			name: "print"	},
-	reserved{typ: TOKEN_SWAP,			name: "swap"	},
-	reserved{typ: TOKEN_SYSCALL3,		name: "syscall3"},
-	reserved{typ: TOKEN_TRUE,			name: "true"	},
-	reserved{typ: TOKEN_USING,			name: "using"	},
+var reservedWords = [25]reserved{
+	reserved{typ: TOKEN_BANG_EQUAL,		word: "!="			},
+	reserved{typ: TOKEN_DIV,			word: "div"			},
+	reserved{typ: TOKEN_DO,				word: "do"			},
+	reserved{typ: TOKEN_DOT,			word: "."			},
+	reserved{typ: TOKEN_DROP,			word: "drop"		},
+	reserved{typ: TOKEN_DUP,			word: "dup"			},
+	reserved{typ: TOKEN_ELSE,			word: "else"		},
+	reserved{typ: TOKEN_EQUAL,			word: "="			},
+	reserved{typ: TOKEN_FALSE,			word: "false"		},
+	reserved{typ: TOKEN_GREATER,		word: ">"			},
+	reserved{typ: TOKEN_GREATER_EQUAL,	word: ">="			},
+	reserved{typ: TOKEN_IF,				word: "if"			},
+	reserved{typ: TOKEN_LESS,			word: "<"			},
+	reserved{typ: TOKEN_LESS_EQUAL,		word: "<="			},
+	reserved{typ: TOKEN_LOOP,			word: "loop"		},
+	reserved{typ: TOKEN_MACRO,			word: "macro"		},
+	reserved{typ: TOKEN_MINUS,			word: "-"			},
+	reserved{typ: TOKEN_OVER,           word: "over"		},
+	reserved{typ: TOKEN_PLUS,			word: "+"			},
+	reserved{typ: TOKEN_PRINT,			word: "print"		},
+	reserved{typ: TOKEN_STAR,			word: "*"			},
+	reserved{typ: TOKEN_SWAP,			word: "swap"		},
+	reserved{typ: TOKEN_SYSCALL3,		word: "syscall3"	},
+	reserved{typ: TOKEN_TRUE,			word: "true"		},
+	reserved{typ: TOKEN_USING,			word: "using"		},
 }
 
 type Location struct {
@@ -143,7 +145,7 @@ func makeWord(c byte, line string, index *int) {
 	}
 
 	for _, reserved := range reservedWords {
-		if reserved.name == word {
+		if reserved.word == word {
 			makeToken(reserved.typ)
 			return
 		}
