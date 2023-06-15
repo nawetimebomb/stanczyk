@@ -354,10 +354,23 @@ static void grouping() {
     consume(TOKEN_RIGHT_PAREN, "Expect ')' after expression.");
 }
 
-static void number() {
-    double value = strtod(parser.previous.start, NULL);
-    emit_constant(NUMBER_VAL(value));
+static void _number() {
+    token_type_t type = parser.previous.type;
+
+    switch (type) {
+        case TOKEN_INT: {
+            long value = strtol(parser.previous.start, NULL, 10);
+            emit_constant(INT_VAL(value));
+        } break;
+        case TOKEN_FLOAT: {
+            double value = strtod(parser.previous.start, NULL);
+            emit_constant(FLOAT_VAL(value));
+        } break;
+        default: return;
+    }
+
 }
+
 
 static void string() {
     emit_constant(OBJ_VAL(copy_string(parser.previous.start + 1, parser.previous.length - 2)));
@@ -614,7 +627,8 @@ parse_rule_t rules[] = {
     [TOKEN_LESS_EQUAL]    = {NULL,        binary,     PREC_EQUALITY},
     [TOKEN_SYMBOL]        = {symbol,      symbol,     PREC_EXPRESSION},
     [TOKEN_STRING]        = {string,      string,     PREC_EXPRESSION},
-    [TOKEN_NUMBER]        = {number,      number,     PREC_NONE},
+    [TOKEN_FLOAT]         = {_number,     NULL,       PREC_NONE},
+    [TOKEN_INT]           = {_number,     NULL,       PREC_NONE},
     [TOKEN_FALSE]         = {literal,     literal,    PREC_EXPRESSION},
     [TOKEN_TRUE]          = {literal,     literal,    PREC_EXPRESSION},
     [TOKEN_NIL]           = {literal,     literal,    PREC_EXPRESSION},

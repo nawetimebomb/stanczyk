@@ -33,7 +33,8 @@ bool values_equal(value_t a, value_t b) {
     switch (a.type) {
         case VAL_BOOL:   return AS_BOOL(a) == AS_BOOL(b);
         case VAL_NIL:    return true;
-        case VAL_NUMBER: return AS_NUMBER(a) == AS_NUMBER(b);
+        case VAL_FLOAT: return AS_FLOAT(a) == AS_FLOAT(b);
+        case VAL_INT: return AS_INT(a) == AS_INT(b);
         case VAL_OBJ:    return AS_OBJ(a) == AS_OBJ(b);
         default:         return false;
     }
@@ -43,7 +44,8 @@ void print_value(value_t value) {
     switch (value.type) {
         case VAL_BOOL: printf(AS_BOOL(value) ? "true" : "false"); break;
         case VAL_NIL: printf("nil"); break;
-        case VAL_NUMBER: printf("%g", AS_NUMBER(value)); break;
+        case VAL_FLOAT: printf("%g", AS_FLOAT(value)); break;
+        case VAL_INT: printf("%ld", AS_INT(value)); break;
         case VAL_OBJ:    print_obj(value); break;
     }
 }

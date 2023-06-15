@@ -26,7 +26,8 @@ typedef enum {
   // Literals
   TOKEN_SYMBOL,
   TOKEN_STRING,
-  TOKEN_NUMBER,
+  TOKEN_FLOAT,
+  TOKEN_INT,
 
   // Keywords
   TOKEN_AND,

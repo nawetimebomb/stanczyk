@@ -1,1 +1,2 @@
 clock works
+fread works
