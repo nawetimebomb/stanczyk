@@ -20,6 +20,7 @@ typedef struct {
 
 typedef enum {
   PREC_NONE,
+  PREC_DECLARATION, // declaration
   PREC_EXPRESSION,  // expression literals
   PREC_OR,          // or
   PREC_AND,         // and
@@ -36,7 +37,7 @@ typedef void (*parse_fn)();
 
 typedef struct {
     parse_fn prefix;
-    parse_fn infix;
+    parse_fn postfix;
     precedence_t precedence;
 } parse_rule_t;
 
@@ -92,6 +93,16 @@ static void consume(token_type_t type, const char *message) {
     error_at_current(message);
 }
 
+static bool check(token_type_t type) {
+    return parser.current.type == type;
+}
+
+static bool match(token_type_t type) {
+    if (!check(type)) return false;
+    advance();
+    return true;
+}
+
 static void emit_byte(uint8_t byte) {
     write_chunk(current_chunk(), byte, parser.previous.line);
 }
@@ -117,6 +128,19 @@ static uint8_t make_constant(value_t value) {
 
 static void emit_constant(value_t value) {
     emit_bytes(OP_CONSTANT, make_constant(value));
+}
+
+static uint8_t symbol_constant(token_t *name) {
+    return make_constant(OBJ_VAL(copy_string(name->start, name->length)));
+}
+
+static uint8_t parse_symbol(const char *error_message) {
+    consume(TOKEN_SYMBOL, error_message);
+    return symbol_constant(&parser.previous);
+}
+
+static void define_symbol(uint8_t symbol) {
+    emit_bytes(OP_DEFINE_SYMBOL, symbol);
 }
 
 static void end_compiler() {
@@ -184,6 +208,15 @@ static void string() {
     emit_constant(OBJ_VAL(copy_string(parser.previous.start + 1, parser.previous.length - 2)));
 }
 
+static void named_symbol(token_t name) {
+    uint8_t arg = symbol_constant(&name);
+    emit_bytes(OP_GET_SYMBOL, arg);
+}
+
+static void symbol() {
+    named_symbol(parser.previous);
+}
+
 static void unary() {
     token_type_t operator_type = parser.previous.type;
     parse_precedence(PREC_UNARY);
@@ -195,6 +228,25 @@ static void unary() {
     }
 }
 
+static void statement()  {
+    token_type_t statement_type = parser.previous.type;
+
+    switch (statement_type) {
+        case TOKEN_PRINT: emit_byte(OP_PRINT); break;
+        case TOKEN_DROP:  emit_byte(OP_DROP);  break;
+        case TOKEN_RET: break;
+        default: return;
+    }
+}
+
+static void declaration() {
+    uint8_t symbol = parse_symbol("expect variable name after declaration sign");
+
+    expression();
+
+    define_symbol(symbol);
+}
+
 parse_rule_t rules[] = {
     [TOKEN_LEFT_PAREN]    = {grouping,    NULL,       PREC_NONE},
     [TOKEN_RIGHT_PAREN]   = {NULL,        NULL,       PREC_NONE},
@@ -202,7 +254,7 @@ parse_rule_t rules[] = {
     [TOKEN_RIGHT_BRACKET] = {NULL,        NULL,       PREC_NONE},
     [TOKEN_COMMA]         = {NULL,        NULL,       PREC_NONE},
     [TOKEN_DOT]           = {NULL,        NULL,       PREC_NONE},
-    [TOKEN_COLON]         = {NULL,        NULL,       PREC_NONE},
+    [TOKEN_COLON]         = {declaration, NULL,       PREC_DECLARATION},
     [TOKEN_COLON_COLON]   = {NULL,        NULL,       PREC_NONE},
     [TOKEN_MINUS]         = {unary,       binary,     PREC_TERM},
     [TOKEN_PLUS]          = {NULL,        binary,     PREC_TERM},
@@ -215,17 +267,19 @@ parse_rule_t rules[] = {
     [TOKEN_GREATER_EQUAL] = {NULL,        binary,     PREC_EQUALITY},
     [TOKEN_LESS]          = {NULL,        binary,     PREC_EQUALITY},
     [TOKEN_LESS_EQUAL]    = {NULL,        binary,     PREC_EQUALITY},
-    [TOKEN_SYMBOL]        = {NULL,        NULL,       PREC_NONE},
+    [TOKEN_SYMBOL]        = {symbol,      NULL,       PREC_NONE},
     [TOKEN_STRING]        = {string,      string,     PREC_EXPRESSION},
     [TOKEN_NUMBER]        = {number,      number,     PREC_EXPRESSION},
     [TOKEN_AND]           = {NULL,        NULL,       PREC_NONE},
     [TOKEN_FALSE]         = {literal,     literal,    PREC_EXPRESSION},
+    [TOKEN_TRUE]          = {literal,     literal,    PREC_EXPRESSION},
+    [TOKEN_NIL]           = {literal,     literal,    PREC_EXPRESSION},
     [TOKEN_FOR]           = {NULL,        NULL,       PREC_NONE},
     [TOKEN_IF]            = {NULL,        NULL,       PREC_NONE},
-    [TOKEN_NIL]           = {literal,     literal,    PREC_EXPRESSION},
     [TOKEN_OR]            = {NULL,        NULL,       PREC_NONE},
-    [TOKEN_PRINT]         = {NULL,        NULL,       PREC_NONE},
-    [TOKEN_TRUE]          = {literal,     literal,    PREC_EXPRESSION},
+    [TOKEN_PRINT]         = {NULL,        statement,  PREC_CALL},
+    [TOKEN_DROP]          = {NULL,        statement,  PREC_CALL},
+    [TOKEN_RET]           = {NULL,        statement,  PREC_CALL},
     [TOKEN_ERROR]         = {NULL,        NULL,       PREC_NONE},
     [TOKEN_EOF]           = {NULL,        NULL,       PREC_NONE}
 };
@@ -243,8 +297,8 @@ static void parse_precedence(precedence_t precedence) {
 
     while (precedence <= get_rule(parser.current.type)->precedence) {
         advance();
-        parse_fn infix_rule = get_rule(parser.previous.type)->infix;
-        infix_rule();
+        parse_fn postfix_rule = get_rule(parser.previous.type)->postfix;
+        postfix_rule();
     }
 }
 
@@ -256,6 +310,15 @@ static void expression() {
     parse_precedence(PREC_EXPRESSION);
 }
 
+static void synchronize() {
+    parser.panic = false;
+
+    // TODO: Disabling panic mode should only work for specific context.
+    // We want to skip over the possibles erred statements and continue compiling after that,
+    // so we can catch errors (if any) in the following procedures.
+    // Right now we disable panic after any statement.
+}
+
 bool compile(const char *source, chunk_t *chunk) {
     init_scanner(source);
     compiling_chunk = chunk;
@@ -264,8 +327,11 @@ bool compile(const char *source, chunk_t *chunk) {
     parser.panic = false;
 
     advance();
-    expression();
-    consume(TOKEN_EOF, "expect end of expression.");
+    while (!match(TOKEN_EOF)) {
+        expression();
+        if (parser.panic) synchronize();
+    }
+
     end_compiler();
     return !parser.erred;
 }
