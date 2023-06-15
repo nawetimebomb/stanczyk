@@ -16,3 +16,6 @@ debug:
 
 release:
 	@ $(CC) $(CFLAGS) $(RELEASE_FLAGS) $(SRC) -o $(NAME)
+
+go:
+	@ go build -o ./skc ./code
