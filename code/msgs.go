@@ -27,6 +27,11 @@ const (
 	 *  | (_| (_) | |\/| |  _/| || |__ / _ \| |  | | (_) | .` |
 	 *   \___\___/|_|  |_|_| |___|____/_/ \_\_| |___\___/|_|\_|
 	 */
+	MsgParseInvalidEmptyCharacter =
+		"char cannot be empty"
+	MsgParseInvalidCharacter =
+		"char should only be 1 character"
+
 	MsgParseMacroMissingWord =
 		"invalid or missing word\n" +
 			"\t\tmacro my-macro do [...] .\n" +
@@ -43,6 +48,23 @@ const (
 		"missing '.'\n" +
 			"\t\tmacro my-macro do [...] .\n" +
 			"\t\t                        ^"
+
+	MsgParseReserveValueIsNotConst =
+		"%s is not a const"
+	MsgParseReserveOverrideNotAllowed =
+		"memory %s already exists"
+	MsgParseReserveMissingWord =
+		"invalid or missing word\n" +
+			"\t\treserve mem 1024 .\n" +
+			"\t\t        ^^^"
+	MsgParseReserveMissingValue =
+		"invalid or missing value\n" +
+			"\t\treserve mem 1024 .\n" +
+			"\t\t            ^^^^"
+	MsgParseReserveMissingDot =
+		"missing '.'\n" +
+			"\t\treserve mem 1024 .\n" +
+			"\t\t                 ^"
 
 	MsgParseDoOrphanTokenFound =
 		"only use 'do' when starting a block statement\nE.g.:\n\tif [condition] do [...] else [...] .\n\t^^             ^^\n'do' can be used in other blocks like function and loops"
@@ -116,6 +138,10 @@ const (
 		"incorrect arguments to call %s\n" +
 			"\t\thave (%s)\n" +
 			"\t\twant (%s)"
+	MsgTypecheckArgumentsTypesMismatch =
+		"incorrect arguments to call %s\n" +
+			"\t\thave (%s)\n" +
+			"\t\twant %s"
 	MsgTypecheckNotExplicitlyReturned =
 		"unhandled stack values\n" +
 			"\t\tfunction '%s'\n" +

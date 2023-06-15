@@ -40,7 +40,6 @@ func getOperationName(code Code) string {
 	case OP_MULTIPLY: name = "* (multiply)"
 	case OP_NOT_EQUAL:
 		name = "!= (not equal)"
-	case OP_PRINT: name = "print"
 	case OP_STORE8, OP_STORE16, OP_STORE32, OP_STORE64:
 		name = "store"
 	case OP_SUBSTRACT: name = "- (substract)"
@@ -56,6 +55,7 @@ func getDataTypeName(v DataType) string {
 	switch v {
 	case DATA_EMPTY: r = ""
 	case DATA_BOOL:  r = "bool"
+	case DATA_CHAR:  r = "char"
 	case DATA_INT:	 r = "int"
 	case DATA_PTR:   r = "ptr"
 	case DATA_ANY:   r = "any"
@@ -74,6 +74,47 @@ func getDataTypeNames(dt []DataType) string {
 	}
 
 	return r
+}
+
+func assertArgumentTypes(test []DataType, want [][]DataType, code Code, loc Location) {
+	var errFound []bool
+
+	for _, w := range want {
+		err := false
+
+		for i, t := range test {
+			if w[i] == DATA_ANY {
+				if t == DATA_EMPTY {
+					err = true
+					break
+				}
+			} else {
+				if w[i] != t {
+					err = true
+					break
+				}
+			}
+		}
+
+		errFound = append(errFound, err)
+	}
+
+	if !Contains(errFound, false) {
+		wantsText := ""
+
+		for i, w := range want {
+			wantsText += "(" + getDataTypeNames(w) + ")"
+
+			if i != len(want) - 1 {
+				wantsText += " or "
+			}
+		}
+
+		msg := fmt.Sprintf(MsgTypecheckArgumentsTypesMismatch,
+			getOperationName(code), getDataTypeNames(test), wantsText)
+		ReportErrorAtLocation(msg, loc)
+		ExitWithError(CodeTypecheckError)
+	}
 }
 
 func assertArgumentType(test []DataType, want []DataType, code Code, loc Location) {
@@ -159,17 +200,29 @@ func TypecheckRun() {
 			// Constants
 			case OP_PUSH_BOOL:
 				tc.push(DATA_BOOL)
+			case OP_PUSH_CHAR:
+				tc.push(DATA_CHAR)
 			case OP_PUSH_INT:
 				tc.push(DATA_INT)
+			case OP_PUSH_PTR:
+				tc.push(DATA_PTR)
 			case OP_PUSH_STR:
 				tc.push(DATA_PTR)
 
 			// Intrinsics
-			case OP_ADD, OP_SUBSTRACT, OP_MULTIPLY:
+			case OP_ADD, OP_SUBSTRACT:
+				allowedTypes := [][]DataType{
+					dtArray(DATA_INT, DATA_INT),
+					dtArray(DATA_PTR, DATA_INT),
+				}
 				b := tc.pop()
 				a := tc.pop()
-				assertArgumentType(dtArray(a, b), dtArray(DATA_INT, DATA_INT), code, loc)
-				tc.push(DATA_INT)
+				assertArgumentTypes(dtArray(a, b), allowedTypes, code, loc)
+				if a == DATA_PTR || b == DATA_PTR {
+					tc.push(DATA_PTR)
+				} else {
+					tc.push(DATA_INT)
+				}
 			case OP_ARGC:
 				tc.push(DATA_INT)
 			case OP_ARGV:
@@ -204,6 +257,11 @@ func TypecheckRun() {
 				a := tc.pop()
 				assertArgumentType(dtArray(a), dtArray(DATA_PTR), code, loc)
 				tc.push(DATA_PTR)
+			case OP_MULTIPLY:
+				b := tc.pop()
+				a := tc.pop()
+				assertArgumentType(dtArray(a, b), dtArray(DATA_INT, DATA_INT), code, loc)
+				tc.push(DATA_INT)
 			case OP_OVER:
 				b := tc.pop()
 				a := tc.pop()
@@ -211,18 +269,23 @@ func TypecheckRun() {
 				tc.push(a)
 				tc.push(b)
 				tc.push(a)
-			case OP_PRINT:
-				a := tc.pop()
-				assertArgumentType(dtArray(a), dtArray(DATA_ANY), code, loc)
 			case OP_STORE8, OP_STORE16, OP_STORE32, OP_STORE64:
+				allowedTypes := [][]DataType{
+					dtArray(DATA_PTR, DATA_PTR),
+					dtArray(DATA_PTR, DATA_CHAR),
+				}
 				b := tc.pop()
 				a := tc.pop()
-				assertArgumentType(dtArray(a, b), dtArray(DATA_PTR, DATA_PTR), code, loc)
+				assertArgumentTypes(dtArray(a, b), allowedTypes, code, loc)
 			case OP_SWAP:
 				b := tc.pop()
 				a := tc.pop()
 				assertArgumentType(dtArray(a, b), dtArray(DATA_ANY, DATA_ANY), code, loc)
 				tc.push(b)
+				tc.push(a)
+			case OP_TAKE:
+				a := tc.pop()
+				assertArgumentType(dtArray(a), dtArray(DATA_ANY), code, loc)
 				tc.push(a)
 
 			// Special

@@ -1,0 +1,2 @@
+Save the number to static memory and print it
+The number is 1234567890123  1234567890123

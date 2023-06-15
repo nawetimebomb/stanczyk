@@ -56,6 +56,7 @@ const STDIN  0 .
 const STDOUT 1 .
 const STDERR 2 .
 
+const LINUX_READ  0  .
 const LINUX_WRITE 1  .
 const LINUX_EXIT  60 .
 
@@ -65,8 +66,8 @@ const READWRITE 2   .
 const CREATE    64  .
 const TRUNCATE  512 .
 
-
 function* SYSCALL_WRITE int ptr int int do .
+function* SYSCALL_READ  int ptr int int -> int do .
 function* SYSCALL_EXIT  int int do .
 
 function puts ptr do
@@ -74,10 +75,28 @@ function puts ptr do
   STDOUT LINUX_WRITE SYSCALL_WRITE
 .
 
+function eputs ptr do
+  dup strlen swap
+  STDERR LINUX_WRITE SYSCALL_WRITE
+.
+
+function sprint int ptr do
+  STDOUT LINUX_WRITE SYSCALL_WRITE
+.
+
+function print int do
+  int->str puts
+  "\n"  puts
+.
+
+function read int ptr -> int do
+  STDIN LINUX_READ SYSCALL_READ
+.
+
 function error ptr do
-  "ERROR: " dup strlen swap STDERR LINUX_WRITE SYSCALL_WRITE
-  dup strlen swap STDERR LINUX_WRITE SYSCALL_WRITE
-  1 "\n" STDERR LINUX_WRITE SYSCALL_WRITE
+  " ERROR: " eputs
+  eputs
+  "\n" eputs
   1 exit
 .
 
@@ -92,7 +111,7 @@ function clear do
 function []argv int -> ptr do
   8 * argv (int) + (ptr) ->64
   if dup (int) 0 = do
-    dup print
+    dup puts
     "argv empty" error
   .
 .

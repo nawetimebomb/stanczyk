@@ -6,9 +6,9 @@ using "io"
 
 function main do
   "true value:  " puts
-  true print
+  true (int) print
   "-----------\n" puts
 
   "false value:  " puts
-  false print
+  false (int) print
 .

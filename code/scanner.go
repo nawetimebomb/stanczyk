@@ -10,11 +10,15 @@ type TokenType int
 
 const (
 	// Constants
-	TOKEN_INT TokenType = iota
+	TOKEN_CHAR TokenType = iota
+	TOKEN_FALSE
+	TOKEN_INT
 	TOKEN_STR
+	TOKEN_TRUE
 
 	// Types
 	TOKEN_DTYPE_BOOL
+	TOKEN_DTYPE_CHAR
 	TOKEN_DTYPE_INT
 	TOKEN_DTYPE_PTR
 
@@ -23,6 +27,7 @@ const (
 	TOKEN_ARGV
 	TOKEN_BANG_EQUAL
 	TOKEN_CAST_BOOL
+	TOKEN_CAST_CHAR
 	TOKEN_CAST_INT
 	TOKEN_CAST_PTR
 	TOKEN_CONST
@@ -33,7 +38,6 @@ const (
 	TOKEN_DUP
 	TOKEN_ELSE
 	TOKEN_EQUAL
-	TOKEN_FALSE
 	TOKEN_FUNCTION
 	TOKEN_FUNCTION_STAR
 	TOKEN_GREATER
@@ -50,7 +54,7 @@ const (
 	TOKEN_MINUS
 	TOKEN_OVER
 	TOKEN_PLUS
-	TOKEN_PRINT
+	TOKEN_RESERVE
 	TOKEN_RET
 	TOKEN_RIGHT_ARROW
 	TOKEN_STAR
@@ -59,7 +63,8 @@ const (
 	TOKEN_STORE32
 	TOKEN_STORE64
 	TOKEN_SWAP
-	TOKEN_TRUE
+	TOKEN_TAKE
+	TOKEN_THIS
 	TOKEN_USING
 
 	// Specials
@@ -72,11 +77,12 @@ type reserved struct {
 	typ   TokenType
 }
 
-var reservedWords = [45]reserved{
+var reservedWords = [49]reserved{
 	reserved{typ: TOKEN_ARGC,	        word: "argc"	  },
 	reserved{typ: TOKEN_ARGV,		    word: "argv"	  },
 	reserved{typ: TOKEN_BANG_EQUAL,		word: "!="		  },
 	reserved{typ: TOKEN_CAST_BOOL,      word: "(bool)"    },
+	reserved{typ: TOKEN_CAST_CHAR,      word: "(char)"    },
 	reserved{typ: TOKEN_CAST_INT,       word: "(int)"     },
 	reserved{typ: TOKEN_CAST_PTR,       word: "(ptr)"     },
 	reserved{typ: TOKEN_CONST,   		word: "const"	  },
@@ -85,6 +91,7 @@ var reservedWords = [45]reserved{
 	reserved{typ: TOKEN_DOT,			word: "."		  },
 	reserved{typ: TOKEN_DROP,			word: "drop"	  },
 	reserved{typ: TOKEN_DTYPE_BOOL,     word: "bool"      },
+	reserved{typ: TOKEN_DTYPE_CHAR,     word: "char"      },
 	reserved{typ: TOKEN_DTYPE_INT,      word: "int"       },
 	reserved{typ: TOKEN_DTYPE_PTR,      word: "ptr"       },
 	reserved{typ: TOKEN_DUP,			word: "dup"		  },
@@ -107,7 +114,7 @@ var reservedWords = [45]reserved{
 	reserved{typ: TOKEN_MINUS,			word: "-"		  },
 	reserved{typ: TOKEN_OVER,           word: "over"	  },
 	reserved{typ: TOKEN_PLUS,			word: "+"		  },
-	reserved{typ: TOKEN_PRINT,			word: "print"	  },
+	reserved{typ: TOKEN_RESERVE,        word: "reserve"   },
 	reserved{typ: TOKEN_RET,            word: "ret"   	  },
 	reserved{typ: TOKEN_RIGHT_ARROW,    word: "->"   	  },
 	reserved{typ: TOKEN_STAR,			word: "*"		  },
@@ -116,6 +123,8 @@ var reservedWords = [45]reserved{
 	reserved{typ: TOKEN_STORE32,		word: "<-32" 	  },
 	reserved{typ: TOKEN_STORE64,		word: "<-64" 	  },
 	reserved{typ: TOKEN_SWAP,			word: "swap"	  },
+	reserved{typ: TOKEN_TAKE,			word: "take"	  },
+	reserved{typ: TOKEN_THIS,			word: "this"	  },
 	reserved{typ: TOKEN_TRUE,			word: "true"	  },
 	reserved{typ: TOKEN_USING,			word: "using"	  },
 }
@@ -179,6 +188,39 @@ func makeString(c byte, line string, index *int) {
 	makeToken(TOKEN_STR, result)
 }
 
+func makeChar(c byte, line string, index *int) {
+	var result byte
+	Advance(&c, line, index)
+
+	if (c == '\'') {
+		loc := Location{f: scanner.filename, c: scanner.column, l: scanner.line}
+		ReportErrorAtLocation(MsgParseInvalidEmptyCharacter, loc)
+		ExitWithError(CodeParseError)
+	} else if (c == '\\') {
+		Advance(&c, line, index)
+		switch c {
+		case '0': result = 0
+		case 'e': result = 27
+		case 'n': result = 10
+		case 'r': result = 13
+		case 't': result = 9
+		case 'v': result = 11
+		}
+	} else {
+		result = c
+	}
+
+	Advance(&c, line, index)
+
+	if (c != '\'') {
+		loc := Location{f: scanner.filename, c: scanner.column, l: scanner.line}
+		ReportErrorAtLocation(MsgParseInvalidCharacter, loc)
+		ExitWithError(CodeParseError)
+	}
+
+	makeToken(TOKEN_CHAR, result)
+}
+
 func makeWord(c byte, line string, index *int) {
 	word := string(c)
 
@@ -208,7 +250,7 @@ func crossRefMacros() {
 			scope++
 			macroIndex = index
 		case tt == TOKEN_CONST, tt == TOKEN_IF, tt == TOKEN_LOOP,
-			tt == TOKEN_FUNCTION, tt == TOKEN_FUNCTION_STAR:
+			tt == TOKEN_FUNCTION, tt == TOKEN_FUNCTION_STAR, tt == TOKEN_RESERVE:
 			scope++
 		case tt == TOKEN_DOT:
 			if scope > 0 {
@@ -248,6 +290,8 @@ func TokenizeFile(f string, s string) []Token {
 			switch {
 			case c == '"':
 				makeString(c, line, &index)
+			case c == '\'':
+				makeChar(c, line, &index)
 			case IsDigit(c):
 				makeNumber(c, line, &index)
 			default:
