@@ -5,7 +5,7 @@
 #include "vm.h"
 #include "chunk.h"
 
-procedure_t *compile(const char *source);
+procedure_t *compile(const char *source, const char *path);
 void mark_compiler_roots();
 
 #endif

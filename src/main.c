@@ -94,7 +94,7 @@ static void run_file(const char *path) {
     char *source = read_file(path);
     chdir(get_workspace(path));
 
-    interpret_result_t result = interpret(source);
+    interpret_result_t result = interpret(source, path);
     free(source);
 
     if (result == INTERPRET_COMPILE_ERROR) exit(65);

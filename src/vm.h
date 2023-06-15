@@ -45,6 +45,6 @@ void init_VM();
 void free_VM();
 void push(value_t value);
 value_t pop();
-interpret_result_t interpret(const char *source);
+interpret_result_t interpret(const char *source, const char *path);
 
 #endif
