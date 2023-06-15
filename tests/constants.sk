@@ -1,0 +1,17 @@
+using "io"
+
+;; Test: constants
+;; Description:
+;    making sure consts are evaluated correctly
+
+const thirty 30 .
+const +2010 20 10 + .
+const *103  10 3 * .
+
+function main do
+  "making sure all these values are 30\n" puts
+
+  "30  " puts thirty print
+  "30  " puts +2010 print
+  "30  " puts *103 print
+.
