@@ -1,5 +1,0 @@
-:: main() do
-	"Hello, Stańczyk" print
-	"test" "ing" + print
-	"multiple" " " + "concatenation" + print
-.
