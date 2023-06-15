@@ -44,8 +44,8 @@ else
     echo -e "$GREEN"
 fi
 
-printf "${BOLD}┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n"
-printf "┃  TOTAL %03d :: Success %3d | Fails %3d  ┃\n" $TOTAL $SUCCESS $FAIL
-printf "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛${RESET}\n"
+printf "${BOLD}┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n"
+printf "┃  TOTAL %2d :: Success %2d | Fails %2d  ┃\n" $TOTAL $SUCCESS $FAIL
+printf "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛${RESET}\n"
 
 exit $FAIL
