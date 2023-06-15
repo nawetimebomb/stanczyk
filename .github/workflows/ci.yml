@@ -13,5 +13,5 @@ jobs:
               with:
                 architecture: x64
             - name: run tests
-              run |
-                  sh ./test.sh
+              run: |
+                   sh ./test.sh
