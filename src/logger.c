@@ -129,3 +129,30 @@ void PARSING_ERROR(Token *token, const char *msg) {
 
     fprintf(stderr, _RESET_": %s\n", msg);
 }
+
+void TYPECHECK_ERROR(Token *token, const char *format, ...) {
+    if (token == NULL) {
+        fprintf(stderr, _BOLD_ _RED_ "ERROR: " _RESET_);
+    } else {
+        fprintf(stderr, _RED_ _BOLD_ "%s:%d:%d: ERROR: " _RESET_,
+                token->filename, token->line, token->column);
+    }
+
+    char *msg = malloc(sizeof(char) * 128);
+    memset(msg, 0, sizeof(char) * 128);
+
+    va_list args;
+
+    va_start(args, format);
+    vsprintf(msg, format, args);
+    va_end(args);
+
+    fprintf(stderr, "%s\n", msg);
+
+    free(msg);
+    exit(COMPILATION_TYPECHECK_ERROR);
+}
+
+void UNREACHABLE_CODE(const char *place) {
+    fprintf(stderr, "Reached 'Unreachable code' at %s\n", place);
+}

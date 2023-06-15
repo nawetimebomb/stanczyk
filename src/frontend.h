@@ -28,11 +28,8 @@
 #ifndef STANCZYK_FRONTEND_H
 #define STANCZYK_FRONTEND_H
 
-#include "stanczyk.h"
-#include "chunk.h"
-#include "compiler.h"
+#include "ir_code.h"
 
-Chunk *create_intermediate_representation(Compiler *);
-void frontend_compile();
+void frontend_run(IRCodeChunk *chunk);
 
 #endif

@@ -28,29 +28,24 @@
 #include "memory.h"
 #include "ir_code.h"
 
-void init_ir_code_chunk(IRCodeChunk *chunk) {
-    chunk->start = 32;
-    chunk->count = 0;
-    chunk->capacity = 0;
-    chunk->code = NULL;
-    chunk->lines = NULL;
+IRCodeChunk *start_ir_code_chunk(void) {
+    IRCodeChunk *result = ALLOCATE(IRCodeChunk);
+    result->start = 32;
+    return result;
 }
 
-void write_ir_code_chunk(IRCodeChunk *chunk, Code code, int line) {
+void stop_ir_code_chunk(IRCodeChunk *chunk) {
+    FREE_ARRAY(Code, chunk->code, chunk->capacity);
+    FREE(IRCodeChunk, chunk);
+}
+
+void write_ir_code_chunk(IRCodeChunk *chunk, Code code) {
     if (chunk->capacity < chunk->count + 1) {
         int prev_capacity = chunk->capacity;
         chunk->capacity = GROW_CAPACITY(prev_capacity, chunk->start);
         chunk->code = GROW_ARRAY(Code, chunk->code, prev_capacity, chunk->capacity);
-        chunk->lines = GROW_ARRAY(int, chunk->lines, prev_capacity, chunk->capacity);
     }
 
     chunk->code[chunk->count] = code;
-    chunk->lines[chunk->count] = line;
     chunk->count++;
-}
-
-void free_ir_code_chunk(IRCodeChunk *chunk) {
-    FREE_ARRAY(Code, chunk->code, chunk->capacity);
-    FREE_ARRAY(int, chunk->lines, chunk->capacity);
-    init_ir_code_chunk(chunk);
 }

@@ -121,12 +121,12 @@ CompilerResult run(Writer *writer, Compiler *compiler) {
     system("as output.s -o output.o");
     print_cli("[ info ]", "Running the GCC Linker");
 
-    char *gcc_command = ALLOCATE(char, 128);
+    char *gcc_command = ALLOCATE_AMOUNT(char, 128);
     memset(gcc_command, 0, sizeof(char) * 128);
     strcpy(gcc_command, "gcc -L. output.o -o output -g");
 
     for (int i = 0; i < compiler->clibs.count; i++) {
-        char *libname = ALLOCATE(char, 20);
+        char *libname = ALLOCATE_AMOUNT(char, 20);
         sprintf(libname, " -l%s", compiler->clibs.libs[i]->chars);
         strcat(gcc_command, libname);
         free(libname);

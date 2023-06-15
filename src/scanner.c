@@ -291,6 +291,7 @@ Token scan_token() {
             if (match(':')) return make_token(TOKEN_FUNCTION);
             if (match('>')) return make_token(TOKEN_MACRO);
             if (match('=')) return make_token(TOKEN_CONST);
+            return make_token(TOKEN_COLON);
         } break;
         case '"': return string();
         default: return keyword();

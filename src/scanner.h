@@ -48,6 +48,7 @@ typedef enum {
 
     TOKEN_RIGHT_ARROW,
 
+    TOKEN_COLON,
     TOKEN_AND,
     TOKEN_DEC,
     TOKEN_DO,

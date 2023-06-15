@@ -78,7 +78,7 @@ bool table_get(Table *table, String *key, Value *value) {
 }
 
 static void adjust_capacity(Table *table, int capacity) {
-    Entry *entries = ALLOCATE(Entry, capacity);
+    Entry *entries = ALLOCATE_AMOUNT(Entry, capacity);
     for (int i = 0; i < capacity; i++) {
         entries[i].key = NULL;
         entries[i].value = INT_VALUE(0);
