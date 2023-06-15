@@ -12,7 +12,7 @@ const CompilerVersion = "0.3"
 var Stanczyk CLI
 
 // TODO: This is basically panicking out of the execution, I need to properly handle this error differently
-func check(e error, s string) {
+func CheckError(e error, s string) {
 	if e != nil {
 		Stanczyk.Error(TodoRemoveCliCannotGetDirectory, s, e.Error())
 	}
@@ -65,17 +65,17 @@ func parseCommand() {
 func setupWorkspace() {
 	compilerExec := os.Args[0]
 	eName, err := exec.LookPath(compilerExec)
-	check(err, "skc.go-1")
+	CheckError(err, "skc.go-1")
 	cDir, err := filepath.Abs(eName)
-	check(err, "skc.go-2")
+	CheckError(err, "skc.go-2")
 
 	Stanczyk.workspace.cDir = filepath.Dir(cDir)
 
 	filename := "./" + Stanczyk.workspace.entry
 	_, err = os.Stat(filename);
-	check(err, "skc.go-3")
+	CheckError(err, "skc.go-3")
 	pDir, err := os.Getwd()
-	check(err, "skc.go-4")
+	CheckError(err, "skc.go-4")
 
 	Stanczyk.workspace.pDir = pDir
 

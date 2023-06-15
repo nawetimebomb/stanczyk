@@ -140,6 +140,27 @@ func makeWord(c byte, line string, index *int) {
 	makeToken(TOKEN_WORD, word)
 }
 
+func crossRefMacros() {
+	scope := 0
+	macroIndex := 0
+
+	for index, token := range scanner.tokens {
+		// TODO: Handle errors like when scope == 0 and TOKEN_DOT exists
+
+		if token.typ == TOKEN_MACRO {
+			scope++
+			macroIndex = index
+		}
+
+		if scope > 0 && token.typ == TOKEN_DOT {
+			scope--
+			if scope == 0 {
+				scanner.tokens[macroIndex].value = index
+			}
+		}
+	}
+}
+
 func TokenizeFile(f string, s string) []Token {
 	scanner.filename = f
 	scanner.source = s
@@ -175,6 +196,8 @@ func TokenizeFile(f string, s string) []Token {
 	}
 
 	makeToken(TOKEN_EOF)
+
+	crossRefMacros()
 
 	return scanner.tokens
 }

@@ -4,6 +4,14 @@ import (
 	"fmt"
 )
 
+type Parser struct {
+	previous Token
+	current  Token
+	tokens   []Token
+	index    int
+	length   int
+}
+
 type Macro struct {
 	word   string
 	tokens []Token
@@ -18,7 +26,13 @@ type Frontend struct {
 
 var file FileManager
 var frontend Frontend
+var parser Parser
 
+/*   ___ ___ ___  ___  ___  ___
+ *  | __| _ \ _ \/ _ \| _ \/ __|
+ *  | _||   /   / (_) |   /\__ \
+ *  |___|_|_\_|_\\___/|_|_\|___/
+ */
 func errorAt(token *Token, format string, values ...any) {
 	frontend.error = true
 
@@ -27,6 +41,58 @@ func errorAt(token *Token, format string, values ...any) {
 	ReportParseError(msg, loc.f, loc.l, loc.c)
 }
 
+/*   ___  _   ___  ___ ___ ___
+ *  | _ \/_\ | _ \/ __| __| _ \
+ *  |  _/ _ \|   /\__ \ _||   /
+ *  |_|/_/ \_\_|_\|___/___|_|_\
+ */
+func startParser(filename string, source string) {
+	parser.index = 0
+	parser.tokens = TokenizeFile(filename, source)
+	parser.length = len(parser.tokens)
+	parser.current = parser.tokens[parser.index]
+}
+
+func advance() {
+	parser.index++
+	parser.previous = parser.current
+	parser.current = parser.tokens[parser.index]
+}
+
+func jump(index int) {
+	parser.index = index
+	parser.previous = parser.tokens[index - 1]
+	parser.current = parser.tokens[index]
+}
+
+func consume(tt TokenType, err string) bool {
+	if tt == parser.current.typ {
+		advance()
+		return true
+	}
+
+	errorAt(&parser.current, err)
+	return false
+}
+
+func check(tt TokenType) bool {
+	result := tt == parser.current.typ
+	return result
+}
+
+func match(tt TokenType) bool {
+    if !check(tt) {
+		return false;
+	}
+    advance();
+    return true;
+}
+
+/*   ___ ___
+ *  |_ _| _ \
+ *   | ||   /
+ *  |___|_|_\
+ */
 func emit(code Code) {
 	frontend.current.Write(code)
 }
@@ -39,60 +105,61 @@ func emitEndOfCode() {
 	emit(code)
 }
 
-func findNextDotIndex(tokens []Token, startingIndex int) int {
-	for index := startingIndex; index < len(tokens); index++ {
-		t := tokens[index]
-
-		if t.typ == TOKEN_DOT {
-			return index
-		}
-	}
-
-	return -1
-}
-
-func saveMacro(tokens []Token) {
+/*   ___ ___ ___ ___ ___  ___   ___ ___ ___ ___  ___  ___
+ *  | _ \ _ \ __| _ \ _ \/ _ \ / __| __/ __/ __|/ _ \| _ \
+ *  |  _/   / _||  _/   / (_) | (__| _|\__ \__ \ (_) |   /
+ *  |_| |_|_\___|_| |_|_\\___/ \___|___|___/___/\___/|_|_\
+ */
+func macroStatement() {
 	var macro Macro
-	if tokens[1].typ != TOKEN_WORD {
-		fmt.Println("Token is not a word ", tokens[1])
-	}
-	macro.word = tokens[1].value.(string)
 
-	if tokens[2].typ != TOKEN_DO {
-		fmt.Println("Token is not do ", tokens[2])
+	if !match(TOKEN_WORD) {
+		errorAt(&parser.previous, MsgParseMacroMissingWord)
+		return
 	}
 
-	for _, t := range tokens[3:] {
-		macro.tokens = append(macro.tokens, t)
+	macro.word = parser.previous.value.(string)
+
+	consume(TOKEN_DO, MsgParseMacroMissingDo)
+
+	if match(TOKEN_DOT) {
+		errorAt(&parser.previous, MsgParseMacroMissingContent)
+		return
+	}
+
+	for !check(TOKEN_DOT) && !check(TOKEN_MACRO) && !check(TOKEN_EOF) {
+		advance()
+		macro.tokens = append(macro.tokens, parser.previous)
 	}
 
 	frontend.macros = append(frontend.macros, macro)
+
+	consume(TOKEN_DOT, MsgParseMacroMissingDot)
 }
 
 func preprocess(index int) {
 	filename := file.filename[index]
 	source := file.source[index]
-	tokens := TokenizeFile(filename, source)
 
-	for index := 0; index < len(tokens); index++ {
-		token := tokens[index]
+	startParser(filename, source)
+	for !check(TOKEN_EOF) {
+		advance()
+		token := parser.previous
 
 		switch token.typ {
-		case TOKEN_MACRO:
-			endIndex := findNextDotIndex(tokens, index)
-			if (endIndex == -1) {
-				// TODO: Add error
-			}
-			saveMacro(tokens[index:endIndex])
-			index = endIndex
+		case TOKEN_MACRO: macroStatement()
 		case TOKEN_USING:
-			index++
-			token = tokens[index]
-			file.Open(token.value.(string))
+			advance()
+			file.Open(parser.previous.value.(string))
 		}
 	}
 }
 
+/*    ___ ___  __  __ ___ ___ _      _ _____ ___ ___  _  _
+ *   / __/ _ \|  \/  | _ \_ _| |    /_\_   _|_ _/ _ \| \| |
+ *  | (_| (_) | |\/| |  _/| || |__ / _ \| |  | | (_) | .` |
+ *   \___\___/|_|  |_|_| |___|____/_/ \_\_| |___\___/|_|\_|
+ */
 func expandMacro(token Token) {
 	word := token.value
 	macroIndex := -1
@@ -106,10 +173,11 @@ func expandMacro(token Token) {
 
 	if macroIndex == -1 {
 		errorAt(&token, MsgParseWordNotFound, word)
-	} else {
-		for _, t := range frontend.macros[macroIndex].tokens {
-			parseToken(t)
-		}
+		return
+	}
+
+	for _, t := range frontend.macros[macroIndex].tokens {
+		parseToken(t)
 	}
 }
 
@@ -164,44 +232,23 @@ func parseToken(token Token) {
 	// Special
 	case TOKEN_WORD:
 		expandMacro(token)
+
+	case TOKEN_USING:
+		advance()
+	case TOKEN_MACRO:
+		jump(code.value.(int))
 	}
 }
 
 func compile(index int) {
 	filename := file.filename[index]
 	source := file.source[index]
-	tokens := TokenizeFile(filename, source)
 
-	skipNext := false
-	skipUntilBlockEnds := false
+	startParser(filename, source)
 
-	for _, token := range tokens {
-		// TODO: There should be a way where I just parse this by block reference
-		if skipNext {
-			skipNext = false
-			continue
-		}
-
-		if token.typ == TOKEN_MACRO {
-			skipUntilBlockEnds = true
-			continue
-		}
-
-		if token.typ == TOKEN_DOT && skipUntilBlockEnds {
-			skipUntilBlockEnds = false
-			continue
-		}
-
-		if skipUntilBlockEnds {
-			continue
-		}
-
-		if token.typ == TOKEN_USING {
-			skipNext = true
-			continue
-		}
-
-		parseToken(token)
+	for !check(TOKEN_EOF) {
+		advance()
+		parseToken(parser.previous)
 	}
 }
 
@@ -215,13 +262,17 @@ func FrontendRun(chunk *Chunk) {
 		preprocess(index)
 	}
 
+	if frontend.error {
+		ExitWithError(CodeParseError)
+	}
+
 	for index := 0; index < len(file.filename); index++ {
 		compile(index)
 	}
 
-	emitEndOfCode()
-
 	if frontend.error {
 		ExitWithError(CodeParseError)
 	}
+
+	emitEndOfCode()
 }
