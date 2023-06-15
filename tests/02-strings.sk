@@ -1,4 +1,4 @@
-#include "io"
+using "io"
 
 ;; Test: strings
 ;; Description:

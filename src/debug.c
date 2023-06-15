@@ -31,7 +31,7 @@
 #include "constant.h"
 #include "object.h"
 
-void disassemble_chunk(Chunk *chunk, const char *name) {
+void disassemble_chunk(IRCodeChunk *chunk, const char *name) {
     printf("== %s ==\n", name);
     for (int offset = 0; offset < chunk->count;) {
         offset = disassemble_instruction(chunk, offset);
@@ -69,7 +69,7 @@ void disassemble_chunk(Chunk *chunk, const char *name) {
 //     return offset + 3;
 // }
 
-int disassemble_instruction(Chunk *chunk, int offset) {
+int disassemble_instruction(IRCodeChunk *chunk, int offset) {
     if (chunk != NULL) {
 
     }

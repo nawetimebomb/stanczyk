@@ -33,7 +33,6 @@
 #include "scanner.h"
 #include "memory.h"
 #include "fileman.h"
-#include "compiler.h"
 #include "util.h"
 #include "stanczyk.h"
 

@@ -30,7 +30,6 @@
 
 #include "stanczyk.h"
 #include "constant.h"
-#include "chunk.h"
 
 #define MAX_FUNCTION_ARGUMENTS 10
 

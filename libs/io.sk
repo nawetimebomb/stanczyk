@@ -52,119 +52,118 @@
 ;; TODO: Add descriptions
 
 ;; File descriptor (fd)
-const STDIN_FILENO  0 end
-const STDOUT_FILENO 1 end
-const STDERR_FILENO 2 end
-
-macro stdin  set STDIN_FILENO  end
-macro stdout set STDOUT_FILENO end
-macro stderr set STDERR_FILENO end
+macro stdin  do 0 .
+macro stdout do 1 .
+macro stderr do 2 .
 
 ;; System call (syscall)
-const LINUX_SYS_READ           0   end
-const LINUX_SYS_WRITE          1   end
-const LINUX_SYS_OPEN           2   end
-const LINUX_SYS_CLOSE          3   end
-const LINUX_SYS_STAT           4   end
-const LINUX_SYS_FSTAT          5   end
-const LINUX_SYS_LSTAT          6   end
-const LINUX_SYS_POLL           7   end
-const LINUX_SYS_LSEEK          8   end
-const LINUX_SYS_MMAP           9   end
-const LINUX_SYS_MPROTECT       10  end
-const LINUX_SYS_MUNMAP         11  end
-const LINUX_SYS_BRK            12  end
-const LINUX_SYS_RT_SIGACTION   13  end
-const LINUX_SYS_RT_SIGPROCMASK 14  end
-const LINUX_SYS_RT_SIGRETURN   15  end
-const LINUX_SYS_IOCTL          16  end
-const LINUX_SYS_PREAD64        17  end
-const LINUX_SYS_PWRITE64       18  end
-const LINUX_SYS_READV          19  end
-const LINUX_SYS_WRITEV         20  end
-const LINUX_SYS_ACCESS         21  end
-const LINUX_SYS_PIPE           22  end
-const LINUX_SYS_SELECT         23  end
-const LINUX_SYS_SCHED_YIELD    24  end
-const LINUX_SYS_MREMAP	       25  end
-const LINUX_SYS_MSYNC          26  end
-const LINUX_SYS_MINCORE        27  end
-const LINUX_SYS_MADVISE        28  end
-const LINUX_SYS_SHMGET         29  end
-const LINUX_SYS_SHMAT          30  end
-const LINUX_SYS_SHMCTL         31  end
-const LINUX_SYS_DUP            32  end
-const LINUX_SYS_DUP2           33  end
-const LINUX_SYS_PAUSE          34  end
-const LINUX_SYS_NANOSLEEP      35  end
-const LINUX_SYS_GETITIMER      36  end
-const LINUX_SYS_ALARM          37  end
-const LINUX_SYS_SETITIMER      38  end
-const LINUX_SYS_GETPID         39  end
-const LINUX_SYS_SENDFILE       40  end
-const LINUX_SYS_SOCKET	       41  end
-const LINUX_SYS_CONNECT        42  end
-const LINUX_SYS_ACCEPT	       43  end
-const LINUX_SYS_SENDTO	       44  end
-const LINUX_SYS_RECVFROM	     45  end
-const LINUX_SYS_SENDMSG        46  end
-const LINUX_SYS_RECVMSG        47  end
-const LINUX_SYS_SHUTDOWN       48  end
-const LINUX_SYS_BIND	         49  end
-const LINUX_SYS_LISTEN         50  end
-const LINUX_SYS_GETSOCKNAME    51  end
-const LINUX_SYS_GETPEERNAME    52  end
-const LINUX_SYS_SOCKETPAIR     53  end
-const LINUX_SYS_SETSOCKOPT     54  end
-const LINUX_SYS_GETSOCKOPT     55  end
-const LINUX_SYS_CLONE          56  end
-const LINUX_SYS_FORK           57  end
-const LINUX_SYS_VFORK          58  end
-const LINUX_SYS_EXECVE	       59  end
-const LINUX_SYS_EXIT	         60  end
-const LINUX_SYS_WAIT4          61  end
-const LINUX_SYS_KILL	         62  end
-const LINUX_SYS_UNAME          63  end
-const LINUX_SYS_SEMGET	       64  end
-const LINUX_SYS_SEMOP          65  end
-const LINUX_SYS_SEMCTL	       66  end
-const LINUX_SYS_SHMDT          67  end
-const LINUX_SYS_MSGGET	       68  end
-const LINUX_SYS_MSGSND	       69  end
-const LINUX_SYS_MSGRCV	       70  end
-const LINUX_SYS_MSGCTL	       71  end
-const LINUX_SYS_FCNTL          72  end
-const LINUX_SYS_FLOCK          73  end
-const LINUX_SYS_FSYNC          74  end
-const LINUX_SYS_FDATASYNC      75  end
-const LINUX_SYS_TRUNCATE	     76  end
-const LINUX_SYS_FTRUNCATE      77  end
-const LINUX_SYS_GETDENTS	     78  end
-const LINUX_SYS_GETCWD	       79  end
-const LINUX_SYS_CHDIR          80  end
-const LINUX_SYS_FCHDIR	       81  end
-const LINUX_SYS_RENAME	       82  end
-const LINUX_SYS_MKDIR          83  end
-const LINUX_SYS_RMDIR          84  end
-const LINUX_SYS_CREAT          85  end
-const LINUX_SYS_LINK	         86  end
-const LINUX_SYS_UNLINK	       87  end
-const LINUX_SYS_SYMLINK        88  end
-const LINUX_SYS_READLINK	     89  end
-const LINUX_SYS_CHMOD          90  end
-const LINUX_SYS_FCHMOD	       91  end
-const LINUX_SYS_CHOWN          92  end
-const LINUX_SYS_FCHOWN	       93  end
-const LINUX_SYS_LCHOWN	       94  end
-const LINUX_SYS_UMASK          95  end
-const LINUX_SYS_GETTIMEOFDAY   96  end
-const LINUX_SYS_GETRLIMIT      97  end
-const LINUX_SYS_GETRUSAGE      98  end
-const LINUX_SYS_SYSINFO        99  end
-const LINUX_SYS_TIMES          100 end
+macro LINUX_SYS_WRITE do 1 .
+; const LINUX_SYS_READ           0   end
+; const LINUX_SYS_WRITE          1   end
+; const LINUX_SYS_OPEN           2   end
+; const LINUX_SYS_CLOSE          3   end
+; const LINUX_SYS_STAT           4   end
+; const LINUX_SYS_FSTAT          5   end
+; const LINUX_SYS_LSTAT          6   end
+; const LINUX_SYS_POLL           7   end
+; const LINUX_SYS_LSEEK          8   end
+; const LINUX_SYS_MMAP           9   end
+; const LINUX_SYS_MPROTECT       10  end
+; const LINUX_SYS_MUNMAP         11  end
+; const LINUX_SYS_BRK            12  end
+; const LINUX_SYS_RT_SIGACTION   13  end
+; const LINUX_SYS_RT_SIGPROCMASK 14  end
+; const LINUX_SYS_RT_SIGRETURN   15  end
+; const LINUX_SYS_IOCTL          16  end
+; const LINUX_SYS_PREAD64        17  end
+; const LINUX_SYS_PWRITE64       18  end
+; const LINUX_SYS_READV          19  end
+; const LINUX_SYS_WRITEV         20  end
+; const LINUX_SYS_ACCESS         21  end
+; const LINUX_SYS_PIPE           22  end
+; const LINUX_SYS_SELECT         23  end
+; const LINUX_SYS_SCHED_YIELD    24  end
+; const LINUX_SYS_MREMAP	       25  end
+; const LINUX_SYS_MSYNC          26  end
+; const LINUX_SYS_MINCORE        27  end
+; const LINUX_SYS_MADVISE        28  end
+; const LINUX_SYS_SHMGET         29  end
+; const LINUX_SYS_SHMAT          30  end
+; const LINUX_SYS_SHMCTL         31  end
+; const LINUX_SYS_DUP            32  end
+; const LINUX_SYS_DUP2           33  end
+; const LINUX_SYS_PAUSE          34  end
+; const LINUX_SYS_NANOSLEEP      35  end
+; const LINUX_SYS_GETITIMER      36  end
+; const LINUX_SYS_ALARM          37  end
+; const LINUX_SYS_SETITIMER      38  end
+; const LINUX_SYS_GETPID         39  end
+; const LINUX_SYS_SENDFILE       40  end
+; const LINUX_SYS_SOCKET	       41  end
+; const LINUX_SYS_CONNECT        42  end
+; const LINUX_SYS_ACCEPT	       43  end
+; const LINUX_SYS_SENDTO	       44  end
+; const LINUX_SYS_RECVFROM	     45  end
+; const LINUX_SYS_SENDMSG        46  end
+; const LINUX_SYS_RECVMSG        47  end
+; const LINUX_SYS_SHUTDOWN       48  end
+; const LINUX_SYS_BIND	         49  end
+; const LINUX_SYS_LISTEN         50  end
+; const LINUX_SYS_GETSOCKNAME    51  end
+; const LINUX_SYS_GETPEERNAME    52  end
+; const LINUX_SYS_SOCKETPAIR     53  end
+; const LINUX_SYS_SETSOCKOPT     54  end
+; const LINUX_SYS_GETSOCKOPT     55  end
+; const LINUX_SYS_CLONE          56  end
+; const LINUX_SYS_FORK           57  end
+; const LINUX_SYS_VFORK          58  end
+; const LINUX_SYS_EXECVE	       59  end
+; const LINUX_SYS_EXIT	         60  end
+; const LINUX_SYS_WAIT4          61  end
+; const LINUX_SYS_KILL	         62  end
+; const LINUX_SYS_UNAME          63  end
+; const LINUX_SYS_SEMGET	       64  end
+; const LINUX_SYS_SEMOP          65  end
+; const LINUX_SYS_SEMCTL	       66  end
+; const LINUX_SYS_SHMDT          67  end
+; const LINUX_SYS_MSGGET	       68  end
+; const LINUX_SYS_MSGSND	       69  end
+; const LINUX_SYS_MSGRCV	       70  end
+; const LINUX_SYS_MSGCTL	       71  end
+; const LINUX_SYS_FCNTL          72  end
+; const LINUX_SYS_FLOCK          73  end
+; const LINUX_SYS_FSYNC          74  end
+; const LINUX_SYS_FDATASYNC      75  end
+; const LINUX_SYS_TRUNCATE	     76  end
+; const LINUX_SYS_FTRUNCATE      77  end
+; const LINUX_SYS_GETDENTS	     78  end
+; const LINUX_SYS_GETCWD	       79  end
+; const LINUX_SYS_CHDIR          80  end
+; const LINUX_SYS_FCHDIR	       81  end
+; const LINUX_SYS_RENAME	       82  end
+; const LINUX_SYS_MKDIR          83  end
+; const LINUX_SYS_RMDIR          84  end
+; const LINUX_SYS_CREAT          85  end
+; const LINUX_SYS_LINK	         86  end
+; const LINUX_SYS_UNLINK	       87  end
+; const LINUX_SYS_SYMLINK        88  end
+; const LINUX_SYS_READLINK	     89  end
+; const LINUX_SYS_CHMOD          90  end
+; const LINUX_SYS_FCHMOD	       91  end
+; const LINUX_SYS_CHOWN          92  end
+; const LINUX_SYS_FCHOWN	       93  end
+; const LINUX_SYS_LCHOWN	       94  end
+; const LINUX_SYS_UMASK          95  end
+; const LINUX_SYS_GETTIMEOFDAY   96  end
+; const LINUX_SYS_GETRLIMIT      97  end
+; const LINUX_SYS_GETRUSAGE      98  end
+; const LINUX_SYS_SYSINFO        99  end
+; const LINUX_SYS_TIMES          100 end
 
 ;; Helper macros
-macro read  set stdin  LINUX_SYS_READ  __SYS_CALL3 end
-macro write set stdout LINUX_SYS_WRITE __SYS_CALL3 end
-macro puts  set write drop                         end
-macro exit  set LINUX_SYS_EXIT         __SYS_CALL1 end
+macro write do stdout LINUX_SYS_WRITE __SYSCALL3 .
+macro puts  do write drop                        .
+; macro read  set stdin  LINUX_SYS_READ  __SYS_CALL3 end
+; macro write set stdout LINUX_SYS_WRITE __SYS_CALL3 end
+; macro puts  set write drop                         end
+; macro exit  set LINUX_SYS_EXIT         __SYS_CALL1 end
