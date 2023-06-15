@@ -61,6 +61,22 @@ static int definition_instruction(const char *name, Chunk *chunk, int offset) {
     return offset + 3;
 }
 
+static int function_instruction(const char *name, Chunk *chunk, int offset) {
+    u8 arity_number = chunk->code[offset + 1];
+    u8 cname = chunk->code[offset + 2];
+    int arity = AS_INT(chunk->constants.values[arity_number]);
+    printf("%-16s %4d '", name, arity);
+    print_constant(chunk->constants.values[cname]);
+    printf(" (");
+    for (int i = 0; i < arity; i++) {
+        u8 arg = chunk->code[offset + 3 + i];
+        if (i > 0) printf(" ");
+        print_constant(chunk->constants.values[arg]);
+    }
+    printf(")'\n");
+    return offset + 3 + arity;
+}
+
 static int jump_instruction(const char *name, int sign, Chunk *chunk, int offset) {
     u16 jump = (u16)(chunk->code[offset + 1] << 8);
     jump |= chunk->code[offset + 2];
@@ -81,10 +97,13 @@ int disassemble_instruction(Chunk *chunk, int offset) {
         // Constants
         case OP_PUSH_INT:
             return constant_instruction("OP_PUSH_INT", chunk, offset);
+        case OP_PUSH_FLOAT:
+            return constant_instruction("OP_PUSH_FLOAT", chunk, offset);
         case OP_PUSH_STR:
             return constant_instruction("OP_PUSH_STR", chunk, offset);
         case OP_PUSH_PTR:
             return constant_instruction("OP_PUSH_PTR", chunk, offset);
+
         // Keywords
         case OP_JUMP:
             return jump_instruction("OP_JUMP", 1, chunk, offset);
@@ -92,11 +111,14 @@ int disassemble_instruction(Chunk *chunk, int offset) {
             return jump_instruction("OP_JUMP_IF_FALSE", 1, chunk, offset);
         case OP_LOOP:
             return jump_instruction("OP_LOOP", -1, chunk, offset);
+
         // Intrinsics
         case OP_ADD:
             return simple_instruction("OP_ADD", offset);
         case OP_AND:
             return simple_instruction("OP_AND", offset);
+        case OP_CALL_CFUNC:
+            return function_instruction("OP_CALL_CFUNC", chunk, offset);
         case OP_DEC:
             return simple_instruction("OP_DEC", offset);
         case OP_DEFINE_PTR:

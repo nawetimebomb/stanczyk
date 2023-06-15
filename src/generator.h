@@ -30,9 +30,6 @@
 
 #include "compiler.h"
 
-CompilerResult generate_x64_linux(Writer *,
-                                  OutputArray *,
-                                  OutputArray *,
-                                  OutputArray *);
+CompilerResult generate_x64_linux(Writer *);
 
 #endif

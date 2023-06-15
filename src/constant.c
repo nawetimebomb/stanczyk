@@ -58,8 +58,9 @@ void free_constants_array(ConstantArray* array) {
 
 void print_constant(Value value) {
     switch(value.type) {
-        case VALUE_NUMBER: printf("%d", AS_NUMBER(value));  break;
-        case VALUE_OBJECT: printf("%s", AS_CSTRING(value)); break;
+        case VALUE_INT: printf("%d", AS_INT(value));  break;
+        case VALUE_FLOAT: printf("%f", AS_FLOAT(value));  break;
+        case VALUE_OBJECT: print_object(value); break;
     }
 
 }

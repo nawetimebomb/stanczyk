@@ -58,9 +58,17 @@ typedef struct {
 } FileArray;
 
 typedef struct {
+    int start;
+    int capacity;
+    int count;
+    String **libs;
+} ClibArray;
+
+typedef struct {
     CompilerOptions options;
     FileArray files;
     Timers timers;
+    ClibArray clibs;
     bool ready;
     bool failed;
 } Compiler;
@@ -78,6 +86,7 @@ typedef struct {
     OutputArray code;
     OutputArray strs;
     OutputArray mems;
+    OutputArray flts;
 } Writer;
 
 typedef enum {

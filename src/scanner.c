@@ -70,6 +70,11 @@ static char peek() {
     return *scanner.current;
 }
 
+static char peek_next() {
+    if (is_at_eof()) return '\0';
+    return scanner.current[1];
+}
+
 static Token make_token(TokenType type) {
     Token token;
     token.type = type;
@@ -130,7 +135,7 @@ static TokenType keyword_type() {
             if (scanner.current - scanner.start > 1) {
                 switch (scanner.start[1]) {
                     case 'c':
-                    case 'C': return check_keyword(2, 0, "", TOKEN_HASH_C);
+                    case 'C': return check_keyword(2, 3, "lib", TOKEN_HASH_CLIB);
                     case 'i': return check_keyword(2, 6, "nclude", TOKEN_HASH_INCLUDE);
                 }
             }
@@ -149,7 +154,14 @@ static TokenType keyword_type() {
             if (check_if_keyword(1, 10, "_SYS_CALL6"))   return TOKEN___SYS_CALL6;
         } break;
         case 'a': return check_keyword(1, 2, "nd", TOKEN_AND);
-        case 'c': return check_keyword(1, 4, "onst", TOKEN_CONST);
+        case 'c': {
+            if (scanner.current - scanner.start > 1) {
+                switch(scanner.start[1]) {
+                    case '-': return check_keyword(2, 8, "function", TOKEN_C_FUNCTION);
+                    case 'o': return check_keyword(2, 3, "nst", TOKEN_CONST);
+                }
+            }
+        } break;
         case 'd': {
             if (scanner.current - scanner.start > 1) {
                 switch (scanner.start[1]) {
@@ -160,6 +172,7 @@ static TokenType keyword_type() {
                 }
             }
         } break;
+        case 'f': return check_keyword(1, 7, "unction", TOKEN_FUNCTION);
         case 'e': {
             if (scanner.current - scanner.start > 1) {
                 switch (scanner.start[1]) {
@@ -186,18 +199,7 @@ static TokenType keyword_type() {
                 }
             }
         } break;
-        case 'p': {
-            if (scanner.current - scanner.start > 2) {
-                switch (scanner.start[1]) {
-                    case 'r': {
-                        switch (scanner.start[2]) {
-                            case 'i': return check_keyword(3, 2, "nt", TOKEN_PRINT);
-                            case 'o': return check_keyword(3, 1, "c", TOKEN_PROC);
-                        }
-                    } break;
-                }
-            }
-        } break;
+        case 'p': return check_keyword(1, 4, "rint", TOKEN_PRINT);
         case 's': {
             if (scanner.current - scanner.start > 1) {
                 switch (scanner.start[1]) {
@@ -219,8 +221,16 @@ static Token keyword() {
 }
 
 static Token number() {
+    TokenType type = TOKEN_INT;
     while (is_digit(peek())) advance();
-    return make_token(TOKEN_INT);
+
+    if (peek() == '.' && is_digit(peek_next())) {
+        type = TOKEN_FLOAT;
+        advance();
+        while (is_digit(peek())) advance();
+    }
+
+    return make_token(type);
 }
 
 static Token string() {
@@ -243,7 +253,7 @@ Token scan_token() {
 
     switch (c) {
         case '(': return make_token(TOKEN_LEFT_PAREN);
-        case ')': return make_token(TOKEN_LEFT_PAREN);
+        case ')': return make_token(TOKEN_RIGHT_PAREN);
         case '.': return make_token(TOKEN_DOT);
         case '!': {
             if (match('=')) return make_token(TOKEN_NOT_EQUAL);
@@ -262,7 +272,7 @@ Token scan_token() {
         case '>': return make_token(match('=') ? TOKEN_GREATER_EQUAL : TOKEN_GREATER);
         case ':': {
             if (match('@')) return make_token(TOKEN_STATIC);
-            if (match(':')) return make_token(TOKEN_PROC);
+            if (match(':')) return make_token(TOKEN_FUNCTION);
             if (match('>')) return make_token(TOKEN_MACRO);
             if (match('=')) return make_token(TOKEN_CONST);
         } break;

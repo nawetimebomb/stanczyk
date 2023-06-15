@@ -47,6 +47,13 @@ static void init_file_array() {
     compiler.files.sources = NULL;
 }
 
+static void init_clib_array() {
+    compiler.clibs.start = 4;
+    compiler.clibs.count = 0;
+    compiler.clibs.capacity = 0;
+    compiler.clibs.libs = NULL;
+}
+
 static char *get_workspace(const char *path) {
     char *result = malloc(256);
     memset(result, 0, 256);
@@ -119,6 +126,7 @@ int main(int argc, const char **argv) {
     }
 
     init_file_array();
+    init_clib_array();
 
     parse_arguments(argc, argv);
 

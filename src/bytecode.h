@@ -32,6 +32,6 @@
 #include "chunk.h"
 #include "compiler.h"
 
-void bytecode(Compiler *compiler, Chunk *);
+Chunk *bytecode(Compiler *);
 
 #endif

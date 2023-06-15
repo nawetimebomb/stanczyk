@@ -54,7 +54,7 @@ static Entry *find_entry(Entry *entries, int capacity, String *key) {
     for (;;) {
         Entry *entry = &entries[index];
         if (entry->key == NULL) {
-            if (AS_NUMBER(entry->value) != 0) {
+            if (AS_INT(entry->value) != 0) {
                 return tombstone != NULL ? tombstone : entry;
             } else {
                 if (tombstone == NULL) tombstone = entry;
@@ -81,7 +81,7 @@ static void adjust_capacity(Table *table, int capacity) {
     Entry *entries = ALLOCATE(Entry, capacity);
     for (int i = 0; i < capacity; i++) {
         entries[i].key = NULL;
-        entries[i].value = NUMBER_VALUE(0);
+        entries[i].value = INT_VALUE(0);
     }
 
     table->count = 0;
@@ -108,7 +108,7 @@ bool table_set(Table *table, String *key, Value value) {
 
     Entry *entry = find_entry(table->entries, table->capacity, key);
     bool is_new = entry->key == NULL;
-    if (is_new && AS_NUMBER(entry->value) != 0) table->count++;
+    if (is_new && AS_INT(entry->value) != 0) table->count++;
 
     entry->key = key;
     entry->value = value;
@@ -122,7 +122,7 @@ bool table_delete(Table *table, String *key) {
     if (entry->key == NULL) return false;
 
     entry->key = NULL;
-    entry->value = NUMBER_VALUE(0);
+    entry->value = INT_VALUE(0);
     return true;
 }
 
@@ -143,7 +143,7 @@ String *table_find_string(Table *table, const char* chars, int length, u32 hash)
     for (;;) {
         Entry *entry = &table->entries[index];
         if (entry->key == NULL) {
-            if (AS_NUMBER(entry->value) != 0) return NULL;
+            if (AS_INT(entry->value) != 0) return NULL;
         } else if (entry->key->length == length &&
                    entry->key->hash == hash &&
                    memcmp(entry->key->chars, chars, length) == 0) {
