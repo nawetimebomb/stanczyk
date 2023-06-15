@@ -4,61 +4,61 @@ using "io"
 ;; Description:
 ;    Simple arithmetics test. Printing the results so they can be compared.
 
-"2 + 2 = 4\n" puts
+"2 + 2 = 4  " puts
 2 2 +                print
 "-----------\n" puts
 
-"10 + 1 + 2 = 13\n" puts
+"10 + 1 + 2 = 13  " puts
 10 1 + 2 +           print
 "-----------\n" puts
 
-"2 + 3 + 5 + 3 = 13 \n" puts
+"2 + 3 + 5 + 3 = 13  " puts
 2 3 + 5 + 3 +        print
 "-----------\n" puts
 
-"2 - 2 = 0\n" puts
+"2 - 2 = 0  " puts
 2 2 -                print
 "-----------\n" puts
 
-"25 - 3 - 9 = 13\n" puts
+"25 - 3 - 9 = 13  " puts
 25 3 - 9 -           print
 "-----------\n" puts
 
-"50 - 10 - 20 - 3 - 4 = 13\n" puts
+"50 - 10 - 20 - 3 - 4 = 13  " puts
 50 10 - 20 - 3 - 4 - print
 "-----------\n" puts
 
-"2 * 3 = 6\n" puts
+"2 * 3 = 6  " puts
 2 3 *                print
 "-----------\n" puts
 
-"2 * 2 * 2 = 8\n" puts
+"2 * 2 * 2 = 8  " puts
 2 2 * 2 *            print
 "-----------\n" puts
 
-"2 * 2 * 2 * 2 * 2 = 32\n" puts
+"2 * 2 * 2 * 2 * 2 = 32  " puts
 2 2 2 2 2 * * * *    print
 "-----------\n" puts
 
-"10 / 2 = 5\n" puts
+"10 / 2 = 5  " puts
 10 2 /               print
 "-----------\n" puts
 
-"32 / (2 / 2 / 2) = 16\n" puts
-32 2 2 2 / / /       print ; 16 (32 2 2 2 / / / -> 32 2 1 / / -> 32 2 / -> 16)
+"32 / (2 / 2 / 2) = 16  " puts
+32 2 2 2 / / /       print
 "-----------\n" puts
 
-"((32 / 2) / 2) / 2 = 4\n" puts
-32 2 / 2 / 2 /       print ; 4
+"((32 / 2) / 2) / 2 = 4  " puts
+32 2 / 2 / 2 /       print
 "-----------\n" puts
 
-"10 % 3 = 1\n" puts
-10 3 %               print ; 1
+"10 % 3 = 1  " puts
+10 3 %               print
 "-----------\n" puts
 
-"3 + 4 + 7 - 1 = 13\n" puts
-3 4 + 7 + 1 -        print ; 13
+"3 + 4 + 7 - 1 = 13  " puts
+3 4 + 7 + 1 -        print
 "-----------\n" puts
 
-"10 / 5 + 3 * 5 - 12 = 13\n" puts
-10 5 / 3 + 5 * 12 -  print ; 13
+"10 / 5 + 3 * 5 - 12 = 13  " puts
+10 5 / 3 + 5 * 12 -  print
