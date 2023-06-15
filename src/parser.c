@@ -11,13 +11,14 @@ static mpc_parser_t *_comment;
 static mpc_parser_t *_Sexpr;
 static mpc_parser_t *_Bexpr;
 static mpc_parser_t *_expr;
+static mpc_parser_t *_nexp;
 
 static nexp_t *parse_number(mpc_ast_t *ast) {
     errno = 0;
     i64 result = strtol(ast->contents, NULL, 10);
     return errno != ERANGE ?
         nexp_new_number(result) :
-        nexp_new_error("Invalid number");
+        nexp_new_error("number %d is too high, it may cause overflow", result);
 }
 
 static nexp_t *parse_string(mpc_ast_t *ast) {
@@ -39,6 +40,7 @@ void init_parser() {
     _Sexpr   = mpc_new("Sexpr");
     _Bexpr   = mpc_new("Bexpr");
     _expr    = mpc_new("expr");
+    _nexp    = mpc_new("nexp");
 }
 
 mpc_parser_t *get_parser_type(parser_type_t parser_type) {
@@ -50,9 +52,11 @@ mpc_parser_t *get_parser_type(parser_type_t parser_type) {
         case NEXP_PARSER_TYPE_SEXPR:   return _Sexpr;
         case NEXP_PARSER_TYPE_BEXPR:   return _Bexpr;
         case NEXP_PARSER_TYPE_EXPR:    return _expr;
+        case NEXP_PARSER_TYPE_NEXP:    return _nexp;
     }
 
-    return _number;
+    // This is the entry parser for the file evaluator
+    return _nexp;
 }
 
 nexp_t *parse_expr(mpc_ast_t *ast) {
@@ -72,7 +76,7 @@ nexp_t *parse_expr(mpc_ast_t *ast) {
         if (strcmp(ast->children[i]->contents, "{" ) == 0) continue;
         if (strcmp(ast->children[i]->contents, "}" ) == 0) continue;
         if (strcmp(ast->children[i]->tag, "regex"  ) == 0) continue;
-        if (strcmp(ast->children[i]->tag, "comment") == 0) continue;
+        if (strstr(ast->children[i]->tag, "comment"))      continue;
         result = nexp_add(result, parse_expr(ast->children[i]));
     }
 
