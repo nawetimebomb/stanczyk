@@ -4,9 +4,11 @@ using "io"
 ;; Description:
 ;    Check the values of pushed booleans to the stack
 
-"true value:  " puts
-true print
-"-----------\n" puts
+function main do
+  "true value:  " puts
+  true print
+  "-----------\n" puts
 
-"false value:  " puts
-false print
+  "false value:  " puts
+  false print
+.
