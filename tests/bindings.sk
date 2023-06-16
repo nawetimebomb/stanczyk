@@ -1,0 +1,10 @@
+using "io"
+
+function main do
+  "testing bindings to form a word\n" puts
+  "S" "t" "a" "ń" "c" "z" "i" "k"
+  bind s t a n c z y k .
+  "Stańczyk  " puts
+  s puts t puts a puts n puts c puts z puts y puts k puts
+  "\n" puts
+.

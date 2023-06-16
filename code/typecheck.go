@@ -35,6 +35,7 @@ func getOperationName(code Code) string {
 	case OP_ADD: name = "+ (add)"
 	case OP_ARGC: name = "argc"
 	case OP_ARGV: name = "argv"
+	case OP_BIND: name = "bind"
 	case OP_CAST: name = "cast to " + getDataTypeName(code.value.(DataType))
 	case OP_DIVIDE: name = "div"
 	case OP_DROP: name = "drop"
@@ -102,7 +103,7 @@ func assertArgumentTypes(test []DataType, want [][]DataType, code Code, loc Loca
 					break
 				}
 			} else {
-				if w[i] != t {
+				if w[i] != t && t != DATA_ANY {
 					err = true
 					break
 				}
@@ -140,7 +141,7 @@ func assertArgumentType(test []DataType, want []DataType, code Code, loc Locatio
 				break
 			}
 		} else {
-			if want[i] != t {
+			if want[i] != t && t != DATA_ANY {
 				errFound = true
 				break
 			}
@@ -211,6 +212,8 @@ func TypecheckRun() {
 
 			switch instruction {
 			// Constants
+			case OP_PUSH_BIND:
+				tc.push(DATA_ANY)
 			case OP_PUSH_BOOL:
 				tc.push(DATA_BOOL)
 			case OP_PUSH_CHAR:
@@ -240,6 +243,14 @@ func TypecheckRun() {
 				tc.push(DATA_INT)
 			case OP_ARGV:
 				tc.push(DATA_PTR)
+			case OP_BIND:
+				var binds []DataType
+				var wants []DataType
+				for range function.bindings {
+					binds = append(binds, tc.pop())
+					wants = append(wants, DATA_ANY)
+				}
+				assertArgumentType(binds, wants, code, loc)
 			case OP_CAST:
 				a := tc.pop()
 				assertArgumentType(dtArray(a), dtArray(DATA_ANY), code, loc)
