@@ -1,0 +1,27 @@
+using "io"
+
+function get-str -> ptr do
+  "My test string"
+.
+
+function main do
+  "Testing strings in Stańczyk is a little bit more complicated\n" puts
+
+  if "Stańczyk" "Stańczyk" str= do
+    "1- these are equal\n" puts
+  else
+    "1- test failed!\n" puts
+  .
+
+  if get-str get-str str= do
+    "2- these are equal\n" puts
+  else
+    "2- test failed!\n" puts
+  .
+
+  if "Stańczyk" "Nope" str= do
+    "3- test failed!\n" puts
+  else
+    "3- these are not equal\n" puts
+  .
+.

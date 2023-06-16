@@ -234,10 +234,10 @@ func TypecheckRun() {
 				b := tc.pop()
 				a := tc.pop()
 				assertArgumentTypes(dtArray(a, b), allowedTypes, code, loc)
-				if a == DATA_PTR || b == DATA_PTR {
-					tc.push(DATA_PTR)
-				} else {
+				if a == DATA_INT && b == DATA_INT {
 					tc.push(DATA_INT)
+				} else {
+					tc.push(DATA_PTR)
 				}
 			case OP_ARGC:
 				tc.push(DATA_INT)
@@ -294,6 +294,15 @@ func TypecheckRun() {
 				assertArgumentType(dtArray(a, b), dtArray(DATA_ANY, DATA_ANY), code, loc)
 				tc.push(a)
 				tc.push(b)
+				tc.push(a)
+			case OP_ROTATE:
+				c := tc.pop()
+				b := tc.pop()
+				a := tc.pop()
+				assertArgumentType(dtArray(a, b, c),
+					dtArray(DATA_ANY, DATA_ANY, DATA_ANY), code, loc)
+				tc.push(b)
+				tc.push(c)
 				tc.push(a)
 			case OP_STORE8, OP_STORE16, OP_STORE32, OP_STORE64:
 				allowedTypes := [][]DataType{

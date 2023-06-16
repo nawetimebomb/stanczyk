@@ -250,6 +250,27 @@ func generateLinuxX86() {
 				asm.WriteText("    push rbx")
 				asm.WriteText("    push rax")
 				asm.WriteText("    push rbx")
+			case OP_RET:
+				asm.WriteText(";; ret (%s:%d:%d)", loc.f, loc.l, loc.c)
+
+				if len(function.bindings) > 0 {
+					asm.WriteText("    mov rax, [return_stack_rsp]")
+					asm.WriteText("    add rax, %d", len(function.bindings) * 8)
+					asm.WriteText("    mov [return_stack_rsp], rax")
+				}
+
+				asm.WriteText("    mov rax, rsp")
+				asm.WriteText("    mov rsp, [return_stack_rsp]")
+				asm.WriteText("    add rsp, %d", value)
+				asm.WriteText("    ret")
+			case OP_ROTATE:
+				asm.WriteText(";; rotate (%s:%d:%d)", loc.f, loc.l, loc.c)
+				asm.WriteText("    pop rax")
+				asm.WriteText("    pop rbx")
+				asm.WriteText("    pop rcx")
+				asm.WriteText("    push rbx")
+				asm.WriteText("    push rax")
+				asm.WriteText("    push rcx")
 			case OP_SUBSTRACT:
 				asm.WriteText(";; - (%s:%d:%d)", loc.f, loc.l, loc.c)
 				asm.WriteText("    pop rbx")
@@ -286,19 +307,6 @@ func generateLinuxX86() {
 				asm.WriteText(";; take (%s:%d:%d)", loc.f, loc.l, loc.c)
 				asm.WriteText("    pop rax")
 				asm.WriteText("    push rax")
-			case OP_RET:
-				asm.WriteText(";; ret (%s:%d:%d)", loc.f, loc.l, loc.c)
-
-				if len(function.bindings) > 0 {
-					asm.WriteText("    mov rax, [return_stack_rsp]")
-					asm.WriteText("    add rax, %d", len(function.bindings) * 8)
-					asm.WriteText("    mov [return_stack_rsp], rax")
-				}
-
-				asm.WriteText("    mov rax, rsp")
-				asm.WriteText("    mov rsp, [return_stack_rsp]")
-				asm.WriteText("    add rsp, %d", value)
-				asm.WriteText("    ret")
 
 				// Special
 			case OP_SYSCALL:
