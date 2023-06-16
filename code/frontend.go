@@ -389,7 +389,7 @@ func expandWord(token Token) {
 
 	for x, b := range frontend.current.bindings {
 		if word == b {
-			emit(Code{op: OP_PUSH_BIND, loc: token.loc, value: x})
+			emit(Code{op: OP_PUSH_BOUND, loc: token.loc, value: x})
 			return
 		}
 	}

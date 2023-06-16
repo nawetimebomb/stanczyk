@@ -212,10 +212,10 @@ func TypecheckRun() {
 
 			switch instruction {
 			// Constants
-			case OP_PUSH_BIND:
-				tc.push(DATA_ANY)
 			case OP_PUSH_BOOL:
 				tc.push(DATA_BOOL)
+			case OP_PUSH_BOUND:
+				tc.push(DATA_ANY)
 			case OP_PUSH_CHAR:
 				tc.push(DATA_CHAR)
 			case OP_PUSH_INT:

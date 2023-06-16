@@ -84,16 +84,16 @@ func generateLinuxX86() {
 
 			switch instruction {
 			// Constants
-			case OP_PUSH_BIND:
-				asm.WriteText(";; bind %d (%s:%d:%d)", value, loc.f, loc.l, loc.c)
-				asm.WriteText("    mov rax, [return_stack_rsp]")
-				asm.WriteText("    add rax, %d", value.(int) * 8)
-				asm.WriteText("    push QWORD [rax]")
 			case OP_PUSH_BOOL:
 				boolText := map[int]string{1:"true", 0:"false"} [value.(int)]
 				asm.WriteText(";; %s (%s:%d:%d)", boolText, loc.f, loc.l, loc.c)
 				asm.WriteText("    mov rax, %d", value)
 				asm.WriteText("    push rax")
+			case OP_PUSH_BOUND:
+				asm.WriteText(";; bind %d (%s:%d:%d)", value, loc.f, loc.l, loc.c)
+				asm.WriteText("    mov rax, [return_stack_rsp]")
+				asm.WriteText("    add rax, %d", value.(int) * 8)
+				asm.WriteText("    push QWORD [rax]")
 			case OP_PUSH_CHAR:
 				asm.WriteText(";; '%d' (%s:%d:%d)", value, loc.f, loc.l, loc.c)
 				asm.WriteText("    mov rax, %d", value)
