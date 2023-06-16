@@ -554,6 +554,9 @@ func parseToken(token Token) {
 		code.op = OP_RET
 		code.value = 0
 		emit(code)
+	case TOKEN_ROTATE:
+		code.op = OP_ROTATE
+		emit(code)
 	case TOKEN_STAR:
 		code.op = OP_MULTIPLY
 		emit(code)

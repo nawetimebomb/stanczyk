@@ -58,6 +58,7 @@ const (
 	TOKEN_RESERVE
 	TOKEN_RET
 	TOKEN_RIGHT_ARROW
+	TOKEN_ROTATE
 	TOKEN_STAR
 	TOKEN_STORE8
 	TOKEN_STORE16
@@ -78,7 +79,7 @@ type reserved struct {
 	typ   TokenType
 }
 
-var reservedWords = [50]reserved{
+var reservedWords = [51]reserved{
 	reserved{typ: TOKEN_ARGC,	        word: "argc"	  },
 	reserved{typ: TOKEN_ARGV,		    word: "argv"	  },
 	reserved{typ: TOKEN_BANG_EQUAL,		word: "!="		  },
@@ -98,7 +99,7 @@ var reservedWords = [50]reserved{
 	reserved{typ: TOKEN_DTYPE_PTR,      word: "ptr"       },
 	reserved{typ: TOKEN_DUP,			word: "dup"		  },
 	reserved{typ: TOKEN_ELSE,			word: "else"	  },
-	reserved{typ: TOKEN_EQUAL,			word: "="		  },
+	reserved{typ: TOKEN_EQUAL,			word: "="         },
 	reserved{typ: TOKEN_FALSE,			word: "false"	  },
 	reserved{typ: TOKEN_FUNCTION,		word: "function"  },
 	reserved{typ: TOKEN_FUNCTION_STAR,	word: "function*" },
@@ -119,6 +120,7 @@ var reservedWords = [50]reserved{
 	reserved{typ: TOKEN_RESERVE,        word: "reserve"   },
 	reserved{typ: TOKEN_RET,            word: "ret"   	  },
 	reserved{typ: TOKEN_RIGHT_ARROW,    word: "->"   	  },
+	reserved{typ: TOKEN_ROTATE,         word: "rotate" 	  },
 	reserved{typ: TOKEN_STAR,			word: "*"		  },
 	reserved{typ: TOKEN_STORE8,			word: "<-8" 	  },
 	reserved{typ: TOKEN_STORE16,		word: "<-16" 	  },
