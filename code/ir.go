@@ -4,8 +4,8 @@ type OpCode int
 
 const (
 	// Constants
-	OP_PUSH_BIND OpCode = iota
-	OP_PUSH_BOOL
+	OP_PUSH_BOOL OpCode = iota
+	OP_PUSH_BOUND
 	OP_PUSH_CHAR
 	OP_PUSH_INT
 	OP_PUSH_PTR
