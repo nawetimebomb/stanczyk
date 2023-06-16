@@ -387,6 +387,13 @@ func expandWord(token Token) {
 	addWord(token)
 	word := token.value
 
+	for x, b := range frontend.current.bindings {
+		if word == b {
+			emit(Code{op: OP_PUSH_BIND, loc: token.loc, value: x})
+			return
+		}
+	}
+
 	for x, m := range frontend.macros {
 		if m.word == word {
 			expandMacro(x)
@@ -419,6 +426,29 @@ func addWord(token Token) {
 		}
 	}
 	frontend.words = append(frontend.words, word)
+}
+
+func addBind(token Token) {
+	if len(frontend.current.bindings) > 0 {
+		errorAt(&token, MsgParseBindAlreadyBound)
+		for !match(TOKEN_DOT) { advance() }
+		return
+	}
+
+	for match(TOKEN_WORD) {
+		t := parser.previous
+		frontend.current.bindings =
+			append(frontend.current.bindings, t.value.(string))
+	}
+
+	if len(frontend.current.bindings) == 0 {
+		errorAt(&token, MsgParseBindEmptyBody)
+		for !match(TOKEN_DOT) { advance() }
+		return
+	}
+
+	consume(TOKEN_DOT, MsgParseBindMissingDot)
+	emit(Code{op: OP_BIND, loc: token.loc})
 }
 
 func parseToken(token Token) {
@@ -457,6 +487,8 @@ func parseToken(token Token) {
 	case TOKEN_BANG_EQUAL:
 		code.op = OP_NOT_EQUAL
 		emit(code)
+	case TOKEN_BIND:
+		addBind(token)
 	case TOKEN_CAST_BOOL:
 		code.op = OP_CAST
 		code.value = DATA_BOOL

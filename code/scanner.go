@@ -26,6 +26,7 @@ const (
 	TOKEN_ARGC
 	TOKEN_ARGV
 	TOKEN_BANG_EQUAL
+	TOKEN_BIND
 	TOKEN_CAST_BOOL
 	TOKEN_CAST_CHAR
 	TOKEN_CAST_INT
@@ -77,10 +78,11 @@ type reserved struct {
 	typ   TokenType
 }
 
-var reservedWords = [49]reserved{
+var reservedWords = [50]reserved{
 	reserved{typ: TOKEN_ARGC,	        word: "argc"	  },
 	reserved{typ: TOKEN_ARGV,		    word: "argv"	  },
 	reserved{typ: TOKEN_BANG_EQUAL,		word: "!="		  },
+	reserved{typ: TOKEN_BIND,    		word: "bind"	  },
 	reserved{typ: TOKEN_CAST_BOOL,      word: "(bool)"    },
 	reserved{typ: TOKEN_CAST_CHAR,      word: "(char)"    },
 	reserved{typ: TOKEN_CAST_INT,       word: "(int)"     },
@@ -249,7 +251,7 @@ func crossRefMacros() {
 		case tt == TOKEN_MACRO:
 			scope++
 			macroIndex = index
-		case tt == TOKEN_CONST, tt == TOKEN_IF, tt == TOKEN_LOOP,
+		case tt == TOKEN_BIND, tt == TOKEN_CONST, tt == TOKEN_IF, tt == TOKEN_LOOP,
 			tt == TOKEN_FUNCTION, tt == TOKEN_FUNCTION_STAR, tt == TOKEN_RESERVE:
 			scope++
 		case tt == TOKEN_DOT:
