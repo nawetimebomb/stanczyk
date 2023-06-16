@@ -5,6 +5,7 @@ type OpCode int
 const (
 	// Constants
 	OP_PUSH_BOOL OpCode = iota
+	OP_PUSH_BOUND
 	OP_PUSH_CHAR
 	OP_PUSH_INT
 	OP_PUSH_PTR
@@ -14,6 +15,7 @@ const (
 	OP_ADD
 	OP_ARGC
 	OP_ARGV
+	OP_BIND
 	OP_CAST
 	OP_DIVIDE
 	OP_DROP
@@ -36,6 +38,7 @@ const (
 	OP_NOT_EQUAL
 	OP_OVER
 	OP_RET
+	OP_ROTATE
 	OP_SUBSTRACT
 	OP_STORE8
 	OP_STORE16
@@ -72,6 +75,7 @@ type Function struct {
 	loc      Location
 	args     []DataType
 	rets     []DataType
+	bindings []string
 	code     []Code
 	called   bool
 	internal bool

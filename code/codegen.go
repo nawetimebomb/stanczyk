@@ -89,6 +89,11 @@ func generateLinuxX86() {
 				asm.WriteText(";; %s (%s:%d:%d)", boolText, loc.f, loc.l, loc.c)
 				asm.WriteText("    mov rax, %d", value)
 				asm.WriteText("    push rax")
+			case OP_PUSH_BOUND:
+				asm.WriteText(";; bind %d (%s:%d:%d)", value, loc.f, loc.l, loc.c)
+				asm.WriteText("    mov rax, [return_stack_rsp]")
+				asm.WriteText("    add rax, %d", value.(int) * 8)
+				asm.WriteText("    push QWORD [rax]")
 			case OP_PUSH_CHAR:
 				asm.WriteText(";; '%d' (%s:%d:%d)", value, loc.f, loc.l, loc.c)
 				asm.WriteText("    mov rax, %d", value)
@@ -125,6 +130,16 @@ func generateLinuxX86() {
 				asm.WriteText("    mov rax, [args]")
 				asm.WriteText("    add rax, 8")
                 asm.WriteText("    push rax")
+			case OP_BIND:
+				asm.WriteText(";; bind (%s:%d:%d)", loc.f, loc.l, loc.c)
+				asm.WriteText("    mov rax, [return_stack_rsp]")
+				asm.WriteText("    sub rax, %d", len(function.bindings) * 8)
+				asm.WriteText("    mov [return_stack_rsp], rax")
+
+				for i := len(function.bindings); i > 0; i-- {
+					asm.WriteText("    pop rbx")
+					asm.WriteText("    mov [rax+%d], rbx", (i - 1) * 8)
+				}
 			case OP_CAST:
 				asm.WriteText(";; cast to %s (%s:%d:%d)",
 					getDataTypeName(value.(DataType)), loc.f, loc.l, loc.c)
@@ -235,6 +250,27 @@ func generateLinuxX86() {
 				asm.WriteText("    push rbx")
 				asm.WriteText("    push rax")
 				asm.WriteText("    push rbx")
+			case OP_RET:
+				asm.WriteText(";; ret (%s:%d:%d)", loc.f, loc.l, loc.c)
+
+				if len(function.bindings) > 0 {
+					asm.WriteText("    mov rax, [return_stack_rsp]")
+					asm.WriteText("    add rax, %d", len(function.bindings) * 8)
+					asm.WriteText("    mov [return_stack_rsp], rax")
+				}
+
+				asm.WriteText("    mov rax, rsp")
+				asm.WriteText("    mov rsp, [return_stack_rsp]")
+				asm.WriteText("    add rsp, %d", value)
+				asm.WriteText("    ret")
+			case OP_ROTATE:
+				asm.WriteText(";; rotate (%s:%d:%d)", loc.f, loc.l, loc.c)
+				asm.WriteText("    pop rax")
+				asm.WriteText("    pop rbx")
+				asm.WriteText("    pop rcx")
+				asm.WriteText("    push rbx")
+				asm.WriteText("    push rax")
+				asm.WriteText("    push rcx")
 			case OP_SUBSTRACT:
 				asm.WriteText(";; - (%s:%d:%d)", loc.f, loc.l, loc.c)
 				asm.WriteText("    pop rbx")
@@ -271,12 +307,6 @@ func generateLinuxX86() {
 				asm.WriteText(";; take (%s:%d:%d)", loc.f, loc.l, loc.c)
 				asm.WriteText("    pop rax")
 				asm.WriteText("    push rax")
-			case OP_RET:
-				asm.WriteText(";; ret (%s:%d:%d)", loc.f, loc.l, loc.c)
-				asm.WriteText("    mov rax, rsp")
-				asm.WriteText("    mov rsp, [return_stack_rsp]")
-				asm.WriteText("    add rsp, %d", value)
-				asm.WriteText("    ret")
 
 				// Special
 			case OP_SYSCALL:

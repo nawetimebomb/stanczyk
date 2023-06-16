@@ -35,6 +35,7 @@ func getOperationName(code Code) string {
 	case OP_ADD: name = "+ (add)"
 	case OP_ARGC: name = "argc"
 	case OP_ARGV: name = "argv"
+	case OP_BIND: name = "bind"
 	case OP_CAST: name = "cast to " + getDataTypeName(code.value.(DataType))
 	case OP_DIVIDE: name = "div"
 	case OP_DROP: name = "drop"
@@ -102,7 +103,7 @@ func assertArgumentTypes(test []DataType, want [][]DataType, code Code, loc Loca
 					break
 				}
 			} else {
-				if w[i] != t {
+				if w[i] != t && t != DATA_ANY {
 					err = true
 					break
 				}
@@ -140,7 +141,7 @@ func assertArgumentType(test []DataType, want []DataType, code Code, loc Locatio
 				break
 			}
 		} else {
-			if want[i] != t {
+			if want[i] != t && t != DATA_ANY {
 				errFound = true
 				break
 			}
@@ -213,6 +214,8 @@ func TypecheckRun() {
 			// Constants
 			case OP_PUSH_BOOL:
 				tc.push(DATA_BOOL)
+			case OP_PUSH_BOUND:
+				tc.push(DATA_ANY)
 			case OP_PUSH_CHAR:
 				tc.push(DATA_CHAR)
 			case OP_PUSH_INT:
@@ -231,15 +234,23 @@ func TypecheckRun() {
 				b := tc.pop()
 				a := tc.pop()
 				assertArgumentTypes(dtArray(a, b), allowedTypes, code, loc)
-				if a == DATA_PTR || b == DATA_PTR {
-					tc.push(DATA_PTR)
-				} else {
+				if a == DATA_INT && b == DATA_INT {
 					tc.push(DATA_INT)
+				} else {
+					tc.push(DATA_PTR)
 				}
 			case OP_ARGC:
 				tc.push(DATA_INT)
 			case OP_ARGV:
 				tc.push(DATA_PTR)
+			case OP_BIND:
+				var binds []DataType
+				var wants []DataType
+				for range function.bindings {
+					binds = append(binds, tc.pop())
+					wants = append(wants, DATA_ANY)
+				}
+				assertArgumentType(binds, wants, code, loc)
 			case OP_CAST:
 				a := tc.pop()
 				assertArgumentType(dtArray(a), dtArray(DATA_ANY), code, loc)
@@ -283,6 +294,15 @@ func TypecheckRun() {
 				assertArgumentType(dtArray(a, b), dtArray(DATA_ANY, DATA_ANY), code, loc)
 				tc.push(a)
 				tc.push(b)
+				tc.push(a)
+			case OP_ROTATE:
+				c := tc.pop()
+				b := tc.pop()
+				a := tc.pop()
+				assertArgumentType(dtArray(a, b, c),
+					dtArray(DATA_ANY, DATA_ANY, DATA_ANY), code, loc)
+				tc.push(b)
+				tc.push(c)
 				tc.push(a)
 			case OP_STORE8, OP_STORE16, OP_STORE32, OP_STORE64:
 				allowedTypes := [][]DataType{
