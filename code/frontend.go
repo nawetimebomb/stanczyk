@@ -228,6 +228,15 @@ func newFunction(token Token) {
 	name := word.value.(string)
 
 	function.name = name
+	if name == "main" {
+		for _, f := range TheProgram.chunks {
+			if f.name == "main" {
+				msg := fmt.Sprintf(MsgParseFunctionMainAlreadyDefined, f.loc.f, f.loc.l)
+				errorAt(&token, msg)
+				ExitWithError(CodeParseError)
+			}
+		}
+	}
 
 	if !check(TOKEN_RIGHT_ARROW) && !check(TOKEN_DO) {
 		for !check(TOKEN_RIGHT_ARROW) && !check(TOKEN_DO) && !check(TOKEN_EOF) {
@@ -415,7 +424,7 @@ func expandWord(token Token) {
 		}
 	}
 
-	emit(Code{op: OP_WORD, loc: token.loc, value: word,})
+	emit(Code{op: OP_WORD, loc: token.loc, value: word})
 }
 
 func addWord(token Token) {

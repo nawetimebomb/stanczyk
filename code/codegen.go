@@ -62,6 +62,10 @@ func generateLinuxX86() {
 
 	for _, function := range TheProgram.chunks {
 		if !function.called {
+			if !function.internal {
+				msg := fmt.Sprintf(MsgTypecheckWarningNotCalled, function.name)
+				ReportErrorAtLocation(msg, function.loc)
+			}
 			continue
 		}
 		if function.name == "main" {
