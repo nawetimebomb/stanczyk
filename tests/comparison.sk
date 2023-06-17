@@ -4,38 +4,38 @@ using "io"
 ;; Description:
 ;    Comparing values and checking the results
 function main do
-  "equal\n" puts
-  "2 2 = -> 1 " puts 2 2 = (int) print
-  "2 3 = -> 0 " puts 2 3 = (int) print
-  "3 2 = -> 0 " puts 3 2 = (int) print
-  "-----------\n" puts
+  "equal" println
+  "2 2 = -> 1 " print 2 2 = (int) println
+  "2 3 = -> 0 " print 2 3 = (int) println
+  "3 2 = -> 0 " print 3 2 = (int) println
+  "-----------" println
 
-  "not equal\n" puts
-  "2 3 != -> 1 " puts 2 3 != (int) print
-  "3 2 != -> 1 " puts 3 2 != (int) print
-  "2 2 != -> 0 " puts 2 2 != (int) print
-  "-----------\n" puts
+  "not equal" println
+  "2 3 != -> 1 " print 2 3 != (int) println
+  "3 2 != -> 1 " print 3 2 != (int) println
+  "2 2 != -> 0 " print 2 2 != (int) println
+  "-----------" println
 
-  "less\n" puts
-  "3 2 > -> 1 " puts 3 2 > (int) print
-  "2 3 > -> 0 " puts 2 3 > (int) print
-  "3 3 > -> 0 " puts 3 3 > (int) print
-  "-----------\n" puts
+  "less" println
+  "3 2 > -> 1 " print 3 2 > (int) println
+  "2 3 > -> 0 " print 2 3 > (int) println
+  "3 3 > -> 0 " print 3 3 > (int) println
+  "-----------" println
 
-  "less equal\n" puts
-  "3 3 >= -> 1 " puts 3 3 >= (int) print
-  "3 2 >= -> 1 " puts 3 2 >= (int) print
-  "2 3 >= -> 0 " puts 2 3 >= (int) print
-  "-----------\n" puts
+  "less equal" println
+  "3 3 >= -> 1 " print 3 3 >= (int) println
+  "3 2 >= -> 1 " print 3 2 >= (int) println
+  "2 3 >= -> 0 " print 2 3 >= (int) println
+  "-----------" println
 
-  "greater\n" puts
-  "2 3 < -> 1 " puts 2 3 < (int) print
-  "3 2 < -> 0 " puts 3 2 < (int) print
-  "2 2 < -> 0 " puts 2 2 < (int) print
-  "-----------\n" puts
+  "greater" println
+  "2 3 < -> 1 " print 2 3 < (int) println
+  "3 2 < -> 0 " print 3 2 < (int) println
+  "2 2 < -> 0 " print 2 2 < (int) println
+  "-----------" println
 
-  "greater equal\n" puts
-  "2 2 <= -> 1 " puts 2 2 <= (int) print
-  "2 3 <= -> 1 " puts 2 3 <= (int) print
-  "3 2 <= -> 0 " puts 3 2 <= (int) print
+  "greater equal" println
+  "2 2 <= -> 1 " print 2 2 <= (int) println
+  "2 3 <= -> 1 " print 2 3 <= (int) println
+  "3 2 <= -> 0 " print 3 2 <= (int) println
 .

@@ -1,9 +1,10 @@
 using "io"
 
 function main do
-  "1  " puts
+  "1  " print
   argc print
+  "\n" print
 
-  "./output  " puts
-  0 []argv puts "\n" puts
+  "./output  " print
+  0 []argv print "\n" print
 .

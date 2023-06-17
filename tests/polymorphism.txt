@@ -1,0 +1,4 @@
+Testing polymorphism with this function that takes different parameters but always returns a boolean value
+1  1
+0  0
+1  1

@@ -1,0 +1,20 @@
+using "io"
+
+function equal int int -> bool do
+  =
+.
+
+function equal bool bool -> bool do
+  =
+.
+
+function equal ptr ptr -> bool do
+  str=
+.
+
+function main do
+  "Testing polymorphism with this function that takes different parameters but always returns a boolean value" println
+  "1  " print 2 2 equal println
+  "0  " print false true equal println
+  "1  " print "test" "test" equal println
+.

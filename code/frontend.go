@@ -388,7 +388,7 @@ func expandWord(token Token) {
 	word := token.value
 
 	for x, b := range frontend.current.bindings {
-		if word == b {
+		if word == b.word {
 			emit(Code{op: OP_PUSH_BOUND, loc: token.loc, value: x})
 			return
 		}
@@ -438,7 +438,7 @@ func addBind(token Token) {
 	for match(TOKEN_WORD) {
 		t := parser.previous
 		frontend.current.bindings =
-			append(frontend.current.bindings, t.value.(string))
+			append(frontend.current.bindings, Bound{word: t.value.(string)})
 	}
 
 	if len(frontend.current.bindings) == 0 {
