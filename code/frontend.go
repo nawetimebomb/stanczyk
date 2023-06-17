@@ -229,6 +229,7 @@ func newFunction(token Token) {
 
 	function.name = name
 	if name == "main" {
+		function.called = true
 		for _, f := range TheProgram.chunks {
 			if f.name == "main" {
 				msg := fmt.Sprintf(MsgParseFunctionMainAlreadyDefined, f.loc.f, f.loc.l)
@@ -393,7 +394,9 @@ func expandMacro(index int) {
 }
 
 func expandWord(token Token) {
-	addWord(token)
+	if !parser.internal {
+		addWord(token.value.(string))
+	}
 	word := token.value
 
 	for x, b := range frontend.current.bindings {
@@ -427,8 +430,7 @@ func expandWord(token Token) {
 	emit(Code{op: OP_WORD, loc: token.loc, value: word})
 }
 
-func addWord(token Token) {
-	word := token.value.(string)
+func addWord(word string) {
 	for _, w := range frontend.words {
 		if w == word {
 			return
@@ -649,6 +651,26 @@ func parseToken(token Token) {
 	}
 }
 
+func markFunctionsAsCalled() {
+	for x := 0; x < len(frontend.words); x++ {
+		word := frontend.words[x]
+
+		for y := 0; y < len(TheProgram.chunks); y++ {
+			f := &TheProgram.chunks[y]
+
+			if f.name == word {
+				f.called = true
+
+				for _, code := range f.code {
+					if code.op == OP_WORD {
+						addWord(code.value.(string))
+					}
+				}
+			}
+		}
+	}
+}
+
 func FrontendRun() {
 	// Core standard library
 	file.Open("basics")
@@ -660,17 +682,7 @@ func FrontendRun() {
 		compile(index)
 	}
 
-	for index := 0; index < len(TheProgram.chunks); index++ {
-		f := &TheProgram.chunks[index]
-
-		if f.name == "main" {
-			f.called = true
-		}
-
-		if Contains(frontend.words, f.name) {
-			f.called = true
-		}
-	}
+	markFunctionsAsCalled()
 
 	TheProgram.memories = frontend.memories
 
