@@ -117,6 +117,8 @@ const (
 		"missing '.'\n" +
 			"\t\tfunction my-func do [...] .\n" +
 			"\t\t                          ^"
+	MsgParseFunctionMainAlreadyDefined =
+		"function main already defined at %s:%d"
 
 	MsgParseConstMissingWord =
 		"invalid or missing word\n" +

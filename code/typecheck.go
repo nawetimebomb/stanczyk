@@ -187,11 +187,6 @@ func dtArray(values ...DataType) []DataType {
 func TypecheckRun() {
 	mainHandled := false
 	for ifunction, function := range TheProgram.chunks {
-		if !function.called && !function.internal {
-			msg := fmt.Sprintf(MsgTypecheckWarningNotCalled, function.name)
-			ReportErrorAtLocation(msg, function.loc)
-		}
-
 		if function.name == "main" {
 			mainHandled = true
 			if len(function.args) > 0 || len(function.rets) > 0 {
@@ -361,9 +356,8 @@ func TypecheckRun() {
 					fnCall = fns[0]
 				} else {
 					for _, f := range fns {
-						var stackCopy []DataType
 						lastInStack := tc.stackCount - len(f.args)
-					    stackCopy = tc.stack[lastInStack:len(f.args) + 1]
+					    stackCopy := tc.stack[lastInStack:len(f.args) + 1]
 						found := false
 						for i, _ := range f.args {
 							if f.args[i] != stackCopy[i] {
@@ -381,6 +375,9 @@ func TypecheckRun() {
 					}
 				}
 
+				if function.called {
+					TheProgram.chunks[fnCall.ip].called = true
+				}
 				TheProgram.chunks[ifunction].code[icode].value = FunctionCall{name: fnCall.name, ip: fnCall.ip}
 
 				for range fnCall.args {
