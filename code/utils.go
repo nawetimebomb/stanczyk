@@ -54,3 +54,7 @@ func FindFunctionByIP(code Code) Function {
 	ip := code.value.(int)
 	return TheProgram.chunks[ip]
 }
+
+func ChangeValueOfFunction(functionIP, codeIP int, value FunctionCall) {
+	TheProgram.chunks[functionIP].code[codeIP].value = value
+}

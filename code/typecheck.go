@@ -375,10 +375,8 @@ func TypecheckRun() {
 					}
 				}
 
-				if function.called {
-					TheProgram.chunks[fnCall.ip].called = true
-				}
-				TheProgram.chunks[ifunction].code[icode].value = FunctionCall{name: fnCall.name, ip: fnCall.ip}
+				ChangeValueOfFunction(ifunction, icode,
+					FunctionCall{name: fnCall.name, ip: fnCall.ip})
 
 				for range fnCall.args {
 					t := tc.pop()
