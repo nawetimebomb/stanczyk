@@ -70,27 +70,41 @@ function* SYSCALL_WRITE int ptr int int do .
 function* SYSCALL_READ  int ptr int int -> int do .
 function* SYSCALL_EXIT  int int do .
 
-function puts ptr do
-  dup strlen swap
-  STDOUT LINUX_WRITE SYSCALL_WRITE
-.
-
 function eputs ptr do
   dup strlen swap
   STDERR LINUX_WRITE SYSCALL_WRITE
 .
 
-function sprint int ptr do
+function read int ptr -> int do
+  STDIN LINUX_READ SYSCALL_READ
+.
+
+function print ptr do
+  dup strlen swap
   STDOUT LINUX_WRITE SYSCALL_WRITE
 .
 
 function print int do
-  int->str puts
-  "\n"  puts
+  int->str print
 .
 
-function read int ptr -> int do
-  STDIN LINUX_READ SYSCALL_READ
+function print bool do
+  (int) int->str print
+.
+
+function println ptr do
+  print
+  "\n" print
+.
+
+function println int do
+  print
+  "\n" print
+.
+
+function println bool do
+  (int) print
+  "\n" print
 .
 
 function error ptr do
@@ -105,13 +119,13 @@ function exit int do
 .
 
 function clear do
-  "\e[H\e[2J" puts
+  "\e[H\e[2J" print
 .
 
 function []argv int -> ptr do
   8 * argv (int) + (ptr) ->64
   if dup (int) 0 = do
-    dup puts
+    dup print
     "argv empty" error
   .
 .

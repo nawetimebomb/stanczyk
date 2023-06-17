@@ -1,8 +1,8 @@
 using "io"
 
 function main do
-  "adding to a ptr only works when type casting the pointer to int\n" puts
-  5 "Stańczyk" (int) +
-  "4202566  " puts
-  print
+  "adding to a ptr only works when type casting the pointer to int" println
+  5 true (int) +
+  "6  " print
+  println
 .

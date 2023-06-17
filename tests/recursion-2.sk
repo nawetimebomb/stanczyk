@@ -9,6 +9,6 @@ function fib int -> int do
 .
 
 function main do
-  "Getting the 30th number on the Fibonacci sequence\n" puts
-  "832040  " puts 30 fib print
+  "Getting the 30th number on the Fibonacci sequence" println
+  "832040  " print 30 fib println
 .
