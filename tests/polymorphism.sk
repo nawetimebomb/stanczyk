@@ -1,14 +1,14 @@
 using "io"
 
-function equal int int -> bool do
+function* equal int int -> bool do
   =
 .
 
-function equal bool bool -> bool do
+function* equal bool bool -> bool do
   =
 .
 
-function equal ptr ptr -> bool do
+function* equal ptr ptr -> bool do
   str=
 .
 

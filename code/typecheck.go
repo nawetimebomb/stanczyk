@@ -336,13 +336,15 @@ func TypecheckRun() {
 			// Special
 			case OP_SYSCALL:
 				var have []DataType
+				var want []DataType
 
-				for range function.args {
+				for index := 0; index < code.value.(int); index++ {
 					t := tc.pop()
 					have = append([]DataType{t}, have...)
+					want = append(want, DATA_ANY)
 				}
 
-				assertArgumentType(have, function.args, code, loc)
+				assertArgumentType(have, want, code, loc)
 
 				for _, dt := range function.rets {
 					tc.push(dt)
@@ -375,6 +377,7 @@ func TypecheckRun() {
 					}
 				}
 
+				MarkFunctionAsCalled(fnCall.ip)
 				ChangeValueOfFunction(ifunction, icode,
 					FunctionCall{name: fnCall.name, ip: fnCall.ip})
 

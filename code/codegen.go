@@ -315,7 +315,7 @@ func generateLinuxX86() {
 				// Special
 			case OP_SYSCALL:
 				regs := []string{"rax", "rdi", "rsi", "rdx", "r10", "r8", "r9",}
-				for i, _ := range function.args {
+				for i := 0; i < value.(int); i++ {
 					asm.WriteText("    pop %s", regs[i])
 				}
 				asm.WriteText("    syscall")

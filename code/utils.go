@@ -31,6 +31,10 @@ func Contains[T comparable](s []T, e T) bool {
     return false
 }
 
+func MarkFunctionAsCalled(fnIP int) {
+	TheProgram.chunks[fnIP].called = true
+}
+
 func FindFunctionsByName(code Code) []Function {
 	var result []Function
 	name := code.value.(string)
