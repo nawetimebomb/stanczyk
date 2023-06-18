@@ -65,6 +65,7 @@ const (
 	TOKEN_STORE32
 	TOKEN_STORE64
 	TOKEN_SWAP
+	TOKEN_SYSCALL
 	TOKEN_TAKE
 	TOKEN_THIS
 	TOKEN_USING
@@ -79,7 +80,7 @@ type reserved struct {
 	typ   TokenType
 }
 
-var reservedWords = [51]reserved{
+var reservedWords = [52]reserved{
 	reserved{typ: TOKEN_ARGC,	        word: "argc"	  },
 	reserved{typ: TOKEN_ARGV,		    word: "argv"	  },
 	reserved{typ: TOKEN_BANG_EQUAL,		word: "!="		  },
@@ -127,6 +128,7 @@ var reservedWords = [51]reserved{
 	reserved{typ: TOKEN_STORE32,		word: "<-32" 	  },
 	reserved{typ: TOKEN_STORE64,		word: "<-64" 	  },
 	reserved{typ: TOKEN_SWAP,			word: "swap"	  },
+	reserved{typ: TOKEN_SYSCALL,        word: "syscall"   },
 	reserved{typ: TOKEN_TAKE,			word: "take"	  },
 	reserved{typ: TOKEN_THIS,			word: "this"	  },
 	reserved{typ: TOKEN_TRUE,			word: "true"	  },
@@ -254,7 +256,8 @@ func crossRefMacros() {
 			scope++
 			macroIndex = index
 		case tt == TOKEN_BIND, tt == TOKEN_CONST, tt == TOKEN_IF, tt == TOKEN_LOOP,
-			tt == TOKEN_FUNCTION, tt == TOKEN_FUNCTION_STAR, tt == TOKEN_RESERVE:
+			tt == TOKEN_FUNCTION, tt == TOKEN_FUNCTION_STAR, tt == TOKEN_RESERVE,
+			tt == TOKEN_SYSCALL:
 			scope++
 		case tt == TOKEN_DOT:
 			if scope > 0 {

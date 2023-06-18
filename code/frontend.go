@@ -213,7 +213,7 @@ func newConstant(token Token) {
 
 func newFunction(token Token) {
 	var function Function
-	emitSyscall := token.typ == TOKEN_FUNCTION_STAR
+	isPolymorphic := token.typ == TOKEN_FUNCTION_STAR
 	function.ip = len(TheProgram.chunks)
 	function.loc = token.loc
 	function.internal = parser.internal
@@ -228,6 +228,7 @@ func newFunction(token Token) {
 	name := word.value.(string)
 
 	function.name = name
+	function.polymorphic = isPolymorphic
 	if name == "main" {
 		function.called = true
 		for _, f := range TheProgram.chunks {
@@ -236,6 +237,23 @@ func newFunction(token Token) {
 				errorAt(&token, msg)
 				ExitWithError(CodeParseError)
 			}
+		}
+	}
+
+
+	for _, f := range TheProgram.chunks {
+		if f.name == function.name && (!f.polymorphic || !function.polymorphic) {
+			msg := fmt.Sprintf(MsgParseFunctionNotPolymorphic, function.name)
+			var loc Location
+
+			if !f.polymorphic {
+				loc = f.loc
+			} else {
+				loc = token.loc
+			}
+
+			ReportErrorAtLocation(msg, loc)
+			ExitWithError(CodeParseError)
 		}
 	}
 
@@ -293,13 +311,6 @@ func newFunction(token Token) {
 	for frontend.sLevel > 0 && !check(TOKEN_EOF) {
 		advance()
 		parseToken(parser.previous)
-	}
-
-	if emitSyscall {
-		emit(Code{
-			op: OP_SYSCALL,
-			loc: function.loc,
-		})
 	}
 
 	emitReturn()
@@ -462,6 +473,18 @@ func addBind(token Token) {
 	emit(Code{op: OP_BIND, loc: token.loc})
 }
 
+func newSyscall(token Token) {
+	var code Code
+	code.op = OP_SYSCALL
+	code.loc = token.loc
+	// TODO: add error handling
+	// TODO: syscall should define the type instead of just getting a number
+	advance()
+	code.value = parser.previous.value.(int)
+	consume(TOKEN_DOT, "TODO: handle error")
+	emit(code)
+}
+
 func parseToken(token Token) {
 	var code Code
 	code.loc = token.loc
@@ -586,6 +609,8 @@ func parseToken(token Token) {
 	case TOKEN_SWAP:
 		code.op = OP_SWAP
 		emit(code)
+	case TOKEN_SYSCALL:
+		newSyscall(token)
 	case TOKEN_TAKE:
 		code.op = OP_TAKE
 		emit(code)
@@ -657,6 +682,10 @@ func markFunctionsAsCalled() {
 
 		for y := 0; y < len(TheProgram.chunks); y++ {
 			f := &TheProgram.chunks[y]
+
+			if f.polymorphic {
+				continue
+			}
 
 			if f.name == word {
 				f.called = true

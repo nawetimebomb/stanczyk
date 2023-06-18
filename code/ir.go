@@ -75,15 +75,16 @@ type Program struct {
 }
 
 type Function struct {
-	ip       int
-	name     string
-	loc      Location
-	args     []DataType
-	rets     []DataType
-	bindings []Bound
-	code     []Code
-	called   bool
-	internal bool
+	ip          int
+	name        string
+	loc         Location
+	args        []DataType
+	rets        []DataType
+	bindings    []Bound
+	code        []Code
+	polymorphic bool
+	called      bool
+	internal    bool
 }
 
 type Code struct {
