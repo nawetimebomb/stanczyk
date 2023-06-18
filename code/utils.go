@@ -31,22 +31,34 @@ func Contains[T comparable](s []T, e T) bool {
     return false
 }
 
-func FindFunction(code Code) Function {
-	var result Function
+func MarkFunctionAsCalled(fnIP int) {
+	TheProgram.chunks[fnIP].called = true
+}
+
+func FindFunctionsByName(code Code) []Function {
+	var result []Function
 	name := code.value.(string)
 
 	for _, f := range TheProgram.chunks {
 		if f.name == name {
-			result = f
-			break
+			result = append(result, f)
 		}
 	}
 
-	if !result.called {
+	if len(result) == 0 {
 		msg := fmt.Sprintf(MsgParseWordNotFound, name)
 		ReportErrorAtLocation(msg, code.loc)
 		ExitWithError(CodeCodegenError)
 	}
 
 	return result
+}
+
+func FindFunctionByIP(code Code) Function {
+	ip := code.value.(int)
+	return TheProgram.chunks[ip]
+}
+
+func ChangeValueOfFunction(functionIP, codeIP int, value FunctionCall) {
+	TheProgram.chunks[functionIP].code[codeIP].value = value
 }

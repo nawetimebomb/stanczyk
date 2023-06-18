@@ -5,39 +5,38 @@ using "io"
 ;    simple function composition
 
 function S do
-  "S" puts
+  "S" print
 .
 
 function t do
-  "t" puts
+  "t" print
 .
 
 function a do
-  "a" puts
+  "a" print
 .
 
 function ń do
-  "ń" puts
+  "ń" print
 .
 
 function c do
-  "c" puts
+  "c" print
 .
 
 function z do
-  "z" puts
+  "z" print
 .
 
 function y do
-  "y" puts
+  "y" print
 .
 
 function k do
-  "k" puts
+  "k" println
 .
 
 function main do
-  "Stańczyk  " puts
+  "Stańczyk  " print
   S t a ń c z y k
-  "\n" puts
 .

@@ -5,23 +5,23 @@ function get-str -> ptr do
 .
 
 function main do
-  "Testing strings in Stańczyk is a little bit more complicated\n" puts
+  "Testing strings in Stańczyk is a little bit more complicated" println
 
   if "Stańczyk" "Stańczyk" str= do
-    "1- these are equal\n" puts
+    "1- these are equal" println
   else
-    "1- test failed!\n" puts
+    "1- test failed!" println
   .
 
   if get-str get-str str= do
-    "2- these are equal\n" puts
+    "2- these are equal" println
   else
-    "2- test failed!\n" puts
+    "2- test failed!" println
   .
 
   if "Stańczyk" "Nope" str= do
-    "3- test failed!\n" puts
+    "3- test failed!" println
   else
-    "3- these are not equal\n" puts
+    "3- these are not equal" println
   .
 .

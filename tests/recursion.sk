@@ -14,7 +14,8 @@ function add-3-to-original int -> int do
 .
 
 function main do
-  "define a recursive function that adds 3 (1 by 1) to 'original' of value 10 and returns it\n" puts
-  "add-3-to-original  13  " puts
-  original add-3-to-original print
+  "define a recursive function that adds 3 (1 by 1) to 'original' of value 10 and returns it"
+  println
+  "add-3-to-original  13  " print
+  original add-3-to-original println
 .

@@ -64,21 +64,27 @@ const (
 	DATA_ANY
 )
 
+type Bound struct {
+	word string
+	typ  DataType
+}
+
 type Program struct {
 	chunks   []Function
 	memories []Object
 }
 
 type Function struct {
-	ip       int
-	name     string
-	loc      Location
-	args     []DataType
-	rets     []DataType
-	bindings []string
-	code     []Code
-	called   bool
-	internal bool
+	ip          int
+	name        string
+	loc         Location
+	args        []DataType
+	rets        []DataType
+	bindings    []Bound
+	code        []Code
+	polymorphic bool
+	called      bool
+	internal    bool
 }
 
 type Code struct {
@@ -89,6 +95,11 @@ type Code struct {
 
 type Chunk struct {
 	code []Code
+}
+
+type FunctionCall struct {
+	name string
+	ip   int
 }
 
 func (this *Function) WriteCode(code Code) {

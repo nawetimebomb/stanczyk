@@ -5,10 +5,10 @@ using "io"
 ;    Check the values of pushed booleans to the stack
 
 function main do
-  "true value:  " puts
-  true (int) print
-  "-----------\n" puts
+  "true value:  " print
+  true (int) println
+  "-----------" println
 
-  "false value:  " puts
-  false (int) print
+  "false value:  " print
+  false (int) println
 .

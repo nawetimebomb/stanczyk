@@ -186,12 +186,7 @@ func dtArray(values ...DataType) []DataType {
 
 func TypecheckRun() {
 	mainHandled := false
-	for _, function := range TheProgram.chunks {
-		if !function.called && !function.internal {
-			msg := fmt.Sprintf(MsgTypecheckWarningNotCalled, function.name)
-			ReportErrorAtLocation(msg, function.loc)
-		}
-
+	for ifunction, function := range TheProgram.chunks {
 		if function.name == "main" {
 			mainHandled = true
 			if len(function.args) > 0 || len(function.rets) > 0 {
@@ -206,7 +201,7 @@ func TypecheckRun() {
 			tc.push(dt)
 		}
 
-		for _, code := range function.code {
+		for icode, code := range function.code {
 			instruction := code.op
 			loc := code.loc
 
@@ -215,7 +210,8 @@ func TypecheckRun() {
 			case OP_PUSH_BOOL:
 				tc.push(DATA_BOOL)
 			case OP_PUSH_BOUND:
-				tc.push(DATA_ANY)
+				i := code.value.(int)
+				tc.push(function.bindings[i].typ)
 			case OP_PUSH_CHAR:
 				tc.push(DATA_CHAR)
 			case OP_PUSH_INT:
@@ -247,8 +243,11 @@ func TypecheckRun() {
 				var binds []DataType
 				var wants []DataType
 				for range function.bindings {
-					binds = append(binds, tc.pop())
+					binds = append([]DataType{tc.pop()}, binds...)
 					wants = append(wants, DATA_ANY)
+				}
+				for i, b := range binds {
+					function.bindings[i].typ = b
 				}
 				assertArgumentType(binds, wants, code, loc)
 			case OP_CAST:
@@ -337,20 +336,50 @@ func TypecheckRun() {
 			// Special
 			case OP_SYSCALL:
 				var have []DataType
+				var want []DataType
 
-				for range function.args {
+				for index := 0; index < code.value.(int); index++ {
 					t := tc.pop()
 					have = append([]DataType{t}, have...)
+					want = append(want, DATA_ANY)
 				}
 
-				assertArgumentType(have, function.args, code, loc)
+				assertArgumentType(have, want, code, loc)
 
 				for _, dt := range function.rets {
 					tc.push(dt)
 				}
 			case OP_WORD:
 				var have []DataType
-				fnCall := FindFunction(code)
+				var fnCall Function
+				fns := FindFunctionsByName(code)
+
+				if len(fns) == 1 {
+					fnCall = fns[0]
+				} else {
+					for _, f := range fns {
+						lastInStack := tc.stackCount - len(f.args)
+					    stackCopy := tc.stack[lastInStack:len(f.args) + 1]
+						found := false
+						for i, _ := range f.args {
+							if f.args[i] != stackCopy[i] {
+								found = false
+								break
+							}
+
+							found = true
+						}
+
+						if found {
+							fnCall = f
+							break
+						}
+					}
+				}
+
+				MarkFunctionAsCalled(fnCall.ip)
+				ChangeValueOfFunction(ifunction, icode,
+					FunctionCall{name: fnCall.name, ip: fnCall.ip})
 
 				for range fnCall.args {
 					t := tc.pop()

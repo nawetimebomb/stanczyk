@@ -62,6 +62,10 @@ func generateLinuxX86() {
 
 	for _, function := range TheProgram.chunks {
 		if !function.called {
+			if !function.internal {
+				msg := fmt.Sprintf(MsgTypecheckWarningNotCalled, function.name)
+				ReportErrorAtLocation(msg, function.loc)
+			}
 			continue
 		}
 		if function.name == "main" {
@@ -144,7 +148,7 @@ func generateLinuxX86() {
 				asm.WriteText(";; cast to %s (%s:%d:%d)",
 					getDataTypeName(value.(DataType)), loc.f, loc.l, loc.c)
 			case OP_DIVIDE:
-				asm.WriteText(";; / (%s:%d:%d)", loc.f, loc.l, loc.c)
+				asm.WriteText(";; div (%s:%d:%d)", loc.f, loc.l, loc.c)
 				asm.WriteText("    xor rdx, rdx")
 				asm.WriteText("    pop rbx")
 				asm.WriteText("    pop rax")
@@ -311,7 +315,7 @@ func generateLinuxX86() {
 				// Special
 			case OP_SYSCALL:
 				regs := []string{"rax", "rdi", "rsi", "rdx", "r10", "r8", "r9",}
-				for i, _ := range function.args {
+				for i := 0; i < value.(int); i++ {
 					asm.WriteText("    pop %s", regs[i])
 				}
 				asm.WriteText("    syscall")
@@ -319,7 +323,7 @@ func generateLinuxX86() {
 					asm.WriteText("    push rax")
 				}
 			case OP_WORD:
-				fnCall := FindFunction(code)
+				fnCall := value.(FunctionCall)
 
 				asm.WriteText(";; call function %s (%s:%d:%d)", fnCall.name, loc.f, loc.l, loc.c)
 				asm.WriteText("    mov rax, rsp")

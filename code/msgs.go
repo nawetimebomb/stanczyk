@@ -117,6 +117,10 @@ const (
 		"missing '.'\n" +
 			"\t\tfunction my-func do [...] .\n" +
 			"\t\t                          ^"
+	MsgParseFunctionMainAlreadyDefined =
+		"function main already defined at %s:%d"
+	MsgParseFunctionNotPolymorphic =
+		"function %s is not polymorphic and has a non-polymorphic variant"
 
 	MsgParseConstMissingWord =
 		"invalid or missing word\n" +
