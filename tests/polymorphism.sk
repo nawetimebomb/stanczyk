@@ -14,7 +14,7 @@ function* equal ptr ptr -> bool do
 
 function main do
   "Testing polymorphism with this function that takes different parameters but always returns a boolean value" println
-  "1  " print 2 2 equal println
-  "0  " print false true equal println
-  "1  " print "test" "test" equal println
+  "true  " print 2 2 equal println
+  "false  " print false true equal println
+  "true  " print "test" "test" equal println
 .

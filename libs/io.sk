@@ -96,7 +96,11 @@ function* print int do
 .
 
 function* print bool do
-  (int) int->str print
+  if take 1 = do
+    "true" print
+  else
+    "false" print
+  .
 .
 
 function* println ptr do
@@ -110,7 +114,7 @@ function* println int do
 .
 
 function* println bool do
-  (int) print
+  print
   "\n" print
 .
 
