@@ -68,7 +68,17 @@ const MAX_UINT16 65535 .
 const MAX_UINT32 4294967295 .
 const MAX_UINT64 18446744073709551615 .
 
-function ++ int -> int do
+function and bool bool -> bool do
+  swap (int)
+  swap (int)
+  + 2 =
+.
+
+function* ++ int -> int do
+  1 +
+.
+
+function* ++ ptr -> ptr do
   1 +
 .
 
@@ -93,7 +103,7 @@ function ptrdiff ptr ptr -> int do
 function strlen ptr -> int do
   dup
   loop dup ->8 0 != do
-    1 +
+    ++
   .
   swap ptrdiff
 .
@@ -106,8 +116,8 @@ function str= ptr ptr -> bool do
   if l1 l2 = do
     0
     loop s1 over + ->8
-         swap s2 over + ->8
-         rotate = do
+      swap s2 over + ->8
+      rotate = do
       ++
     .
     ;; TODO = = should actually be "and", that checks that both are true

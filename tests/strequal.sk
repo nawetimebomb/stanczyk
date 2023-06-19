@@ -8,13 +8,13 @@ function main do
   "Testing strings in Stańczyk is a little bit more complicated" println
 
   if "Stańczyk" "Stańczyk" str= do
-    "1- these are equal" println
+    "1- test success" println
   else
     "1- test failed!" println
   .
 
   if get-str get-str str= do
-    "2- these are equal" println
+    "2- test success" println
   else
     "2- test failed!" println
   .
@@ -22,6 +22,6 @@ function main do
   if "Stańczyk" "Nope" str= do
     "3- test failed!" println
   else
-    "3- these are not equal" println
+    "3- test success" println
   .
 .

@@ -149,6 +149,10 @@ const (
 	 */
 	MsgTypecheckMainFunctionNoArgumentsOrReturn =
 		"function 'main' must have no arguments and no return values"
+	MsgTypecheckFunctionPolymorphicMatchNotFound =
+		"no polymorphic function '%s' with matching parameters\n" +
+			"\t\thave (%s)\n" +
+			"\t\twant %s"
 	MsgTypecheckArgumentsTypeMismatch =
 		"incorrect arguments to call %s\n" +
 			"\t\thave (%s)\n" +

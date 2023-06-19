@@ -336,15 +336,14 @@ func TypecheckRun() {
 			// Special
 			case OP_SYSCALL:
 				var have []DataType
-				var want []DataType
+				value := code.value.([]DataType)
 
-				for index := 0; index < code.value.(int); index++ {
+				for range value {
 					t := tc.pop()
 					have = append([]DataType{t}, have...)
-					want = append(want, DATA_ANY)
 				}
 
-				assertArgumentType(have, want, code, loc)
+				assertArgumentType(have, value, code, loc)
 
 				for _, dt := range function.rets {
 					tc.push(dt)
@@ -357,9 +356,16 @@ func TypecheckRun() {
 				if len(fns) == 1 {
 					fnCall = fns[0]
 				} else {
-					for _, f := range fns {
+					paramsMsg := ""
+					for index, f := range fns {
+						if index > 0 {
+							paramsMsg += " or "
+						}
+
+						paramsMsg += "(" + getDataTypeNames(f.args) + ")"
+
 						lastInStack := tc.stackCount - len(f.args)
-					    stackCopy := tc.stack[lastInStack:len(f.args) + 1]
+					    stackCopy := tc.stack[lastInStack:]
 						found := false
 						for i, _ := range f.args {
 							if f.args[i] != stackCopy[i] {
@@ -375,9 +381,14 @@ func TypecheckRun() {
 							break
 						}
 					}
+
+					if !fnCall.called {
+						msg := fmt.Sprintf(MsgTypecheckFunctionPolymorphicMatchNotFound, code.value, getStackValues(), paramsMsg)
+						ReportErrorAtLocation(msg, function.loc)
+						ExitWithError(CodeTypecheckError)
+					}
 				}
 
-				MarkFunctionAsCalled(fnCall.ip)
 				ChangeValueOfFunction(ifunction, icode,
 					FunctionCall{name: fnCall.name, ip: fnCall.ip})
 
