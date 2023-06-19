@@ -1,4 +1,4 @@
 Testing strings in Stańczyk is a little bit more complicated
-1- these are equal
-2- these are equal
-3- these are not equal
+1- test success
+2- test success
+3- test success

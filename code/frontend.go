@@ -213,7 +213,7 @@ func newConstant(token Token) {
 
 func newFunction(token Token) {
 	var function Function
-	isPolymorphic := token.typ == TOKEN_FUNCTION_STAR
+	function.polymorphic = token.typ == TOKEN_FUNCTION_STAR
 	function.ip = len(TheProgram.chunks)
 	function.loc = token.loc
 	function.internal = parser.internal
@@ -228,7 +228,6 @@ func newFunction(token Token) {
 	name := word.value.(string)
 
 	function.name = name
-	function.polymorphic = isPolymorphic
 	if name == "main" {
 		function.called = true
 		for _, f := range TheProgram.chunks {
@@ -474,13 +473,30 @@ func addBind(token Token) {
 }
 
 func newSyscall(token Token) {
+	var value []DataType
 	var code Code
 	code.op = OP_SYSCALL
 	code.loc = token.loc
-	// TODO: add error handling
-	// TODO: syscall should define the type instead of just getting a number
-	advance()
-	code.value = parser.previous.value.(int)
+
+	for !check(TOKEN_DOT) && !check(TOKEN_EOF) {
+		advance()
+		var arg DataType
+		t := parser.previous
+
+		switch t.typ {
+		case TOKEN_DTYPE_BOOL: arg = DATA_BOOL
+		case TOKEN_DTYPE_CHAR: arg = DATA_CHAR
+		case TOKEN_DTYPE_INT:  arg = DATA_INT
+		case TOKEN_DTYPE_PTR:  arg = DATA_PTR
+		default:
+			msg := fmt.Sprintf(MsgParseFunctionUnknownType, t.value)
+			errorAt(&t, msg)
+			ExitWithError(CodeParseError)
+		}
+
+		value = append(value, arg)
+	}
+	code.value = value
 	consume(TOKEN_DOT, "TODO: handle error")
 	emit(code)
 }
@@ -682,10 +698,6 @@ func markFunctionsAsCalled() {
 
 		for y := 0; y < len(TheProgram.chunks); y++ {
 			f := &TheProgram.chunks[y]
-
-			if f.polymorphic {
-				continue
-			}
 
 			if f.name == word {
 				f.called = true
