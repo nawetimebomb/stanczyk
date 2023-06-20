@@ -29,6 +29,7 @@ type Scope struct {
 }
 
 type Frontend struct {
+	bindings  []Bound
 	constants []Object
 	memories  []Object
 	current	  *Function
@@ -213,7 +214,7 @@ func newConstant(token Token) {
 
 func newFunction(token Token) {
 	var function Function
-	isPolymorphic := token.typ == TOKEN_FUNCTION_STAR
+	function.polymorphic = token.typ == TOKEN_FUNCTION_STAR
 	function.ip = len(TheProgram.chunks)
 	function.loc = token.loc
 	function.internal = parser.internal
@@ -228,7 +229,6 @@ func newFunction(token Token) {
 	name := word.value.(string)
 
 	function.name = name
-	function.polymorphic = isPolymorphic
 	if name == "main" {
 		function.called = true
 		for _, f := range TheProgram.chunks {
@@ -316,6 +316,7 @@ func newFunction(token Token) {
 	emitReturn()
 
 	TheProgram.chunks = append(TheProgram.chunks, function)
+	frontend.bindings = make([]Bound, 0, 0)
 }
 
 func newReserve(token Token) {
@@ -410,9 +411,9 @@ func expandWord(token Token) {
 	}
 	word := token.value
 
-	for x, b := range frontend.current.bindings {
+	for _, b := range frontend.bindings {
 		if word == b.word {
-			emit(Code{op: OP_PUSH_BOUND, loc: token.loc, value: x})
+			emit(Code{op: OP_PUSH_BOUND, loc: token.loc, value: b})
 			return
 		}
 	}
@@ -451,36 +452,51 @@ func addWord(word string) {
 }
 
 func addBind(token Token) {
-	if len(frontend.current.bindings) > 0 {
-		errorAt(&token, MsgParseBindAlreadyBound)
-		for !match(TOKEN_DOT) { advance() }
-		return
-	}
+	startingBoundIndex := len(frontend.bindings)
 
 	for match(TOKEN_WORD) {
 		t := parser.previous
-		frontend.current.bindings =
-			append(frontend.current.bindings, Bound{word: t.value.(string)})
+		frontend.bindings = append(frontend.bindings, Bound{
+			word: t.value.(string),
+			id: len(frontend.bindings),
+		})
 	}
 
-	if len(frontend.current.bindings) == 0 {
+	if len(frontend.bindings) == startingBoundIndex {
 		errorAt(&token, MsgParseBindEmptyBody)
 		for !match(TOKEN_DOT) { advance() }
 		return
 	}
 
 	consume(TOKEN_DOT, MsgParseBindMissingDot)
-	emit(Code{op: OP_BIND, loc: token.loc})
+	emit(Code{op: OP_BIND, loc: token.loc, value: len(frontend.bindings)})
 }
 
 func newSyscall(token Token) {
+	var value []DataType
 	var code Code
 	code.op = OP_SYSCALL
 	code.loc = token.loc
-	// TODO: add error handling
-	// TODO: syscall should define the type instead of just getting a number
-	advance()
-	code.value = parser.previous.value.(int)
+
+	for !check(TOKEN_DOT) && !check(TOKEN_EOF) {
+		advance()
+		var arg DataType
+		t := parser.previous
+
+		switch t.typ {
+		case TOKEN_DTYPE_BOOL: arg = DATA_BOOL
+		case TOKEN_DTYPE_CHAR: arg = DATA_CHAR
+		case TOKEN_DTYPE_INT:  arg = DATA_INT
+		case TOKEN_DTYPE_PTR:  arg = DATA_PTR
+		default:
+			msg := fmt.Sprintf(MsgParseFunctionUnknownType, t.value)
+			errorAt(&t, msg)
+			ExitWithError(CodeParseError)
+		}
+
+		value = append(value, arg)
+	}
+	code.value = value
 	consume(TOKEN_DOT, "TODO: handle error")
 	emit(code)
 }
@@ -682,10 +698,6 @@ func markFunctionsAsCalled() {
 
 		for y := 0; y < len(TheProgram.chunks); y++ {
 			f := &TheProgram.chunks[y]
-
-			if f.polymorphic {
-				continue
-			}
 
 			if f.name == word {
 				f.called = true
