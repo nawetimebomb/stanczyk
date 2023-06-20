@@ -9,3 +9,5 @@ This file contains new features I need to work on and also bugs that are reporte
 * add 64-bit integer support
 
 * make polymorphic functions smarter when adding to the "called" collection
+
+* fix Bind defect when trying to bind multiple times inside a function

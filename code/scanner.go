@@ -69,6 +69,7 @@ const (
 	TOKEN_TAKE
 	TOKEN_THIS
 	TOKEN_USING
+	TOKEN_YIELD
 
 	// Specials
 	TOKEN_EOF
@@ -80,7 +81,7 @@ type reserved struct {
 	typ   TokenType
 }
 
-var reservedWords = [52]reserved{
+var reservedWords = [53]reserved{
 	reserved{typ: TOKEN_ARGC,	        word: "argc"	  },
 	reserved{typ: TOKEN_ARGV,		    word: "argv"	  },
 	reserved{typ: TOKEN_BANG_EQUAL,		word: "!="		  },
@@ -133,6 +134,7 @@ var reservedWords = [52]reserved{
 	reserved{typ: TOKEN_THIS,			word: "this"	  },
 	reserved{typ: TOKEN_TRUE,			word: "true"	  },
 	reserved{typ: TOKEN_USING,			word: "using"	  },
+	reserved{typ: TOKEN_YIELD,			word: "yield"	  },
 }
 
 type Location struct {
@@ -257,7 +259,7 @@ func crossRefMacros() {
 			macroIndex = index
 		case tt == TOKEN_BIND, tt == TOKEN_CONST, tt == TOKEN_IF, tt == TOKEN_LOOP,
 			tt == TOKEN_FUNCTION, tt == TOKEN_FUNCTION_STAR, tt == TOKEN_RESERVE,
-			tt == TOKEN_SYSCALL:
+			tt == TOKEN_SYSCALL, tt == TOKEN_YIELD:
 			scope++
 		case tt == TOKEN_DOT:
 			if scope > 0 {
