@@ -66,7 +66,7 @@ const (
 
 type Bound struct {
 	word string
-	typ  DataType
+	id   int
 }
 
 type Program struct {
@@ -80,7 +80,6 @@ type Function struct {
 	loc         Location
 	args        []DataType
 	rets        []DataType
-	bindings    []Bound
 	code        []Code
 	polymorphic bool
 	called      bool

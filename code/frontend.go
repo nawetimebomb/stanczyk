@@ -29,6 +29,7 @@ type Scope struct {
 }
 
 type Frontend struct {
+	bindings  []Bound
 	constants []Object
 	memories  []Object
 	current	  *Function
@@ -315,6 +316,7 @@ func newFunction(token Token) {
 	emitReturn()
 
 	TheProgram.chunks = append(TheProgram.chunks, function)
+	frontend.bindings = make([]Bound, 0, 0)
 }
 
 func newReserve(token Token) {
@@ -409,9 +411,9 @@ func expandWord(token Token) {
 	}
 	word := token.value
 
-	for x, b := range frontend.current.bindings {
+	for _, b := range frontend.bindings {
 		if word == b.word {
-			emit(Code{op: OP_PUSH_BOUND, loc: token.loc, value: x})
+			emit(Code{op: OP_PUSH_BOUND, loc: token.loc, value: b})
 			return
 		}
 	}
@@ -450,26 +452,24 @@ func addWord(word string) {
 }
 
 func addBind(token Token) {
-	if len(frontend.current.bindings) > 0 {
-		errorAt(&token, MsgParseBindAlreadyBound)
-		for !match(TOKEN_DOT) { advance() }
-		return
-	}
+	startingBoundIndex := len(frontend.bindings)
 
 	for match(TOKEN_WORD) {
 		t := parser.previous
-		frontend.current.bindings =
-			append(frontend.current.bindings, Bound{word: t.value.(string)})
+		frontend.bindings = append(frontend.bindings, Bound{
+			word: t.value.(string),
+			id: len(frontend.bindings),
+		})
 	}
 
-	if len(frontend.current.bindings) == 0 {
+	if len(frontend.bindings) == startingBoundIndex {
 		errorAt(&token, MsgParseBindEmptyBody)
 		for !match(TOKEN_DOT) { advance() }
 		return
 	}
 
 	consume(TOKEN_DOT, MsgParseBindMissingDot)
-	emit(Code{op: OP_BIND, loc: token.loc})
+	emit(Code{op: OP_BIND, loc: token.loc, value: len(frontend.bindings)})
 }
 
 func newSyscall(token Token) {

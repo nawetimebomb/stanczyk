@@ -187,6 +187,7 @@ func dtArray(values ...DataType) []DataType {
 func TypecheckRun() {
 	mainHandled := false
 	for ifunction, function := range TheProgram.chunks {
+		var binds []DataType
 		if function.name == "main" {
 			mainHandled = true
 			if len(function.args) > 0 || len(function.rets) > 0 {
@@ -210,8 +211,8 @@ func TypecheckRun() {
 			case OP_PUSH_BOOL:
 				tc.push(DATA_BOOL)
 			case OP_PUSH_BOUND:
-				i := code.value.(int)
-				tc.push(function.bindings[i].typ)
+				value := code.value.(Bound)
+				tc.push(binds[value.id])
 			case OP_PUSH_CHAR:
 				tc.push(DATA_CHAR)
 			case OP_PUSH_INT:
@@ -240,16 +241,17 @@ func TypecheckRun() {
 			case OP_ARGV:
 				tc.push(DATA_PTR)
 			case OP_BIND:
-				var binds []DataType
+				var have []DataType
 				var wants []DataType
-				for range function.bindings {
-					binds = append([]DataType{tc.pop()}, binds...)
+				value := code.value.(int)
+
+				for index := len(binds); index < value; index++ {
+					a := tc.pop()
+					binds = append([]DataType{a}, binds...)
+					have = append([]DataType{a}, have...)
 					wants = append(wants, DATA_ANY)
 				}
-				for i, b := range binds {
-					function.bindings[i].typ = b
-				}
-				assertArgumentType(binds, wants, code, loc)
+				assertArgumentType(have, wants, code, loc)
 			case OP_CAST:
 				a := tc.pop()
 				assertArgumentType(dtArray(a), dtArray(DATA_ANY), code, loc)
