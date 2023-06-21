@@ -32,23 +32,6 @@ const (
 	MsgParseInvalidCharacter =
 		"char should only be 1 character"
 
-	MsgParseMacroMissingWord =
-		"invalid or missing word\n" +
-			"\t\tmacro my-macro do [...] .\n" +
-			"\t\t      ^^^^^^^^"
-	MsgParseMacroMissingDo =
-		"missing 'do' keyword\n" +
-			"\t\tmacro my-macro do [...] .\n" +
-			"\t\t               ^^"
-	MsgParseMacroMissingContent =
-		"empty macro\n" +
-			"\t\tmacro my-macro do [...] .\n" +
-			"\t\t                  ^^^^^"
-	MsgParseMacroMissingDot =
-		"missing '.'\n" +
-			"\t\tmacro my-macro do [...] .\n" +
-			"\t\t                        ^"
-
 	MsgParseReserveValueIsNotConst =
 		"%s is not a const"
 	MsgParseReserveOverrideNotAllowed =
