@@ -51,7 +51,6 @@ const (
 	TOKEN_LOAD32
 	TOKEN_LOAD64
 	TOKEN_LOOP
-	TOKEN_MACRO
 	TOKEN_MINUS
 	TOKEN_OVER
 	TOKEN_PLUS
@@ -115,7 +114,6 @@ var reservedWords = [53]reserved{
 	reserved{typ: TOKEN_LOAD32,			word: "->32" 	  },
 	reserved{typ: TOKEN_LOAD64,			word: "->64" 	  },
 	reserved{typ: TOKEN_LOOP,			word: "loop"	  },
-	reserved{typ: TOKEN_MACRO,			word: "macro"	  },
 	reserved{typ: TOKEN_MINUS,			word: "-"		  },
 	reserved{typ: TOKEN_OVER,           word: "over"	  },
 	reserved{typ: TOKEN_PLUS,			word: "+"		  },
@@ -246,36 +244,6 @@ func makeWord(c byte, line string, index *int) {
 	makeToken(TOKEN_WORD, word)
 }
 
-func crossRefMacros() {
-	scope := 0
-	macroIndex := -1
-
-	for index, token := range scanner.tokens {
-		tt := token.typ
-
-		switch {
-		case tt == TOKEN_MACRO:
-			scope++
-			macroIndex = index
-		case tt == TOKEN_BIND, tt == TOKEN_CONST, tt == TOKEN_IF, tt == TOKEN_LOOP,
-			tt == TOKEN_FUNCTION, tt == TOKEN_FUNCTION_STAR, tt == TOKEN_RESERVE,
-			tt == TOKEN_SYSCALL, tt == TOKEN_YIELD:
-			scope++
-		case tt == TOKEN_DOT:
-			if scope > 0 {
-				scope--
-				if scope == 0 && macroIndex != -1 {
-					scanner.tokens[macroIndex].value = index
-					macroIndex = -1
-			 	}
-			} else {
-				ReportErrorAtLocation(MsgParseMacroMissingDot, token.loc)
-				ExitWithError(CodeParseError)
-			}
-		}
-	}
-}
-
 func TokenizeFile(f string, s string) []Token {
 	scanner.filename = f
 	scanner.source = s
@@ -313,8 +281,6 @@ func TokenizeFile(f string, s string) []Token {
 	}
 
 	makeToken(TOKEN_EOF)
-
-	crossRefMacros()
 
 	return scanner.tokens
 }

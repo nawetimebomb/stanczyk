@@ -17,11 +17,6 @@ type Object struct {
 	word  string
 }
 
-type Macro struct {
-	word   string
-	tokens []Token
-}
-
 type Scope struct {
 	tt     TokenType
 	thenIP int
@@ -34,7 +29,6 @@ type Frontend struct {
 	memories  []Object
 	current	  *Function
 	error     bool
-	macros    []Macro
 	sLevel    int
 	sName     ScopeName
 	scope     [10]Scope
@@ -133,40 +127,12 @@ func emitReturn() {
  *  |  _/   / _||  _/   / (_) | (__| _|\__ \__ \ (_) |   /
  *  |_| |_|_\___|_| |_|_\\___/ \___|___|___/___/\___/|_|_\
  */
-func newMacro() {
-	var macro Macro
-	endOfMacroIndex := parser.previous.value.(int)
-
-	if !match(TOKEN_WORD) {
-		errorAt(&parser.previous, MsgParseMacroMissingWord)
-		return
-	}
-
-	macro.word = parser.previous.value.(string)
-
-	consume(TOKEN_DO, MsgParseMacroMissingDo)
-
-	if match(TOKEN_DOT) {
-		errorAt(&parser.previous, MsgParseMacroMissingContent)
-		return
-	}
-
-	for parser.index < endOfMacroIndex {
-		advance()
-		macro.tokens = append(macro.tokens, parser.previous)
-	}
-
-	frontend.macros = append(frontend.macros, macro)
-
-	consume(TOKEN_DOT, MsgParseMacroMissingDot)
-}
-
 func newConstant(token Token) {
 	var constant Object
 	var tokens []Token
 
 	if !match(TOKEN_WORD) {
-		errorAt(&parser.previous, MsgParseMacroMissingWord)
+		errorAt(&parser.previous, MsgParseConstMissingWord)
 		return
 	}
 
@@ -380,8 +346,6 @@ func compile(index int) {
 			newConstant(token)
 		case TOKEN_FUNCTION, TOKEN_FUNCTION_STAR:
 			newFunction(token)
-		case TOKEN_MACRO:
-			newMacro()
 		case TOKEN_RESERVE:
 			newReserve(token)
 		case TOKEN_USING:
@@ -399,12 +363,6 @@ func compile(index int) {
  *  | (_| (_) | |\/| |  _/| || |__ / _ \| |  | | (_) | .` |
  *   \___\___/|_|  |_|_| |___|____/_/ \_\_| |___\___/|_|\_|
  */
-func expandMacro(index int) {
-	for _, t := range frontend.macros[index].tokens {
-		parseToken(t)
-	}
-}
-
 func expandWord(token Token) {
 	if !parser.internal {
 		addWord(token.value.(string))
@@ -414,13 +372,6 @@ func expandWord(token Token) {
 	for _, b := range frontend.bindings {
 		if word == b.word {
 			emit(Code{op: OP_PUSH_BOUND, loc: token.loc, value: b})
-			return
-		}
-	}
-
-	for x, m := range frontend.macros {
-		if m.word == word {
-			expandMacro(x)
 			return
 		}
 	}

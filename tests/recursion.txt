@@ -1,2 +1,2 @@
-define a recursive function that adds 3 (1 by 1) to 'original' of value 10 and returns it
+define a recursive function that adds 3 (1 by 1) to 'ORIGINAL' of value 10 and returns it
 add-3-to-original  13  13
