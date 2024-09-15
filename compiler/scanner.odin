@@ -1,268 +1,236 @@
 package main
 
-import "core:fmt"
-import "core:os"
-import "core:strconv"
-import "core:strings"
-import "core:unicode"
-import "core:unicode/utf8"
+// import "core:fmt"
+// import "core:os"
+// import "core:strconv"
+// import "core:strings"
+// import "core:unicode"
+// import "core:unicode/utf8"
 
-Scanner :: struct {
-    current_column: int,
-    current_filename: string,
-    current_line: int,
-    current_line_length: int,
-    files: [dynamic]string,
-    tokens: [dynamic]Token,
-}
+// Scanner :: struct {
+//     current_column: int,
+//     current_filename: string,
+//     current_line: int,
+//     current_line_length: int,
+//     files: [dynamic]string,
+// }
 
-Token :: struct {
-    location: Location,
-    type: TokenType,
-    value: TokenValue,
-}
+// ReservedWord :: struct {
+//     type: TokenType,
+//     value: string,
+// }
 
-Location :: struct {
-    column: int,
-    filename: string,
-    line: int,
-}
+// reserved_words := []ReservedWord{
+//     { type = .BLOCK_CLOSE,    value = ")",     },
+//     { type = .BLOCK_OPEN,     value = "(",     },
+//     { type = .CONSTANT_FALSE, value = "false", },
+//     { type = .CONSTANT_TRUE,  value = "true",  },
+//     { type = .FUNCTION,       value = "fn",    },
+//     { type = .MINUS,          value = "-",     },
+//     { type = .PERCENT,        value = "%",     },
+//     { type = .PLUS,           value = "+",     },
+//     { type = .PRINT,          value = "print", },
+//     { type = .RETURNS,        value = "->",    },
+//     { type = .SLASH,          value = "/",     },
+//     { type = .STAR,           value = "*",     },
+//     { type = .TYPE_ANY,       value = "any",   },
+//     { type = .TYPE_BOOL,      value = "bool",  },
+//     { type = .TYPE_FLOAT,     value = "float", },
+//     { type = .TYPE_INT,       value = "int",   },
+//     { type = .TYPE_PTR,       value = "ptr",   },
+//     { type = .TYPE_STR,       value = "str",   },
+// }
 
-TokenType :: enum {
-    UNKNOWN,
+// scanner: Scanner
 
-    // Custom
-    WORD,
+// setup_and_run_scanner :: proc() {
+//     scanner.files = make([dynamic]string, 0, 4)
 
-    // Reserved
-    BLOCK_CLOSE,
-    BLOCK_OPEN,
-    FUNCTION,
-    MINUS,
-    PLUS,
-    SLASH,
-    STAR,
+//     if compiler_options.entry_type_given == .FILE {
+//         append(&scanner.files, compiler_options.entry)
+//     } else {
+//         // TODO: Support directory
+//     }
 
-    // System
-    EOF,
+//     for filename in scanner.files {
+//         scanner.current_filename = filename
+//         scanner.current_line = 1
+//         scanner.current_column = 0
 
-    // Primitives
-    FLOAT,
-    INT,
-    STRING,
-}
+//         run_scanner_on_file(filename)
+//     }
 
-TokenValue :: union {
-    f64,
-    i64,
-    string,
-}
+//     make_eof_token()
 
-ReservedWord :: struct {
-    type: TokenType,
-    value: string,
-}
+//     if compiler_options.show_tokens {
+//         for token in program.tokens {
+//             fmt.println(token)
+//         }
+//     }
+// }
 
-reserved_words := []ReservedWord{
-    { type = .BLOCK_CLOSE, value = ".",  },
-    { type = .BLOCK_OPEN,  value = "do", },
-    { type = .FUNCTION,    value = "fn", },
-    { type = .MINUS,       value = "-",  },
-    { type = .PLUS,        value = "+",  },
-    { type = .SLASH,       value = "/",  },
-    { type = .STAR,        value = "*",  },
-}
+// run_scanner_on_file :: proc(filename: string) {
+//     data, ok := os.read_entire_file(filename)
+//     defer delete(data)
 
-scanner: Scanner
+//     if !ok {
+//         fmt.printfln("ERROR: Cannot read file: {0}", filename)
+//         return
+//     }
 
-setup_and_run_scanner :: proc() {
-    scanner.files = make([dynamic]string, 0, 4)
-    scanner.tokens = make([dynamic]Token, 0, 16)
+//     iterator := string(data)
 
-    if compiler_args.entry_type_given == .FILE {
-        append(&scanner.files, compiler_args.entry)
-    } else {
-        // TODO: Support directory
-    }
+//     for line in strings.split_lines_iterator(&iterator) {
+//         scanner.current_column = 0
+//         scanner.current_line_length = len(line)
 
-    for filename in scanner.files {
-        scanner.current_filename = filename
-        scanner.current_line = 1
-        scanner.current_column = 0
+//         for ;scanner.current_column < len(line); {
+//             c := rune(line[scanner.current_column])
 
-        run_scanner_on_file(filename)
-    }
+//             if c == ';' {
+//                 break
+//             }
 
-    for token in scanner.tokens {
-        fmt.println(token)
-    }
-}
+//             if c == ' ' {
+//                 advance()
+//                 continue
+//             }
 
-run_scanner_on_file :: proc(filename: string) {
-    data, ok := os.read_entire_file(filename)
-    defer delete(data)
+//             switch {
+//             case unicode.is_number(c):
+//                 make_number_token(c, line)
+//             case c == '"':
+//                 make_string_token(c, line)
+//             case:
+//                 make_word_token(c, line)
+//             }
 
-    if !ok {
-        fmt.printfln("ERROR: Cannot read file: {0}", filename)
-        return
-    }
+//             advance()
+//         }
 
-    iterator := string(data)
+//         scanner.current_line += 1
+//     }
+// }
 
-    for line in strings.split_lines_iterator(&iterator) {
-        scanner.current_column = 0
-        scanner.current_line_length = len(line)
+// advance :: proc() -> bool {
+//     scanner.current_column += 1
 
-        for ;scanner.current_column < len(line); {
-            c := rune(line[scanner.current_column])
+//     if scanner.current_column >= scanner.current_line_length {
+//         return false
+//     }
 
-            if c == ';' {
-                break
-            }
+//     return true
+// }
 
-            if c == ' ' {
-                advance()
-                continue
-            }
+// make_word_token :: proc(c: rune, line: string) {
+//     token: Token
+//     result: [dynamic]rune
+//     defer delete(result)
 
-            switch {
-            case unicode.is_number(c):
-                make_number_token(c, line)
-            case c == '"':
-                make_string_token(c, line)
-            case:
-                make_word_token(c, line)
-            }
+//     token.location = get_location()
 
-            advance()
-        }
+//     append(&result, c)
 
-        scanner.current_line += 1
-    }
+//     for advance() {
+//         new_c := rune(line[scanner.current_column])
 
-    make_eof_token()
-}
+//         if new_c == ' ' {
+//             break
+//         }
 
-advance :: proc() -> bool {
-    scanner.current_column += 1
+//         append(&result, new_c)
+//     }
 
-    if scanner.current_column >= scanner.current_line_length {
-        return false
-    }
+//     // TODO: Type should match the token value
+//     val := utf8.runes_to_string(result[:])
 
-    return true
-}
+//     for word in reserved_words {
+//         if word.value == val {
+//             token.type = word.type
+//         }
+//     }
 
-make_word_token :: proc(c: rune, line: string) {
-    token: Token
-    result: [dynamic]rune
-    defer delete(result)
+//     if token.type == .UNKNOWN {
+//         token.type = .WORD
+//         token.value = val
+//     }
 
-    token.location = get_location()
+//     append(&program.tokens, token)
+// }
 
-    append(&result, c)
+// make_string_token :: proc(c: rune, line: string) {
+//     token: Token
+//     result: [dynamic]rune
+//     defer delete(result)
 
-    for advance() {
-        new_c := rune(line[scanner.current_column])
+//     token.location = get_location()
+//     token.type = .CONSTANT_STRING
 
-        if new_c == ' ' {
-            break
-        }
+//     append(&result, c)
 
-        append(&result, new_c)
-    }
+//     for advance() {
+//         new_c := rune(line[scanner.current_column])
 
-    // TODO: Type should match the token value
-    val := utf8.runes_to_string(result[:])
+//         append(&result, new_c)
 
-    for word in reserved_words {
-        if word.value == val {
-            token.type = word.type
-        }
-    }
+//         if new_c == '"' {
+//             break
+//         }
+//     }
 
-    if token.type == .UNKNOWN {
-        token.type = .WORD
-        token.value = val
-    }
+//     token.value = utf8.runes_to_string(result[:])
 
-    append(&scanner.tokens, token)
-}
+//     append(&program.tokens, token)
+// }
 
-make_string_token :: proc(c: rune, line: string) {
-    token: Token
-    result: [dynamic]rune
-    defer delete(result)
+// make_number_token :: proc(c: rune, line: string) {
+//     token: Token
+//     result: [dynamic]rune
+//     defer delete(result)
 
-    token.location = get_location()
-    token.type = .STRING
+//     token.location = get_location()
+//     token.type = .CONSTANT_INT
 
-    append(&result, c)
+//     append(&result, c)
 
-    for advance() {
-        new_c := rune(line[scanner.current_column])
+//     for advance() {
+//         new_c := rune(line[scanner.current_column])
 
-        append(&result, new_c)
+//         if unicode.is_number(new_c) {
+//             append(&result, new_c)
+//         } else if new_c == '.' {
+//             append(&result, new_c)
+//             token.type = .CONSTANT_FLOAT
+//         } else if new_c == '_' {
+//             continue
+//         } else {
+//             break
+//         }
+//     }
 
-        if new_c == '"' {
-            break
-        }
-    }
+//     #partial switch token.type {
+//     case .CONSTANT_FLOAT:
+//         token.value = strconv.atof(utf8.runes_to_string(result[:]))
+//     case .CONSTANT_INT:
+//         token.value = strconv.atoi(utf8.runes_to_string(result[:]))
+//     }
 
-    token.value = utf8.runes_to_string(result[:])
+//     append(&program.tokens, token)
+// }
 
-    append(&scanner.tokens, token)
-}
+// make_eof_token :: proc() {
+//     token: Token
 
-make_number_token :: proc(c: rune, line: string) {
-    token: Token
-    result: [dynamic]rune
-    defer delete(result)
+//     token.location = get_location()
+//     token.type = .EOF
 
-    token.location = get_location()
-    token.type = .INT
+//     append(&program.tokens, token)
+// }
 
-    append(&result, c)
-
-    for advance() {
-        new_c := rune(line[scanner.current_column])
-
-        if unicode.is_number(new_c) {
-            append(&result, new_c)
-        } else if new_c == '.' {
-            append(&result, new_c)
-            token.type = .FLOAT
-        } else if new_c == '_' {
-            continue
-        } else {
-            break
-        }
-    }
-
-    // TODO: Support FLOAT type
-    #partial switch token.type {
-    case .FLOAT:
-        token.value = strconv.atof(utf8.runes_to_string(result[:]))
-    case .INT:
-        token.value = i64(strconv.atoi(utf8.runes_to_string(result[:])))
-    }
-
-    append(&scanner.tokens, token)
-}
-
-make_eof_token :: proc() {
-    token: Token
-
-    token.location = get_location()
-    token.type = .EOF
-
-    append(&scanner.tokens, token)
-}
-
-get_location :: proc() -> Location {
-    return Location{
-        line     = scanner.current_line,
-        column   = scanner.current_column,
-        filename = scanner.current_filename,
-    }
-}
+// get_location :: proc() -> Location {
+//     return Location{
+//         line     = scanner.current_line,
+//         column   = scanner.current_column,
+//         filename = scanner.current_filename,
+//     }
+// }
