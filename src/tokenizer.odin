@@ -3,46 +3,46 @@ package main
 import "core:fmt"
 import "core:log"
 import "core:os"
+import "core:reflect"
 import "core:strings"
 
-Token_Kind :: enum {
-    invalid,
-    eof,
-    newline,
+Token_Kind :: enum u8 {
+    Invalid,
+    EOF,
 
-    identifier,       // main
-    integer,          // 123
-    float,            // 1.23
-    character,        // 'a'
-    string,           // "abc"
+    Identifier,       // main
+    Integer,          // 123
+    Float,            // 1.23
+    Character,        // 'a'
+    String,           // "abc"
 
-    binary_operator,  // +, -, *, /
-}
+    Colon_Colon,      // ::
+    Minus,            // -
+    Paren_Left,       // (
+    Paren_Right,      // )
+    Plus,             // +
+    Semicolon,        // ;
+    Slash,            // /
+    Star,             // *
 
-Token_Operation :: enum {
-    none,
-
-    minus,
-    plus,
-    slash,
-    star,
+    // Reserved words
+    Asm,           // ASM
+    Print,         // print
+    Using,         // using
 }
 
 Token :: struct {
-    file:      string,
-    column:    int,
-    line:      int,
-    offset:    int,
-    kind:      Token_Kind,
-    operation: Token_Operation,
-    value:     string,
+    file:  string,
+    start: int,
+    end:   int,
+
+    kind:  Token_Kind,
+    value: string,
 }
 
 Tokenizer :: struct {
     is_last_file:     bool,
     file_index:       int,
-    line_count:       int,
-    line_offset:      int,
     filepath:         string,
     buffer:           string,
     offset:           int,
@@ -58,8 +58,6 @@ start_tokenizer :: proc() -> (result: Tokenizer) {
 }
 
 prepare_next_file :: proc(t: ^Tokenizer, loc := #caller_location) {
-    t.line_count = 1
-    t.line_offset = 0
     t.offset = 0
     t.whitespace_left = false
     t.whitespace_right = false
@@ -89,9 +87,9 @@ tokenize_files :: proc() {
     for {
         token := get_next_token(&tokenizer)
 
-        fmt.println(token)
+        append(&skc.tokens, token)
 
-        if token.kind == .eof {
+        if token.kind == .EOF {
             if tokenizer.is_last_file { break }
 
             prepare_next_file(&tokenizer)
@@ -102,11 +100,9 @@ tokenize_files :: proc() {
 get_next_token :: proc(t: ^Tokenizer) -> (token: Token) {
     skip_whitespaces(t)
 
-    token.offset = t.offset
-    token.line   = t.line_count
-    token.column = t.line_offset
+    token.start  = t.offset
     token.file   = t.filepath
-    token.kind   = .eof
+    token.kind   = .EOF
 
     if is_eof(t) { return }
 
@@ -116,14 +112,23 @@ get_next_token :: proc(t: ^Tokenizer) -> (token: Token) {
         parse_number(t, &token)
     } else {
         switch get_char_at(t) {
+        case ':':  parse_colon(t, &token)
+
         case '\'': fallthrough
         case '"':  parse_string_literal(t, &token)
-        case '\n': parse_newline(t, &token)
-        case :     token.kind = .invalid; t.offset += 1
+
+        case ';':  token.kind = .Semicolon;   t.offset += 1
+        case '(':  token.kind = .Paren_Left;  t.offset += 1
+        case ')':  token.kind = .Paren_Right; t.offset += 1
+        case '+':  token.kind = .Plus;        t.offset += 1
+        case '-':  token.kind = .Minus;       t.offset += 1
+        case '*':  token.kind = .Star;        t.offset += 1
+        case '/':  token.kind = .Slash;       t.offset += 1
+        case :     token.kind = .Invalid;     t.offset += 1
         }
     }
 
-    t.line_offset += t.offset - token.offset
+    token.end = t.offset
 
     return
 }
@@ -191,24 +196,33 @@ is_valid_word_component :: #force_inline proc(t: ^Tokenizer) -> bool {
 
 is_whitespace :: proc(t: ^Tokenizer) -> bool {
     c := get_char_at(t)
-    return c == ' ' || c == '\t' || c == '\r'
+    return c == ' ' || c == '\t' || c == '\r' || c == '\n'
+}
+
+parse_colon :: proc(t: ^Tokenizer, token: ^Token) {
+    if is_eof(t) { return }
+
+    if get_char_at(t, 1) == ':' {
+        token.kind = .Colon_Colon
+        t.offset += 2
+    }
 }
 
 parse_identifier :: proc(t: ^Tokenizer, token: ^Token) {
     // TODO: Add language internal words
-    token.kind  = .identifier
-    token.value = get_word_at(t)
-}
+    word := get_word_at(t)
+    test_str := strings.to_pascal_case(word, context.temp_allocator)
 
-parse_newline :: proc(t: ^Tokenizer, token: ^Token) {
-    token.kind = .newline
-    t.offset += 1
-    t.line_count += 1
-    t.line_offset = 0
+    if v, ok := reflect.enum_from_name(Token_Kind, test_str); ok {
+        token.kind = v
+    } else {
+        token.kind  = .Identifier
+        token.value = word
+    }
 }
 
 parse_number :: proc(t: ^Tokenizer, token: ^Token) {
-    token.kind  = .integer
+    token.kind  = .Integer
     token.value = get_word_at(t)
 }
 
@@ -218,7 +232,7 @@ parse_string_literal :: proc(t: ^Tokenizer, token: ^Token) {
     if is_eof(t) { return }
     t.offset += 1
 
-    token.kind = delimiter == '\'' ? .character : .string
+    token.kind = delimiter == '\'' ? .Character : .String
     is_escaped := false
 
     for !is_eof(t) {
@@ -231,5 +245,5 @@ parse_string_literal :: proc(t: ^Tokenizer, token: ^Token) {
     t.offset += 1
 
     // Store the string or the character, without the quotes
-    token.value = t.buffer[token.offset + 1:t.offset - 1]
+    token.value = t.buffer[token.start + 1:t.offset - 1]
 }

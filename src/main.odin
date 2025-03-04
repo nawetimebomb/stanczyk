@@ -107,5 +107,7 @@ main :: proc() {
 
     tokenize_files()
 
+    fmt.println(skc.tokens)
+
     cleanup_exit(0)
 }
