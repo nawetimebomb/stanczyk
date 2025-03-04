@@ -1,1 +1,5 @@
-"Hello, World" print
+using io
+
+main :: ()
+  "Hello, World" print
+;
