@@ -11,16 +11,10 @@ COMPILER_EXEC    :: "skc"
 COMPILER_NAME    :: "Stańczyk"
 COMPILER_VERSION :: "5"
 
-Compiler :: struct {
-    mode:       enum { Compiler, Interpreter, REPL },
-    input:      [dynamic]string,
-    output:     string,
-    input_type: enum { directory, file },
-
-    tokens:     [dynamic]Token,
-}
-
-skc: Compiler
+compiler_mode:  enum { Compiler, Interpreter, REPL }
+source_files:   map[string]string
+output_file:    string
+program:        [dynamic]Operation
 
 // TODO: This is useful for debugging, but maybe I need an Arena allocator for default?
 skc_allocator: mem.Tracking_Allocator
@@ -48,8 +42,11 @@ init :: proc() {
 }
 
 cleanup_exit :: proc(code: int) {
-    for v in skc.input { delete(v) }
-    delete(skc.input)
+    for key, value in source_files {
+        delete(key)
+        delete(value)
+    }
+    delete(source_files)
 
     when ODIN_DEBUG {
         reset_tracking_allocator(&skc_allocator)
@@ -65,7 +62,7 @@ main :: proc() {
     args := os.args[1:]
 
     if len(args) == 0 {
-        skc.mode = .REPL
+        compiler_mode = .REPL
         run_repl()
     }
 
@@ -87,32 +84,44 @@ main :: proc() {
 
             if strings.ends_with(arg, ".sk") {
                 f, _ := os.stat(arg, context.temp_allocator)
-                append(&skc.input, strings.clone(f.fullpath))
+                data, success :=
+                    os.read_entire_file(f.fullpath, context.temp_allocator)
+
+                if !success {
+                    fmt.printfln(ERROR_FILE_CANT_OPEN, f.fullpath)
+                    cleanup_exit(1)
+                }
+
+                source_files[strings.clone(f.fullpath)] =
+                    strings.clone(string(data))
             } else {
                 v, _ := os.open(arg)
                 fis, _ := os.read_dir(v, 0, context.temp_allocator)
 
                 for f in fis {
                     if strings.ends_with(f.name, ".sk") {
-                        append(&skc.input, strings.clone(f.fullpath))
+                        data, success :=
+                            os.read_entire_file(f.fullpath, context.temp_allocator)
+
+                        if !success {
+                            fmt.printfln(ERROR_FILE_CANT_OPEN, f.fullpath)
+                            cleanup_exit(1)
+                        }
+
+                        source_files[strings.clone(f.fullpath)] =
+                            strings.clone(string(data))
                     }
                 }
             }
         }
     }
 
-    if len(skc.input) == 0 {
+    if len(source_files) == 0 {
         fmt.println(ERROR_NO_INPUT_FILE)
         cleanup_exit(1)
     }
 
-    for filepath in skc.input {
-        buf, _ := os.read_entire_file(filepath, context.temp_allocator)
-        result := tokenize(string(buf), filepath)
-        append(&skc.tokens, ..result)
-    }
-
-    fmt.println(skc.tokens)
+    parse_files()
 
     cleanup_exit(0)
 }
