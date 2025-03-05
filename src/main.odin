@@ -12,6 +12,7 @@ COMPILER_NAME    :: "Stańczyk"
 COMPILER_VERSION :: "5"
 
 Compiler :: struct {
+    mode:       enum { Compiler, Interpreter, REPL },
     input:      [dynamic]string,
     output:     string,
     input_type: enum { directory, file },
@@ -63,9 +64,9 @@ main :: proc() {
 
     args := os.args[1:]
 
-    if len(args) < 1 {
-        fmt.println(ERROR_NO_INPUT_FILE)
-        cleanup_exit(1)
+    if len(args) == 0 {
+        skc.mode = .REPL
+        run_repl()
     }
 
     for i := 0; i < len(args); i += 1 {
@@ -105,7 +106,11 @@ main :: proc() {
         cleanup_exit(1)
     }
 
-    tokenize_files()
+    for filepath in skc.input {
+        buf, _ := os.read_entire_file(filepath, context.temp_allocator)
+        result := tokenize(string(buf), filepath)
+        append(&skc.tokens, ..result)
+    }
 
     fmt.println(skc.tokens)
 

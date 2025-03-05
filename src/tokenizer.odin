@@ -8,28 +8,30 @@ import "core:strings"
 
 Token_Kind :: enum u8 {
     Invalid,
+    Comment,
     EOF,
-    Slash_Slash,      // This is a comment, do not save it
 
-    Identifier,       // main
-    Integer,          // 123
-    Float,            // 1.23
-    Character,        // 'a'
-    String,           // "abc"
+    Identifier,    // main
+    Integer,       // 123
+    Float,         // 1.23
+    Character,     // 'a'
+    String,        // "abc"
 
-    Colon_Colon,      // ::
-    Minus,            // -
-    Paren_Left,       // (
-    Paren_Right,      // )
-    Plus,             // +
-    Semicolon,        // ;
-    Slash,            // /
-    Star,             // *
+    Colon_Colon,   // ::
+    Minus,         // -
+    Paren_Left,    // (
+    Paren_Right,   // )
+    Plus,          // +
+    Semicolon,     // ;
+    Slash,         // /
+    Star,          // *
 
     // Reserved words
     Asm,           // ASM
     Print,         // print
     Using,         // using
+
+    Dot_Exit,      // exit (REPL)
 }
 
 Token :: struct {
@@ -42,8 +44,6 @@ Token :: struct {
 }
 
 Tokenizer :: struct {
-    is_last_file:     bool,
-    file_index:       int,
     filepath:         string,
     buffer:           string,
     offset:           int,
@@ -52,52 +52,33 @@ Tokenizer :: struct {
     whitespace_right: bool,
 }
 
-start_tokenizer :: proc() -> (result: Tokenizer) {
-    result.file_index = -1
-    prepare_next_file(&result)
+start_tokenizer :: proc(buf: string, filepath: string) -> (result: Tokenizer) {
+    result.buffer = buf
+    result.filepath = filepath
+    result.offset = 0
+    result.max_offset = len(buf)
+    result.whitespace_left = false
+    result.whitespace_right = false
     return
 }
 
-prepare_next_file :: proc(t: ^Tokenizer, loc := #caller_location) {
-    t.offset = 0
-    t.whitespace_left = false
-    t.whitespace_right = false
-
-    t.file_index += 1
-
-    if t.file_index >= len(skc.input) {
-        log.errorf(ERROR_COMPILER_BUG, loc)
-        cleanup_exit(2)
-    }
-
-    t.filepath = skc.input[t.file_index]
-    buf, _ := os.read_entire_file(t.filepath, context.temp_allocator)
-    t.buffer = string(buf)
-    t.max_offset = len(t.buffer)
-
-    if t.file_index == len(skc.input) - 1 {
-        t.is_last_file = true
-    }
-}
-
-tokenize_files :: proc() {
-    tokenizer := start_tokenizer()
+tokenize :: proc(buf: string, filepath: string = "") -> (result: []Token) {
+    tokenizer := start_tokenizer(buf, filepath)
+    tokens := make([dynamic]Token, 0, 0, context.temp_allocator)
 
     fmt.println(tokenizer.buffer)
 
     for {
         token := get_next_token(&tokenizer)
 
-        if token.kind == .Slash_Slash { continue }
+        if token.kind == .Comment { continue }
 
-        append(&skc.tokens, token)
+        append(&tokens, token)
 
-        if token.kind == .EOF {
-            if tokenizer.is_last_file { break }
-
-            prepare_next_file(&tokenizer)
-        }
+        if token.kind == .EOF { break }
     }
+
+    return tokens[:]
 }
 
 get_next_token :: proc(t: ^Tokenizer) -> (token: Token) {
@@ -115,6 +96,7 @@ get_next_token :: proc(t: ^Tokenizer) -> (token: Token) {
         parse_number(t, &token)
     } else {
         switch get_char_at(t) {
+        case '.':  parse_dot  (t, &token)
         case ':':  parse_colon(t, &token)
         case '/':  parse_slash(t, &token)
 
@@ -156,6 +138,12 @@ skip_whitespaces :: proc(t: ^Tokenizer) {
     old_offset := t.offset
     for !is_eof(t) && is_whitespace(t) { t.offset += 1 }
     t.whitespace_left = t.offset != old_offset
+}
+
+temp_string :: proc(args: ..string) -> string {
+    temp := strings.builder_make(context.temp_allocator)
+    for s in args { strings.write_string(&temp, s) }
+    return strings.to_string(temp)
 }
 
 is_alpha :: #force_inline proc(t: ^Tokenizer) -> bool {
@@ -212,12 +200,32 @@ parse_colon :: proc(t: ^Tokenizer, token: ^Token) {
     }
 }
 
-parse_identifier :: proc(t: ^Tokenizer, token: ^Token) {
-    // TODO: Add language internal words
-    word := get_word_at(t)
-    test_str := strings.to_pascal_case(word, context.temp_allocator)
+parse_dot :: proc(t: ^Tokenizer, token: ^Token) {
+    if skc.mode != .REPL {
+        token.kind = .Invalid
+        return
+    }
 
-    if v, ok := reflect.enum_from_name(Token_Kind, test_str); ok {
+    if is_eof(t) { return }
+    t.offset += 1
+
+    // Note: In REPL-mode, some reserved words start with ".", so we need to parse them.
+    if is_alpha(t) {
+        word := get_word_at(t)
+        full_word := temp_string(".", word)
+
+        switch full_word {
+        case ".exit": token.kind = .Dot_Exit
+        case: token.kind = .Invalid
+        }
+    }
+}
+
+parse_identifier :: proc(t: ^Tokenizer, token: ^Token) {
+    word := get_word_at(t)
+    test_word := strings.to_pascal_case(word, context.temp_allocator)
+
+    if v, ok := reflect.enum_from_name(Token_Kind, test_word); ok {
         token.kind = v
     } else {
         token.kind  = .Identifier
@@ -235,7 +243,7 @@ parse_slash :: proc(t: ^Tokenizer, token: ^Token) {
 
     if get_char_at(t, 1) == '/' {
         // It's a comment, skip the rest of the line
-        token.kind = .Slash_Slash
+        token.kind = .Comment
         for !is_eof(t) && !is_char(t, '\n') { t.offset += 1 }
         t.offset += 1
     }
