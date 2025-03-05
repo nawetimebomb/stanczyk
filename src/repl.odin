@@ -3,6 +3,7 @@ package main
 import "core:c/libc"
 import "core:fmt"
 import "core:os"
+import "core:strings"
 
 REPL_Value :: union {
     string,
@@ -24,6 +25,10 @@ sanitize_input :: proc(input: []byte) -> (output: string) {
     return
 }
 
+get_token_value :: proc(t: Token) -> string {
+    return strings.clone(t.source)
+}
+
 run_repl :: proc() {
     should_quit := false
 
@@ -43,21 +48,23 @@ run_repl :: proc() {
             should_quit = true
         }
 
-        input := sanitize_input(buf[:length])
-        tokens := tokenize(input)
+        source := sanitize_input(buf[:length])
+        tokens := tokenize(source)
 
         for t in tokens {
             #partial switch t.kind {
                 case .Dot_Exit: should_quit = true
 
-                case .String: append(&repl_stack, t.value)
+                case .String: append(&repl_stack, get_token_value(t))
 
-                // Native Functions
-                case .Print:
-                v := pop(&repl_stack)
-                fmt.println(v)
+                case .Keyword_Print: {
+                    v := pop(&repl_stack)
+                    fmt.println(v)
+                }
             }
         }
+
+        free_all(context.temp_allocator)
     }
 
     cleanup_exit(0)

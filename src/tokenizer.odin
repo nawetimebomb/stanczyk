@@ -11,36 +11,35 @@ Token_Kind :: enum u8 {
     Comment,
     EOF,
 
-    Identifier,  // main
-    Integer,     // 123
-    Float,       // 1.23
-    Character,   // 'a'
-    String,      // "abc"
+    Identifier,    // main
+    Integer,       // 123
+    Float,         // 1.23
+    Character,     // 'a'
+    String,        // "abc"
 
-    Colon_Colon, // ::
-    Minus,       // -
-    Paren_Left,  // (
-    Paren_Right, // )
-    Plus,        // +
-    Semicolon,   // ;
-    Slash,       // /
-    Star,        // *
+    Colon_Colon,   // ::
+    Minus,         // -
+    Paren_Left,    // (
+    Paren_Right,   // )
+    Plus,          // +
+    Semicolon,     // ;
+    Slash,         // /
+    Star,          // *
 
     // Reserved words
-    Asm,         // ASM
-    Print,       // print
-    Using,       // using
+    Keyword_Asm,   // ASM
+    Keyword_Print, // print
+    Keyword_Using, // using
 
-    Dot_Exit,    // exit (REPL)
+    Dot_Exit,      // exit (REPL)
 }
 
 Token :: struct {
-    file:  string,
-    start: int,
-    end:   int,
-
-    kind:  Token_Kind,
-    value: string,
+    source: string,
+    file:   string,
+    start:  int,
+    end:    int,
+    kind:   Token_Kind,
 }
 
 Tokenizer :: struct {
@@ -66,15 +65,9 @@ tokenize :: proc(buf: string, filepath: string = "") -> (result: []Token) {
     tokenizer := start_tokenizer(buf, filepath)
     tokens := make([dynamic]Token, 0, 0, context.temp_allocator)
 
-    fmt.println(tokenizer.buffer)
-
     for {
         token := get_next_token(&tokenizer)
-
-        if token.kind == .Comment { continue }
-
         append(&tokens, token)
-
         if token.kind == .EOF { break }
     }
 
@@ -115,6 +108,7 @@ get_next_token :: proc(t: ^Tokenizer) -> (token: Token) {
     }
 
     token.end = t.offset
+    token.source = t.buffer[token.start:token.end]
 
     return
 }
@@ -193,15 +187,18 @@ is_whitespace :: proc(t: ^Tokenizer) -> bool {
 
 parse_colon :: proc(t: ^Tokenizer, token: ^Token) {
     if is_eof(t) { return }
+    t.offset += 1
 
-    if get_char_at(t, 1) == ':' {
+    if is_char(t, ':') {
         token.kind = .Colon_Colon
-        t.offset += 2
+        t.offset += 1
+    } else {
+        token.kind = .Invalid
     }
 }
 
 parse_dot :: proc(t: ^Tokenizer, token: ^Token) {
-    if skc.mode != .REPL {
+    if compiler_mode != .REPL {
         token.kind = .Invalid
         return
     }
@@ -225,17 +222,22 @@ parse_identifier :: proc(t: ^Tokenizer, token: ^Token) {
     word := get_word_at(t)
     test_word := strings.to_pascal_case(word, context.temp_allocator)
 
+    switch word {
+    case "ASM":   token.kind = .Keyword_Asm
+    case "print": token.kind = .Keyword_Print
+    case "using": token.kind = .Keyword_Using
+
+    }
+
     if v, ok := reflect.enum_from_name(Token_Kind, test_word); ok {
         token.kind = v
     } else {
         token.kind  = .Identifier
-        token.value = word
     }
 }
 
 parse_number :: proc(t: ^Tokenizer, token: ^Token) {
     token.kind  = .Integer
-    token.value = get_word_at(t)
 }
 
 parse_slash :: proc(t: ^Tokenizer, token: ^Token) {
@@ -266,7 +268,4 @@ parse_string_literal :: proc(t: ^Tokenizer, token: ^Token) {
 
     if is_eof(t) { return }
     t.offset += 1
-
-    // Store the string or the character, without the quotes
-    token.value = t.buffer[token.start + 1:t.offset - 1]
 }

@@ -2,9 +2,13 @@ package main
 
 ERROR_COMPILER_BUG :: `Error: Compiler bug found at {0}`
 
-ERROR_NO_INPUT_FILE ::	`Error: missing input file`
+ERROR_FILE_CANT_OPEN :: `Error: cannot open file {0}`
 
 ERROR_FILE_OR_DIR_NOT_FOUND :: `Error: file or directory {0} not found`
+
+ERROR_INVALID_TOKEN :: `Error: invalid token cannot be parsed {0}`
+
+ERROR_NO_INPUT_FILE ::	`Error: missing input file`
 
 ERROR_REPL :: `Error: cannot read {0}`
 
