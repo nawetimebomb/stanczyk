@@ -11,27 +11,27 @@ Token_Kind :: enum u8 {
     Comment,
     EOF,
 
-    Identifier,    // main
-    Integer,       // 123
-    Float,         // 1.23
-    Character,     // 'a'
-    String,        // "abc"
+    Identifier,  // main
+    Integer,     // 123
+    Float,       // 1.23
+    Character,   // 'a'
+    String,      // "abc"
 
-    Colon_Colon,   // ::
-    Minus,         // -
-    Paren_Left,    // (
-    Paren_Right,   // )
-    Plus,          // +
-    Semicolon,     // ;
-    Slash,         // /
-    Star,          // *
+    Colon_Colon, // ::
+    Minus,       // -
+    Paren_Left,  // (
+    Paren_Right, // )
+    Plus,        // +
+    Semicolon,   // ;
+    Slash,       // /
+    Star,        // *
 
     // Reserved words
-    Asm,           // ASM
-    Print,         // print
-    Using,         // using
+    Asm,         // ASM
+    Print,       // print
+    Using,       // using
 
-    Dot_Exit,      // exit (REPL)
+    Dot_Exit,    // exit (REPL)
 }
 
 Token :: struct {
