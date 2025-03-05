@@ -6,6 +6,8 @@ ERROR_NO_INPUT_FILE ::	`Error: missing input file`
 
 ERROR_FILE_OR_DIR_NOT_FOUND :: `Error: file or directory {0} not found`
 
+ERROR_REPL :: `Error: cannot read {0}`
+
 MSG_HELP :: `Usage: skc [options] <file or directory>
 Options:
   --help        Shows this message.
