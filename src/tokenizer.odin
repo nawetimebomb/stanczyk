@@ -9,6 +9,7 @@ import "core:strings"
 Token_Kind :: enum u8 {
     Invalid,
     EOF,
+    Slash_Slash,      // This is a comment, do not save it
 
     Identifier,       // main
     Integer,          // 123
@@ -87,6 +88,8 @@ tokenize_files :: proc() {
     for {
         token := get_next_token(&tokenizer)
 
+        if token.kind == .Slash_Slash { continue }
+
         append(&skc.tokens, token)
 
         if token.kind == .EOF {
@@ -113,6 +116,7 @@ get_next_token :: proc(t: ^Tokenizer) -> (token: Token) {
     } else {
         switch get_char_at(t) {
         case ':':  parse_colon(t, &token)
+        case '/':  parse_slash(t, &token)
 
         case '\'': fallthrough
         case '"':  parse_string_literal(t, &token)
@@ -123,8 +127,8 @@ get_next_token :: proc(t: ^Tokenizer) -> (token: Token) {
         case '+':  token.kind = .Plus;        t.offset += 1
         case '-':  token.kind = .Minus;       t.offset += 1
         case '*':  token.kind = .Star;        t.offset += 1
-        case '/':  token.kind = .Slash;       t.offset += 1
-        case :     token.kind = .Invalid;     t.offset += 1
+
+        case:  token.kind = .Invalid; t.offset += 1
         }
     }
 
@@ -224,6 +228,17 @@ parse_identifier :: proc(t: ^Tokenizer, token: ^Token) {
 parse_number :: proc(t: ^Tokenizer, token: ^Token) {
     token.kind  = .Integer
     token.value = get_word_at(t)
+}
+
+parse_slash :: proc(t: ^Tokenizer, token: ^Token) {
+    token.kind = .Slash
+
+    if get_char_at(t, 1) == '/' {
+        // It's a comment, skip the rest of the line
+        token.kind = .Slash_Slash
+        for !is_eof(t) && !is_char(t, '\n') { t.offset += 1 }
+        t.offset += 1
+    }
 }
 
 parse_string_literal :: proc(t: ^Tokenizer, token: ^Token) {
