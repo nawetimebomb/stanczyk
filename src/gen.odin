@@ -1,17 +1,28 @@
+#+private file
 package main
 
 import "core:fmt"
 import "core:os"
+import "core:reflect"
 import "core:slice"
 import "core:strings"
 
+BACKEND_BUILTIN_C :: #load("include/builtin.c")
+
+INLINE_PROC_DEF :: "skc_inline"
+STATIC_PROC_DEF :: "skc_program"
+
 Gen :: struct {
-    source: strings.Builder,
-    depth:  int,
-    indent: int,
-    type_stack: [dynamic]Type,
+    source:    strings.Builder,
+    depth:     int,
+    indent:    int,
+    sim_stack: [dynamic]Type,
 }
 
+get_c_function_name :: proc(p: Procedure) -> string {
+    fn_definition := p.is_inline ? INLINE_PROC_DEF : STATIC_PROC_DEF
+    return fmt.tprintf("{} void stanczyk__ip{}", fn_definition, p.ip)
+}
 
 gen_print :: proc(g: ^Gen, args: ..any) {
     fmt.sbprint(&g.source, args = args)
@@ -43,45 +54,6 @@ gen_scope_end :: proc(g: ^Gen, visible := true) {
     }
 }
 
-gen_op_push_string :: proc(g: ^Gen, op: Op_Push_String) {
-    // Note: we want to get rid of the `"` characters.
-    str_len := len(op.value) - 2
-
-    gen_indent(g)
-    gen_print(g, "push_string(")
-    gen_printf(g, "(String){{ .data = {0}, .len = {1} }", op.value, str_len)
-    gen_print(g, ");\n")
-    append(&g.type_stack, Type.String)
-}
-
-gen_op_print :: proc(g: ^Gen, op: Op_Print) {
-    // TODO: Error when stack is empty
-    type := pop(&g.type_stack)
-    func_name := op.newline ? "println" : "print"
-
-    gen_indent(g)
-
-    switch type {
-    case .String: gen_printf(g, "{}_string(pop_string());\n", func_name)
-    }
-}
-
-gen_proc :: proc(g: ^Gen, p: Procedure) {
-    gen_printf(g, "void skc__{}_{}() ", p.name, p.ip)
-    gen_scope_begin(g)
-
-    for op in p.ops {
-        switch v in op.kind {
-        case Op_Push_Integer:
-        case Op_Push_String: gen_op_push_string(g, v)
-        case Op_Print:       gen_op_print(g, v)
-        case Op_Repl_Exit:
-        }
-    }
-
-    gen_scope_end(g)
-}
-
 gen_main_proc :: proc(g: ^Gen) {
     skc_main_proc_ip := 0
 
@@ -92,22 +64,70 @@ gen_main_proc :: proc(g: ^Gen) {
         }
     }
 
-    gen_printf(g, "void stanczyk__main() ")
+    gen_printf(g, "skc_program void stanczyk__main()")
     gen_scope_begin(g)
     gen_indent(g)
-    gen_printf(g, "skc__main_{}()\n", skc_main_proc_ip)
+    gen_printf(g, "stanczyk__ip{}();\n", skc_main_proc_ip)
     gen_scope_end(g)
 }
 
+gen_headers :: proc(g: ^Gen) {
+    for p in program.procs {
+        gen_printf(g, "{}();\n", get_c_function_name(p))
+    }
+
+    gen_print(g, "\n")
+}
+
+gen_procs :: proc(g: ^Gen) {
+    for p in program.procs {
+        gen_printf(g, "\n{}()", get_c_function_name(p))
+        gen_scope_begin(g)
+
+        for op in p.ops {
+            gen_indent(g)
+
+            switch v in op.kind {
+            case Op_Push_Bool:
+                gen_printf(g, "bool_push({});\n", v.value ? "bool_true" : "bool_false")
+            case Op_Push_Float:
+                gen_printf(g, "float_push({});\n", v.value)
+            case Op_Push_Integer:
+                gen_printf(g, "int_push({});\n", v.value)
+            case Op_Push_String:
+                gen_printf(g, "string_push((String){{ .data = \"{}\", .len = {} });\n", v.value, len(v.value))
+
+            case Op_Arithmetic:
+                operands_type := reflect.enum_name_from_value(v.operands) or_break
+                operation := reflect.enum_name_from_value(v.operation) or_break
+                gen_printf(g, "{}_{}();\n", operands_type, operation)
+
+            case Op_Drop:
+                gen_print(g, "stack_pop();\n")
+            case Op_Dup:
+                gen_print(g, "stack_dup();\n")
+            case Op_Print:
+                type_str := type_to_string(Type{ variant = v.kind})
+                print_fn := v.newline ? "println" : "print"
+                gen_printf(g, "{0}_{1}({2}_pop());\n", type_str, print_fn, type_str)
+            }
+        }
+
+        gen_scope_end(g)
+    }
+}
+
+@(private)
 gen_program :: proc() {
     gen: Gen
     gen.source = strings.builder_make()
 
-    for p in program.procs {
-        gen_proc(&gen, p)
-    }
-
+    gen_printf(&gen, "{}\n", string(BACKEND_BUILTIN_C))
+    gen_headers(&gen)
     gen_main_proc(&gen)
+    gen_procs(&gen)
 
     fmt.println(string(gen.source.buf[:]))
+
+    os.write_entire_file("generated.c", gen.source.buf[:])
 }

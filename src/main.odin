@@ -34,6 +34,7 @@ Procedure :: struct {
     c_like:    bool,
     internal:  bool,
     parsed:    bool,
+    is_inline: bool,
 
     // arguments: Arity,
     // bindings: Binding,

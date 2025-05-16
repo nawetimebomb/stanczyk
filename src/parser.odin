@@ -2,28 +2,30 @@ package main
 
 import "core:fmt"
 import "core:log"
+import "core:strconv"
 
-Op_Push_Integer :: struct {
-    value: int,
-}
+Arithmetic_Operation_Kind :: enum { divide, multiply, substract, sum, }
 
-Op_Push_String :: struct {
-    value: string,
-}
+Op_Push_Bool    :: struct { value: bool, }
+Op_Push_Float   :: struct { value: f64, }
+Op_Push_Integer :: struct { value: int, }
+Op_Push_String  :: struct { value: string, }
 
-Op_Print :: struct {
-    newline: bool,
-}
-
-Op_Repl_Exit :: struct {}
+Op_Arithmetic   :: struct { operands: Type_Primitive_Kind, operation: Arithmetic_Operation_Kind, }
+Op_Drop         :: struct {}
+Op_Dup          :: struct {}
+Op_Print        :: struct { kind: Type_Variant, newline: bool }
 
 Operation_Kind :: union {
+    Op_Push_Bool,
+    Op_Push_Float,
     Op_Push_Integer,
     Op_Push_String,
 
+    Op_Arithmetic,
+    Op_Drop,
+    Op_Dup,
     Op_Print,
-
-    Op_Repl_Exit,
 }
 
 Operation :: struct {
@@ -31,11 +33,13 @@ Operation :: struct {
     loc:  Location,
 }
 
+@(private="file")
 Scope :: struct {
     kind: enum { Global, Procedure, Statement, },
     parent: ^Procedure,
 }
 
+@(private="file")
 Parser :: struct {
     tokens:     []Token,
     offset:     int,
@@ -45,6 +49,8 @@ Parser :: struct {
 
     scopes:     [dynamic]Scope,
     chunk:      ^Procedure,
+
+    sim_stack:  [dynamic]Type_Variant,
 }
 
 @(private="file")
@@ -122,26 +128,26 @@ end_parsing_procedure :: proc(p: ^Parser) {
     p.chunk = nil
 }
 
+parse_arithmetic_operation :: proc(tk: Token_Kind) -> Arithmetic_Operation_Kind {
+    #partial switch tk {
+        case .Minus: return .substract
+        case .Plus:  return .sum
+        case .Slash: return .divide
+        case .Star:  return .multiply
+    }
+
+    assert(false)
+    return .sum
+}
+
 @(private="file")
-emit_string :: proc(p: ^Parser) {
+parse_token :: proc(p: ^Parser) {
     t := p.previous
 
     if !is_parsing_procedure(p) {
         // TODO: Error
         unimplemented()
     }
-
-    emit(p, Operation{ kind = Op_Push_String{ value = t.source } })
-}
-
-@(private="file")
-emit_print :: proc(p: ^Parser, newline := false) {
-    emit(p, Operation{ kind = Op_Print{ newline = newline } })
-}
-
-@(private="file")
-parse_token :: proc(p: ^Parser) {
-    t := p.previous
 
     switch t.kind {
     case .Invalid:
@@ -162,26 +168,63 @@ parse_token :: proc(p: ^Parser) {
         // This is only used in REPL mode. If found in source, it throws an error.
         log.errorf(ERROR_INVALID_TOKEN, t)
 
-    case .Identifier: unimplemented()
+    case .Identifier:     unimplemented()
 
-    case .Integer: unimplemented()
-    case .Float: unimplemented()
-    case .Character: unimplemented()
-    case .String: emit_string(p)
+    case .Integer:
+        append(&p.sim_stack, Type_Primitive{ kind = .int })
+        emit(p, Operation{ kind = Op_Push_Integer{ value = strconv.atoi(t.source) }})
+    case .Float:
+        append(&p.sim_stack, Type_Primitive{ kind = .float })
+        emit(p, Operation{ kind = Op_Push_Float{ value = strconv.atof(t.source) }})
+    case .Character:
+        unimplemented()
+    case .String:
+        append(&p.sim_stack, Type_Primitive{ kind = .string })
+        // Note: Removing the `"` chars that come from the tokenizer
+        str_value := t.source[1:len(t.source) - 1]
+        emit(p, Operation{ kind = Op_Push_String{ value = str_value }})
+    case .Keyword_True, .Keyword_False:
+        append(&p.sim_stack, Type_Primitive{ kind = .bool })
+        emit(p, Operation{ kind = Op_Push_Bool{ value = t.source == "true" ? true : false }})
+    case .Minus, .Plus, .Slash, .Star:
+        b := pop(&p.sim_stack)
+        a := pop(&p.sim_stack)
 
-    case .Minus: unimplemented()
-    case .Paren_Left: unimplemented()
-    case .Paren_Right: unimplemented()
-    case .Plus: unimplemented()
-    case .Semicolon: unimplemented()
-    case .Slash: unimplemented()
-    case .Star: unimplemented()
-    case .Keyword_Asm: unimplemented()
-    case .Keyword_Enum: unimplemented()
-    case .Keyword_Print:   emit_print(p)
-    case .Keyword_Println: emit_print(p, true)
-    case .Keyword_Struct: unimplemented()
-    case .Keyword_Using: unimplemented()
+        switch {
+        case type_is_int(a) && type_is_int(b):
+            emit(p, Operation{ kind = Op_Arithmetic{ operands = .int, operation = parse_arithmetic_operation(t.kind) }})
+            append(&p.sim_stack, Type_Primitive{ kind = .int })
+        case type_is_float(a) && type_is_float(b):
+            emit(p, Operation{ kind = Op_Arithmetic{ operands = .float, operation = parse_arithmetic_operation(t.kind) }})
+            append(&p.sim_stack, Type_Primitive{ kind = .float })
+        case :
+            unimplemented()
+        }
+    case .Paren_Left:
+        unimplemented()
+    case .Paren_Right:
+        unimplemented()
+
+    case .Semicolon:
+        assert(false)
+    case .Keyword_Dup:
+        a := pop(&p.sim_stack)
+        append(&p.sim_stack, a, a)
+        emit(p, Operation { kind = Op_Dup{} })
+    case .Keyword_Enum:
+        unimplemented()
+    case .Keyword_Print, .Keyword_Println:
+        type_variant := pop(&p.sim_stack)
+        emit(p, Operation{ kind = Op_Print{ kind = type_variant, newline = t.kind == .Keyword_Println }})
+    case .Keyword_Struct:
+        unimplemented()
+    case .Keyword_Typeof:
+        type_variant := pop(&p.sim_stack)
+        emit(p, Operation{ kind = Op_Drop{} })
+        emit(p, Operation{ kind = Op_Push_String{ value = type_to_string(Type{ variant = type_variant })}})
+        append(&p.sim_stack, Type_Primitive{ kind = .string })
+    case .Keyword_Using:
+        unimplemented()
     }
 }
 

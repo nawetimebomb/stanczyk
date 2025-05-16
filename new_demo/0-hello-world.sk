@@ -1,10 +1,5 @@
 // using io
 
-test :: ()
-  "Testing another function" print
-;
-
 main :: ()
-  "Hello, World" print
-  "Testing" println
+     1 dup println println
 ;

@@ -28,12 +28,16 @@ Token_Kind :: enum u8 {
     Star,            // *
 
     // Reserved words
-    Keyword_Asm,     // ASM
+    Keyword_Dup,     // dup
     Keyword_Enum,    // enum
     Keyword_Print,   // print
     Keyword_Println, // println
     Keyword_Struct,  // struct
+    Keyword_Typeof,  // typeof
     Keyword_Using,   // using
+
+    Keyword_False,   // false
+    Keyword_True,    // true
 
     Dot_Exit,        // .exit (REPL)
 }
@@ -242,26 +246,32 @@ tokenize_dot :: proc(t: ^Tokenizer, token: ^Token) {
 @(private="file")
 tokenize_identifier :: proc(t: ^Tokenizer, token: ^Token) {
     word := get_word_at(t)
-    test_word := strings.to_pascal_case(word, context.temp_allocator)
 
     switch word {
-    case "ASM"     : token.kind = .Keyword_Asm
+    case "dup"     : token.kind = .Keyword_Dup
     case "print"   : token.kind = .Keyword_Print
     case "println" : token.kind = .Keyword_Println
+    case "typeof"  : token.kind = .Keyword_Typeof
     case "using"   : token.kind = .Keyword_Using
+
+    case "false"   : token.kind = .Keyword_False
+    case "true"    : token.kind = .Keyword_True
+
     case           : token.kind = .Identifier
     }
-
-    // if v, ok := reflect.enum_from_name(Token_Kind, test_word); ok {
-    //     token.kind = v
-    // } else {
-    //     token.kind  = .Identifier
-    // }
 }
 
 @(private="file")
 tokenize_number :: proc(t: ^Tokenizer, token: ^Token) {
     token.kind  = .Integer
+
+    for is_number(t) || is_char(t, '.') {
+        if is_char(t, '.') {
+            token.kind = .Float
+        }
+
+        t.offset += 1
+    }
 }
 
 @(private="file")
@@ -272,8 +282,9 @@ tokenize_slash :: proc(t: ^Tokenizer, token: ^Token) {
         // It's a comment, skip the rest of the line
         token.kind = .Comment
         for !is_eof(t) && !is_char(t, '\n') { t.offset += 1 }
-        t.offset += 1
     }
+
+    t.offset += 1
 }
 
 @(private="file")
