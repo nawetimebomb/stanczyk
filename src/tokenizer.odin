@@ -11,27 +11,31 @@ Token_Kind :: enum u8 {
     Comment,
     EOF,
 
-    Identifier,    // main
-    Integer,       // 123
-    Float,         // 1.23
-    Character,     // 'a'
-    String,        // "abc"
+    Identifier,      // main
 
-    Colon_Colon,   // ::
-    Minus,         // -
-    Paren_Left,    // (
-    Paren_Right,   // )
-    Plus,          // +
-    Semicolon,     // ;
-    Slash,         // /
-    Star,          // *
+    Integer,         // 123
+    Float,           // 1.23
+    Character,       // 'a'
+    String,          // "abc"
+
+    Colon_Colon,     // ::
+    Minus,           // -
+    Paren_Left,      // (
+    Paren_Right,     // )
+    Plus,            // +
+    Semicolon,       // ;
+    Slash,           // /
+    Star,            // *
 
     // Reserved words
-    Keyword_Asm,   // ASM
-    Keyword_Print, // print
-    Keyword_Using, // using
+    Keyword_Asm,     // ASM
+    Keyword_Enum,    // enum
+    Keyword_Print,   // print
+    Keyword_Println, // println
+    Keyword_Struct,  // struct
+    Keyword_Using,   // using
 
-    Dot_Exit,      // exit (REPL)
+    Dot_Exit,        // .exit (REPL)
 }
 
 Token :: struct {
@@ -74,6 +78,7 @@ tokenize :: proc(buf: string, filepath: string = "") -> (result: []Token) {
     return tokens[:]
 }
 
+@(private="file")
 get_next_token :: proc(t: ^Tokenizer) -> (token: Token) {
     skip_whitespaces(t)
 
@@ -84,17 +89,17 @@ get_next_token :: proc(t: ^Tokenizer) -> (token: Token) {
     if is_eof(t) { return }
 
     if is_alpha(t) || is_char(t, '_') {
-        parse_identifier(t, &token)
+        tokenize_identifier(t, &token)
     } else if is_number(t) {
-        parse_number(t, &token)
+        tokenize_number(t, &token)
     } else {
         switch get_char_at(t) {
-        case '.':  parse_dot  (t, &token)
-        case ':':  parse_colon(t, &token)
-        case '/':  parse_slash(t, &token)
+        case '.':  tokenize_dot  (t, &token)
+        case ':':  tokenize_colon(t, &token)
+        case '/':  tokenize_slash(t, &token)
 
         case '\'': fallthrough
-        case '"':  parse_string_literal(t, &token)
+        case '"':  tokenize_string_literal(t, &token)
 
         case ';':  token.kind = .Semicolon;   t.offset += 1
         case '(':  token.kind = .Paren_Left;  t.offset += 1
@@ -113,6 +118,7 @@ get_next_token :: proc(t: ^Tokenizer) -> (token: Token) {
     return
 }
 
+@(private="file")
 get_word_at :: #force_inline proc(t: ^Tokenizer) -> string {
     result := strings.builder_make(context.temp_allocator)
 
@@ -124,68 +130,82 @@ get_word_at :: #force_inline proc(t: ^Tokenizer) -> string {
     return strings.to_string(result)
 }
 
+@(private="file")
 get_char_at :: proc(t: ^Tokenizer, offset: int = 0) -> (result: byte) {
     return t.buffer[t.offset + offset]
 }
 
+@(private="file")
 skip_whitespaces :: proc(t: ^Tokenizer) {
     old_offset := t.offset
     for !is_eof(t) && is_whitespace(t) { t.offset += 1 }
     t.whitespace_left = t.offset != old_offset
 }
 
+@(private="file")
 temp_string :: proc(args: ..string) -> string {
     temp := strings.builder_make(context.temp_allocator)
     for s in args { strings.write_string(&temp, s) }
     return strings.to_string(temp)
 }
 
+@(private="file")
 is_alpha :: #force_inline proc(t: ^Tokenizer) -> bool {
     return is_alpha_lowercase(t) || is_alpha_uppercase(t)
 }
 
+@(private="file")
 is_alphanumeric :: #force_inline proc(t: ^Tokenizer) -> bool {
     return is_alpha(t) || is_number(t)
 }
 
+@(private="file")
 is_alpha_lowercase :: #force_inline proc(t: ^Tokenizer) -> bool {
     c := get_char_at(t)
     return c >= 'a' && c <= 'z'
 }
 
+@(private="file")
 is_alpha_uppercase :: #force_inline proc(t: ^Tokenizer) -> bool {
     c := get_char_at(t)
     return c >= 'A' && c <= 'Z'
 }
 
+@(private="file")
 is_char :: #force_inline proc(t: ^Tokenizer, c: byte) -> bool {
     return get_char_at(t) == c
 }
 
+@(private="file")
 is_eof :: proc(t: ^Tokenizer) -> bool {
     return t.offset >= t.max_offset
 }
 
+@(private="file")
 is_newline :: #force_inline proc(t: ^Tokenizer) -> bool {
     c := get_char_at(t)
     return c == '\n'
 }
 
+@(private="file")
 is_number :: #force_inline proc(t: ^Tokenizer) -> bool {
     c := get_char_at(t)
     return c >= '0' && c <= '9'
 }
 
+@(private="file")
 is_valid_word_component :: #force_inline proc(t: ^Tokenizer) -> bool {
     return is_alpha(t) || is_number(t) || is_char(t, '_')
 }
 
+@(private="file")
 is_whitespace :: proc(t: ^Tokenizer) -> bool {
     c := get_char_at(t)
     return c == ' ' || c == '\t' || c == '\r' || c == '\n'
 }
 
-parse_colon :: proc(t: ^Tokenizer, token: ^Token) {
+@(private="file")
+tokenize_colon :: proc(t: ^Tokenizer, token: ^Token) {
     if is_eof(t) { return }
     t.offset += 1
 
@@ -197,7 +217,8 @@ parse_colon :: proc(t: ^Tokenizer, token: ^Token) {
     }
 }
 
-parse_dot :: proc(t: ^Tokenizer, token: ^Token) {
+@(private="file")
+tokenize_dot :: proc(t: ^Tokenizer, token: ^Token) {
     if compiler_mode != .REPL {
         token.kind = .Invalid
         return
@@ -218,29 +239,33 @@ parse_dot :: proc(t: ^Tokenizer, token: ^Token) {
     }
 }
 
-parse_identifier :: proc(t: ^Tokenizer, token: ^Token) {
+@(private="file")
+tokenize_identifier :: proc(t: ^Tokenizer, token: ^Token) {
     word := get_word_at(t)
     test_word := strings.to_pascal_case(word, context.temp_allocator)
 
     switch word {
-    case "ASM":   token.kind = .Keyword_Asm
-    case "print": token.kind = .Keyword_Print
-    case "using": token.kind = .Keyword_Using
-
+    case "ASM"     : token.kind = .Keyword_Asm
+    case "print"   : token.kind = .Keyword_Print
+    case "println" : token.kind = .Keyword_Println
+    case "using"   : token.kind = .Keyword_Using
+    case           : token.kind = .Identifier
     }
 
-    if v, ok := reflect.enum_from_name(Token_Kind, test_word); ok {
-        token.kind = v
-    } else {
-        token.kind  = .Identifier
-    }
+    // if v, ok := reflect.enum_from_name(Token_Kind, test_word); ok {
+    //     token.kind = v
+    // } else {
+    //     token.kind  = .Identifier
+    // }
 }
 
-parse_number :: proc(t: ^Tokenizer, token: ^Token) {
+@(private="file")
+tokenize_number :: proc(t: ^Tokenizer, token: ^Token) {
     token.kind  = .Integer
 }
 
-parse_slash :: proc(t: ^Tokenizer, token: ^Token) {
+@(private="file")
+tokenize_slash :: proc(t: ^Tokenizer, token: ^Token) {
     token.kind = .Slash
 
     if get_char_at(t, 1) == '/' {
@@ -251,7 +276,8 @@ parse_slash :: proc(t: ^Tokenizer, token: ^Token) {
     }
 }
 
-parse_string_literal :: proc(t: ^Tokenizer, token: ^Token) {
+@(private="file")
+tokenize_string_literal :: proc(t: ^Tokenizer, token: ^Token) {
     delimiter := get_char_at(t)
 
     if is_eof(t) { return }

@@ -32,8 +32,6 @@ get_token_value :: proc(t: Token) -> string {
 run_repl :: proc() {
     should_quit := false
 
-    libc.system("cls")
-
     fmt.printfln("Stanczyk REPL version {0}", COMPILER_VERSION)
     fmt.println("type \".exit\" or press Ctrl-C to exit the Stanczyk REPL")
 

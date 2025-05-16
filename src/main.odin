@@ -11,12 +11,42 @@ COMPILER_EXEC    :: "skc"
 COMPILER_NAME    :: "Stańczyk"
 COMPILER_VERSION :: "5"
 
+Location :: struct {
+    file: string,
+    offset: int,
+}
+
+Program :: struct {
+    procs: [dynamic]Procedure,
+}
+
+Procedure :: struct {
+    ip:        int,
+    loc:       Location,
+    name:      string,
+    namespace: string,
+    token:     Token,
+
+    ops:       [dynamic]Operation,
+
+    called:    bool,
+    error:     bool,
+    c_like:    bool,
+    internal:  bool,
+    parsed:    bool,
+
+    // arguments: Arity,
+    // bindings: Binding,
+    // constants: []Constant,
+    //results: Arity,
+}
+
 compiler_mode:  enum { Compiler, Interpreter, REPL }
 source_files:   map[string]string
 output_file:    string
-program:        [dynamic]Operation
+program:        Program
 
-// TODO: This is useful for debugging, but maybe I need an Arena allocator for default?
+// TODO: This is useful for debugging, but maybe I need an Arena allocator as the default
 skc_allocator: mem.Tracking_Allocator
 
 when ODIN_DEBUG {
@@ -122,6 +152,7 @@ main :: proc() {
     }
 
     parse_files()
+    gen_program()
 
     cleanup_exit(0)
 }

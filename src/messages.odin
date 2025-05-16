@@ -1,5 +1,7 @@
 package main
 
+ERROR_TODO :: `Error: This message is a TODO at {0}`
+
 ERROR_COMPILER_BUG :: `Error: Compiler bug found at {0}`
 
 ERROR_FILE_CANT_OPEN :: `Error: cannot open file {0}`
