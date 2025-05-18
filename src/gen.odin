@@ -16,7 +16,6 @@ Gen :: struct {
     source:    strings.Builder,
     depth:     int,
     indent:    int,
-    sim_stack: [dynamic]Type,
 }
 
 get_c_function_name :: proc(p: Procedure) -> string {
@@ -101,7 +100,12 @@ gen_procs :: proc(g: ^Gen) {
                 operands_type := reflect.enum_name_from_value(v.operands) or_break
                 operation := reflect.enum_name_from_value(v.operation) or_break
                 gen_printf(g, "{}_{}();\n", operands_type, operation)
-
+            case Op_Comparison:
+                operands_type := reflect.enum_name_from_value(v.operands) or_break
+                operation := reflect.enum_name_from_value(v.operation) or_break
+                gen_printf(g, "{}_{}();\n", operands_type, operation)
+            case Op_Concat_String:
+                gen_print(g, "string_concat();\n")
             case Op_Drop:
                 gen_print(g, "stack_pop();\n")
             case Op_Dup:
@@ -110,6 +114,8 @@ gen_procs :: proc(g: ^Gen) {
                 type_str := type_to_string(Type{ variant = v.kind})
                 print_fn := v.newline ? "println" : "print"
                 gen_printf(g, "{0}_{1}({2}_pop());\n", type_str, print_fn, type_str)
+            case Op_Swap:
+                gen_print(g, "stack_swap();\n")
             }
         }
 
@@ -127,7 +133,5 @@ gen_program :: proc() {
     gen_main_proc(&gen)
     gen_procs(&gen)
 
-    fmt.println(string(gen.source.buf[:]))
-
-    os.write_entire_file("generated.c", gen.source.buf[:])
+    os.write_entire_file(GENERATED_FILE_NAME, gen.source.buf[:])
 }

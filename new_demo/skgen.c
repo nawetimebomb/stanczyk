@@ -65,6 +65,8 @@ typedef struct {
 
 skc_program Stack stack;
 
+#define push(X) _Generic((X), bool: bool_push, float: float_push, int: int_push, String: string_push)(X)
+
 skc_inline bool stack_is_empty() { return stack.top == -1; }
 skc_inline bool stack_is_full() { return stack.top == STACK_MAX_SIZE - 1; }
 skc_inline void stack_push(Value v) { stack.values[++stack.top] = v; }
@@ -126,4 +128,17 @@ int main() {
     stack.top = -1;
     stanczyk__main();
     return 0;
+}
+
+skc_program void stanczyk__ip0();
+
+skc_program void stanczyk__main() {
+	stanczyk__ip0();
+}
+
+skc_program void stanczyk__ip0() {
+	push(2);
+	push(3);
+	int_sum();
+	int_println(int_pop());
 }

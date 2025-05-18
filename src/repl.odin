@@ -1,6 +1,5 @@
 package main
 
-import "core:c/libc"
 import "core:fmt"
 import "core:os"
 import "core:strings"

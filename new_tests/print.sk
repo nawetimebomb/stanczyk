@@ -1,0 +1,24 @@
+main :: ()
+  "1  " print 1 println
+  "-----------" println
+
+  "13  " print 13 println
+  "-----------" println
+
+  "666  " print 666 println
+  "-----------" println
+
+  "1889  " print 1889 println
+  "-----------" println
+
+  "92720  " print 92720 println
+  "-----------" println
+
+  "121911  " print 121911 println
+  "-----------" println
+
+  "1000000  " print 1_000_000 println
+  "-----------" println
+
+  "2000000000  " print 2_000_000_000 println
+;

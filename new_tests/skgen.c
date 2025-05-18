@@ -65,6 +65,8 @@ typedef struct {
 
 skc_program Stack stack;
 
+#define push(X) _Generic((X), bool: bool_push, float: float_push, int: int_push, struct String: string_push)(X)
+
 skc_inline bool stack_is_empty() { return stack.top == -1; }
 skc_inline bool stack_is_full() { return stack.top == STACK_MAX_SIZE - 1; }
 skc_inline void stack_push(Value v) { stack.values[++stack.top] = v; }
@@ -126,4 +128,143 @@ int main() {
     stack.top = -1;
     stanczyk__main();
     return 0;
+}
+
+skc_program void stanczyk__ip0();
+
+skc_program void stanczyk__main() {
+	stanczyk__ip0();
+}
+
+skc_program void stanczyk__ip0() {
+	push((String){ .data = "equal", .len = 5 });
+	string_println(string_pop());
+	push((String){ .data = "2 2 = -> true ", .len = 14 });
+	string_print(string_pop());
+	push(2);
+	push(2);
+	int_equal();
+	bool_println(bool_pop());
+	push((String){ .data = "2 3 = -> false ", .len = 15 });
+	string_print(string_pop());
+	push(2);
+	push(3);
+	int_equal();
+	bool_println(bool_pop());
+	push((String){ .data = "3 2 = -> false ", .len = 15 });
+	string_print(string_pop());
+	push(3);
+	push(2);
+	int_equal();
+	bool_println(bool_pop());
+	push((String){ .data = "-----------", .len = 11 });
+	string_println(string_pop());
+	push((String){ .data = "not equal", .len = 9 });
+	string_println(string_pop());
+	push((String){ .data = "2 3 != -> true ", .len = 15 });
+	string_print(string_pop());
+	push(2);
+	push(3);
+	int_not_equal();
+	bool_println(bool_pop());
+	push((String){ .data = "3 2 != -> true ", .len = 15 });
+	string_print(string_pop());
+	push(3);
+	push(2);
+	int_not_equal();
+	bool_println(bool_pop());
+	push((String){ .data = "2 2 != -> false ", .len = 16 });
+	string_print(string_pop());
+	push(2);
+	push(2);
+	int_not_equal();
+	bool_println(bool_pop());
+	push((String){ .data = "-----------", .len = 11 });
+	string_println(string_pop());
+	push((String){ .data = "less", .len = 4 });
+	string_println(string_pop());
+	push((String){ .data = "3 2 > -> true ", .len = 14 });
+	string_print(string_pop());
+	push(3);
+	push(2);
+	int_greater();
+	bool_println(bool_pop());
+	push((String){ .data = "2 3 > -> false ", .len = 15 });
+	string_print(string_pop());
+	push(2);
+	push(3);
+	int_greater();
+	bool_println(bool_pop());
+	push((String){ .data = "3 3 > -> false ", .len = 15 });
+	string_print(string_pop());
+	push(3);
+	push(3);
+	int_greater();
+	bool_println(bool_pop());
+	push((String){ .data = "-----------", .len = 11 });
+	string_println(string_pop());
+	push((String){ .data = "less equal", .len = 10 });
+	string_println(string_pop());
+	push((String){ .data = "3 3 >= -> true ", .len = 15 });
+	string_print(string_pop());
+	push(3);
+	push(3);
+	int_greater_equal();
+	bool_println(bool_pop());
+	push((String){ .data = "3 2 >= -> true ", .len = 15 });
+	string_print(string_pop());
+	push(3);
+	push(2);
+	int_greater_equal();
+	bool_println(bool_pop());
+	push((String){ .data = "2 3 >= -> false ", .len = 16 });
+	string_print(string_pop());
+	push(2);
+	push(3);
+	int_greater_equal();
+	bool_println(bool_pop());
+	push((String){ .data = "-----------", .len = 11 });
+	string_println(string_pop());
+	push((String){ .data = "greater", .len = 7 });
+	string_println(string_pop());
+	push((String){ .data = "2 3 < -> true ", .len = 14 });
+	string_print(string_pop());
+	push(2);
+	push(3);
+	int_less();
+	bool_println(bool_pop());
+	push((String){ .data = "3 2 < -> false ", .len = 15 });
+	string_print(string_pop());
+	push(3);
+	push(2);
+	int_less();
+	bool_println(bool_pop());
+	push((String){ .data = "2 2 < -> false ", .len = 15 });
+	string_print(string_pop());
+	push(2);
+	push(2);
+	int_less();
+	bool_println(bool_pop());
+	push((String){ .data = "-----------", .len = 11 });
+	string_println(string_pop());
+	push((String){ .data = "greater equal", .len = 13 });
+	string_println(string_pop());
+	push((String){ .data = "2 2 <= -> true ", .len = 15 });
+	string_print(string_pop());
+	push(2);
+	push(2);
+	int_less_equal();
+	bool_println(bool_pop());
+	push((String){ .data = "2 3 <= -> true ", .len = 15 });
+	string_print(string_pop());
+	push(2);
+	push(3);
+	int_less_equal();
+	bool_println(bool_pop());
+	push((String){ .data = "3 2 <= -> false ", .len = 16 });
+	string_print(string_pop());
+	push(3);
+	push(2);
+	int_less_equal();
+	bool_println(bool_pop());
 }
