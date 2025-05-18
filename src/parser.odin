@@ -4,17 +4,30 @@ import "core:fmt"
 import "core:log"
 import "core:strconv"
 
-Arithmetic_Operation_Kind :: enum { divide, multiply, substract, sum, }
+Arithmetic_Operation_Kind :: enum {
+    divide, modulo, multiply, substract, sum,
+}
 
-Op_Push_Bool    :: struct { value: bool, }
-Op_Push_Float   :: struct { value: f64, }
-Op_Push_Integer :: struct { value: int, }
-Op_Push_String  :: struct { value: string, }
+Comparison_Operation_Kind :: enum {
+    equal, greater, greater_equal, less, less_equal, not_equal,
+}
 
-Op_Arithmetic   :: struct { operands: Type_Primitive_Kind, operation: Arithmetic_Operation_Kind, }
-Op_Drop         :: struct {}
-Op_Dup          :: struct {}
-Op_Print        :: struct { kind: Type_Variant, newline: bool }
+Op_Push_Bool        :: struct { value: bool }
+Op_Push_Float       :: struct { value: f64 }
+Op_Push_Integer     :: struct { value: int }
+Op_Push_String      :: struct { value: string }
+
+Op_Arithmetic       :: struct {
+    operands: Type_Primitive_Kind, operation: Arithmetic_Operation_Kind,
+}
+Op_Comparison       :: struct {
+    operands: Type_Primitive_Kind, operation: Comparison_Operation_Kind,
+}
+Op_Concat_String    :: struct {}
+Op_Drop             :: struct {}
+Op_Dup              :: struct {}
+Op_Print            :: struct { kind: Type_Variant, newline: bool }
+Op_Swap             :: struct {}
 
 Operation_Kind :: union {
     Op_Push_Bool,
@@ -23,9 +36,12 @@ Operation_Kind :: union {
     Op_Push_String,
 
     Op_Arithmetic,
+    Op_Comparison,
+    Op_Concat_String,
     Op_Drop,
     Op_Dup,
     Op_Print,
+    Op_Swap,
 }
 
 Operation :: struct {
@@ -130,14 +146,29 @@ end_parsing_procedure :: proc(p: ^Parser) {
 
 parse_arithmetic_operation :: proc(tk: Token_Kind) -> Arithmetic_Operation_Kind {
     #partial switch tk {
-        case .Minus: return .substract
-        case .Plus:  return .sum
-        case .Slash: return .divide
-        case .Star:  return .multiply
+        case .Minus:      return .substract
+        case .Percentage: return .modulo
+        case .Plus:       return .sum
+        case .Slash:      return .divide
+        case .Star:       return .multiply
     }
 
     assert(false)
     return .sum
+}
+
+parse_comparison_operation :: proc(tk: Token_Kind) -> Comparison_Operation_Kind {
+    #partial switch tk {
+        case .Bang_Equal:    return .not_equal
+        case .Equal:         return .equal
+        case .Greater:       return .greater
+        case .Greater_Equal: return .greater_equal
+        case .Less:          return .less
+        case .Less_Equal:    return .less_equal
+    }
+
+    assert(false)
+    return .equal
 }
 
 @(private="file")
@@ -183,10 +214,8 @@ parse_token :: proc(p: ^Parser) {
         // Note: Removing the `"` chars that come from the tokenizer
         str_value := t.source[1:len(t.source) - 1]
         emit(p, Operation{ kind = Op_Push_String{ value = str_value }})
-    case .Keyword_True, .Keyword_False:
-        append(&p.sim_stack, Type_Primitive{ kind = .bool })
-        emit(p, Operation{ kind = Op_Push_Bool{ value = t.source == "true" ? true : false }})
-    case .Minus, .Plus, .Slash, .Star:
+
+    case .Minus, .Percentage, .Plus, .Slash, .Star:
         b := pop(&p.sim_stack)
         a := pop(&p.sim_stack)
 
@@ -195,8 +224,10 @@ parse_token :: proc(p: ^Parser) {
             emit(p, Operation{ kind = Op_Arithmetic{ operands = .int, operation = parse_arithmetic_operation(t.kind) }})
             append(&p.sim_stack, Type_Primitive{ kind = .int })
         case type_is_float(a) && type_is_float(b):
-            emit(p, Operation{ kind = Op_Arithmetic{ operands = .float, operation = parse_arithmetic_operation(t.kind) }})
-            append(&p.sim_stack, Type_Primitive{ kind = .float })
+            assert(false)
+        case t.kind == .Plus && type_is_string(a) && type_is_string(b):
+            emit(p, Operation{ kind = Op_Concat_String{} })
+            append(&p.sim_stack, Type_Primitive{ kind = .string })
         case :
             unimplemented()
         }
@@ -204,13 +235,33 @@ parse_token :: proc(p: ^Parser) {
         unimplemented()
     case .Paren_Right:
         unimplemented()
-
     case .Semicolon:
         assert(false)
-    case .Keyword_Dup:
+
+    case .Bang:
+        unimplemented()
+    case .Bang_Equal, .Equal, .Greater, .Greater_Equal, .Less, .Less_Equal:
+        b := pop(&p.sim_stack)
         a := pop(&p.sim_stack)
-        append(&p.sim_stack, a, a)
+
+        switch {
+        case type_is_int(a) && type_is_int(b):
+            emit(p, Operation{ kind = Op_Comparison{ operands = .int, operation = parse_comparison_operation(t.kind) }})
+            append(&p.sim_stack, Type_Primitive{ kind = .bool })
+        case type_is_float(a) && type_is_float(b):
+            emit(p, Operation{ kind = Op_Comparison{ operands = .float, operation = parse_comparison_operation(t.kind) }})
+            append(&p.sim_stack, Type_Primitive{ kind = .bool })
+        case (t.kind == .Bang_Equal || t.kind == .Equal) && type_is_string(a) && type_is_string(b):
+            emit(p, Operation{ kind = Op_Comparison{ operands = .string, operation = parse_comparison_operation(t.kind) }})
+            append(&p.sim_stack, Type_Primitive{ kind = .bool })
+        }
+    case .Keyword_Dup:
+        v := pop(&p.sim_stack)
+        append(&p.sim_stack, v, v)
         emit(p, Operation { kind = Op_Dup{} })
+    case .Keyword_False, .Keyword_True:
+        append(&p.sim_stack, Type_Primitive{ kind = .bool })
+        emit(p, Operation{ kind = Op_Push_Bool{ value = t.kind == .Keyword_True }})
     case .Keyword_Enum:
         unimplemented()
     case .Keyword_Print, .Keyword_Println:
@@ -218,6 +269,11 @@ parse_token :: proc(p: ^Parser) {
         emit(p, Operation{ kind = Op_Print{ kind = type_variant, newline = t.kind == .Keyword_Println }})
     case .Keyword_Struct:
         unimplemented()
+    case .Keyword_Swap:
+        b := pop(&p.sim_stack)
+        a := pop(&p.sim_stack)
+        append(&p.sim_stack, b, a)
+        emit(p, Operation{ kind = Op_Swap{} })
     case .Keyword_Typeof:
         type_variant := pop(&p.sim_stack)
         emit(p, Operation{ kind = Op_Drop{} })

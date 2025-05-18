@@ -18,10 +18,18 @@ Token_Kind :: enum u8 {
     Character,       // 'a'
     String,          // "abc"
 
+    Bang,            // !
+    Bang_Equal,      // !=
     Colon_Colon,     // ::
+    Equal,           // =
+    Greater,         // >
+    Greater_Equal,   // >=
+    Less,            // <
+    Less_Equal,      // <=
     Minus,           // -
     Paren_Left,      // (
     Paren_Right,     // )
+    Percentage,      // %
     Plus,            // +
     Semicolon,       // ;
     Slash,           // /
@@ -33,6 +41,7 @@ Token_Kind :: enum u8 {
     Keyword_Print,   // print
     Keyword_Println, // println
     Keyword_Struct,  // struct
+    Keyword_Swap,    // swap
     Keyword_Typeof,  // typeof
     Keyword_Using,   // using
 
@@ -98,9 +107,12 @@ get_next_token :: proc(t: ^Tokenizer) -> (token: Token) {
         tokenize_number(t, &token)
     } else {
         switch get_char_at(t) {
-        case '.':  tokenize_dot  (t, &token)
-        case ':':  tokenize_colon(t, &token)
-        case '/':  tokenize_slash(t, &token)
+        case '!':  tokenize_bang   (t, &token)
+        case '.':  tokenize_dot    (t, &token)
+        case '/':  tokenize_slash  (t, &token)
+        case ':':  tokenize_colon  (t, &token)
+        case '<':  tokenize_less   (t, &token)
+        case '>':  tokenize_greater(t, &token)
 
         case '\'': fallthrough
         case '"':  tokenize_string_literal(t, &token)
@@ -108,9 +120,11 @@ get_next_token :: proc(t: ^Tokenizer) -> (token: Token) {
         case ';':  token.kind = .Semicolon;   t.offset += 1
         case '(':  token.kind = .Paren_Left;  t.offset += 1
         case ')':  token.kind = .Paren_Right; t.offset += 1
+        case '%':  token.kind = .Percentage;  t.offset += 1
         case '+':  token.kind = .Plus;        t.offset += 1
         case '-':  token.kind = .Minus;       t.offset += 1
         case '*':  token.kind = .Star;        t.offset += 1
+        case '=':  token.kind = .Equal;       t.offset += 1
 
         case:  token.kind = .Invalid; t.offset += 1
         }
@@ -209,6 +223,17 @@ is_whitespace :: proc(t: ^Tokenizer) -> bool {
 }
 
 @(private="file")
+tokenize_bang :: proc(t: ^Tokenizer, token: ^Token) {
+    token.kind = .Bang
+    t.offset += 1
+
+    if is_char(t, '=') {
+        token.kind = .Bang_Equal
+        t.offset += 1
+    }
+}
+
+@(private="file")
 tokenize_colon :: proc(t: ^Tokenizer, token: ^Token) {
     if is_eof(t) { return }
     t.offset += 1
@@ -244,6 +269,17 @@ tokenize_dot :: proc(t: ^Tokenizer, token: ^Token) {
 }
 
 @(private="file")
+tokenize_greater :: proc(t: ^Tokenizer, token: ^Token) {
+    token.kind = .Greater
+    t.offset += 1
+
+    if is_char(t, '=') {
+        token.kind = .Greater_Equal
+        t.offset += 1
+    }
+}
+
+@(private="file")
 tokenize_identifier :: proc(t: ^Tokenizer, token: ^Token) {
     word := get_word_at(t)
 
@@ -251,6 +287,7 @@ tokenize_identifier :: proc(t: ^Tokenizer, token: ^Token) {
     case "dup"     : token.kind = .Keyword_Dup
     case "print"   : token.kind = .Keyword_Print
     case "println" : token.kind = .Keyword_Println
+    case "swap"    : token.kind = .Keyword_Swap
     case "typeof"  : token.kind = .Keyword_Typeof
     case "using"   : token.kind = .Keyword_Using
 
@@ -265,7 +302,7 @@ tokenize_identifier :: proc(t: ^Tokenizer, token: ^Token) {
 tokenize_number :: proc(t: ^Tokenizer, token: ^Token) {
     token.kind  = .Integer
 
-    for is_number(t) || is_char(t, '.') {
+    for is_number(t) || is_char(t, '.') || is_char(t, '_') {
         if is_char(t, '.') {
             token.kind = .Float
         }
@@ -275,16 +312,26 @@ tokenize_number :: proc(t: ^Tokenizer, token: ^Token) {
 }
 
 @(private="file")
+tokenize_less :: proc(t: ^Tokenizer, token: ^Token) {
+    token.kind = .Less
+    t.offset += 1
+
+    if is_char(t, '=') {
+        token.kind = .Less_Equal
+        t.offset += 1
+    }
+}
+
+@(private="file")
 tokenize_slash :: proc(t: ^Tokenizer, token: ^Token) {
     token.kind = .Slash
+    t.offset += 1
 
-    if get_char_at(t, 1) == '/' {
+    if is_char(t, '/') {
         // It's a comment, skip the rest of the line
         token.kind = .Comment
         for !is_eof(t) && !is_char(t, '\n') { t.offset += 1 }
     }
-
-    t.offset += 1
 }
 
 @(private="file")

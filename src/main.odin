@@ -1,5 +1,6 @@
 package main
 
+import "core:c/libc"
 import "core:fmt"
 import "core:log"
 import "core:mem"
@@ -10,6 +11,8 @@ COMPILER_DATE    :: "2025-03-03"
 COMPILER_EXEC    :: "skc"
 COMPILER_NAME    :: "Stańczyk"
 COMPILER_VERSION :: "5"
+
+GENERATED_FILE_NAME :: "skgen.c"
 
 Location :: struct {
     file: string,
@@ -87,6 +90,11 @@ cleanup_exit :: proc(code: int) {
     os.exit(code)
 }
 
+compile :: proc() {
+    libc.system(fmt.ctprintf("tcc {} -o output", GENERATED_FILE_NAME))
+    //libc.system("rm skgen.c")
+}
+
 main :: proc() {
     init()
 
@@ -101,10 +109,10 @@ main :: proc() {
         arg := args[i]
 
         switch arg {
-        case "--help":
+        case "-help":
             fmt.println(MSG_HELP)
             cleanup_exit(0)
-        case "--version":
+        case "-version":
             fmt.printfln(MSG_VERSION, COMPILER_VERSION)
             cleanup_exit(0)
         case :
@@ -154,6 +162,7 @@ main :: proc() {
 
     parse_files()
     gen_program()
+    compile()
 
     cleanup_exit(0)
 }

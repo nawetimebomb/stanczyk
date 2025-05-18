@@ -34,6 +34,14 @@ type_to_string :: proc(t: Type) -> string {
     return "Invalid"
 }
 
+type_is_float :: proc(v: Type_Variant) -> bool {
+    if t, ok := v.(Type_Primitive); ok {
+        return t.kind == .float
+    }
+
+    return false
+}
+
 type_is_int :: proc(v: Type_Variant) -> bool {
     if t, ok := v.(Type_Primitive); ok {
         return t.kind == .int
@@ -42,13 +50,14 @@ type_is_int :: proc(v: Type_Variant) -> bool {
     return false
 }
 
-type_is_float :: proc(v: Type_Variant) -> bool {
+type_is_string :: proc(v: Type_Variant) -> bool {
     if t, ok := v.(Type_Primitive); ok {
-        return t.kind == .float
+        return t.kind == .string
     }
 
     return false
 }
+
 
 type_is_number :: proc(a: Type_Variant) -> bool {
     switch v in a {
