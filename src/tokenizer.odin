@@ -36,8 +36,10 @@ Token_Kind :: enum u8 {
     Star,            // *
 
     // Reserved words
+    Keyword_And,     // and
     Keyword_Dup,     // dup
     Keyword_Enum,    // enum
+    Keyword_Or,      // or
     Keyword_Print,   // print
     Keyword_Println, // println
     Keyword_Struct,  // struct
@@ -284,7 +286,9 @@ tokenize_identifier :: proc(t: ^Tokenizer, token: ^Token) {
     word := get_word_at(t)
 
     switch word {
+    case "and"     : token.kind = .Keyword_And
     case "dup"     : token.kind = .Keyword_Dup
+    case "or"      : token.kind = .Keyword_Or
     case "print"   : token.kind = .Keyword_Print
     case "println" : token.kind = .Keyword_Println
     case "swap"    : token.kind = .Keyword_Swap

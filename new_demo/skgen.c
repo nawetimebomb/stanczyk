@@ -38,22 +38,24 @@
 // Stanczyk type definition
 
 typedef int64_t s64;
-typedef int8_t  bool;
+typedef int8_t  b8;
 typedef double  f64;
 
 typedef struct {
     char* data;
     int   len;
-} String;
+} string;
 
-#define bool_false (int8_t) 0
-#define bool_true  (int8_t) 1
+#define BOOL_FALSE (int8_t) 0
+#define BOOL_TRUE  (int8_t) 1
+
+#define _STRING(A, B) (string){ .data = A, .len = B }
 
 typedef union {
-    bool   as_bool;
+    b8   as_bool;
     f64    as_float;
     s64    as_int;
-    String as_string;
+    string as_string;
 } Value;
 
 #define STACK_MAX_SIZE 32767
@@ -65,25 +67,25 @@ typedef struct {
 
 skc_program Stack stack;
 
-#define push(X) _Generic((X), bool: bool_push, float: float_push, int: int_push, String: string_push)(X)
-
-skc_inline bool stack_is_empty() { return stack.top == -1; }
-skc_inline bool stack_is_full() { return stack.top == STACK_MAX_SIZE - 1; }
+skc_inline b8 stack_is_empty() { return stack.top == -1; }
+skc_inline b8 stack_is_full() { return stack.top == STACK_MAX_SIZE - 1; }
 skc_inline void stack_push(Value v) { stack.values[++stack.top] = v; }
 skc_inline Value stack_peek() { return stack.values[stack.top]; }
 skc_inline Value stack_pop() { Value v = stack.values[stack.top]; stack.top--; return v; }
 skc_inline void stack_dup() { Value v = stack_pop(); stack_push(v); stack_push(v); }
 skc_inline void stack_swap() { Value b = stack_pop(); Value a = stack_pop(); stack_push(b); stack_push(a); }
 
-skc_program void bool_print(bool v) { printf("%s", v ? "true" : "false"); }
-skc_program void bool_println(bool v) { printf("%s\n", v ? "true" : "false"); }
-skc_inline bool bool_pop() { return stack_pop().as_bool; }
-skc_inline void bool_push(bool v) { stack_push((Value){ .as_bool = v }); }
+skc_inline b8 bool_pop() { return stack_pop().as_bool; }
+skc_inline void bool_push(b8 v) { stack_push((Value){ .as_bool = v }); }
+skc_program void bool_print() { printf("%s", bool_pop() ? "true" : "false"); }
+skc_program void bool_println() { printf("%s\n", bool_pop() ? "true" : "false"); }
+skc_inline void bool_and() { bool_push(bool_pop() == BOOL_TRUE && bool_pop() == BOOL_TRUE); }
+skc_inline void bool_or() { bool_push(bool_pop() == BOOL_TRUE || bool_pop() == BOOL_TRUE); }
 
-skc_program void float_print(f64 v) { printf("%g", v); }
-skc_program void float_println(f64 v) { printf("%g\n", v); }
 skc_inline f64 float_pop() { return stack_pop().as_float; }
 skc_inline void float_push(f64 v) { stack_push((Value){ .as_float = v }); }
+skc_program void float_print() { printf("%g", float_pop()); }
+skc_program void float_println() { printf("%g\n", float_pop()); }
 skc_inline void float_equal() { f64 b = float_pop(); f64 a = float_pop(); bool_push(a == b); }
 skc_inline void float_greater() { f64 b = float_pop(); f64 a = float_pop(); bool_push(a > b); }
 skc_inline void float_greater_equal() { f64 b = float_pop(); f64 a = float_pop(); bool_push(a >= b); }
@@ -95,10 +97,10 @@ skc_inline void float_substract() { f64 b = float_pop(); f64 a = float_pop(); fl
 skc_inline void float_multiply() { f64 b = float_pop(); f64 a = float_pop(); float_push(a * b); }
 skc_inline void float_divide() { f64 b = float_pop(); f64 a = float_pop(); float_push(a / b); }
 
-skc_program void int_print(s64 v) { printf("%li", v); }
-skc_program void int_println(s64 v) { printf("%li\n", v); }
 skc_inline s64 int_pop() { return stack_pop().as_int; }
 skc_inline void int_push(s64 v) { stack_push((Value){ .as_int = v }); }
+skc_program void int_print() { printf("%li", int_pop()); }
+skc_program void int_println() { printf("%li\n", int_pop()); }
 skc_inline void int_equal() { f64 b = int_pop(); f64 a = int_pop(); bool_push(a == b); }
 skc_inline void int_greater() { f64 b = int_pop(); f64 a = int_pop(); bool_push(a > b); }
 skc_inline void int_greater_equal() { f64 b = int_pop(); f64 a = int_pop(); bool_push(a >= b); }
@@ -111,34 +113,49 @@ skc_inline void int_modulo() { s64 b = int_pop(); s64 a = int_pop(); int_push(a 
 skc_inline void int_multiply() { s64 b = int_pop(); s64 a = int_pop(); int_push(a * b); }
 skc_inline void int_divide() { s64 b = int_pop(); s64 a = int_pop(); int_push(a / b); }
 
-skc_program void string_print(String v) { printf("%.*s", v.len, v.data); }
-skc_program void string_println(String v) { printf("%.*s\n", v.len, v.data); }
-skc_inline String string_pop() { return stack_pop().as_string; }
-skc_inline void string_push(String v) { stack_push((Value){ .as_string = v }); }
-skc_inline void string_concat() {
-    String b = string_pop();
-    String a = string_pop();
-    string_push((String){ .data = strcat(a.data, b.data), .len = a.len + b.len });
-}
+skc_inline string string_pop() { return stack_pop().as_string; }
+skc_inline void string_push(string v) { stack_push((Value){ .as_string = v }); }
+skc_program void string_print() { string v = string_pop(); printf("%.*s", v.len, v.data); }
+skc_program void string_println() { string v = string_pop(); printf("%.*s\n", v.len, v.data); }
+skc_inline void string_concat() { string b = string_pop(); string a = string_pop(); string_push((string){ .data = strcat(a.data, b.data), .len = a.len + b.len }); }
+skc_inline void string_equal() { string b = string_pop(); string a = string_pop(); bool_push(strcmp(a.data, b.data) ? BOOL_FALSE : BOOL_TRUE); }
+skc_inline void string_not_equal() { string b = string_pop(); string a = string_pop(); bool_push(strcmp(a.data, b.data) ? BOOL_TRUE : BOOL_FALSE); }
 
-skc_program void stanczyk__main();
+skc_program void main__stanczyk();
 
 int main() {
     // Initialize stack
     stack.top = -1;
-    stanczyk__main();
+    main__stanczyk();
     return 0;
 }
 
-skc_program void stanczyk__ip0();
 
-skc_program void stanczyk__main() {
-	stanczyk__ip0();
+
+skc_program void main__stanczyk() {
+	bool_push(BOOL_TRUE);
+	bool_push(BOOL_TRUE);
+	bool_and();
+	bool_println();
+	bool_push(BOOL_TRUE);
+	bool_push(BOOL_FALSE);
+	bool_and();
+	bool_println();
+	bool_push(BOOL_FALSE);
+	bool_push(BOOL_FALSE);
+	bool_and();
+	bool_println();
+	bool_push(BOOL_TRUE);
+	bool_push(BOOL_TRUE);
+	bool_or();
+	bool_println();
+	bool_push(BOOL_TRUE);
+	bool_push(BOOL_FALSE);
+	bool_or();
+	bool_println();
+	bool_push(BOOL_FALSE);
+	bool_push(BOOL_FALSE);
+	bool_or();
+	bool_println();
 }
 
-skc_program void stanczyk__ip0() {
-	push(2);
-	push(3);
-	int_sum();
-	int_println(int_pop());
-}

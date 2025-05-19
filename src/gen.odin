@@ -13,125 +13,108 @@ INLINE_PROC_DEF :: "skc_inline"
 STATIC_PROC_DEF :: "skc_program"
 
 Gen :: struct {
-    source:    strings.Builder,
-    depth:     int,
-    indent:    int,
+    definitions: strings.Builder,
+    headers:     strings.Builder,
+    source:      strings.Builder,
+    indent:      int,
 }
 
-get_c_function_name :: proc(p: Procedure) -> string {
-    fn_definition := p.is_inline ? INLINE_PROC_DEF : STATIC_PROC_DEF
-    return fmt.tprintf("{} void stanczyk__ip{}", fn_definition, p.ip)
+g: Gen
+
+write :: proc(s: ^strings.Builder, args: ..any) {
+    fmt.sbprint(s, args = args)
 }
 
-gen_print :: proc(g: ^Gen, args: ..any) {
-    fmt.sbprint(&g.source, args = args)
+writef :: proc(s: ^strings.Builder, format: string, args: ..any) {
+    fmt.sbprintf(s, fmt = format, args = args)
 }
 
-gen_printf :: proc(g: ^Gen, format: string, args: ..any) {
-    fmt.sbprintf(&g.source, fmt = format, args = args)
+writeln :: proc(s: ^strings.Builder, args: ..any) {
+    write(s, args = args)
+    write(s, "\n")
 }
 
-gen_indent :: proc(g: ^Gen) {
-    indent := "\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t"
-    fmt.sbprint(&g.source, indent[:clamp(g.indent, 0, len(indent) - 1)])
+writefln :: proc(s: ^strings.Builder, format: string, args: ..any) {
+    fmt.sbprintf(s, fmt = format, args = args)
+    write(s, "\n")
 }
 
-gen_scope_begin :: proc(g: ^Gen, visible := true, msg := "") {
-    g.depth += 1
-    if visible {
-        g.indent += 1
-        gen_printf(g, " {{{}\n", msg)
+write_indent :: proc(s: ^strings.Builder) {
+    if g.indent > 0 {
+        indent_str := "\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t"
+        write(s, indent_str[:clamp(g.indent, 0, len(indent_str) - 1)])
     }
 }
 
-gen_scope_end :: proc(g: ^Gen, visible := true) {
-    g.depth -= 1
-    if visible {
-        g.indent -= 1
-        gen_indent(g)
-        gen_print(g, "}\n")
-    }
+indent_forward :: proc(s: ^strings.Builder, should_write := true) {
+    g.indent += 1
+    if should_write { write_indent(s) }
 }
 
-gen_main_proc :: proc(g: ^Gen) {
-    skc_main_proc_ip := 0
-
-    for p in program.procs {
-        if p.name == "main" {
-            skc_main_proc_ip = p.ip
-            break
-        }
-    }
-
-    gen_printf(g, "skc_program void stanczyk__main()")
-    gen_scope_begin(g)
-    gen_indent(g)
-    gen_printf(g, "stanczyk__ip{}();\n", skc_main_proc_ip)
-    gen_scope_end(g)
-}
-
-gen_headers :: proc(g: ^Gen) {
-    for p in program.procs {
-        gen_printf(g, "{}();\n", get_c_function_name(p))
-    }
-
-    gen_print(g, "\n")
-}
-
-gen_procs :: proc(g: ^Gen) {
-    for p in program.procs {
-        gen_printf(g, "\n{}()", get_c_function_name(p))
-        gen_scope_begin(g)
-
-        for op in p.ops {
-            gen_indent(g)
-
-            switch v in op.kind {
-            case Op_Push_Bool:
-                gen_printf(g, "bool_push({});\n", v.value ? "bool_true" : "bool_false")
-            case Op_Push_Float:
-                gen_printf(g, "float_push({});\n", v.value)
-            case Op_Push_Integer:
-                gen_printf(g, "int_push({});\n", v.value)
-            case Op_Push_String:
-                gen_printf(g, "string_push((String){{ .data = \"{}\", .len = {} });\n", v.value, len(v.value))
-
-            case Op_Arithmetic:
-                operands_type := reflect.enum_name_from_value(v.operands) or_break
-                operation := reflect.enum_name_from_value(v.operation) or_break
-                gen_printf(g, "{}_{}();\n", operands_type, operation)
-            case Op_Comparison:
-                operands_type := reflect.enum_name_from_value(v.operands) or_break
-                operation := reflect.enum_name_from_value(v.operation) or_break
-                gen_printf(g, "{}_{}();\n", operands_type, operation)
-            case Op_Concat_String:
-                gen_print(g, "string_concat();\n")
-            case Op_Drop:
-                gen_print(g, "stack_pop();\n")
-            case Op_Dup:
-                gen_print(g, "stack_dup();\n")
-            case Op_Print:
-                type_str := type_to_string(Type{ variant = v.kind})
-                print_fn := v.newline ? "println" : "print"
-                gen_printf(g, "{0}_{1}({2}_pop());\n", type_str, print_fn, type_str)
-            case Op_Swap:
-                gen_print(g, "stack_swap();\n")
-            }
-        }
-
-        gen_scope_end(g)
-    }
+indent_backward :: proc(s: ^strings.Builder) {
+    g.indent = max(g.indent - 1, 0)
+    write_indent(s)
 }
 
 @(private)
 gen_program :: proc() {
-    gen: Gen
-    gen.source = strings.builder_make()
+    g = Gen{
+        definitions = strings.builder_make(),
+        headers     = strings.builder_make(),
+        source      = strings.builder_make(),
+    }
 
-    gen_printf(&gen, "{}\n", string(BACKEND_BUILTIN_C))
-    gen_headers(&gen)
-    gen_main_proc(&gen)
-    gen_procs(&gen)
+    writeln(&g.headers, string(BACKEND_BUILTIN_C))
 
-    os.write_entire_file(GENERATED_FILE_NAME, gen.source.buf[:])
+    for p in program.procs {
+        if p.name == "main" {
+            writefln(&g.source, "skc_program void main__stanczyk() {{")
+        } else {
+            proc_prefix := p.is_inline ? "skc_inline" : "skc_program"
+            writefln(&g.definitions, "{0} void {1}__{2}();", proc_prefix, p.name, p.ip)
+            writefln(&g.source, "{0} void {1}__{2}() {{", proc_prefix, p.name, p.ip)
+        }
+
+        indent_forward(&g.source, false)
+
+        for op in p.ops {
+            write_indent(&g.source)
+
+            switch v in op.kind {
+            case Op_Push_Bool:
+                writefln(&g.source, "bool_push({});", v.value ? "BOOL_TRUE" : "BOOL_FALSE")
+            case Op_Push_Float:
+                writefln(&g.source, "float_push({});", v.value)
+            case Op_Push_Integer:
+                writefln(&g.source, "int_push({});", v.value)
+            case Op_Push_String:
+                writefln(&g.source, "string_push(_STRING(\"{}\", {}));", v.value, len(v.value))
+
+            case Op_Binary:
+                operands_name := type_to_string(v.operands)
+                operation := reflect.enum_name_from_value(v.operation) or_break
+                writefln(&g.source, "{0}_{1}();", operands_name, operation)
+            case Op_Drop:
+                writeln(&g.source, "stack_pop();")
+            case Op_Dup:
+                writeln(&g.source, "stack_dup();")
+            case Op_Print:
+                operand_name := type_to_string(v.operand)
+                printfn := v.newline ? "println" : "print"
+                writefln(&g.source, "{0}_{1}();", operand_name, printfn)
+            case Op_Swap:
+                writeln(&g.source, "stack_swap();")
+            }
+        }
+
+        indent_backward(&g.source)
+        writeln(&g.source, "}")
+    }
+
+    // Write the generated file
+    result := strings.builder_make()
+    writeln(&result, string(g.headers.buf[:]))
+    writeln(&result, string(g.definitions.buf[:]))
+    writeln(&result, string(g.source.buf[:]))
+    os.write_entire_file(GENERATED_FILE_NAME, result.buf[:])
 }
