@@ -3,12 +3,16 @@ main :: ()
   "2 2 = -> true " print 2 2 = println
   "2 3 = -> false " print 2 3 = println
   "3 2 = -> false " print 3 2 = println
+  "test test -> true " print "test" "test" = println
+  "test Test -> false " print "test" "Test" = println
   "-----------" println
 
   "not equal" println
   "2 3 != -> true " print 2 3 != println
   "3 2 != -> true " print 3 2 != println
   "2 2 != -> false " print 2 2 != println
+  "test Test -> true " print "test" "Test" != println
+  "test test -> false " print "test" "test" != println
   "-----------" println
 
   "less" println

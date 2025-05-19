@@ -91,7 +91,7 @@ cleanup_exit :: proc(code: int) {
 }
 
 compile :: proc() {
-    libc.system(fmt.ctprintf("tcc {} -o output", GENERATED_FILE_NAME))
+    libc.system(fmt.ctprintf("gcc {} -o output", GENERATED_FILE_NAME))
     //libc.system("rm skgen.c")
 }
 

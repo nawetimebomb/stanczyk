@@ -2,11 +2,15 @@ equal
 2 2 = -> true true
 2 3 = -> false false
 3 2 = -> false false
+test test -> true true
+test Test -> false false
 -----------
 not equal
 2 3 != -> true true
 3 2 != -> true true
 2 2 != -> false false
+test Test -> true true
+test test -> false false
 -----------
 less
 3 2 > -> true true
