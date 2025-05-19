@@ -40,30 +40,33 @@
 typedef int64_t s64;
 typedef int8_t  b8;
 typedef double  f64;
-
-typedef struct {
-    char* data;
-    int   len;
-} string;
+typedef struct string string;
+typedef union Value Value;
+typedef struct Stack Stack;
 
 #define BOOL_FALSE (int8_t) 0
 #define BOOL_TRUE  (int8_t) 1
 
 #define _STRING(A, B) (string){ .data = A, .len = B }
 
-typedef union {
+struct string {
+    char* data;
+    int   len;
+};
+
+union Value {
     b8   as_bool;
     f64    as_float;
     s64    as_int;
     string as_string;
-} Value;
+};
 
 #define STACK_MAX_SIZE 32767
 
-typedef struct {
+struct Stack {
     int   top;
     Value values[STACK_MAX_SIZE];
-} Stack;
+};
 
 skc_program Stack stack;
 
@@ -77,15 +80,13 @@ skc_inline void stack_swap() { Value b = stack_pop(); Value a = stack_pop(); sta
 
 skc_inline b8 bool_pop() { return stack_pop().as_bool; }
 skc_inline void bool_push(b8 v) { stack_push((Value){ .as_bool = v }); }
-skc_program void bool_print() { printf("%s", bool_pop() ? "true" : "false"); }
-skc_program void bool_println() { printf("%s\n", bool_pop() ? "true" : "false"); }
 skc_inline void bool_and() { bool_push(bool_pop() == BOOL_TRUE && bool_pop() == BOOL_TRUE); }
 skc_inline void bool_or() { bool_push(bool_pop() == BOOL_TRUE || bool_pop() == BOOL_TRUE); }
+skc_program void bool_print() { printf("%s", bool_pop() ? "true" : "false"); }
+skc_program void bool_println() { printf("%s\n", bool_pop() ? "true" : "false"); }
 
 skc_inline f64 float_pop() { return stack_pop().as_float; }
 skc_inline void float_push(f64 v) { stack_push((Value){ .as_float = v }); }
-skc_program void float_print() { printf("%g", float_pop()); }
-skc_program void float_println() { printf("%g\n", float_pop()); }
 skc_inline void float_equal() { f64 b = float_pop(); f64 a = float_pop(); bool_push(a == b); }
 skc_inline void float_greater() { f64 b = float_pop(); f64 a = float_pop(); bool_push(a > b); }
 skc_inline void float_greater_equal() { f64 b = float_pop(); f64 a = float_pop(); bool_push(a >= b); }
@@ -96,11 +97,12 @@ skc_inline void float_sum() { f64 b = float_pop(); f64 a = float_pop(); float_pu
 skc_inline void float_substract() { f64 b = float_pop(); f64 a = float_pop(); float_push(a - b); }
 skc_inline void float_multiply() { f64 b = float_pop(); f64 a = float_pop(); float_push(a * b); }
 skc_inline void float_divide() { f64 b = float_pop(); f64 a = float_pop(); float_push(a / b); }
+skc_program void float_print() { printf("%g", float_pop()); }
+skc_program void float_println() { printf("%g\n", float_pop()); }
 
 skc_inline s64 int_pop() { return stack_pop().as_int; }
 skc_inline void int_push(s64 v) { stack_push((Value){ .as_int = v }); }
-skc_program void int_print() { printf("%li", int_pop()); }
-skc_program void int_println() { printf("%li\n", int_pop()); }
+skc_inline void int_bool() { bool_push(int_pop() > 0 ? BOOL_TRUE : BOOL_FALSE); }
 skc_inline void int_equal() { f64 b = int_pop(); f64 a = int_pop(); bool_push(a == b); }
 skc_inline void int_greater() { f64 b = int_pop(); f64 a = int_pop(); bool_push(a > b); }
 skc_inline void int_greater_equal() { f64 b = int_pop(); f64 a = int_pop(); bool_push(a >= b); }
@@ -112,14 +114,16 @@ skc_inline void int_substract() { s64 b = int_pop(); s64 a = int_pop(); int_push
 skc_inline void int_modulo() { s64 b = int_pop(); s64 a = int_pop(); int_push(a % b); }
 skc_inline void int_multiply() { s64 b = int_pop(); s64 a = int_pop(); int_push(a * b); }
 skc_inline void int_divide() { s64 b = int_pop(); s64 a = int_pop(); int_push(a / b); }
+skc_program void int_print() { printf("%li", int_pop()); }
+skc_program void int_println() { printf("%li\n", int_pop()); }
 
 skc_inline string string_pop() { return stack_pop().as_string; }
 skc_inline void string_push(string v) { stack_push((Value){ .as_string = v }); }
+skc_inline void string_concat() { string b = string_pop(); string a = string_pop(); string_push((string){ .data = strcat(a.data, b.data), .len = a.len + b.len }); }
+skc_inline void string_equal() { string b = string_pop(); string a = string_pop(); bool_push(strcmp(a.data, b.data) == 0 ? BOOL_TRUE : BOOL_FALSE); }
+skc_inline void string_not_equal() { string b = string_pop(); string a = string_pop(); bool_push(strcmp(a.data, b.data) == 0 ? BOOL_FALSE : BOOL_TRUE); }
 skc_program void string_print() { string v = string_pop(); printf("%.*s", v.len, v.data); }
 skc_program void string_println() { string v = string_pop(); printf("%.*s\n", v.len, v.data); }
-skc_inline void string_concat() { string b = string_pop(); string a = string_pop(); string_push((string){ .data = strcat(a.data, b.data), .len = a.len + b.len }); }
-skc_inline void string_equal() { string b = string_pop(); string a = string_pop(); bool_push(strcmp(a.data, b.data) ? BOOL_FALSE : BOOL_TRUE); }
-skc_inline void string_not_equal() { string b = string_pop(); string a = string_pop(); bool_push(strcmp(a.data, b.data) ? BOOL_TRUE : BOOL_FALSE); }
 
 skc_program void main__stanczyk();
 
@@ -133,29 +137,11 @@ int main() {
 
 
 skc_program void main__stanczyk() {
-	bool_push(BOOL_TRUE);
-	bool_push(BOOL_TRUE);
-	bool_and();
+	int_push(1337);
+	int_bool();
 	bool_println();
-	bool_push(BOOL_TRUE);
-	bool_push(BOOL_FALSE);
-	bool_and();
-	bool_println();
-	bool_push(BOOL_FALSE);
-	bool_push(BOOL_FALSE);
-	bool_and();
-	bool_println();
-	bool_push(BOOL_TRUE);
-	bool_push(BOOL_TRUE);
-	bool_or();
-	bool_println();
-	bool_push(BOOL_TRUE);
-	bool_push(BOOL_FALSE);
-	bool_or();
-	bool_println();
-	bool_push(BOOL_FALSE);
-	bool_push(BOOL_FALSE);
-	bool_or();
+	int_push(0);
+	int_bool();
 	bool_println();
 }
 

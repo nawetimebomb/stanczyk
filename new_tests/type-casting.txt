@@ -1,0 +1,6 @@
+- casting any positive number to boolean gives true
+  -- 1 true
+  -- 1337 true
+- casting zero or negative numbers to boolean gives false
+  -- 0 false
+  -- -13 false

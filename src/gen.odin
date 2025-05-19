@@ -94,6 +94,8 @@ gen_program :: proc() {
                 operands_name := type_to_string(v.operands)
                 operation := reflect.enum_name_from_value(v.operation) or_break
                 writefln(&g.source, "{0}_{1}();", operands_name, operation)
+            case Op_Cast:
+                writefln(&g.source, "{0}_{1}();", type_to_string(v.from), type_to_string(v.to))
             case Op_Drop:
                 writeln(&g.source, "stack_pop();")
             case Op_Dup:
