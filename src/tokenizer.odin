@@ -13,6 +13,8 @@ Token_Kind :: enum u8 {
 
     Identifier,      // main
 
+    Bool_False,      // false
+    Bool_True,       // true
     Integer,         // 123
     Float,           // 1.23
     Character,       // 'a'
@@ -21,6 +23,7 @@ Token_Kind :: enum u8 {
     Bang,            // !
     Bang_Equal,      // !=
     Colon_Colon,     // ::
+    Dash_Dash_Dash,  // ---
     Equal,           // =
     Greater,         // >
     Greater_Equal,   // >=
@@ -44,11 +47,16 @@ Token_Kind :: enum u8 {
     Keyword_Println, // println
     Keyword_Struct,  // struct
     Keyword_Swap,    // swap
+    Keyword_Type,    // type
     Keyword_Typeof,  // typeof
     Keyword_Using,   // using
 
-    Keyword_False,   // false
-    Keyword_True,    // true
+    // Types
+    Type_Bool,       // bool
+    Type_Float,      // float
+    Type_Int,        // int
+    Type_Ptr,        // ptr
+    Type_String,     // string
 
     Dot_Exit,        // .exit (REPL)
 }
@@ -115,6 +123,7 @@ get_next_token :: proc(t: ^Tokenizer) -> (token: Token) {
         case ':':  tokenize_colon  (t, &token)
         case '<':  tokenize_less   (t, &token)
         case '>':  tokenize_greater(t, &token)
+        case '-':  tokenize_minus  (t, &token)
 
         case '\'': fallthrough
         case '"':  tokenize_string_literal(t, &token)
@@ -124,7 +133,6 @@ get_next_token :: proc(t: ^Tokenizer) -> (token: Token) {
         case ')':  token.kind = .Paren_Right; t.offset += 1
         case '%':  token.kind = .Percentage;  t.offset += 1
         case '+':  token.kind = .Plus;        t.offset += 1
-        case '-':  token.kind = .Minus;       t.offset += 1
         case '*':  token.kind = .Star;        t.offset += 1
         case '=':  token.kind = .Equal;       t.offset += 1
 
@@ -281,22 +289,38 @@ tokenize_greater :: proc(t: ^Tokenizer, token: ^Token) {
     }
 }
 
+tokenize_minus :: proc(t: ^Tokenizer, token: ^Token) {
+    token.kind = .Minus
+    t.offset += 1
+
+    if is_number(t) {
+        tokenize_number(t, token)
+    }
+}
+
 @(private="file")
 tokenize_identifier :: proc(t: ^Tokenizer, token: ^Token) {
     word := get_word_at(t)
 
     switch word {
+    case "false"   : token.kind = .Bool_False
+    case "true"    : token.kind = .Bool_True
+
     case "and"     : token.kind = .Keyword_And
     case "dup"     : token.kind = .Keyword_Dup
     case "or"      : token.kind = .Keyword_Or
     case "print"   : token.kind = .Keyword_Print
     case "println" : token.kind = .Keyword_Println
     case "swap"    : token.kind = .Keyword_Swap
+    case "type"    : token.kind = .Keyword_Type
     case "typeof"  : token.kind = .Keyword_Typeof
     case "using"   : token.kind = .Keyword_Using
 
-    case "false"   : token.kind = .Keyword_False
-    case "true"    : token.kind = .Keyword_True
+    case "bool"    : token.kind = .Type_Bool
+    case "float"   : token.kind = .Type_Float
+    case "int"     : token.kind = .Type_Int
+    case "ptr"     : token.kind = .Type_Ptr
+    case "string"  : token.kind = .Type_String
 
     case           : token.kind = .Identifier
     }

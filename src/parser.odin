@@ -17,6 +17,7 @@ Op_Push_Integer     :: struct { value: int }
 Op_Push_String      :: struct { value: string }
 
 Op_Binary           :: struct { operands: Type, operation: Binary_Operation }
+Op_Cast             :: struct { from: Type, to: Type }
 Op_Drop             :: struct {}
 Op_Dup              :: struct {}
 Op_Print            :: struct { operand: Type, newline: bool }
@@ -29,6 +30,7 @@ Operation_Kind :: union {
     Op_Push_String,
 
     Op_Binary,
+    Op_Cast,
     Op_Drop,
     Op_Dup,
     Op_Print,
@@ -66,28 +68,18 @@ sim_pop :: proc() -> (a: Type) {
     return pop(&sim_stack)
 }
 
+@(private="file")
 sim_pop2 :: proc() -> (a, b: Type) {
     return pop(&sim_stack), pop(&sim_stack)
 }
 
 @(private="file")
-sim_push :: proc{
-    sim_push_type,
-    sim_push_primitive,
-}
-
-@(private="file")
-sim_push_type :: proc(t: Type) {
+sim_push :: proc(t: Type) {
     append(&sim_stack, t)
 }
 
 @(private="file")
-sim_push_primitive :: proc(t: Primitive) {
-    append(&sim_stack, Type{ variant = Type_Primitive{ kind = t }})
-}
-
-@(private="file")
-at_least :: proc(amount: int, tests: []type_test_proc = {}) -> (res: bool) {
+at_least :: proc(amount: int, tests: []type_test_proc = {}, loc := #caller_location) -> (res: bool) {
     res = len(sim_stack) >= amount
 
     if len(tests) > 0 {
@@ -103,7 +95,7 @@ at_least :: proc(amount: int, tests: []type_test_proc = {}) -> (res: bool) {
     }
 
     // TODO: Add error
-    assert(res, "Can't be false, stack should be valid all the time")
+    assert(res, "Can't be false, stack should be valid all the time {}", loc)
     return
 }
 
@@ -212,50 +204,55 @@ parse_token :: proc(p: ^Parser) {
 
     case .Identifier:     unimplemented()
 
+    case .Bool_False, .Bool_True:
+        sim_push(type_create_primitive(.bool))
+        emit(p, Operation{ kind = Op_Push_Bool{ value = token.kind == .Bool_True }})
     case .Integer:
-        sim_push(Primitive.int)
+        sim_push(type_create_primitive(.int))
         emit(p, Operation{ kind = Op_Push_Integer{ value = strconv.atoi(token.source) }})
     case .Float:
-        sim_push(Primitive.float)
+        sim_push(type_create_primitive(.float))
         emit(p, Operation{ kind = Op_Push_Float{ value = strconv.atof(token.source) }})
     case .Character:
         unimplemented()
     case .String:
-        sim_push(Primitive.string)
+        sim_push(type_create_primitive(.string))
         // Note: Removing the `"` chars that come from the tokenizer
         str_value := token.source[1:len(token.source) - 1]
         emit(p, Operation{ kind = Op_Push_String{ value = str_value }})
 
+    case .Bang:
+        unimplemented()
     case .Bang_Equal:
         at_least(2, {type_is_int, type_is_float, type_is_string})
         t, _ := sim_pop2()
         emit(p, Operation{ kind = Op_Binary{ operands = t, operation = .not_equal }})
-        sim_push(Primitive.bool)
+        sim_push(type_create_primitive(.bool))
     case .Equal:
         at_least(2, {type_is_int, type_is_float, type_is_string})
         t, _ := sim_pop2()
         emit(p, Operation{ kind = Op_Binary{ operands = t, operation = .equal }})
-        sim_push(Primitive.bool)
+        sim_push(type_create_primitive(.bool))
     case .Greater:
         at_least(2, {type_is_int, type_is_float})
         t, _ := sim_pop2()
         emit(p, Operation{ kind = Op_Binary{ operands = t, operation = .greater }})
-        sim_push(Primitive.bool)
+        sim_push(type_create_primitive(.bool))
     case .Greater_Equal:
         at_least(2, {type_is_int, type_is_float})
         t, _ := sim_pop2()
         emit(p, Operation{ kind = Op_Binary{ operands = t, operation = .greater_equal }})
-        sim_push(Primitive.bool)
+        sim_push(type_create_primitive(.bool))
     case .Less:
         at_least(2, {type_is_int, type_is_float})
         t, _ := sim_pop2()
         emit(p, Operation{ kind = Op_Binary{ operands = t, operation = .less }})
-        sim_push(Primitive.bool)
+        sim_push(type_create_primitive(.bool))
     case .Less_Equal:
         at_least(2, {type_is_int, type_is_float})
         t, _ := sim_pop2()
         emit(p, Operation{ kind = Op_Binary{ operands = t, operation = .less_equal }})
-        sim_push(Primitive.bool)
+        sim_push(type_create_primitive(.bool))
     case .Minus:
         at_least(2, {type_is_int, type_is_float})
         t, _ := sim_pop2()
@@ -282,15 +279,9 @@ parse_token :: proc(p: ^Parser) {
         emit(p, Operation{ kind = Op_Binary{ operands = t, operation = .multiply }})
         sim_push(t)
 
-    case .Paren_Left:
-        unimplemented()
-    case .Paren_Right:
-        unimplemented()
-    case .Semicolon:
-        assert(false, "Can't parse semicolon")
+    case .Dash_Dash_Dash, .Paren_Left, .Paren_Right, .Semicolon:
+        assert(false, "Can't parse within a procedure")
 
-    case .Bang:
-        unimplemented()
     case .Keyword_And:
         at_least(2, {type_is_bool})
         t, _ := sim_pop2()
@@ -307,9 +298,6 @@ parse_token :: proc(p: ^Parser) {
         t, _ := sim_pop2()
         emit(p, Operation{ kind = Op_Binary{ operands = t, operation = .or }})
         sim_push(t)
-    case .Keyword_False, .Keyword_True:
-        sim_push(Primitive.bool)
-        emit(p, Operation{ kind = Op_Push_Bool{ value = token.kind == .Keyword_True }})
     case .Keyword_Enum:
         unimplemented()
     case .Keyword_Print, .Keyword_Println:
@@ -324,14 +312,47 @@ parse_token :: proc(p: ^Parser) {
         emit(p, Operation{ kind = Op_Swap{} })
         sim_push(b)
         sim_push(a)
+    case .Keyword_Type:
+        assert(false, "Can't parse 'type' within procedure")
     case .Keyword_Typeof:
         at_least(1)
         t := sim_pop()
         emit(p, Operation{ kind = Op_Drop{} })
         emit(p, Operation{ kind = Op_Push_String{ value = type_to_string(t) }})
-        sim_push(Primitive.string)
+        sim_push(type_create_primitive(.string))
     case .Keyword_Using:
         unimplemented()
+
+    case .Type_Bool:
+        at_least(1)
+        from := sim_pop()
+        to := type_create_primitive(.bool)
+        emit(p, Operation{ kind = Op_Cast{ from = from, to = to }})
+        sim_push(to)
+    case .Type_Float:
+        at_least(1, {type_is_int})
+        from := sim_pop()
+        to := type_create_primitive(.float)
+        emit(p, Operation{ kind = Op_Cast{ from = from, to = to }})
+        sim_push(to)
+    case .Type_Int:
+        at_least(1, {type_is_float})
+        from := sim_pop()
+        to := type_create_primitive(.int)
+        emit(p, Operation{ kind = Op_Cast{ from = from, to = to }})
+        sim_push(to)
+    case .Type_Ptr:
+        at_least(1, {type_is_primitive})
+        from := sim_pop()
+        to := type_create_pointer(type_get_primitive(from))
+        emit(p, Operation{ kind = Op_Cast{ from = from, to = to }})
+        sim_push(to)
+    case .Type_String:
+        at_least(1, {type_is_bool, type_is_int, type_is_float})
+        from := sim_pop()
+        to := type_create_primitive(.string)
+        emit(p, Operation{ kind = Op_Cast{ from = from, to = to }})
+        sim_push(to)
     }
 }
 

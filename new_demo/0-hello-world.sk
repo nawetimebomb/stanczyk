@@ -1,10 +1,6 @@
 // using io
 
 main :: ()
-  true true and println
-  true false and println
-  false false and println
-  true true or println
-  true false or println
-  false false or println
+  1337 bool println
+  0 bool println
 ;
