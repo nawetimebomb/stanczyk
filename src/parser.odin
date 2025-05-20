@@ -2,6 +2,7 @@ package main
 
 import "core:fmt"
 import "core:log"
+import "core:reflect"
 import "core:strconv"
 
 Binary_Operation :: enum {
@@ -207,10 +208,10 @@ parse_token :: proc(p: ^Parser) {
         sim_push(type_create_primitive(.bool))
         emit(p, Operation{ kind = Op_Push_Bool{ value = token.kind == .Bool_True }})
     case .Integer:
-        sim_push(type_create_primitive(.int))
+        sim_push(type_create_primitive(is_64bit() ? .s64 : .s32))
         emit(p, Operation{ kind = Op_Push_Integer{ value = strconv.atoi(token.source) }})
     case .Float:
-        sim_push(type_create_primitive(.float))
+        sim_push(type_create_primitive(is_64bit() ? .f64 : .f32))
         emit(p, Operation{ kind = Op_Push_Float{ value = strconv.atof(token.source) }})
     case .Character:
         unimplemented()
@@ -314,8 +315,9 @@ parse_token :: proc(p: ^Parser) {
     case .Keyword_Type:
         assert(false, "Can't parse 'type' within procedure")
     case .Keyword_Typeof:
-        // TODO: this is currently pushing a string with the name of the last item in the stack,
-        // but technically, it should be able to push the type information
+        // TODO: this is currently pushing a string with the name of the last item
+        // in the stack, but technically, it should be able to push the
+        // type information
         at_least(1)
         t := sim_pop()
         emit(p, Operation{ kind = Op_Drop{} })
@@ -331,15 +333,21 @@ parse_token :: proc(p: ^Parser) {
         emit(p, Operation{ kind = Op_Cast{ from = from, to = to }})
         sim_push(to)
     case .Type_Float:
-        at_least(1, {type_is_int})
+        at_least(1, {type_is_int, type_is_float})
         from := sim_pop()
-        to := type_create_primitive(.float)
+        to := type_create_primitive(is_64bit() ? .f64 : .f32)
+        emit(p, Operation{ kind = Op_Cast{ from = from, to = to }})
+        sim_push(to)
+    case .Type_F64, .Type_F32:
+        at_least(1, {type_is_int, type_is_float})
+        from := sim_pop()
+        to := type_create_primitive(token.kind == .Type_F64 ? .f64 : .f32)
         emit(p, Operation{ kind = Op_Cast{ from = from, to = to }})
         sim_push(to)
     case .Type_Int:
         at_least(1, {type_is_float})
         from := sim_pop()
-        to := type_create_primitive(.int)
+        to := type_create_primitive(is_64bit() ? .s64 : .s32)
         emit(p, Operation{ kind = Op_Cast{ from = from, to = to }})
         sim_push(to)
     case .Type_Ptr:
@@ -348,10 +356,32 @@ parse_token :: proc(p: ^Parser) {
         to := type_create_pointer(type_get_primitive(from))
         emit(p, Operation{ kind = Op_Cast{ from = from, to = to }})
         sim_push(to)
+    case .Type_S64, .Type_S32, .Type_S16, .Type_S8:
+        at_least(1, {type_is_float, type_is_int})
+        type, ok := reflect.enum_from_name(Primitive, token.source)
+        assert(ok)
+        from := sim_pop()
+        to := type_create_primitive(type)
+        emit(p, Operation{ kind = Op_Cast{ from = from, to = to }})
+        sim_push(to)
     case .Type_String:
         at_least(1, {type_is_bool, type_is_int, type_is_float})
         from := sim_pop()
         to := type_create_primitive(.string)
+        emit(p, Operation{ kind = Op_Cast{ from = from, to = to }})
+        sim_push(to)
+    case .Type_U64, .Type_U32, .Type_U16, .Type_U8:
+        at_least(1, {type_is_float, type_is_int})
+        type, ok := reflect.enum_from_name(Primitive, token.source)
+        assert(ok)
+        from := sim_pop()
+        to := type_create_primitive(type)
+        emit(p, Operation{ kind = Op_Cast{ from = from, to = to }})
+        sim_push(to)
+    case .Type_Uint:
+        at_least(1, {type_is_float, type_is_int})
+        from := sim_pop()
+        to := type_create_primitive(is_64bit() ? .u64 : .u32)
         emit(p, Operation{ kind = Op_Cast{ from = from, to = to }})
         sim_push(to)
     }

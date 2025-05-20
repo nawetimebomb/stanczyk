@@ -54,9 +54,20 @@ Token_Kind :: enum u8 {
     // Types
     Type_Bool,       // bool
     Type_Float,      // float
+    Type_F64,        // f64
+    Type_F32,        // f32
     Type_Int,        // int
     Type_Ptr,        // ptr
+    Type_S64,        // s64
+    Type_S32,        // s32
+    Type_S16,        // s16
+    Type_S8,         // s8
     Type_String,     // string
+    Type_U64,        // u64
+    Type_U32,        // u32
+    Type_U16,        // u16
+    Type_U8,         // u8
+    Type_Uint,       // uint
 
     Dot_Exit,        // .exit (REPL)
 }
@@ -318,9 +329,20 @@ tokenize_identifier :: proc(t: ^Tokenizer, token: ^Token) {
 
     case "bool"    : token.kind = .Type_Bool
     case "float"   : token.kind = .Type_Float
+    case "f64"     : token.kind = .Type_F64
+    case "f32"     : token.kind = .Type_F32
     case "int"     : token.kind = .Type_Int
     case "ptr"     : token.kind = .Type_Ptr
+    case "s64"     : token.kind = .Type_S64
+    case "s32"     : token.kind = .Type_S32
+    case "s16"     : token.kind = .Type_S16
+    case "s8"      : token.kind = .Type_S8
     case "string"  : token.kind = .Type_String
+    case "u64"     : token.kind = .Type_U64
+    case "u32"     : token.kind = .Type_U32
+    case "u16"     : token.kind = .Type_U16
+    case "u8"      : token.kind = .Type_U8
+    case "uint"    : token.kind = .Type_Uint
 
     case           : token.kind = .Identifier
     }
