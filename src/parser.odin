@@ -5,10 +5,9 @@ import "core:log"
 import "core:strconv"
 
 Binary_Operation :: enum {
-    and, concat, divide, equal, greater,
-    greater_equal, less, less_equal,
-    modulo, multiply, not_equal,
-    or, substract, sum,
+    and, or,
+    plus, divide, minus, multiply, modulo,
+    ge, gt, le, lt, eq, ne,
 }
 
 Op_Push_Bool        :: struct { value: bool }
@@ -95,7 +94,7 @@ at_least :: proc(amount: int, tests: []type_test_proc = {}, loc := #caller_locat
     }
 
     // TODO: Add error
-    assert(res, "Can't be false, stack should be valid all the time {}", loc)
+    assert(res, "Can't be false, stack should be valid all the time", loc)
     return
 }
 
@@ -226,37 +225,37 @@ parse_token :: proc(p: ^Parser) {
     case .Bang_Equal:
         at_least(2, {type_is_int, type_is_float, type_is_string})
         t, _ := sim_pop2()
-        emit(p, Operation{ kind = Op_Binary{ operands = t, operation = .not_equal }})
+        emit(p, Operation{ kind = Op_Binary{ operands = t, operation = .ne }})
         sim_push(type_create_primitive(.bool))
     case .Equal:
         at_least(2, {type_is_int, type_is_float, type_is_string})
         t, _ := sim_pop2()
-        emit(p, Operation{ kind = Op_Binary{ operands = t, operation = .equal }})
+        emit(p, Operation{ kind = Op_Binary{ operands = t, operation = .eq }})
         sim_push(type_create_primitive(.bool))
     case .Greater:
         at_least(2, {type_is_int, type_is_float})
         t, _ := sim_pop2()
-        emit(p, Operation{ kind = Op_Binary{ operands = t, operation = .greater }})
+        emit(p, Operation{ kind = Op_Binary{ operands = t, operation = .gt }})
         sim_push(type_create_primitive(.bool))
     case .Greater_Equal:
         at_least(2, {type_is_int, type_is_float})
         t, _ := sim_pop2()
-        emit(p, Operation{ kind = Op_Binary{ operands = t, operation = .greater_equal }})
+        emit(p, Operation{ kind = Op_Binary{ operands = t, operation = .ge }})
         sim_push(type_create_primitive(.bool))
     case .Less:
         at_least(2, {type_is_int, type_is_float})
         t, _ := sim_pop2()
-        emit(p, Operation{ kind = Op_Binary{ operands = t, operation = .less }})
+        emit(p, Operation{ kind = Op_Binary{ operands = t, operation = .lt }})
         sim_push(type_create_primitive(.bool))
     case .Less_Equal:
         at_least(2, {type_is_int, type_is_float})
         t, _ := sim_pop2()
-        emit(p, Operation{ kind = Op_Binary{ operands = t, operation = .less_equal }})
+        emit(p, Operation{ kind = Op_Binary{ operands = t, operation = .le }})
         sim_push(type_create_primitive(.bool))
     case .Minus:
         at_least(2, {type_is_int, type_is_float})
         t, _ := sim_pop2()
-        emit(p, Operation{ kind = Op_Binary{ operands = t, operation = .substract }})
+        emit(p, Operation{ kind = Op_Binary{ operands = t, operation = .minus }})
         sim_push(t)
     case .Percentage:
         at_least(2, {type_is_int})
@@ -266,7 +265,7 @@ parse_token :: proc(p: ^Parser) {
     case .Plus:
         at_least(2, {type_is_int, type_is_float, type_is_string})
         t, _ := sim_pop2()
-        emit(p, Operation{ kind = Op_Binary{ operands = t, operation = type_is_string(t) ? .concat : .sum }})
+        emit(p, Operation{ kind = Op_Binary{ operands = t, operation = .plus }})
         sim_push(t)
     case .Slash:
         at_least(2, {type_is_int, type_is_float})
@@ -315,10 +314,12 @@ parse_token :: proc(p: ^Parser) {
     case .Keyword_Type:
         assert(false, "Can't parse 'type' within procedure")
     case .Keyword_Typeof:
+        // TODO: this is currently pushing a string with the name of the last item in the stack,
+        // but technically, it should be able to push the type information
         at_least(1)
         t := sim_pop()
         emit(p, Operation{ kind = Op_Drop{} })
-        emit(p, Operation{ kind = Op_Push_String{ value = type_to_string(t) }})
+        emit(p, Operation{ kind = Op_Push_String{ value = type_to_cname(t) }})
         sim_push(type_create_primitive(.string))
     case .Keyword_Using:
         unimplemented()

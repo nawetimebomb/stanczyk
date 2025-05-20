@@ -20,6 +20,8 @@ Primitive :: enum u8 {
     bool,
     float,
     int,
+    f64,
+    s64,
     string,
 }
 
@@ -58,7 +60,7 @@ type_is_bool :: proc(t: Type) -> bool {
 
 type_is_float :: proc(t: Type) -> bool {
     #partial switch v in t.variant {
-        case Type_Primitive: return v.kind == .float
+        case Type_Primitive: return v.kind == .f64 || v.kind == .float
     }
 
     return false
@@ -66,7 +68,7 @@ type_is_float :: proc(t: Type) -> bool {
 
 type_is_int :: proc(t: Type) -> bool {
     #partial switch v in t.variant {
-        case Type_Primitive: return v.kind == .int
+        case Type_Primitive: return v.kind == .s64 || v.kind == .int
     }
 
     return false
@@ -88,10 +90,18 @@ type_is_primitive :: proc(t: Type) -> bool {
     return false
 }
 
-type_to_string :: proc(t: Type) -> string {
+type_to_cname :: proc(t: Type) -> string {
     switch v in t.variant {
     case Type_Primitive:
-        return reflect.enum_name_from_value(v.kind) or_break
+        switch v.kind {
+        case .invalid: assert(false)
+        case .bool: return "bool"
+        case .int: return "s64" // TODO: make this smarter as it should pick between 64 and 32 bit depending on the system
+        case .float: return "f64" // TODO: make this smarter as it should pick between 64 and 32 bit depending on the system
+        case .s64: return "s64"
+        case .f64: return "f64"
+        case .string: return "string"
+        }
     case Type_Pointer:
         return "ptr"
     }

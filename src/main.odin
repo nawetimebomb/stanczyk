@@ -50,6 +50,9 @@ source_files:   map[string]string
 output_file:    string
 program:        Program
 
+keep_c_output_file := false
+run_program := false
+
 // TODO: This is useful for debugging, but maybe I need an Arena allocator as the default
 skc_allocator: mem.Tracking_Allocator
 
@@ -92,7 +95,8 @@ cleanup_exit :: proc(code: int) {
 
 compile :: proc() {
     libc.system(fmt.ctprintf("gcc {} -o output", GENERATED_FILE_NAME))
-    libc.system("rm skgen.c")
+    if !keep_c_output_file { libc.system("rm skgen.c") }
+    if run_program { libc.system("./output") }
 }
 
 main :: proc() {
@@ -115,6 +119,10 @@ main :: proc() {
         case "-version":
             fmt.printfln(MSG_VERSION, COMPILER_VERSION)
             cleanup_exit(0)
+        case "-keepc":
+            keep_c_output_file = true
+        case "-run":
+            run_program = true
         case :
             if !os.exists(arg) {
                 fmt.printfln(ERROR_FILE_OR_DIR_NOT_FOUND, arg)
@@ -139,16 +147,14 @@ main :: proc() {
 
                 for f in fis {
                     if strings.ends_with(f.name, ".sk") {
-                        data, success :=
-                            os.read_entire_file(f.fullpath, context.temp_allocator)
+                        data, success := os.read_entire_file(f.fullpath, context.temp_allocator)
 
                         if !success {
                             fmt.printfln(ERROR_FILE_CANT_OPEN, f.fullpath)
                             cleanup_exit(1)
                         }
 
-                        source_files[strings.clone(f.fullpath)] =
-                            strings.clone(string(data))
+                        source_files[strings.clone(f.fullpath)] = strings.clone(string(data))
                     }
                 }
             }
