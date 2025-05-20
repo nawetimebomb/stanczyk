@@ -1,6 +1,0 @@
-// using io
-
-main :: ()
-  1337 bool println
-  0 bool println
-;

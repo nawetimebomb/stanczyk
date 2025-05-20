@@ -9,8 +9,8 @@ import "core:strings"
 
 BACKEND_BUILTIN_C :: #load("include/builtin.c")
 
-INLINE_PROC_DEF :: "skc_inline"
-STATIC_PROC_DEF :: "skc_program"
+INLINE_PROC_DEF :: "SK_INLINE"
+STATIC_PROC_DEF :: "SK_PROGRAM"
 
 Gen :: struct {
     definitions: strings.Builder,
@@ -68,9 +68,9 @@ gen_program :: proc() {
 
     for p in program.procs {
         if p.name == "main" {
-            writefln(&g.source, "skc_program void main__stanczyk() {{")
+            writefln(&g.source, "{} void main__stanczyk() {{", STATIC_PROC_DEF)
         } else {
-            proc_prefix := p.is_inline ? "skc_inline" : "skc_program"
+            proc_prefix := p.is_inline ? INLINE_PROC_DEF : STATIC_PROC_DEF
             writefln(&g.definitions, "{0} void {1}__{2}();", proc_prefix, p.name, p.ip)
             writefln(&g.source, "{0} void {1}__{2}() {{", proc_prefix, p.name, p.ip)
         }
@@ -82,26 +82,32 @@ gen_program :: proc() {
 
             switch v in op.kind {
             case Op_Push_Bool:
-                writefln(&g.source, "bool_push({});", v.value ? "BOOL_TRUE" : "BOOL_FALSE")
+                writefln(&g.source, "bool_push({});", v.value)
             case Op_Push_Float:
                 writefln(&g.source, "float_push({});", v.value)
             case Op_Push_Integer:
-                writefln(&g.source, "int_push({});", v.value)
+                writefln(&g.source, "s64_push({});", v.value)
             case Op_Push_String:
-                writefln(&g.source, "string_push(_STRING(\"{}\", {}));", v.value, len(v.value))
+                writefln(&g.source, "string_push(_STRLEN(\"{}\", {}));", v.value, len(v.value))
 
             case Op_Binary:
-                operands_name := type_to_string(v.operands)
-                operation := reflect.enum_name_from_value(v.operation) or_break
-                writefln(&g.source, "{0}_{1}();", operands_name, operation)
+                if v.operation == .and {
+                    writeln(&g.source, "log_and();")
+                } else if v.operation == .or {
+                    writeln(&g.source, "log_or();")
+                } else {
+                    operands_name := type_to_cname(v.operands)
+                    operation := reflect.enum_name_from_value(v.operation) or_break
+                    writefln(&g.source, "{0}_{1}();", operands_name, operation)
+                }
             case Op_Cast:
-                writefln(&g.source, "{0}_{1}();", type_to_string(v.from), type_to_string(v.to))
+                writefln(&g.source, "{0}_to_{1}();", type_to_cname(v.from), type_to_cname(v.to))
             case Op_Drop:
                 writeln(&g.source, "stack_pop();")
             case Op_Dup:
                 writeln(&g.source, "stack_dup();")
             case Op_Print:
-                operand_name := type_to_string(v.operand)
+                operand_name := type_to_cname(v.operand)
                 printfn := v.newline ? "println" : "print"
                 writefln(&g.source, "{0}_{1}();", operand_name, printfn)
             case Op_Swap:
