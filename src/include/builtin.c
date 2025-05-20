@@ -83,9 +83,9 @@ typedef s64 b64;
   #define true (bool) 1
 #endif
 
-#define _STRLIT0 (string){.buf=(byteptr)(""), .len=0}
-#define _STRLIT(s) ((string){.buf=(byteptr)("" s), .len=(size(s)-1)})
-#define _STRLEN(s, n) ((string){.buf=(byteptr)("" s), .len=n})
+#define __STRLIT0 (string){.buf=(byteptr)(""), .len=0}
+#define __STRLIT(s) ((string){.buf=(byteptr)("" s), .len=(size(s)-1)})
+#define __STRLEN(s, n) ((string){.buf=(byteptr)("" s), .len=n})
 
 struct string {
     byteptr buf;
@@ -111,7 +111,7 @@ union Stack_value {
     string _string;
 };
 
-#define STACK_MAX_SIZE 32767
+#define STACK_MAX_SIZE 255
 
 typedef union Stack_value Stack_value;
 typedef struct Program_stack Program_stack;
@@ -192,7 +192,6 @@ SK_INLINE void f64_to_u64() { u64_push((u64)f64_pop()); }
 SK_INLINE void f64_to_u32() { u32_push((u32)f64_pop()); }
 SK_INLINE void f64_to_u16() { u16_push((u16)f64_pop()); }
 SK_INLINE void f64_to_u8() { u8_push((u8)f64_pop()); }
-//SK_INLINE void f64_to_string() { }
 
 SK_INLINE void f32_to_bool() { bool_push(f32_pop() > 0.0f ? true : false); }
 SK_INLINE void f32_to_f64() { f64_push((f64)f32_pop()); }
@@ -204,7 +203,6 @@ SK_INLINE void f32_to_u64() { u64_push((u64)f32_pop()); }
 SK_INLINE void f32_to_u32() { u32_push((u32)f32_pop()); }
 SK_INLINE void f32_to_u16() { u16_push((u16)f32_pop()); }
 SK_INLINE void f32_to_u8() { u8_push((u8)f32_pop()); }
-//SK_INLINE void f32_to_string() { }
 
 SK_INLINE void s64_to_bool() { bool_push(s64_pop() > 0 ? true : false); }
 SK_INLINE void s64_to_f64() { f64_push((f64)s64_pop()); }
@@ -216,7 +214,6 @@ SK_INLINE void s64_to_u64() { u64_push((u64)s64_pop()); }
 SK_INLINE void s64_to_u32() { u32_push((u32)s64_pop()); }
 SK_INLINE void s64_to_u16() { u16_push((u16)s64_pop()); }
 SK_INLINE void s64_to_u8() { u8_push((u8)s64_pop()); }
-// SK_INLINE void s64_to_string() { }
 
 SK_INLINE void s32_to_bool() { bool_push(s32_pop() > 0 ? true : false); }
 SK_INLINE void s32_to_f64() { f64_push((f64)s32_pop()); }
@@ -228,7 +225,6 @@ SK_INLINE void s32_to_u64() { u64_push((u64)s32_pop()); }
 SK_INLINE void s32_to_u32() { u32_push((u32)s32_pop()); }
 SK_INLINE void s32_to_u16() { u16_push((u16)s32_pop()); }
 SK_INLINE void s32_to_u8() { u8_push((u8)s32_pop()); }
-//SK_INLINE void s32_to_string() { }
 
 SK_INLINE void s16_to_bool() { bool_push(s16_pop() > 0 ? true : false); }
 SK_INLINE void s16_to_f64() { f64_push((f64)s16_pop()); }
@@ -240,7 +236,6 @@ SK_INLINE void s16_to_u64() { u64_push((u64)s16_pop()); }
 SK_INLINE void s16_to_u32() { u32_push((u32)s16_pop()); }
 SK_INLINE void s16_to_u16() { u16_push((u16)s16_pop()); }
 SK_INLINE void s16_to_u8() { u8_push((u8)s16_pop()); }
-//SK_INLINE void s16_to_string() { }
 
 SK_INLINE void s8_to_bool() { bool_push(s8_pop() > 0 ? true : false); }
 SK_INLINE void s8_to_f64() { f64_push((f64)s8_pop()); }
@@ -252,7 +247,6 @@ SK_INLINE void s8_to_u64() { u64_push((u64)s8_pop()); }
 SK_INLINE void s8_to_u32() { u32_push((u32)s8_pop()); }
 SK_INLINE void s8_to_u16() { u16_push((u16)s8_pop()); }
 SK_INLINE void s8_to_u8() { u8_push((u8)s8_pop()); }
-//SK_INLINE void s8_to_string() { }
 
 SK_INLINE void u64_to_bool() { bool_push(u64_pop() > 0 ? true : false); }
 SK_INLINE void u64_to_f64() { f64_push((f64)u64_pop()); }
@@ -264,7 +258,6 @@ SK_INLINE void u64_to_s8() { s8_push((s8)u64_pop()); }
 SK_INLINE void u64_to_u32() { u32_push((u32)u64_pop()); }
 SK_INLINE void u64_to_u16() { u16_push((u16)u64_pop()); }
 SK_INLINE void u64_to_u8() { u8_push((u8)u64_pop()); }
-//SK_INLINE void u64_to_string() { }
 
 SK_INLINE void u32_to_bool() { bool_push(u32_pop() > 0 ? true : false); }
 SK_INLINE void u32_to_f64() { f64_push((f64)u32_pop()); }
@@ -276,7 +269,6 @@ SK_INLINE void u32_to_s8() { s8_push((s8)u32_pop()); }
 SK_INLINE void u32_to_u64() { u64_push((u64)u32_pop()); }
 SK_INLINE void u32_to_u16() { u16_push((u16)u32_pop()); }
 SK_INLINE void u32_to_u8() { u8_push((u8)u32_pop()); }
-//SK_INLINE void u32_to_string() { }
 
 SK_INLINE void u16_to_bool() { bool_push(u16_pop() > 0 ? true : false); }
 SK_INLINE void u16_to_f64() { f64_push((f64)u16_pop()); }
@@ -288,7 +280,6 @@ SK_INLINE void u16_to_s8() { s8_push((s8)u16_pop()); }
 SK_INLINE void u16_to_u64() { u64_push((u64)u16_pop()); }
 SK_INLINE void u16_to_u32() { u32_push((u32)u16_pop()); }
 SK_INLINE void u16_to_u8() { u8_push((u8)u16_pop()); }
-//SK_INLINE void u16_to_string() { }
 
 SK_INLINE void u8_to_bool() { bool_push(u8_pop() > 0 ? true : false); }
 SK_INLINE void u8_to_f64() { f64_push((f64)u8_pop()); }
@@ -300,7 +291,6 @@ SK_INLINE void u8_to_s8() { s8_push((s8)u8_pop()); }
 SK_INLINE void u8_to_u64() { u64_push((u64)u8_pop()); }
 SK_INLINE void u8_to_u32() { u32_push((u32)u8_pop()); }
 SK_INLINE void u8_to_u16() { u16_push((u16)u8_pop()); }
-//SK_INLINE void u8_to_string() { }
 
 SK_INLINE void string_to_bool() { bool_push(string_pop().len > 0 ? true : false); }
 

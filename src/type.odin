@@ -18,11 +18,17 @@ Type_Variant :: union {
 Primitive :: enum u8 {
     invalid = 0,
     bool,
-    float,
-    int,
     f64,
+    f32,
     s64,
+    s32,
+    s16,
+    s8,
     string,
+    u64,
+    u32,
+    u16,
+    u8,
 }
 
 Type_Primitive :: struct {
@@ -59,16 +65,21 @@ type_is_bool :: proc(t: Type) -> bool {
 }
 
 type_is_float :: proc(t: Type) -> bool {
-    #partial switch v in t.variant {
-        case Type_Primitive: return v.kind == .f64 || v.kind == .float
+    switch v in t.variant {
+    case Type_Primitive: return v.kind == .f64 || v.kind == .f32
+    case Type_Pointer: return false
     }
 
     return false
 }
 
 type_is_int :: proc(t: Type) -> bool {
-    #partial switch v in t.variant {
-        case Type_Primitive: return v.kind == .s64 || v.kind == .int
+    switch v in t.variant {
+    case Type_Primitive:
+        return v.kind == .s64 || v.kind == .s32 ||
+            v.kind == .s16 || v.kind == .s8
+    case Type_Pointer:
+        return false
     }
 
     return false
@@ -95,12 +106,18 @@ type_to_cname :: proc(t: Type) -> string {
     case Type_Primitive:
         switch v.kind {
         case .invalid: assert(false)
-        case .bool: return "bool"
-        case .int: return "s64" // TODO: make this smarter as it should pick between 64 and 32 bit depending on the system
-        case .float: return "f64" // TODO: make this smarter as it should pick between 64 and 32 bit depending on the system
-        case .s64: return "s64"
-        case .f64: return "f64"
-        case .string: return "string"
+        case .bool:    return "bool"
+        case .f64:     return "f64"
+        case .f32:     return "f32"
+        case .s64:     return "s64"
+        case .s32:     return "s32"
+        case .s16:     return "s16"
+        case .s8:      return "s8"
+        case .string:  return "string"
+        case .u64:     return "u64"
+        case .u32:     return "u32"
+        case .u16:     return "u16"
+        case .u8:      return "u8"
         }
     case Type_Pointer:
         return "ptr"

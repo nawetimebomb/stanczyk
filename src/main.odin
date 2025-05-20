@@ -12,7 +12,14 @@ COMPILER_EXEC    :: "skc"
 COMPILER_NAME    :: "Stańczyk"
 COMPILER_VERSION :: "5"
 
+ARCH_64 :: 64
+ARCH_32 :: 32
+
 GENERATED_FILE_NAME :: "skgen.c"
+
+Compiler_Architecture :: enum u8 {
+    ARCH_64, ARCH_32,
+}
 
 Location :: struct {
     file: string,
@@ -45,6 +52,7 @@ Procedure :: struct {
     //results: Arity,
 }
 
+compiler_arch:  Compiler_Architecture
 compiler_mode:  enum { Compiler, Interpreter, REPL }
 source_files:   map[string]string
 output_file:    string
@@ -68,6 +76,10 @@ when ODIN_DEBUG {
     }
 }
 
+is_64bit :: proc() -> bool {
+    return compiler_arch == .ARCH_64
+}
+
 init :: proc() {
     when ODIN_DEBUG {
         context.logger = log.create_console_logger()
@@ -75,6 +87,13 @@ init :: proc() {
         default_allocator := context.allocator
         mem.tracking_allocator_init(&skc_allocator, default_allocator)
         context.allocator = mem.tracking_allocator(&skc_allocator)
+    }
+
+    switch ODIN_ARCH {
+    case .i386, .wasm32, .arm32, .Unknown:
+        compiler_arch = .ARCH_32
+    case .amd64, .wasm64p32, .arm64, .riscv64:
+        compiler_arch = .ARCH_64
     }
 }
 
