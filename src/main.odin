@@ -30,6 +30,11 @@ Program :: struct {
     procs: [dynamic]Procedure,
 }
 
+Arity :: struct {
+    amount: int,
+    types: [dynamic]Type,
+}
+
 Procedure :: struct {
     ip:        int,
     loc:       Location,
@@ -38,6 +43,9 @@ Procedure :: struct {
     token:     Token,
 
     ops:       [dynamic]Operation,
+
+    arguments: Arity,
+    results:   Arity,
 
     called:    bool,
     error:     bool,

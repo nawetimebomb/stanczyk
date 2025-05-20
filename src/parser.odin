@@ -5,7 +5,11 @@ import "core:log"
 import "core:reflect"
 import "core:strconv"
 
-Binary_Operation :: enum {
+Unary_Operation :: enum u8 {
+    minus_minus, plus_plus,
+}
+
+Binary_Operation :: enum u8 {
     and, or,
     plus, divide, minus, multiply, modulo,
     ge, gt, le, lt, eq, ne,
@@ -17,11 +21,13 @@ Op_Push_Integer     :: struct { value: int }
 Op_Push_String      :: struct { value: string }
 
 Op_Binary           :: struct { operands: Type, operation: Binary_Operation }
+Op_Call_Proc        :: struct { name: string, ip: int }
 Op_Cast             :: struct { from: Type, to: Type }
 Op_Drop             :: struct {}
 Op_Dup              :: struct {}
 Op_Print            :: struct { operand: Type, newline: bool }
 Op_Swap             :: struct {}
+Op_Unary            :: struct { operand: Type, operation: Unary_Operation }
 
 Operation_Kind :: union {
     Op_Push_Bool,
@@ -30,11 +36,13 @@ Operation_Kind :: union {
     Op_Push_String,
 
     Op_Binary,
+    Op_Call_Proc,
     Op_Cast,
     Op_Drop,
     Op_Dup,
     Op_Print,
     Op_Swap,
+    Op_Unary,
 }
 
 Operation :: struct {
@@ -58,45 +66,6 @@ Parser :: struct {
 
     scopes:     [dynamic]Scope,
     chunk:      ^Procedure,
-}
-
-@(private="file")
-sim_stack: [dynamic]Type
-
-@(private="file")
-sim_pop :: proc() -> (a: Type) {
-    return pop(&sim_stack)
-}
-
-@(private="file")
-sim_pop2 :: proc() -> (a, b: Type) {
-    return pop(&sim_stack), pop(&sim_stack)
-}
-
-@(private="file")
-sim_push :: proc(t: Type) {
-    append(&sim_stack, t)
-}
-
-@(private="file")
-at_least :: proc(amount: int, tests: []type_test_proc = {}, loc := #caller_location) -> (res: bool) {
-    res = len(sim_stack) >= amount
-
-    if len(tests) > 0 {
-        for test_proc in tests {
-            for x in 0..<amount {
-                item := sim_stack[len(sim_stack) - 1 - x]
-                res = test_proc(item)
-                if !res { break }
-            }
-
-            if res { break }
-        }
-    }
-
-    // TODO: Add error
-    assert(res, "Can't be false, stack should be valid all the time", loc)
-    return
 }
 
 @(private="file")
@@ -164,6 +133,7 @@ start_parsing_procedure :: proc(p: ^Parser, t: ^Token) {
     for &c in program.procs {
         if c.name == name {
             p.chunk = &c
+            for type in c.arguments.types { sim_push(type) }
             break
         }
     }
@@ -171,6 +141,8 @@ start_parsing_procedure :: proc(p: ^Parser, t: ^Token) {
 
 @(private="file")
 end_parsing_procedure :: proc(p: ^Parser) {
+    fmt.assertf(p.chunk.results.amount == len(sim_stack), "stack mismatch, expected {}, got {}", p.chunk.results.amount, len(sim_stack))
+    clear(&sim_stack)
     p.chunk = nil
 }
 
@@ -178,10 +150,8 @@ end_parsing_procedure :: proc(p: ^Parser) {
 parse_token :: proc(p: ^Parser) {
     token := p.previous
 
-    if !is_parsing_procedure(p) {
-        // TODO: Error
-        unimplemented()
-    }
+    // TODO: add proper error
+    assert(is_parsing_procedure(p))
 
     switch token.kind {
     case .Invalid:
@@ -202,7 +172,29 @@ parse_token :: proc(p: ^Parser) {
         // This is only used in REPL mode. If found in source, it throws an error.
         log.errorf(ERROR_INVALID_TOKEN, token)
 
-    case .Identifier:     unimplemented()
+    case .Identifier:
+        // Note: Identifiers can be variables, bindings, constants or even other procedures, but they
+        // also can be unknown. The order I want to have is to search for bindings first, variables second,
+        // constants third and lastly, a procedure.
+        parsed := false
+        ok: bool
+        ip: int
+        name := token.source
+
+        // if ip, ok = is_identifier_binding(name); ok { return }
+        //if ip, ok = is_identifier_variable(name); ok { return }
+        //if ip, ok = is_identifier_constant(name); ok { return }
+        for procedure in program.procs {
+            if procedure.name == token.source {
+                // Maybe found, make sure it matches the arity
+                if sim_match(procedure.arguments.amount, procedure.arguments.types[:]) {
+                    for x in 0..<procedure.arguments.amount { sim_pop() }
+                    for type in procedure.results.types { sim_push(type) }
+                    emit(p, Operation{ kind = Op_Call_Proc{ name = procedure.name, ip = procedure.ip }})
+                    return
+                }
+            }
+        }
 
     case .Bool_False, .Bool_True:
         sim_push(type_create_primitive(.bool))
@@ -224,57 +216,65 @@ parse_token :: proc(p: ^Parser) {
     case .Bang:
         unimplemented()
     case .Bang_Equal:
-        at_least(2, {type_is_int, type_is_float, type_is_string})
+        sim_expect(p.chunk, sim_at_least(2), sim_one_of_primitive(..TYPE_ALL_PRIMITIVE))
         t, _ := sim_pop2()
         emit(p, Operation{ kind = Op_Binary{ operands = t, operation = .ne }})
         sim_push(type_create_primitive(.bool))
     case .Equal:
-        at_least(2, {type_is_int, type_is_float, type_is_string})
+        sim_expect(p.chunk, sim_at_least(2), sim_one_of_primitive(..TYPE_ALL_PRIMITIVE))
         t, _ := sim_pop2()
         emit(p, Operation{ kind = Op_Binary{ operands = t, operation = .eq }})
         sim_push(type_create_primitive(.bool))
     case .Greater:
-        at_least(2, {type_is_int, type_is_float})
+        sim_expect(p.chunk, sim_at_least(2), sim_one_of_primitive(..TYPE_ALL_NUMBER))
         t, _ := sim_pop2()
         emit(p, Operation{ kind = Op_Binary{ operands = t, operation = .gt }})
         sim_push(type_create_primitive(.bool))
     case .Greater_Equal:
-        at_least(2, {type_is_int, type_is_float})
+        sim_expect(p.chunk, sim_at_least(2), sim_one_of_primitive(..TYPE_ALL_NUMBER))
         t, _ := sim_pop2()
         emit(p, Operation{ kind = Op_Binary{ operands = t, operation = .ge }})
         sim_push(type_create_primitive(.bool))
     case .Less:
-        at_least(2, {type_is_int, type_is_float})
+        sim_expect(p.chunk, sim_at_least(2), sim_one_of_primitive(..TYPE_ALL_NUMBER))
         t, _ := sim_pop2()
         emit(p, Operation{ kind = Op_Binary{ operands = t, operation = .lt }})
         sim_push(type_create_primitive(.bool))
     case .Less_Equal:
-        at_least(2, {type_is_int, type_is_float})
+        sim_expect(p.chunk, sim_at_least(2), sim_one_of_primitive(..TYPE_ALL_NUMBER))
         t, _ := sim_pop2()
         emit(p, Operation{ kind = Op_Binary{ operands = t, operation = .le }})
         sim_push(type_create_primitive(.bool))
     case .Minus:
-        at_least(2, {type_is_int, type_is_float})
+        sim_expect(p.chunk, sim_at_least(2), sim_one_of_primitive(..TYPE_ALL_NUMBER))
         t, _ := sim_pop2()
         emit(p, Operation{ kind = Op_Binary{ operands = t, operation = .minus }})
         sim_push(t)
+    case .Minus_Minus:
+        sim_expect(p.chunk, sim_at_least(1), sim_one_of_primitive(..TYPE_ALL_NUMBER))
+        t := sim_peek()
+        emit(p, Operation{ kind = Op_Unary{ operand = t, operation = .minus_minus }})
     case .Percentage:
-        at_least(2, {type_is_int})
+        sim_expect(p.chunk, sim_at_least(2), sim_one_of_primitive(..TYPE_ALL_REAL_NUMBER))
         t, _ := sim_pop2()
         emit(p, Operation{ kind = Op_Binary{ operands = t, operation = .modulo }})
         sim_push(t)
     case .Plus:
-        at_least(2, {type_is_int, type_is_float, type_is_string})
+        sim_expect(p.chunk, sim_at_least(2), sim_one_of_primitive(..TYPE_ALL_PRIMITIVE), !sim_match_type(type_create_primitive(.bool)))
         t, _ := sim_pop2()
         emit(p, Operation{ kind = Op_Binary{ operands = t, operation = .plus }})
         sim_push(t)
+    case .Plus_Plus:
+        sim_expect(p.chunk, sim_at_least(1), sim_one_of_primitive(..TYPE_ALL_NUMBER))
+        t := sim_peek()
+        emit(p, Operation{ kind = Op_Unary{ operand = t, operation = .plus_plus }})
     case .Slash:
-        at_least(2, {type_is_int, type_is_float})
+        sim_expect(p.chunk, sim_at_least_same_type(2), sim_one_of_primitive(..TYPE_ALL_NUMBER))
         t, _ := sim_pop2()
         emit(p, Operation{ kind = Op_Binary{ operands = t, operation = .divide }})
         sim_push(t)
     case .Star:
-        at_least(2, {type_is_int, type_is_float})
+        sim_expect(p.chunk, sim_at_least_same_type(2), sim_one_of_primitive(..TYPE_ALL_NUMBER))
         t, _ := sim_pop2()
         emit(p, Operation{ kind = Op_Binary{ operands = t, operation = .multiply }})
         sim_push(t)
@@ -283,31 +283,31 @@ parse_token :: proc(p: ^Parser) {
         assert(false, "Can't parse within a procedure")
 
     case .Keyword_And:
-        at_least(2, {type_is_bool})
+        sim_expect(p.chunk, sim_at_least(2), sim_one_of_primitive(.bool))
         t, _ := sim_pop2()
         emit(p, Operation{ kind = Op_Binary{ operands = t, operation = .and }})
         sim_push(t)
     case .Keyword_Dup:
-        at_least(1)
+        sim_expect(p.chunk, sim_at_least(1))
         t := sim_pop()
         emit(p, Operation{ kind = Op_Dup{} })
         sim_push(t)
         sim_push(t)
     case .Keyword_Or:
-        at_least(2, {type_is_bool})
+        sim_expect(p.chunk, sim_at_least(2), sim_one_of_primitive(.bool))
         t, _ := sim_pop2()
         emit(p, Operation{ kind = Op_Binary{ operands = t, operation = .or }})
         sim_push(t)
     case .Keyword_Enum:
         unimplemented()
     case .Keyword_Print, .Keyword_Println:
-        at_least(1)
+        sim_expect(p.chunk, sim_at_least(1))
         t := sim_pop()
         emit(p, Operation{ kind = Op_Print{ operand = t, newline = token.kind == .Keyword_Println }})
     case .Keyword_Struct:
         unimplemented()
     case .Keyword_Swap:
-        at_least(2)
+        sim_expect(p.chunk, sim_at_least(2))
         b, a := sim_pop2()
         emit(p, Operation{ kind = Op_Swap{} })
         sim_push(b)
@@ -318,7 +318,7 @@ parse_token :: proc(p: ^Parser) {
         // TODO: this is currently pushing a string with the name of the last item
         // in the stack, but technically, it should be able to push the
         // type information
-        at_least(1)
+        sim_expect(p.chunk, sim_at_least(1))
         t := sim_pop()
         emit(p, Operation{ kind = Op_Drop{} })
         emit(p, Operation{ kind = Op_Push_String{ value = type_to_cname(t) }})
@@ -327,37 +327,37 @@ parse_token :: proc(p: ^Parser) {
         unimplemented()
 
     case .Type_Bool:
-        at_least(1)
+        sim_expect(p.chunk, sim_at_least(1), sim_one_of_primitive(..TYPE_ALL_PRIMITIVE))
         from := sim_pop()
         to := type_create_primitive(.bool)
         emit(p, Operation{ kind = Op_Cast{ from = from, to = to }})
         sim_push(to)
     case .Type_Float:
-        at_least(1, {type_is_int, type_is_float})
+        sim_expect(p.chunk, sim_at_least(1), sim_one_of_primitive(..TYPE_ALL_NUMBER))
         from := sim_pop()
         to := type_create_primitive(is_64bit() ? .f64 : .f32)
         emit(p, Operation{ kind = Op_Cast{ from = from, to = to }})
         sim_push(to)
     case .Type_F64, .Type_F32:
-        at_least(1, {type_is_int, type_is_float})
+        sim_expect(p.chunk, sim_at_least(1), sim_one_of_primitive(..TYPE_ALL_NUMBER))
         from := sim_pop()
         to := type_create_primitive(token.kind == .Type_F64 ? .f64 : .f32)
         emit(p, Operation{ kind = Op_Cast{ from = from, to = to }})
         sim_push(to)
     case .Type_Int:
-        at_least(1, {type_is_float})
+        sim_expect(p.chunk, sim_at_least(1), sim_one_of_primitive(..TYPE_ALL_NUMBER))
         from := sim_pop()
         to := type_create_primitive(is_64bit() ? .s64 : .s32)
         emit(p, Operation{ kind = Op_Cast{ from = from, to = to }})
         sim_push(to)
     case .Type_Ptr:
-        at_least(1, {type_is_primitive})
+        sim_expect(p.chunk, sim_at_least(1), sim_one_of_primitive(..TYPE_ALL_PRIMITIVE))
         from := sim_pop()
         to := type_create_pointer(type_get_primitive(from))
         emit(p, Operation{ kind = Op_Cast{ from = from, to = to }})
         sim_push(to)
     case .Type_S64, .Type_S32, .Type_S16, .Type_S8:
-        at_least(1, {type_is_float, type_is_int})
+        sim_expect(p.chunk, sim_at_least(1), sim_one_of_primitive(..TYPE_ALL_NUMBER))
         type, ok := reflect.enum_from_name(Primitive, token.source)
         assert(ok)
         from := sim_pop()
@@ -365,13 +365,13 @@ parse_token :: proc(p: ^Parser) {
         emit(p, Operation{ kind = Op_Cast{ from = from, to = to }})
         sim_push(to)
     case .Type_String:
-        at_least(1, {type_is_bool, type_is_int, type_is_float})
+        sim_expect(p.chunk, sim_at_least(1), sim_one_of_primitive(..TYPE_ALL_PRIMITIVE), !sim_match_type(type_create_primitive(.string)))
         from := sim_pop()
         to := type_create_primitive(.string)
         emit(p, Operation{ kind = Op_Cast{ from = from, to = to }})
         sim_push(to)
     case .Type_U64, .Type_U32, .Type_U16, .Type_U8:
-        at_least(1, {type_is_float, type_is_int})
+        sim_expect(p.chunk, sim_at_least(1), sim_one_of_primitive(..TYPE_ALL_NUMBER))
         type, ok := reflect.enum_from_name(Primitive, token.source)
         assert(ok)
         from := sim_pop()
@@ -379,7 +379,7 @@ parse_token :: proc(p: ^Parser) {
         emit(p, Operation{ kind = Op_Cast{ from = from, to = to }})
         sim_push(to)
     case .Type_Uint:
-        at_least(1, {type_is_float, type_is_int})
+        sim_expect(p.chunk, sim_at_least(1), sim_one_of_primitive(..TYPE_ALL_NUMBER))
         from := sim_pop()
         to := type_create_primitive(is_64bit() ? .u64 : .u32)
         emit(p, Operation{ kind = Op_Cast{ from = from, to = to }})
@@ -388,7 +388,7 @@ parse_token :: proc(p: ^Parser) {
 }
 
 @(private="file")
-register_procedure :: proc(p: ^Parser, t: ^Token) {
+register_procedure :: proc(p: ^Parser, t: ^Token, loc := #caller_location) {
     new_proc: Procedure
 
     new_proc.called = t.source == "main"
@@ -397,18 +397,55 @@ register_procedure :: proc(p: ^Parser, t: ^Token) {
     new_proc.name = t.source
     new_proc.token = t^
 
-    append(&program.procs, new_proc)
-
     consume(p, .Paren_Left)
 
     // Parse the arity and result
     if !check(p, .Paren_Right) {
+        parsing_args := true
 
+        for !is_eof(p) && !check(p, .Paren_Right) {
+            advance(p)
+            token := p.previous
+
+            if token.kind == .Dash_Dash_Dash {
+                // Now parsing results
+                parsing_args = false
+                continue
+            }
+
+            arity := parsing_args ? &new_proc.arguments : &new_proc.results
+            type: Type
+
+            #partial switch token.kind {
+                case .Type_Bool:      type = type_create_primitive(.bool)
+                case .Type_F64:       type = type_create_primitive(.f64)
+                case .Type_F32:       type = type_create_primitive(.f32)
+                case .Type_Float:     type = type_create_primitive(is_64bit() ? .f64 : .f32)
+                case .Type_Int:       type = type_create_primitive(is_64bit() ? .s64 : .s32)
+                //case .Type_Ptr:       type = type_create_pointer()
+                case .Type_S64:       type = type_create_primitive(.s64)
+                case .Type_S32:       type = type_create_primitive(.s32)
+                case .Type_S16:       type = type_create_primitive(.s16)
+                case .Type_S8:        type = type_create_primitive(.s8)
+                case .Type_String:    type = type_create_primitive(.string)
+                case .Type_U64:       type = type_create_primitive(.u64)
+                case .Type_U32:       type = type_create_primitive(.u32)
+                case .Type_U16:       type = type_create_primitive(.u16)
+                case .Type_U8:        type = type_create_primitive(.u8)
+                case .Type_Uint:      type = type_create_primitive(is_64bit() ? .u64 : .u32)
+                case : fmt.assertf(false, "Failed at token: {}", token)
+            }
+
+            arity.amount += 1
+            append(&arity.types, type)
+        }
     }
 
     consume(p, .Paren_Right)
     for !is_eof(p) && !check(p, .Semicolon) { advance(p) }
     consume(p, .Semicolon)
+
+    append(&program.procs, new_proc)
 }
 
 parse_files :: proc() {
@@ -469,11 +506,6 @@ parse_files :: proc() {
                     }
                 }
             }
-        }
-
-        if len(sim_stack) > 0 {
-            // TODO: Add error
-            assert(false, "Stack should be empty at execution's end")
         }
 
         free_all(context.temp_allocator)

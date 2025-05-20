@@ -83,13 +83,14 @@ typedef s64 b64;
   #define true (bool) 1
 #endif
 
-#define __STRLIT0 (string){.buf=(byteptr)(""), .len=0}
-#define __STRLIT(s) ((string){.buf=(byteptr)("" s), .len=(size(s)-1)})
-#define __STRLEN(s, n) ((string){.buf=(byteptr)("" s), .len=n})
+#define __STRLIT0 (string){.buf=(byteptr)(""), .len=0, .is_lit=true}
+#define __STRLIT(s) ((string){.buf=(byteptr)("" s), .len=(size(s)-1, .is_lit=true)})
+#define __STRLEN(s, n) ((string){.buf=(byteptr)("" s), .len=n, .is_lit=true})
 
 struct string {
     byteptr buf;
     int len;
+    bool is_lit;
 };
 
 union Stack_value {
@@ -179,8 +180,8 @@ SK_PROGRAM void u16_print() { printf("%hu", u16_pop()); }
 SK_PROGRAM void u16_println() { printf("%hu\n", u16_pop()); }
 SK_PROGRAM void u8_print() { printf("%u", (u32)u8_pop()); }
 SK_PROGRAM void u8_println() { printf("%u\n", (u32)u8_pop()); }
-SK_PROGRAM void string_print() { string v = string_pop(); printf("%.*s", v.len, v.buf); }
-SK_PROGRAM void string_println() { string v = string_pop(); printf("%.*s\n", v.len, v.buf); }
+SK_PROGRAM void string_print() { string v = string_pop(); printf("%.*s", v.len, v.buf); if (!v.is_lit) free(v.buf); }
+SK_PROGRAM void string_println() { string v = string_pop(); printf("%.*s\n", v.len, v.buf); if (!v.is_lit) free(v.buf); }
 
 SK_INLINE void f64_to_bool() { bool_push(f64_pop() > 0.0f ? true : false); }
 SK_INLINE void f64_to_f32() { f32_push((f32)f64_pop()); }

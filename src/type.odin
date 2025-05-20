@@ -2,7 +2,27 @@ package main
 
 import "core:reflect"
 
+TYPE_ALL_FLOAT       :: []Primitive{.f64, .f32}
+TYPE_ALL_INT         :: []Primitive{.s64, .s32, .s16, .s8}
+TYPE_ALL_UINT        :: []Primitive{.u64, .u32, .u16, .u8}
+TYPE_ALL_REAL_NUMBER :: []Primitive{.s64, .s32, .s16, .s8, .u64, .u32, .u16, .u8}
+TYPE_ALL_NUMBER      :: []Primitive{.f64, .f32, .s64, .s32, .s16, .s8, .u64, .u32, .u16, .u8}
+TYPE_ALL_PRIMITIVE   :: []Primitive{.bool, .f64, .f32, .s64, .s32, .s16, .s8, .string, .u64, .u32, .u16, .u8}
+
 type_test_proc :: #type proc(Type) -> bool
+
+// Type :: struct {
+//     align: int,
+//     size:  int,
+//     variant: union {
+//         Type_Named,
+//         Type_Boolean,
+//         Type_Float,
+//         Type_Integer,
+//         Type_Pointer,
+//         Type_String,
+//     }
+// }
 
 Type :: struct {
     cname:   string,
