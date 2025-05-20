@@ -1,148 +1,89 @@
 package main
 
+import "core:fmt"
 import "core:reflect"
-
-TYPE_ALL_FLOAT       :: []Primitive{.f64, .f32}
-TYPE_ALL_INT         :: []Primitive{.s64, .s32, .s16, .s8}
-TYPE_ALL_UINT        :: []Primitive{.u64, .u32, .u16, .u8}
-TYPE_ALL_REAL_NUMBER :: []Primitive{.s64, .s32, .s16, .s8, .u64, .u32, .u16, .u8}
-TYPE_ALL_NUMBER      :: []Primitive{.f64, .f32, .s64, .s32, .s16, .s8, .u64, .u32, .u16, .u8}
-TYPE_ALL_PRIMITIVE   :: []Primitive{.bool, .f64, .f32, .s64, .s32, .s16, .s8, .string, .u64, .u32, .u16, .u8}
 
 type_test_proc :: #type proc(Type) -> bool
 
-// Type :: struct {
-//     align: int,
-//     size:  int,
-//     variant: union {
-//         Type_Named,
-//         Type_Boolean,
-//         Type_Float,
-//         Type_Integer,
-//         Type_Pointer,
-//         Type_String,
-//     }
-// }
-
 Type :: struct {
-    cname:   string,
-    size:    int,
-    variant: Type_Variant,
+    align: int,
+    size:  int,
+    variant: union {
+        Type_Boolean,
+        Type_Float,
+        Type_Integer,
+        Type_Named,
+        Type_Pointer,
+        Type_String,
+    },
 }
 
-Type_Variant :: union {
-    Type_Primitive,
-    Type_Pointer,
+Type_Boolean :: struct {}
+
+Type_Float :: struct {}
+
+Type_Integer :: struct {
+    is_signed: bool,
 }
 
-Primitive :: enum u8 {
-    invalid = 0,
-    bool,
-    f64,
-    f32,
-    s64,
-    s32,
-    s16,
-    s8,
-    string,
-    u64,
-    u32,
-    u16,
-    u8,
+Type_Named :: struct {} // TODO
+
+Type_Pointer :: struct {} // TODO
+
+Type_String :: struct {
+    is_cstring: bool,
 }
 
-Type_Primitive :: struct {
-    kind: Primitive,
+TYPE_BOOLEAN :: proc() -> Type {
+    return Type{variant = Type_Boolean{}}
 }
 
-Type_Pointer :: struct {
-    kind: Primitive,
+TYPE_FLOAT :: proc(size := word_size_in_bits) -> Type {
+    return Type{size = size, variant = Type_Float{}}
 }
 
-type_create_pointer :: proc(t: Primitive) -> Type {
-    return Type{ variant = Type_Pointer{ kind = t }}
+TYPE_INTEGER :: proc(is_signed := true, size := word_size_in_bits) -> Type {
+    return Type{size = size, variant = Type_Integer{is_signed = is_signed}}
 }
 
-type_create_primitive :: proc(t: Primitive) -> Type {
-    return Type{ variant = Type_Primitive{ kind = t }}
+TYPE_POINTER :: proc(base: Type) -> Type {
+    return Type{variant = Type_Pointer{}}
 }
 
-type_get_primitive :: proc(t: Type) -> Primitive {
-    if v, ok := t.variant.(Type_Primitive); ok {
-        return v.kind
-    }
-
-    assert(false)
-    return .invalid
+TYPE_STRING  :: proc(is_cstring := false) -> Type {
+    return Type{variant = Type_String{is_cstring = is_cstring}}
 }
 
-type_is_bool :: proc(t: Type) -> bool {
-    #partial switch v in t.variant {
-        case Type_Primitive: return v.kind == .bool
-    }
-
-    return false
+type_is_boolean :: proc(t: Type) -> (ok: bool) {
+    _, ok = t.variant.(Type_Boolean)
+    return
 }
 
-type_is_float :: proc(t: Type) -> bool {
-    switch v in t.variant {
-    case Type_Primitive: return v.kind == .f64 || v.kind == .f32
-    case Type_Pointer: return false
-    }
-
-    return false
+type_is_float :: proc(t: Type) -> (ok: bool) {
+    _, ok = t.variant.(Type_Float)
+    return
 }
 
-type_is_int :: proc(t: Type) -> bool {
-    switch v in t.variant {
-    case Type_Primitive:
-        return v.kind == .s64 || v.kind == .s32 ||
-            v.kind == .s16 || v.kind == .s8
-    case Type_Pointer:
-        return false
-    }
-
-    return false
+type_is_integer :: proc(t: Type) -> (ok: bool) {
+    _, ok = t.variant.(Type_Integer)
+    return
 }
 
-type_is_string :: proc(t: Type) -> bool {
-    #partial switch v in t.variant {
-        case Type_Primitive: return v.kind == .string
-    }
-
-    return false
-}
-
-type_is_primitive :: proc(t: Type) -> bool {
-    #partial switch v in t.variant {
-        case Type_Primitive: return true
-    }
-
-    return false
+type_is_string :: proc(t: Type) -> (ok: bool) {
+    _, ok = t.variant.(Type_String)
+    return
 }
 
 type_to_cname :: proc(t: Type) -> string {
     switch v in t.variant {
-    case Type_Primitive:
-        switch v.kind {
-        case .invalid: assert(false)
-        case .bool:    return "bool"
-        case .f64:     return "f64"
-        case .f32:     return "f32"
-        case .s64:     return "s64"
-        case .s32:     return "s32"
-        case .s16:     return "s16"
-        case .s8:      return "s8"
-        case .string:  return "string"
-        case .u64:     return "u64"
-        case .u32:     return "u32"
-        case .u16:     return "u16"
-        case .u8:      return "u8"
-        }
-    case Type_Pointer:
-        return "ptr"
+    case Type_Boolean: return "bool"
+    case Type_Float: return fmt.tprintf("f{}", t.size)
+    case Type_Integer: return fmt.tprintf("{}{}", v.is_signed ? "s" : "u", t.size)
+    case Type_Named: assert(false); return "invalid"
+    case Type_Pointer: assert(false); return "invalid"
+    case Type_String: return v.is_cstring ? "cstring" : "string"
     }
 
     assert(false)
-    return "Invalid"
+    return "invalid"
 }

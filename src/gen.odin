@@ -84,9 +84,9 @@ gen_program :: proc() {
             case Op_Push_Bool:
                 writefln(&g.source, "bool_push({});", v.value)
             case Op_Push_Float:
-                writefln(&g.source, "f64_push({});", v.value)
+                writefln(&g.source, "f{}_push({});", word_size_in_bits, v.value)
             case Op_Push_Integer:
-                writefln(&g.source, "s64_push({});", v.value)
+                writefln(&g.source, "s{}_push({});", word_size_in_bits, v.value)
             case Op_Push_String:
                 writefln(&g.source, "string_push(__STRLEN(\"{}\", {}));", v.value, len(v.value))
 

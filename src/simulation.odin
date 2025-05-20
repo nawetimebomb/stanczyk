@@ -38,14 +38,9 @@ sim_match_type :: proc(m: Type) -> bool {
     return m == t
 }
 
-sim_one_of_primitive :: proc(m: ..Primitive) -> bool {
+sim_one_of :: proc(m: ..type_test_proc) -> bool {
     t := sim_peek()
-
-    if type_is_primitive(t) {
-        tp := type_get_primitive(t)
-        for x in m { if tp == x { return true }}
-    }
-
+    for x in m { if ok := x(t); ok { return true }}
     return false
 }
 
