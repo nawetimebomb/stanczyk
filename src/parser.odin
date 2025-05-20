@@ -197,18 +197,18 @@ parse_token :: proc(p: ^Parser) {
         }
 
     case .Bool_False, .Bool_True:
-        sim_push(type_create_primitive(.bool))
+        sim_push(TYPE_BOOLEAN())
         emit(p, Operation{ kind = Op_Push_Bool{ value = token.kind == .Bool_True }})
     case .Integer:
-        sim_push(type_create_primitive(is_64bit() ? .s64 : .s32))
+        sim_push(TYPE_INTEGER())
         emit(p, Operation{ kind = Op_Push_Integer{ value = strconv.atoi(token.source) }})
     case .Float:
-        sim_push(type_create_primitive(is_64bit() ? .f64 : .f32))
+        sim_push(TYPE_FLOAT())
         emit(p, Operation{ kind = Op_Push_Float{ value = strconv.atof(token.source) }})
     case .Character:
         unimplemented()
     case .String:
-        sim_push(type_create_primitive(.string))
+        sim_push(TYPE_STRING())
         // Note: Removing the `"` chars that come from the tokenizer
         str_value := token.source[1:len(token.source) - 1]
         emit(p, Operation{ kind = Op_Push_String{ value = str_value }})
@@ -216,65 +216,63 @@ parse_token :: proc(p: ^Parser) {
     case .Bang:
         unimplemented()
     case .Bang_Equal:
-        sim_expect(p.chunk, sim_at_least(2), sim_one_of_primitive(..TYPE_ALL_PRIMITIVE))
+        sim_expect(p.chunk, sim_at_least(2), sim_one_of(type_is_float, type_is_integer, type_is_string))
         t, _ := sim_pop2()
         emit(p, Operation{ kind = Op_Binary{ operands = t, operation = .ne }})
-        sim_push(type_create_primitive(.bool))
+        sim_push(TYPE_BOOLEAN())
     case .Equal:
-        sim_expect(p.chunk, sim_at_least(2), sim_one_of_primitive(..TYPE_ALL_PRIMITIVE))
+        sim_expect(p.chunk, sim_at_least(2), sim_one_of(type_is_float, type_is_integer, type_is_string))
         t, _ := sim_pop2()
         emit(p, Operation{ kind = Op_Binary{ operands = t, operation = .eq }})
-        sim_push(type_create_primitive(.bool))
+        sim_push(TYPE_BOOLEAN())
     case .Greater:
-        sim_expect(p.chunk, sim_at_least(2), sim_one_of_primitive(..TYPE_ALL_NUMBER))
+        sim_expect(p.chunk, sim_at_least(2), sim_one_of(type_is_float, type_is_integer))
         t, _ := sim_pop2()
         emit(p, Operation{ kind = Op_Binary{ operands = t, operation = .gt }})
-        sim_push(type_create_primitive(.bool))
+        sim_push(TYPE_BOOLEAN())
     case .Greater_Equal:
-        sim_expect(p.chunk, sim_at_least(2), sim_one_of_primitive(..TYPE_ALL_NUMBER))
+        sim_expect(p.chunk, sim_at_least(2), sim_one_of(type_is_float, type_is_integer))
         t, _ := sim_pop2()
         emit(p, Operation{ kind = Op_Binary{ operands = t, operation = .ge }})
-        sim_push(type_create_primitive(.bool))
+        sim_push(TYPE_BOOLEAN())
     case .Less:
-        sim_expect(p.chunk, sim_at_least(2), sim_one_of_primitive(..TYPE_ALL_NUMBER))
+        sim_expect(p.chunk, sim_at_least(2), sim_one_of(type_is_float, type_is_integer))
         t, _ := sim_pop2()
         emit(p, Operation{ kind = Op_Binary{ operands = t, operation = .lt }})
-        sim_push(type_create_primitive(.bool))
+        sim_push(TYPE_BOOLEAN())
     case .Less_Equal:
-        sim_expect(p.chunk, sim_at_least(2), sim_one_of_primitive(..TYPE_ALL_NUMBER))
+        sim_expect(p.chunk, sim_at_least(2), sim_one_of(type_is_float, type_is_integer))
         t, _ := sim_pop2()
         emit(p, Operation{ kind = Op_Binary{ operands = t, operation = .le }})
-        sim_push(type_create_primitive(.bool))
+        sim_push(TYPE_BOOLEAN())
     case .Minus:
-        sim_expect(p.chunk, sim_at_least(2), sim_one_of_primitive(..TYPE_ALL_NUMBER))
+        sim_expect(p.chunk, sim_at_least(2), sim_one_of(type_is_float, type_is_integer))
         t, _ := sim_pop2()
         emit(p, Operation{ kind = Op_Binary{ operands = t, operation = .minus }})
         sim_push(t)
     case .Minus_Minus:
-        sim_expect(p.chunk, sim_at_least(1), sim_one_of_primitive(..TYPE_ALL_NUMBER))
-        t := sim_peek()
-        emit(p, Operation{ kind = Op_Unary{ operand = t, operation = .minus_minus }})
+        sim_expect(p.chunk, sim_at_least(2), sim_one_of(type_is_float, type_is_integer))
+        emit(p, Operation{ kind = Op_Unary{ operand = sim_peek(), operation = .minus_minus }})
     case .Percentage:
-        sim_expect(p.chunk, sim_at_least(2), sim_one_of_primitive(..TYPE_ALL_REAL_NUMBER))
+        sim_expect(p.chunk, sim_at_least(2), sim_one_of(type_is_integer))
         t, _ := sim_pop2()
         emit(p, Operation{ kind = Op_Binary{ operands = t, operation = .modulo }})
         sim_push(t)
     case .Plus:
-        sim_expect(p.chunk, sim_at_least(2), sim_one_of_primitive(..TYPE_ALL_PRIMITIVE), !sim_match_type(type_create_primitive(.bool)))
+        sim_expect(p.chunk, sim_at_least(2), sim_one_of(type_is_float, type_is_integer, type_is_string))
         t, _ := sim_pop2()
         emit(p, Operation{ kind = Op_Binary{ operands = t, operation = .plus }})
         sim_push(t)
     case .Plus_Plus:
-        sim_expect(p.chunk, sim_at_least(1), sim_one_of_primitive(..TYPE_ALL_NUMBER))
-        t := sim_peek()
-        emit(p, Operation{ kind = Op_Unary{ operand = t, operation = .plus_plus }})
+        sim_expect(p.chunk, sim_at_least(2), sim_one_of(type_is_float, type_is_integer))
+        emit(p, Operation{ kind = Op_Unary{ operand = sim_peek(), operation = .plus_plus }})
     case .Slash:
-        sim_expect(p.chunk, sim_at_least_same_type(2), sim_one_of_primitive(..TYPE_ALL_NUMBER))
+        sim_expect(p.chunk, sim_at_least(2), sim_one_of(type_is_float, type_is_integer))
         t, _ := sim_pop2()
         emit(p, Operation{ kind = Op_Binary{ operands = t, operation = .divide }})
         sim_push(t)
     case .Star:
-        sim_expect(p.chunk, sim_at_least_same_type(2), sim_one_of_primitive(..TYPE_ALL_NUMBER))
+        sim_expect(p.chunk, sim_at_least(2), sim_one_of(type_is_float, type_is_integer))
         t, _ := sim_pop2()
         emit(p, Operation{ kind = Op_Binary{ operands = t, operation = .multiply }})
         sim_push(t)
@@ -283,7 +281,7 @@ parse_token :: proc(p: ^Parser) {
         assert(false, "Can't parse within a procedure")
 
     case .Keyword_And:
-        sim_expect(p.chunk, sim_at_least(2), sim_one_of_primitive(.bool))
+        sim_expect(p.chunk, sim_at_least(2), sim_one_of(type_is_boolean))
         t, _ := sim_pop2()
         emit(p, Operation{ kind = Op_Binary{ operands = t, operation = .and }})
         sim_push(t)
@@ -294,7 +292,7 @@ parse_token :: proc(p: ^Parser) {
         sim_push(t)
         sim_push(t)
     case .Keyword_Or:
-        sim_expect(p.chunk, sim_at_least(2), sim_one_of_primitive(.bool))
+        sim_expect(p.chunk, sim_at_least(2), sim_one_of(type_is_boolean))
         t, _ := sim_pop2()
         emit(p, Operation{ kind = Op_Binary{ operands = t, operation = .or }})
         sim_push(t)
@@ -322,66 +320,62 @@ parse_token :: proc(p: ^Parser) {
         t := sim_pop()
         emit(p, Operation{ kind = Op_Drop{} })
         emit(p, Operation{ kind = Op_Push_String{ value = type_to_cname(t) }})
-        sim_push(type_create_primitive(.string))
+        sim_push(TYPE_STRING())
     case .Keyword_Using:
         unimplemented()
 
     case .Type_Bool:
-        sim_expect(p.chunk, sim_at_least(1), sim_one_of_primitive(..TYPE_ALL_PRIMITIVE))
+        sim_expect(p.chunk, sim_at_least(1), sim_one_of(type_is_boolean, type_is_float, type_is_integer, type_is_string))
         from := sim_pop()
-        to := type_create_primitive(.bool)
+        to := TYPE_BOOLEAN()
         emit(p, Operation{ kind = Op_Cast{ from = from, to = to }})
         sim_push(to)
     case .Type_Float:
-        sim_expect(p.chunk, sim_at_least(1), sim_one_of_primitive(..TYPE_ALL_NUMBER))
+        sim_expect(p.chunk, sim_at_least(1), sim_one_of(type_is_float, type_is_integer))
         from := sim_pop()
-        to := type_create_primitive(is_64bit() ? .f64 : .f32)
+        to := TYPE_FLOAT()
         emit(p, Operation{ kind = Op_Cast{ from = from, to = to }})
         sim_push(to)
     case .Type_F64, .Type_F32:
-        sim_expect(p.chunk, sim_at_least(1), sim_one_of_primitive(..TYPE_ALL_NUMBER))
+        sim_expect(p.chunk, sim_at_least(1), sim_one_of(type_is_float, type_is_integer))
         from := sim_pop()
-        to := type_create_primitive(token.kind == .Type_F64 ? .f64 : .f32)
+        to := TYPE_FLOAT(token.kind == .Type_F64 ? 64 : 32)
         emit(p, Operation{ kind = Op_Cast{ from = from, to = to }})
         sim_push(to)
     case .Type_Int:
-        sim_expect(p.chunk, sim_at_least(1), sim_one_of_primitive(..TYPE_ALL_NUMBER))
+        sim_expect(p.chunk, sim_at_least(1), sim_one_of(type_is_float, type_is_integer))
         from := sim_pop()
-        to := type_create_primitive(is_64bit() ? .s64 : .s32)
+        to := TYPE_INTEGER(true)
         emit(p, Operation{ kind = Op_Cast{ from = from, to = to }})
         sim_push(to)
     case .Type_Ptr:
-        sim_expect(p.chunk, sim_at_least(1), sim_one_of_primitive(..TYPE_ALL_PRIMITIVE))
+        sim_expect(p.chunk, sim_at_least(1), sim_one_of(type_is_boolean, type_is_float, type_is_integer, type_is_string))
         from := sim_pop()
-        to := type_create_pointer(type_get_primitive(from))
+        to := TYPE_POINTER(from)
         emit(p, Operation{ kind = Op_Cast{ from = from, to = to }})
         sim_push(to)
     case .Type_S64, .Type_S32, .Type_S16, .Type_S8:
-        sim_expect(p.chunk, sim_at_least(1), sim_one_of_primitive(..TYPE_ALL_NUMBER))
-        type, ok := reflect.enum_from_name(Primitive, token.source)
-        assert(ok)
+        sim_expect(p.chunk, sim_at_least(1), sim_one_of(type_is_float, type_is_integer))
         from := sim_pop()
-        to := type_create_primitive(type)
+        to := TYPE_INTEGER(true, strconv.atoi(token.source[1:]))
         emit(p, Operation{ kind = Op_Cast{ from = from, to = to }})
         sim_push(to)
     case .Type_String:
-        sim_expect(p.chunk, sim_at_least(1), sim_one_of_primitive(..TYPE_ALL_PRIMITIVE), !sim_match_type(type_create_primitive(.string)))
+        sim_expect(p.chunk, sim_at_least(1), sim_one_of(type_is_boolean, type_is_float, type_is_integer))
         from := sim_pop()
-        to := type_create_primitive(.string)
+        to := TYPE_STRING()
         emit(p, Operation{ kind = Op_Cast{ from = from, to = to }})
         sim_push(to)
     case .Type_U64, .Type_U32, .Type_U16, .Type_U8:
-        sim_expect(p.chunk, sim_at_least(1), sim_one_of_primitive(..TYPE_ALL_NUMBER))
-        type, ok := reflect.enum_from_name(Primitive, token.source)
-        assert(ok)
+        sim_expect(p.chunk, sim_at_least(1), sim_one_of(type_is_float, type_is_integer))
         from := sim_pop()
-        to := type_create_primitive(type)
+        to := TYPE_INTEGER(false, strconv.atoi(token.source[1:]))
         emit(p, Operation{ kind = Op_Cast{ from = from, to = to }})
         sim_push(to)
     case .Type_Uint:
-        sim_expect(p.chunk, sim_at_least(1), sim_one_of_primitive(..TYPE_ALL_NUMBER))
+        sim_expect(p.chunk, sim_at_least(1), sim_one_of(type_is_float, type_is_integer))
         from := sim_pop()
-        to := type_create_primitive(is_64bit() ? .u64 : .u32)
+        to := TYPE_INTEGER(false)
         emit(p, Operation{ kind = Op_Cast{ from = from, to = to }})
         sim_push(to)
     }
@@ -417,23 +411,22 @@ register_procedure :: proc(p: ^Parser, t: ^Token, loc := #caller_location) {
             type: Type
 
             #partial switch token.kind {
-                case .Type_Bool:      type = type_create_primitive(.bool)
-                case .Type_F64:       type = type_create_primitive(.f64)
-                case .Type_F32:       type = type_create_primitive(.f32)
-                case .Type_Float:     type = type_create_primitive(is_64bit() ? .f64 : .f32)
-                case .Type_Int:       type = type_create_primitive(is_64bit() ? .s64 : .s32)
-                //case .Type_Ptr:       type = type_create_pointer()
-                case .Type_S64:       type = type_create_primitive(.s64)
-                case .Type_S32:       type = type_create_primitive(.s32)
-                case .Type_S16:       type = type_create_primitive(.s16)
-                case .Type_S8:        type = type_create_primitive(.s8)
-                case .Type_String:    type = type_create_primitive(.string)
-                case .Type_U64:       type = type_create_primitive(.u64)
-                case .Type_U32:       type = type_create_primitive(.u32)
-                case .Type_U16:       type = type_create_primitive(.u16)
-                case .Type_U8:        type = type_create_primitive(.u8)
-                case .Type_Uint:      type = type_create_primitive(is_64bit() ? .u64 : .u32)
-                case : fmt.assertf(false, "Failed at token: {}", token)
+                case .Type_Bool   : type.variant = Type_Boolean{}
+                case .Type_F64    : type.variant = Type_Float{}; type.size = 64
+                case .Type_F32    : type.variant = Type_Float{}; type.size = 32
+                case .Type_Float  : type.variant = Type_Float{}; type.size = word_size_in_bits
+                case .Type_Int    : type.variant = Type_Integer{ is_signed = true }; type.size = word_size_in_bits
+                case .Type_S64    : type.variant = Type_Integer{ is_signed = true }; type.size = 64
+                case .Type_S32    : type.variant = Type_Integer{ is_signed = true }; type.size = 32
+                case .Type_S16    : type.variant = Type_Integer{ is_signed = true }; type.size = 16
+                case .Type_S8     : type.variant = Type_Integer{ is_signed = true }; type.size = 8
+                case .Type_String : type.variant = Type_String{ is_cstring = false }
+                case .Type_U64    : type.variant = Type_Integer{ is_signed = true }; type.size = 64
+                case .Type_U32    : type.variant = Type_Integer{ is_signed = true }; type.size = 32
+                case .Type_U16    : type.variant = Type_Integer{ is_signed = true }; type.size = 16
+                case .Type_U8     : type.variant = Type_Integer{ is_signed = true }; type.size = 8
+                case .Type_Uint   : type.variant = Type_Integer{ is_signed = true }; type.size = word_size_in_bits
+                case              : fmt.assertf(false, "Failed at token: {}", token)
             }
 
             arity.amount += 1

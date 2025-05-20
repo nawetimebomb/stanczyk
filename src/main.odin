@@ -60,11 +60,12 @@ Procedure :: struct {
     //results: Arity,
 }
 
-compiler_arch:  Compiler_Architecture
-compiler_mode:  enum { Compiler, Interpreter, REPL }
-source_files:   map[string]string
-output_file:    string
-program:        Program
+compiler_arch:     Compiler_Architecture
+compiler_mode:     enum { Compiler, Interpreter, REPL }
+source_files:      map[string]string
+output_file:       string
+program:           Program
+word_size_in_bits: int
 
 keep_c_output_file := false
 run_program := false
@@ -100,8 +101,10 @@ init :: proc() {
     switch ODIN_ARCH {
     case .i386, .wasm32, .arm32, .Unknown:
         compiler_arch = .ARCH_32
+        word_size_in_bits = 32
     case .amd64, .wasm64p32, .arm64, .riscv64:
         compiler_arch = .ARCH_64
+        word_size_in_bits = 64
     }
 }
 
