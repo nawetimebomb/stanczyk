@@ -100,6 +100,8 @@ gen_program :: proc() {
                     operation := reflect.enum_name_from_value(v.operation) or_break
                     writefln(&g.source, "{0}_{1}();", operands_name, operation)
                 }
+            case Op_Call_Proc:
+                writefln(&g.source, "{0}__{1}();", v.name, v.ip)
             case Op_Cast:
                 writefln(&g.source, "{0}_to_{1}();", type_to_cname(v.from), type_to_cname(v.to))
             case Op_Drop:
@@ -112,11 +114,21 @@ gen_program :: proc() {
                 writefln(&g.source, "{0}_{1}();", operand_name, printfn)
             case Op_Swap:
                 writeln(&g.source, "stack_swap();")
+            case Op_Unary:
+                operand_name := type_to_cname(v.operand)
+                switch v.operation {
+                case .minus_minus:
+                    writefln(&g.source, "{}_push({});", operand_name, 1)
+                    writefln(&g.source, "{}_minus();", operand_name)
+                case .plus_plus:
+                    writefln(&g.source, "{}_push({});", operand_name, 1)
+                    writefln(&g.source, "{}_plus();", operand_name)
+                }
             }
         }
 
         indent_backward(&g.source)
-        writeln(&g.source, "}")
+        writeln(&g.source, "}\n")
     }
 
     // Write the generated file

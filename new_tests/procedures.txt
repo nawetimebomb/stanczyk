@@ -1,0 +1,4 @@
+Test calling print_proc
+This procedure was called late
+The next function takes 2 int values and returns the sum of them
+13

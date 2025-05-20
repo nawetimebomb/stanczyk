@@ -30,10 +30,12 @@ Token_Kind :: enum u8 {
     Less,            // <
     Less_Equal,      // <=
     Minus,           // -
+    Minus_Minus,     // --
     Paren_Left,      // (
     Paren_Right,     // )
     Percentage,      // %
     Plus,            // +
+    Plus_Plus,       // ++
     Semicolon,       // ;
     Slash,           // /
     Star,            // *
@@ -122,9 +124,7 @@ get_next_token :: proc(t: ^Tokenizer) -> (token: Token) {
 
     if is_eof(t) { return }
 
-    if is_alpha(t) || is_char(t, '_') {
-        tokenize_identifier(t, &token)
-    } else if is_number(t) {
+    if is_number(t) {
         tokenize_number(t, &token)
     } else {
         switch get_char_at(t) {
@@ -135,19 +135,18 @@ get_next_token :: proc(t: ^Tokenizer) -> (token: Token) {
         case '<':  tokenize_less   (t, &token)
         case '>':  tokenize_greater(t, &token)
         case '-':  tokenize_minus  (t, &token)
-
-        case '\'': fallthrough
-        case '"':  tokenize_string_literal(t, &token)
-
+        case '+':  tokenize_plus   (t, &token)
         case ';':  token.kind = .Semicolon;   t.offset += 1
         case '(':  token.kind = .Paren_Left;  t.offset += 1
         case ')':  token.kind = .Paren_Right; t.offset += 1
         case '%':  token.kind = .Percentage;  t.offset += 1
-        case '+':  token.kind = .Plus;        t.offset += 1
         case '*':  token.kind = .Star;        t.offset += 1
         case '=':  token.kind = .Equal;       t.offset += 1
 
-        case:  token.kind = .Invalid; t.offset += 1
+        case '\'': fallthrough
+        case '"':  tokenize_string_literal(t, &token)
+
+        case    : tokenize_symbol(t, &token)
         }
     }
 
@@ -161,7 +160,7 @@ get_next_token :: proc(t: ^Tokenizer) -> (token: Token) {
 get_word_at :: #force_inline proc(t: ^Tokenizer) -> string {
     result := strings.builder_make(context.temp_allocator)
 
-    for !is_eof(t) && is_valid_word_component(t) {
+    for !is_eof(t) && !is_whitespace(t) && is_valid_word_component(t) {
         strings.write_byte(&result, get_char_at(t))
         t.offset += 1
     }
@@ -234,7 +233,7 @@ is_number :: #force_inline proc(t: ^Tokenizer) -> bool {
 
 @(private="file")
 is_valid_word_component :: #force_inline proc(t: ^Tokenizer) -> bool {
-    return is_alpha(t) || is_number(t) || is_char(t, '_')
+    return is_alpha(t) || is_number(t) || is_char(t, '-') || is_char(t, '_')
 }
 
 @(private="file")
@@ -300,17 +299,93 @@ tokenize_greater :: proc(t: ^Tokenizer, token: ^Token) {
     }
 }
 
+@(private="file")
+tokenize_less :: proc(t: ^Tokenizer, token: ^Token) {
+    token.kind = .Less
+    t.offset += 1
+
+    if is_char(t, '=') {
+        token.kind = .Less_Equal
+        t.offset += 1
+    }
+}
+
+@(private="file")
 tokenize_minus :: proc(t: ^Tokenizer, token: ^Token) {
     token.kind = .Minus
     t.offset += 1
 
     if is_number(t) {
         tokenize_number(t, token)
+    } else if is_char(t, '-') {
+        token.kind = .Minus_Minus
+        t.offset += 1
+
+        if is_char(t, '-') {
+            token.kind = .Dash_Dash_Dash
+            t.offset += 1
+        }
     }
 }
 
 @(private="file")
-tokenize_identifier :: proc(t: ^Tokenizer, token: ^Token) {
+tokenize_number :: proc(t: ^Tokenizer, token: ^Token) {
+    token.kind  = .Integer
+
+    for is_number(t) || is_char(t, '.') || is_char(t, '_') {
+        if is_char(t, '.') {
+            token.kind = .Float
+        }
+
+        t.offset += 1
+    }
+}
+
+@(private="file")
+tokenize_plus :: proc(t: ^Tokenizer, token: ^Token) {
+    token.kind = .Plus
+    t.offset += 1
+
+    if is_char(t, '+') {
+        token.kind = .Plus_Plus
+        t.offset += 1
+    }
+}
+
+@(private="file")
+tokenize_slash :: proc(t: ^Tokenizer, token: ^Token) {
+    token.kind = .Slash
+    t.offset += 1
+
+    if is_char(t, '/') {
+        // It's a comment, skip the rest of the line
+        token.kind = .Comment
+        for !is_eof(t) && !is_char(t, '\n') { t.offset += 1 }
+    }
+}
+
+@(private="file")
+tokenize_string_literal :: proc(t: ^Tokenizer, token: ^Token) {
+    delimiter := get_char_at(t)
+
+    if is_eof(t) { return }
+    t.offset += 1
+
+    token.kind = delimiter == '\'' ? .Character : .String
+    is_escaped := false
+
+    for !is_eof(t) {
+        if is_char(t, delimiter) && !is_escaped { break }
+        is_escaped = !is_escaped && is_char(t, '\\')
+        t.offset += 1
+    }
+
+    if is_eof(t) { return }
+    t.offset += 1
+}
+
+@(private="file")
+tokenize_symbol :: proc(t: ^Tokenizer, token: ^Token) {
     word := get_word_at(t)
 
     switch word {
@@ -346,60 +421,4 @@ tokenize_identifier :: proc(t: ^Tokenizer, token: ^Token) {
 
     case           : token.kind = .Identifier
     }
-}
-
-@(private="file")
-tokenize_number :: proc(t: ^Tokenizer, token: ^Token) {
-    token.kind  = .Integer
-
-    for is_number(t) || is_char(t, '.') || is_char(t, '_') {
-        if is_char(t, '.') {
-            token.kind = .Float
-        }
-
-        t.offset += 1
-    }
-}
-
-@(private="file")
-tokenize_less :: proc(t: ^Tokenizer, token: ^Token) {
-    token.kind = .Less
-    t.offset += 1
-
-    if is_char(t, '=') {
-        token.kind = .Less_Equal
-        t.offset += 1
-    }
-}
-
-@(private="file")
-tokenize_slash :: proc(t: ^Tokenizer, token: ^Token) {
-    token.kind = .Slash
-    t.offset += 1
-
-    if is_char(t, '/') {
-        // It's a comment, skip the rest of the line
-        token.kind = .Comment
-        for !is_eof(t) && !is_char(t, '\n') { t.offset += 1 }
-    }
-}
-
-@(private="file")
-tokenize_string_literal :: proc(t: ^Tokenizer, token: ^Token) {
-    delimiter := get_char_at(t)
-
-    if is_eof(t) { return }
-    t.offset += 1
-
-    token.kind = delimiter == '\'' ? .Character : .String
-    is_escaped := false
-
-    for !is_eof(t) {
-        if is_char(t, delimiter) && !is_escaped { break }
-        is_escaped = !is_escaped && is_char(t, '\\')
-        t.offset += 1
-    }
-
-    if is_eof(t) { return }
-    t.offset += 1
 }
