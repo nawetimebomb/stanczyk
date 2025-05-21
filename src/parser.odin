@@ -2,17 +2,21 @@ package main
 
 import "core:fmt"
 import "core:log"
-import "core:reflect"
+import "core:slice"
 import "core:strconv"
-
-Unary_Operation :: enum u8 {
-    minus_minus, plus_plus,
-}
 
 Binary_Operation :: enum u8 {
     and, or,
     plus, divide, minus, multiply, modulo,
     ge, gt, le, lt, eq, ne,
+}
+
+Flow_Control_Operation :: enum u8 {
+    if_start, if_else, if_end,
+}
+
+Unary_Operation :: enum u8 {
+    minus_minus, plus_plus,
 }
 
 Op_Push_Bool        :: struct { value: bool }
@@ -25,6 +29,7 @@ Op_Call_Proc        :: struct { name: string, ip: int }
 Op_Cast             :: struct { from: Type, to: Type }
 Op_Drop             :: struct {}
 Op_Dup              :: struct {}
+Op_Flow_Control     :: struct { operation: Flow_Control_Operation }
 Op_Print            :: struct { operand: Type, newline: bool }
 Op_Swap             :: struct {}
 Op_Unary            :: struct { operand: Type, operation: Unary_Operation }
@@ -40,6 +45,7 @@ Operation_Kind :: union {
     Op_Cast,
     Op_Drop,
     Op_Dup,
+    Op_Flow_Control,
     Op_Print,
     Op_Swap,
     Op_Unary,
@@ -52,8 +58,11 @@ Operation :: struct {
 
 @(private="file")
 Scope :: struct {
-    kind: enum { Global, Procedure, Statement, },
-    parent: ^Procedure,
+    kind: enum {
+        If_Statement,
+        Else_Statement,
+    },
+    previous_stack: []Type,
 }
 
 @(private="file")
@@ -121,6 +130,45 @@ is_parsing_procedure :: proc(p: ^Parser) -> (result: bool) {
 @(private="file")
 get_location :: proc(t: ^Token) -> Location {
     return Location{ file = t.file, offset = t.start }
+}
+
+@(private="file")
+open_scope :: proc(p: ^Parser, k: Token_Kind) {
+    new_scope: Scope
+    new_scope.previous_stack = slice.clone(sim_stack[:])
+
+    #partial switch k {
+        case .Keyword_If: new_scope.kind = .If_Statement
+        case : assert(false)
+    }
+
+    append(&p.scopes, new_scope)
+}
+
+switch_scope :: proc(p: ^Parser, k: Token_Kind) {
+    assert(len(p.scopes) > 0)
+    new_scope := pop(&p.scopes)
+
+    #partial switch k {
+        case .Keyword_Else: new_scope.kind = .Else_Statement
+        case : assert(false)
+    }
+
+    fmt.assertf(len(new_scope.previous_stack) == len(sim_stack), "{} - {}", len(new_scope.previous_stack), len(sim_stack))
+    append(&p.scopes, new_scope)
+}
+
+close_scope :: proc(p: ^Parser, k: Token_Kind) {
+    assert(len(p.scopes) > 0)
+    closing_scope := pop(&p.scopes)
+
+    #partial switch k {
+        case .Keyword_Fi: assert(closing_scope.kind == .If_Statement || closing_scope.kind == .Else_Statement)
+        case : assert(false)
+    }
+
+    assert(len(closing_scope.previous_stack) == len(sim_stack))
+    delete(closing_scope.previous_stack)
 }
 
 @(private="file")
@@ -285,16 +333,30 @@ parse_token :: proc(p: ^Parser) {
         t, _ := sim_pop2()
         emit(p, Operation{ kind = Op_Binary{ operands = t, operation = .and }})
         sim_push(t)
+    case .Keyword_Or:
+        sim_expect(p.chunk, sim_at_least(2), sim_one_of(type_is_boolean))
+        t, _ := sim_pop2()
+        emit(p, Operation{ kind = Op_Binary{ operands = t, operation = .or }})
+        sim_push(t)
+
+        // TODO: Add checks for stack and make sure if has started for else
+    case .Keyword_If:
+        sim_expect(p.chunk, sim_at_least(1), sim_one_of(type_is_boolean))
+        sim_pop()
+        open_scope(p, token.kind)
+        emit(p, Operation{ kind = Op_Flow_Control{ operation = .if_start }})
+    case .Keyword_Else:
+        switch_scope(p, token.kind)
+        emit(p, Operation{ kind = Op_Flow_Control{ operation = .if_else }})
+    case .Keyword_Fi:
+        close_scope(p, token.kind)
+        emit(p, Operation{ kind = Op_Flow_Control{ operation = .if_end }})
+
     case .Keyword_Dup:
         sim_expect(p.chunk, sim_at_least(1))
         t := sim_pop()
         emit(p, Operation{ kind = Op_Dup{} })
         sim_push(t)
-        sim_push(t)
-    case .Keyword_Or:
-        sim_expect(p.chunk, sim_at_least(2), sim_one_of(type_is_boolean))
-        t, _ := sim_pop2()
-        emit(p, Operation{ kind = Op_Binary{ operands = t, operation = .or }})
         sim_push(t)
     case .Keyword_Enum:
         unimplemented()
