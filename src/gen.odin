@@ -46,14 +46,19 @@ write_indent :: proc(s: ^strings.Builder) {
     }
 }
 
+reindent :: proc(s: ^strings.Builder) {
+    for s.buf[len(s.buf) - 1] == '\t' { pop(&s.buf) }
+    write_indent(s)
+}
+
 indent_forward :: proc(s: ^strings.Builder, should_write := true) {
     g.indent += 1
     if should_write { write_indent(s) }
 }
 
-indent_backward :: proc(s: ^strings.Builder) {
+indent_backward :: proc(s: ^strings.Builder, should_write := true) {
     g.indent = max(g.indent - 1, 0)
-    write_indent(s)
+    if should_write { write_indent(s) }
 }
 
 @(private)
@@ -108,6 +113,21 @@ gen_program :: proc() {
                 writeln(&g.source, "stack_pop();")
             case Op_Dup:
                 writeln(&g.source, "stack_dup();")
+            case Op_Flow_Control:
+                switch v.operation {
+                case .if_start:
+                    writeln(&g.source, "if (bool_pop()) {")
+                    indent_forward(&g.source, false)
+                case .if_else:
+                    indent_backward(&g.source, false)
+                    reindent(&g.source)
+                    writeln(&g.source, "} else {")
+                    indent_forward(&g.source, false)
+                case .if_end:
+                    indent_backward(&g.source, false)
+                    reindent(&g.source)
+                    writeln(&g.source, "}")
+                }
             case Op_Print:
                 operand_name := type_to_cname(v.operand)
                 printfn := v.newline ? "println" : "print"

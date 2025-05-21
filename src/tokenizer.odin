@@ -43,7 +43,10 @@ Token_Kind :: enum u8 {
     // Reserved words
     Keyword_And,     // and
     Keyword_Dup,     // dup
+    Keyword_Else,    // else
     Keyword_Enum,    // enum
+    Keyword_Fi,      // fi
+    Keyword_If,      // if
     Keyword_Or,      // or
     Keyword_Print,   // print
     Keyword_Println, // println
@@ -394,6 +397,9 @@ tokenize_symbol :: proc(t: ^Tokenizer, token: ^Token) {
 
     case "and"     : token.kind = .Keyword_And
     case "dup"     : token.kind = .Keyword_Dup
+    case "else"    : token.kind = .Keyword_Else
+    case "fi"      : token.kind = .Keyword_Fi
+    case "if"      : token.kind = .Keyword_If
     case "or"      : token.kind = .Keyword_Or
     case "print"   : token.kind = .Keyword_Print
     case "println" : token.kind = .Keyword_Println
