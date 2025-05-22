@@ -34,11 +34,13 @@ Op_Push_Quotation :: struct {
     value: string,
 }
 
+Op_Apply :: struct {}
+
 Op_Binary :: struct {
     operation: Binary_Operation,
 }
 
-Op_Call_Proc      :: struct {
+Op_Call_Proc :: struct {
     ip: int,
     name: string,
 }
@@ -83,6 +85,7 @@ Operation_Variant :: union {
     Op_Push_String,
     Op_Push_Quotation,
 
+    Op_Apply,
     Op_Binary,
     Op_Call_Proc,
     Op_Cast,

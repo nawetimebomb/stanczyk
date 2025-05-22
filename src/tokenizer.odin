@@ -47,6 +47,7 @@ Token_Kind :: enum u8 {
 
     // Reserved words
     Keyword_And,     // and
+    Keyword_Apply,   // apply
     Keyword_Dup,     // dup
     Keyword_Enum,    // enum
     Keyword_If,      // if
@@ -142,12 +143,16 @@ get_next_token :: proc(t: ^Tokenizer) -> (token: Token) {
         case '>':  tokenize_greater(t, &token)
         case '-':  tokenize_minus  (t, &token)
         case '+':  tokenize_plus   (t, &token)
-        case ';':  token.kind = .Semicolon;   t.offset += 1
-        case '(':  token.kind = .Paren_Left;  t.offset += 1
-        case ')':  token.kind = .Paren_Right; t.offset += 1
-        case '%':  token.kind = .Percentage;  t.offset += 1
-        case '*':  token.kind = .Star;        t.offset += 1
-        case '=':  token.kind = .Equal;       t.offset += 1
+        case ';':  token.kind = .Semicolon;     t.offset += 1
+        case '{':  token.kind = .Brace_Left;    t.offset += 1
+        case '}':  token.kind = .Brace_Right;   t.offset += 1
+        case '[':  token.kind = .Bracket_Left;  t.offset += 1
+        case ']':  token.kind = .Bracket_Right; t.offset += 1
+        case '(':  token.kind = .Paren_Left;    t.offset += 1
+        case ')':  token.kind = .Paren_Right;   t.offset += 1
+        case '%':  token.kind = .Percentage;    t.offset += 1
+        case '*':  token.kind = .Star;          t.offset += 1
+        case '=':  token.kind = .Equal;         t.offset += 1
 
         case '\'': fallthrough
         case '"':  tokenize_string_literal(t, &token)
@@ -157,7 +162,9 @@ get_next_token :: proc(t: ^Tokenizer) -> (token: Token) {
     }
 
     token.end = t.offset
-    token.source = t.buffer[token.start:token.end]
+    if token.source == "" {
+        token.source = t.buffer[token.start:token.end]
+    }
 
     return
 }
@@ -387,6 +394,7 @@ tokenize_string_literal :: proc(t: ^Tokenizer, token: ^Token) {
     }
 
     if is_eof(t) { return }
+    token.source = t.buffer[token.start + 1:t.offset]
     t.offset += 1
 }
 
@@ -399,6 +407,7 @@ tokenize_symbol :: proc(t: ^Tokenizer, token: ^Token) {
     case "true"    : token.kind = .True
 
     case "and"     : token.kind = .Keyword_And
+    case "apply"   : token.kind = .Keyword_Apply
     case "dup"     : token.kind = .Keyword_Dup
     case "if"      : token.kind = .Keyword_If
     case "or"      : token.kind = .Keyword_Or

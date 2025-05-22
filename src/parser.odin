@@ -4,6 +4,10 @@ import "core:fmt"
 import "core:log"
 import "core:slice"
 import "core:strconv"
+import "core:strings"
+
+@(private="file")
+Quote_Stack :: []Token
 
 @(private="file")
 Scope :: struct {
@@ -19,8 +23,8 @@ Parser :: struct {
     previous:      ^Token,
     current:       ^Token,
     current_proc:  ^Procedure,
-
-    scopes:     [dynamic]Scope,
+    quotes:        [dynamic]Quote_Stack,
+    scopes:        [dynamic]Scope,
 }
 
 @(private="file")
@@ -43,9 +47,7 @@ advance :: proc(p: ^Parser) {
 
 @(private="file")
 emit :: proc(p: ^Parser, op: Operation) {
-    new_op := op
-    new_op.loc = get_location(p.previous)
-    append(&p.current_proc.ops, new_op)
+    append(&p.current_proc.ops, op)
 }
 
 @(private="file")
@@ -146,11 +148,11 @@ end_parsing_procedure :: proc(p: ^Parser) {
 }
 
 @(private="file")
-parse_token :: proc(p: ^Parser) -> (op: Operation) {
-    token := p.previous
-
+parse_token :: proc(p: ^Parser, token: ^Token) {
     // TODO: add proper error
     assert(is_parsing_procedure(p))
+
+    op := Operation{loc = get_location(token)}
 
     switch token.kind {
     case .Invalid:
@@ -190,7 +192,7 @@ parse_token :: proc(p: ^Parser) -> (op: Operation) {
                     for x in 0..<procedure.arguments.amount { sim_pop() }
                     for type in procedure.results.types { sim_push(type) }
                     op.variant = Op_Call_Proc{name = procedure.name, ip = procedure.ip}
-                    parsed = true
+                    emit(p, op)
                 }
             }
         }
@@ -198,22 +200,41 @@ parse_token :: proc(p: ^Parser) -> (op: Operation) {
     case .False, .True:
         sim_push(TYPE_BOOLEAN())
         op.variant = Op_Push_Bool{value = token.kind == .True}
+        emit(p, op)
     case .Integer:
         sim_push(TYPE_INTEGER())
         op.variant = Op_Push_Integer{value = strconv.atoi(token.source)}
+        emit(p, op)
     case .Float:
         sim_push(TYPE_FLOAT())
         op.variant = Op_Push_Float{value = strconv.atof(token.source)}
+        emit(p, op)
     case .Character:
         unimplemented()
     case .String:
         sim_push(TYPE_STRING())
-        // Note: Removing the `"` chars that come from the tokenizer
-        str_value := token.source[1:len(token.source) - 1]
-        op.variant = Op_Push_String{value = str_value}
-
+        op.variant = Op_Push_String{value = token.source}
+        emit(p, op)
     case .Brace_Left:
-        assert(false)
+        qstack := make([dynamic]Token, 0, 5)
+        value := strings.builder_make()
+
+        fmt.sbprint(&value, "{ ")
+        for !is_eof(p) && !check(p, .Brace_Right) {
+            advance(p)
+            token := p.previous
+            append(&qstack, token^)
+            format := token.kind == .String ? "\\\"{}\\\" " : "{} "
+            fmt.sbprintf(&value, format, token.source)
+        }
+        consume(p, .Brace_Right)
+        fmt.sbprint(&value, "}")
+
+        append(&p.quotes, slice.clone(qstack[:]))
+        delete(qstack)
+        op.variant = Op_Push_Quotation{strings.to_string(value)}
+        emit(p, op)
+        sim_push(TYPE_QUOTATION())
     case .Brace_Right:
         assert(false)
     case .Bracket_Left:
@@ -227,76 +248,100 @@ parse_token :: proc(p: ^Parser) -> (op: Operation) {
         sim_expect(p.current_proc, sim_at_least(2), sim_one_of(type_is_float, type_is_integer, type_is_string))
         t, _ := sim_pop2()
         op.variant = Op_Binary{operation = .ne}
+        emit(p, op)
         sim_push(TYPE_BOOLEAN())
     case .Equal:
         sim_expect(p.current_proc, sim_at_least(2), sim_one_of(type_is_float, type_is_integer, type_is_string))
         t, _ := sim_pop2()
         op.variant = Op_Binary{operation = .eq}
+        emit(p, op)
         sim_push(TYPE_BOOLEAN())
     case .Greater:
         sim_expect(p.current_proc, sim_at_least(2), sim_one_of(type_is_float, type_is_integer))
         t, _ := sim_pop2()
         op.variant = Op_Binary{operation = .gt}
+        emit(p, op)
         sim_push(TYPE_BOOLEAN())
     case .Greater_Equal:
         sim_expect(p.current_proc, sim_at_least(2), sim_one_of(type_is_float, type_is_integer))
         t, _ := sim_pop2()
         op.variant = Op_Binary{operation = .ge}
+        emit(p, op)
         sim_push(TYPE_BOOLEAN())
     case .Less:
         sim_expect(p.current_proc, sim_at_least(2), sim_one_of(type_is_float, type_is_integer))
         t, _ := sim_pop2()
         op.variant = Op_Binary{operation = .lt}
+        emit(p, op)
         sim_push(TYPE_BOOLEAN())
     case .Less_Equal:
         sim_expect(p.current_proc, sim_at_least(2), sim_one_of(type_is_float, type_is_integer))
         t, _ := sim_pop2()
         op.variant = Op_Binary{operation = .le}
+        emit(p, op)
         sim_push(TYPE_BOOLEAN())
     case .Minus:
         sim_expect(p.current_proc, sim_at_least(2), sim_one_of(type_is_float, type_is_integer))
         t, _ := sim_pop2()
         op.variant = Op_Binary{operation = .minus}
+        emit(p, op)
         sim_push(t)
     case .Minus_Minus:
         sim_expect(p.current_proc, sim_at_least(2), sim_one_of(type_is_float, type_is_integer))
         op.variant = Op_Unary{operand = sim_peek(), operation = .minus_minus}
+        emit(p, op)
     case .Percentage:
         sim_expect(p.current_proc, sim_at_least(2), sim_one_of(type_is_integer))
         t, _ := sim_pop2()
         op.variant = Op_Binary{operation = .modulo}
+        emit(p, op)
         sim_push(t)
     case .Plus:
         sim_expect(p.current_proc, sim_at_least(2), sim_one_of(type_is_float, type_is_integer, type_is_string))
         t, _ := sim_pop2()
         op.variant = Op_Binary{operation = .plus}
+        emit(p, op)
         sim_push(t)
     case .Plus_Plus:
         sim_expect(p.current_proc, sim_at_least(2), sim_one_of(type_is_float, type_is_integer))
         op.variant = Op_Unary{operand = sim_peek(), operation = .plus_plus}
+        emit(p, op)
     case .Slash:
         sim_expect(p.current_proc, sim_at_least(2), sim_one_of(type_is_float, type_is_integer))
         t, _ := sim_pop2()
         op.variant = Op_Binary{operation = .divide}
+        emit(p, op)
         sim_push(t)
     case .Star:
         sim_expect(p.current_proc, sim_at_least(2), sim_one_of(type_is_float, type_is_integer))
         t, _ := sim_pop2()
         op.variant = Op_Binary{operation = .multiply}
+        emit(p, op)
         sim_push(t)
 
     case .Dash_Dash_Dash, .Paren_Left, .Paren_Right, .Semicolon:
         assert(false, "Can't parse within a procedure")
 
+    case .Keyword_Apply:
+        sim_expect(p.current_proc, sim_at_least(1), sim_one_of(type_is_quotation))
+        sim_pop()
+        op.variant = Op_Apply{}
+        emit(p, op)
+        qstack := pop(&p.quotes)
+        for &t in qstack {
+            parse_token(p, &t)
+        }
     case .Keyword_And:
         sim_expect(p.current_proc, sim_at_least(2), sim_one_of(type_is_boolean))
         t, _ := sim_pop2()
         op.variant = Op_Binary{operation = .and}
+        emit(p, op)
         sim_push(t)
     case .Keyword_Or:
         sim_expect(p.current_proc, sim_at_least(2), sim_one_of(type_is_boolean))
         t, _ := sim_pop2()
         op.variant = Op_Binary{operation = .or}
+        emit(p, op)
         sim_push(t)
 
     case .Keyword_If:
@@ -305,11 +350,13 @@ parse_token :: proc(p: ^Parser) -> (op: Operation) {
         sim_pop()
         open_scope(p, token.kind)
         op.variant = Op_If_Statement{operation = .if_start}
+        emit(p, op)
 
     case .Keyword_Dup:
         sim_expect(p.current_proc, sim_at_least(1))
         t := sim_pop()
         op.variant = Op_Dup{}
+        emit(p, op)
         sim_push(t)
         sim_push(t)
     case .Keyword_Enum:
@@ -318,12 +365,14 @@ parse_token :: proc(p: ^Parser) -> (op: Operation) {
         sim_expect(p.current_proc, sim_at_least(1))
         t := sim_pop()
         op.variant = Op_Print{operand = t, newline = token.kind == .Keyword_Println}
+        emit(p, op)
     case .Keyword_Struct:
         unimplemented()
     case .Keyword_Swap:
         sim_expect(p.current_proc, sim_at_least(2))
         b, a := sim_pop2()
         op.variant = Op_Swap{}
+        emit(p, op)
         sim_push(b)
         sim_push(a)
     case .Keyword_Type:
@@ -335,6 +384,7 @@ parse_token :: proc(p: ^Parser) -> (op: Operation) {
         sim_expect(p.current_proc, sim_at_least(1))
         t := sim_pop()
         op.variant = Op_Describe_Type{t}
+        emit(p, op)
         sim_push(TYPE_STRING())
     case .Keyword_Using:
         unimplemented()
@@ -344,54 +394,63 @@ parse_token :: proc(p: ^Parser) -> (op: Operation) {
         from := sim_pop()
         to := TYPE_BOOLEAN()
         op.variant = Op_Cast{to = to}
+        emit(p, op)
         sim_push(to)
     case .Type_Float:
         sim_expect(p.current_proc, sim_at_least(1), sim_one_of(type_is_float, type_is_integer))
         from := sim_pop()
         to := TYPE_FLOAT()
         op.variant = Op_Cast{to = to}
+        emit(p, op)
         sim_push(to)
     case .Type_F64, .Type_F32:
         sim_expect(p.current_proc, sim_at_least(1), sim_one_of(type_is_float, type_is_integer))
         from := sim_pop()
         to := TYPE_FLOAT(token.kind == .Type_F64 ? 64 : 32)
         op.variant = Op_Cast{to = to}
+        emit(p, op)
         sim_push(to)
     case .Type_Int:
         sim_expect(p.current_proc, sim_at_least(1), sim_one_of(type_is_float, type_is_integer))
         from := sim_pop()
         to := TYPE_INTEGER(true)
         op.variant = Op_Cast{to = to}
+        emit(p, op)
         sim_push(to)
     case .Type_Ptr:
         sim_expect(p.current_proc, sim_at_least(1), sim_one_of(type_is_boolean, type_is_float, type_is_integer, type_is_string))
         from := sim_pop()
         to := TYPE_POINTER(from)
         op.variant = Op_Cast{to = to}
+        emit(p, op)
         sim_push(to)
     case .Type_S64, .Type_S32, .Type_S16, .Type_S8:
         sim_expect(p.current_proc, sim_at_least(1), sim_one_of(type_is_float, type_is_integer))
         from := sim_pop()
         to := TYPE_INTEGER(true, strconv.atoi(token.source[1:]))
         op.variant = Op_Cast{to = to}
+        emit(p, op)
         sim_push(to)
     case .Type_String:
         sim_expect(p.current_proc, sim_at_least(1), sim_one_of(type_is_boolean, type_is_float, type_is_integer))
         from := sim_pop()
         to := TYPE_STRING()
         op.variant = Op_Cast{to = to}
+        emit(p, op)
         sim_push(to)
     case .Type_U64, .Type_U32, .Type_U16, .Type_U8:
         sim_expect(p.current_proc, sim_at_least(1), sim_one_of(type_is_float, type_is_integer))
         from := sim_pop()
         to := TYPE_INTEGER(false, strconv.atoi(token.source[1:]))
         op.variant = Op_Cast{to = to}
+        emit(p, op)
         sim_push(to)
     case .Type_Uint:
         sim_expect(p.current_proc, sim_at_least(1), sim_one_of(type_is_float, type_is_integer))
         from := sim_pop()
         to := TYPE_INTEGER(false)
         op.variant = Op_Cast{to = to}
+        emit(p, op)
         sim_push(to)
     }
 
@@ -497,8 +556,8 @@ parse_files :: proc() {
         p := &parser
 
         for !is_eof(p) {
-            advance(p)
             token := p.previous
+            advance(p)
 
             #partial switch token.kind {
                 case .Identifier: {
@@ -509,7 +568,8 @@ parse_files :: proc() {
 
                         for !is_eof(p) && !consume(p, .Semicolon) {
                             advance(p)
-                            emit(p, parse_token(p))
+                            token := p.previous
+                            parse_token(p, token)
                         }
 
                         end_parsing_procedure(p)

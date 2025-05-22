@@ -97,6 +97,8 @@ gen_program :: proc() {
             case Op_Push_Quotation:
                 writefln(&g.source, "_builtin__push(SK_quotation, (SKVALUE){{._quotation = \"{}\"});", v.value)
 
+            case Op_Apply:
+                writeln(&g.source, "_builtin__pop();")
             case Op_Binary:
                 if v.operation == .and {
                     writeln(&g.source, "_builtin__and();")

@@ -157,6 +157,8 @@ SK_INLINE bool _builtin__stack_is_full();
 SK_INLINE Stack_value _builtin__stack_peek();
 SK_INLINE Stack_value _builtin__pop();
 SK_INLINE void _builtin__push(SKTYPE t, SKVALUE v);
+SK_INLINE void _builtin__swap();
+SK_INLINE void _builtin__dup();
 
 SK_INLINE bool _builtin__stack_is_empty() {
     return the_stack.top <= 0;
@@ -180,13 +182,13 @@ SK_INLINE Stack_value _builtin__pop() {
     return a;
 }
 
-SK_INLINE void _builtin__stack_dup() {
+SK_INLINE void _builtin__dup() {
     Stack_value a = _builtin__pop();
     _builtin__push(a.t, a.v);
     _builtin__push(a.t, a.v);
 }
 
-SK_INLINE void _builtin__stack_swap() {
+SK_INLINE void _builtin__swap() {
     Stack_value b = _builtin__pop();
     Stack_value a = _builtin__pop();
     _builtin__push(b.t, b.v);
