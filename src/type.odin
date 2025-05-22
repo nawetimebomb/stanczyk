@@ -56,6 +56,10 @@ TYPE_POINTER :: proc(base: Type) -> Type {
     return Type{variant = Type_Pointer{}}
 }
 
+TYPE_QUOTATION :: proc() -> Type {
+    return Type{variant = Type_Quotation{}}
+}
+
 TYPE_STRING  :: proc(is_cstring := false) -> Type {
     return Type{variant = Type_String{is_cstring = is_cstring}}
 }
