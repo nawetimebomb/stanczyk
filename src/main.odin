@@ -54,10 +54,8 @@ Procedure :: struct {
     parsed:    bool,
     is_inline: bool,
 
-    // arguments: Arity,
     // bindings: Binding,
     // constants: []Constant,
-    //results: Arity,
 }
 
 compiler_arch:     Compiler_Architecture

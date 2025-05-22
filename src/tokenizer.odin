@@ -13,12 +13,19 @@ Token_Kind :: enum u8 {
 
     Identifier,      // main
 
-    Bool_False,      // false
-    Bool_True,       // true
+    Paren_Left,      // (
+    Paren_Right,     // )
+    Bracket_Left,    // [
+    Bracket_Right,   // ]
+    Brace_Left,      // {
+    Brace_Right,     // }
+
     Integer,         // 123
+    False,           // false
     Float,           // 1.23
     Character,       // 'a'
     String,          // "abc"
+    True,            // true
 
     Bang,            // !
     Bang_Equal,      // !=
@@ -31,8 +38,6 @@ Token_Kind :: enum u8 {
     Less_Equal,      // <=
     Minus,           // -
     Minus_Minus,     // --
-    Paren_Left,      // (
-    Paren_Right,     // )
     Percentage,      // %
     Plus,            // +
     Plus_Plus,       // ++
@@ -43,9 +48,7 @@ Token_Kind :: enum u8 {
     // Reserved words
     Keyword_And,     // and
     Keyword_Dup,     // dup
-    Keyword_Else,    // else
     Keyword_Enum,    // enum
-    Keyword_Fi,      // fi
     Keyword_If,      // if
     Keyword_Or,      // or
     Keyword_Print,   // print
@@ -392,13 +395,11 @@ tokenize_symbol :: proc(t: ^Tokenizer, token: ^Token) {
     word := get_word_at(t)
 
     switch word {
-    case "false"   : token.kind = .Bool_False
-    case "true"    : token.kind = .Bool_True
+    case "false"   : token.kind = .False
+    case "true"    : token.kind = .True
 
     case "and"     : token.kind = .Keyword_And
     case "dup"     : token.kind = .Keyword_Dup
-    case "else"    : token.kind = .Keyword_Else
-    case "fi"      : token.kind = .Keyword_Fi
     case "if"      : token.kind = .Keyword_If
     case "or"      : token.kind = .Keyword_Or
     case "print"   : token.kind = .Keyword_Print

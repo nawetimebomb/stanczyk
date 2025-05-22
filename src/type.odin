@@ -9,14 +9,18 @@ Type :: struct {
     align: int,
     size:  int,
     variant: union {
+        Type_Any,
         Type_Boolean,
         Type_Float,
         Type_Integer,
         Type_Named,
         Type_Pointer,
+        Type_Quotation,
         Type_String,
     },
 }
+
+Type_Any :: struct {}
 
 Type_Boolean :: struct {}
 
@@ -29,6 +33,8 @@ Type_Integer :: struct {
 Type_Named :: struct {} // TODO
 
 Type_Pointer :: struct {} // TODO
+
+Type_Quotation :: struct {}
 
 Type_String :: struct {
     is_cstring: bool,
@@ -69,19 +75,42 @@ type_is_integer :: proc(t: Type) -> (ok: bool) {
     return
 }
 
+type_is_quotation :: proc(t: Type) -> (ok: bool) {
+    _, ok = t.variant.(Type_Quotation)
+    return
+}
+
 type_is_string :: proc(t: Type) -> (ok: bool) {
     _, ok = t.variant.(Type_String)
     return
 }
 
-type_to_cname :: proc(t: Type) -> string {
+type_to_ctype :: proc(t: Type) -> string {
     switch v in t.variant {
-    case Type_Boolean: return "bool"
-    case Type_Float: return fmt.tprintf("f{}", t.size)
-    case Type_Integer: return fmt.tprintf("{}{}", v.is_signed ? "s" : "u", t.size)
-    case Type_Named: assert(false); return "invalid"
-    case Type_Pointer: assert(false); return "invalid"
-    case Type_String: return v.is_cstring ? "cstring" : "string"
+    case Type_Any       : return "any"
+    case Type_Boolean   : return "bool"
+    case Type_Float     : return fmt.tprintf("f{}", t.size)
+    case Type_Integer   : return fmt.tprintf("{}{}", v.is_signed ? "s" : "u", t.size)
+    case Type_Named     : assert(false); return "invalid"
+    case Type_Pointer   : assert(false); return "invalid"
+    case Type_Quotation : return "quotation"
+    case Type_String    : return v.is_cstring ? "cstring" : "string"
+    }
+
+    assert(false)
+    return "invalid"
+}
+
+type_to_cenum :: proc(t: Type) -> string {
+    switch v in t.variant {
+    case Type_Any       : return "SK_any"
+    case Type_Boolean   : return "SK_bool"
+    case Type_Float     : return fmt.tprintf("SK_f{}", t.size)
+    case Type_Integer   : return fmt.tprintf("SK_{}{}", v.is_signed ? "s" : "u", t.size)
+    case Type_Named     : assert(false); return "invalid"
+    case Type_Pointer   : assert(false); return "invalid"
+    case Type_Quotation : return "quotation"
+    case Type_String    : return v.is_cstring ? "SK_cstring" : "SK_string"
     }
 
     assert(false)
