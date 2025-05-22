@@ -28,6 +28,7 @@
   ;                                                                      ;
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;  The Stańczyk Programming Language  ;; */
 
+#include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -93,7 +94,33 @@ struct string {
     bool is_lit;
 };
 
-union Stack_value {
+// Stanczyk stack
+#define STACK_MAX_SIZE 255
+typedef enum SKTYPE SKTYPE;
+typedef union SKVALUE SKVALUE;
+typedef struct Stack_value Stack_value;
+typedef struct Program_stack Program_stack;
+
+enum SKTYPE {
+    SK_any,
+
+    SK_bool,
+    SK_f64,
+    SK_f32,
+    SK_s64,
+    SK_s32,
+    SK_s16,
+    SK_s8,
+    SK_u64,
+    SK_u32,
+    SK_u16,
+    SK_u8,
+
+    SK_quotation,
+    SK_string,
+};
+
+union SKVALUE {
     bool _bool;
 
     f32 _f32;
@@ -109,333 +136,600 @@ union Stack_value {
     u16 _u16;
     u8 _u8;
 
+    char* _quotation;
     string _string;
 };
 
-#define STACK_MAX_SIZE 255
-
-typedef union Stack_value Stack_value;
-typedef struct Program_stack Program_stack;
+struct Stack_value {
+    SKTYPE t;
+    SKVALUE v;
+};
 
 struct Program_stack {
     int top;
     Stack_value values[STACK_MAX_SIZE];
 };
 
-SK_PROGRAM Program_stack _stack;
+SK_PROGRAM Program_stack the_stack;
 
-SK_INLINE bool stack_is_empty() { return _stack.top <= 0; }
-SK_INLINE bool stack_is_full() { return _stack.top == STACK_MAX_SIZE - 1; }
-SK_INLINE void stack_push(Stack_value v) { _stack.values[++_stack.top] = v; }
-SK_INLINE Stack_value stack_peek() { return _stack.values[_stack.top]; }
-SK_INLINE Stack_value stack_pop() { Stack_value v = _stack.values[_stack.top]; _stack.top--; return v; }
-SK_INLINE void stack_dup() { Stack_value v = stack_pop(); stack_push(v); stack_push(v); }
-SK_INLINE void stack_swap() { Stack_value b = stack_pop(); Stack_value a = stack_pop(); stack_push(b); stack_push(a); }
+SK_INLINE bool _builtin__stack_is_empty();
+SK_INLINE bool _builtin__stack_is_full();
+SK_INLINE Stack_value _builtin__stack_peek();
+SK_INLINE Stack_value _builtin__pop();
+SK_INLINE void _builtin__push(SKTYPE t, SKVALUE v);
 
-SK_INLINE bool bool_pop() { return stack_pop()._bool; }
-SK_INLINE f64 f64_pop() { return stack_pop()._f64; }
-SK_INLINE f32 f32_pop() { return stack_pop()._f32; }
-SK_INLINE s64 s64_pop() { return stack_pop()._s64; }
-SK_INLINE s32 s32_pop() { return stack_pop()._s32; }
-SK_INLINE s16 s16_pop() { return stack_pop()._s16; }
-SK_INLINE s8 s8_pop() { return stack_pop()._s8; }
-SK_INLINE u64 u64_pop() { return stack_pop()._u64; }
-SK_INLINE u32 u32_pop() { return stack_pop()._u32; }
-SK_INLINE u16 u16_pop() { return stack_pop()._u16; }
-SK_INLINE u8 u8_pop() { return stack_pop()._u8; }
-SK_INLINE string string_pop() { return stack_pop()._string; }
-
-SK_INLINE void bool_push(bool v) { stack_push((Stack_value){ ._bool = v }); }
-SK_INLINE void f64_push(f64 v) { stack_push((Stack_value){ ._f64 = v }); }
-SK_INLINE void f32_push(f32 v) { stack_push((Stack_value){ ._f32 = v }); }
-SK_INLINE void s64_push(s64 v) { stack_push((Stack_value){ ._s64 = v }); }
-SK_INLINE void s32_push(s32 v) { stack_push((Stack_value){ ._s32 = v }); }
-SK_INLINE void s16_push(s16 v) { stack_push((Stack_value){ ._s16 = v }); }
-SK_INLINE void s8_push(s8 v) { stack_push((Stack_value){ ._s8 = v }); }
-SK_INLINE void u64_push(u64 v) { stack_push((Stack_value){ ._u64 = v }); }
-SK_INLINE void u32_push(u32 v) { stack_push((Stack_value){ ._u32 = v }); }
-SK_INLINE void u16_push(u16 v) { stack_push((Stack_value){ ._u16 = v }); }
-SK_INLINE void u8_push(u8 v) { stack_push((Stack_value){ ._u8 = v }); }
-SK_INLINE void string_push(string v) { stack_push((Stack_value){ ._string = v }); }
-
-SK_PROGRAM void bool_print() { printf("%s", bool_pop() ? "true" : "false"); }
-SK_PROGRAM void bool_println() { printf("%s\n", bool_pop() ? "true" : "false"); }
-SK_PROGRAM void f64_print() { printf("%g", f64_pop()); }
-SK_PROGRAM void f64_println() { printf("%g\n", f64_pop()); }
-SK_PROGRAM void f32_print() { printf("%f", f32_pop()); }
-SK_PROGRAM void f32_println() { printf("%f\n", f32_pop()); }
-SK_PROGRAM void s64_print() { printf("%li", s64_pop()); }
-SK_PROGRAM void s64_println() { printf("%li\n", s64_pop()); }
-SK_PROGRAM void s32_print() { printf("%i", s32_pop()); }
-SK_PROGRAM void s32_println() { printf("%i\n", s32_pop()); }
-SK_PROGRAM void s16_print() { printf("%hi", s16_pop()); }
-SK_PROGRAM void s16_println() { printf("%hi\n", s16_pop()); }
-SK_PROGRAM void s8_print() { printf("%i", (s32)s8_pop()); }
-SK_PROGRAM void s8_println() { printf("%i\n", (s32)s8_pop()); }
-SK_PROGRAM void u64_print() { printf("%lu", u64_pop()); }
-SK_PROGRAM void u64_println() { printf("%lu\n", u64_pop()); }
-SK_PROGRAM void u32_print() { printf("%u", u32_pop()); }
-SK_PROGRAM void u32_println() { printf("%u\n", u32_pop()); }
-SK_PROGRAM void u16_print() { printf("%hu", u16_pop()); }
-SK_PROGRAM void u16_println() { printf("%hu\n", u16_pop()); }
-SK_PROGRAM void u8_print() { printf("%u", (u32)u8_pop()); }
-SK_PROGRAM void u8_println() { printf("%u\n", (u32)u8_pop()); }
-SK_PROGRAM void string_print() { string v = string_pop(); printf("%.*s", v.len, v.buf); if (!v.is_lit) free(v.buf); }
-SK_PROGRAM void string_println() { string v = string_pop(); printf("%.*s\n", v.len, v.buf); if (!v.is_lit) free(v.buf); }
-
-SK_INLINE void f64_to_bool() { bool_push(f64_pop() > 0.0f ? true : false); }
-SK_INLINE void f64_to_f32() { f32_push((f32)f64_pop()); }
-SK_INLINE void f64_to_s64() { s64_push((s64)f64_pop()); }
-SK_INLINE void f64_to_s32() { s32_push((s32)f64_pop()); }
-SK_INLINE void f64_to_s16() { s16_push((s16)f64_pop()); }
-SK_INLINE void f64_to_s8() { s8_push((s8)f64_pop()); }
-SK_INLINE void f64_to_u64() { u64_push((u64)f64_pop()); }
-SK_INLINE void f64_to_u32() { u32_push((u32)f64_pop()); }
-SK_INLINE void f64_to_u16() { u16_push((u16)f64_pop()); }
-SK_INLINE void f64_to_u8() { u8_push((u8)f64_pop()); }
-
-SK_INLINE void f32_to_bool() { bool_push(f32_pop() > 0.0f ? true : false); }
-SK_INLINE void f32_to_f64() { f64_push((f64)f32_pop()); }
-SK_INLINE void f32_to_s64() { s64_push((s64)f32_pop()); }
-SK_INLINE void f32_to_s32() { s32_push((s32)f32_pop()); }
-SK_INLINE void f32_to_s16() { s16_push((s16)f32_pop()); }
-SK_INLINE void f32_to_s8() { s8_push((s8)f32_pop()); }
-SK_INLINE void f32_to_u64() { u64_push((u64)f32_pop()); }
-SK_INLINE void f32_to_u32() { u32_push((u32)f32_pop()); }
-SK_INLINE void f32_to_u16() { u16_push((u16)f32_pop()); }
-SK_INLINE void f32_to_u8() { u8_push((u8)f32_pop()); }
-
-SK_INLINE void s64_to_bool() { bool_push(s64_pop() > 0 ? true : false); }
-SK_INLINE void s64_to_f64() { f64_push((f64)s64_pop()); }
-SK_INLINE void s64_to_f32() { f32_push((f32)s64_pop()); }
-SK_INLINE void s64_to_s32() { s32_push((s32)s64_pop()); }
-SK_INLINE void s64_to_s16() { s16_push((s16)s64_pop()); }
-SK_INLINE void s64_to_s8() { s8_push((s8)s64_pop()); }
-SK_INLINE void s64_to_u64() { u64_push((u64)s64_pop()); }
-SK_INLINE void s64_to_u32() { u32_push((u32)s64_pop()); }
-SK_INLINE void s64_to_u16() { u16_push((u16)s64_pop()); }
-SK_INLINE void s64_to_u8() { u8_push((u8)s64_pop()); }
-
-SK_INLINE void s32_to_bool() { bool_push(s32_pop() > 0 ? true : false); }
-SK_INLINE void s32_to_f64() { f64_push((f64)s32_pop()); }
-SK_INLINE void s32_to_f32() { f32_push((f32)s32_pop()); }
-SK_INLINE void s32_to_s64() { s64_push((s64)s32_pop()); }
-SK_INLINE void s32_to_s16() { s16_push((s16)s32_pop()); }
-SK_INLINE void s32_to_s8() { s8_push((s8)s32_pop()); }
-SK_INLINE void s32_to_u64() { u64_push((u64)s32_pop()); }
-SK_INLINE void s32_to_u32() { u32_push((u32)s32_pop()); }
-SK_INLINE void s32_to_u16() { u16_push((u16)s32_pop()); }
-SK_INLINE void s32_to_u8() { u8_push((u8)s32_pop()); }
-
-SK_INLINE void s16_to_bool() { bool_push(s16_pop() > 0 ? true : false); }
-SK_INLINE void s16_to_f64() { f64_push((f64)s16_pop()); }
-SK_INLINE void s16_to_f32() { f32_push((f32)s16_pop()); }
-SK_INLINE void s16_to_s64() { s64_push((s64)s16_pop()); }
-SK_INLINE void s16_to_s32() { s32_push((s32)s16_pop()); }
-SK_INLINE void s16_to_s8() { s8_push((s8)s16_pop()); }
-SK_INLINE void s16_to_u64() { u64_push((u64)s16_pop()); }
-SK_INLINE void s16_to_u32() { u32_push((u32)s16_pop()); }
-SK_INLINE void s16_to_u16() { u16_push((u16)s16_pop()); }
-SK_INLINE void s16_to_u8() { u8_push((u8)s16_pop()); }
-
-SK_INLINE void s8_to_bool() { bool_push(s8_pop() > 0 ? true : false); }
-SK_INLINE void s8_to_f64() { f64_push((f64)s8_pop()); }
-SK_INLINE void s8_to_f32() { f32_push((f32)s8_pop()); }
-SK_INLINE void s8_to_s64() { s64_push((s64)s8_pop()); }
-SK_INLINE void s8_to_s32() { s32_push((s32)s8_pop()); }
-SK_INLINE void s8_to_s16() { s16_push((s16)s8_pop()); }
-SK_INLINE void s8_to_u64() { u64_push((u64)s8_pop()); }
-SK_INLINE void s8_to_u32() { u32_push((u32)s8_pop()); }
-SK_INLINE void s8_to_u16() { u16_push((u16)s8_pop()); }
-SK_INLINE void s8_to_u8() { u8_push((u8)s8_pop()); }
-
-SK_INLINE void u64_to_bool() { bool_push(u64_pop() > 0 ? true : false); }
-SK_INLINE void u64_to_f64() { f64_push((f64)u64_pop()); }
-SK_INLINE void u64_to_f32() { f32_push((f32)u64_pop()); }
-SK_INLINE void u64_to_s64() { s64_push((s64)u64_pop()); }
-SK_INLINE void u64_to_s32() { s32_push((s32)u64_pop()); }
-SK_INLINE void u64_to_s16() { s16_push((s16)u64_pop()); }
-SK_INLINE void u64_to_s8() { s8_push((s8)u64_pop()); }
-SK_INLINE void u64_to_u32() { u32_push((u32)u64_pop()); }
-SK_INLINE void u64_to_u16() { u16_push((u16)u64_pop()); }
-SK_INLINE void u64_to_u8() { u8_push((u8)u64_pop()); }
-
-SK_INLINE void u32_to_bool() { bool_push(u32_pop() > 0 ? true : false); }
-SK_INLINE void u32_to_f64() { f64_push((f64)u32_pop()); }
-SK_INLINE void u32_to_f32() { f32_push((f32)u32_pop()); }
-SK_INLINE void u32_to_s64() { s64_push((s64)u32_pop()); }
-SK_INLINE void u32_to_s32() { s32_push((s32)u32_pop()); }
-SK_INLINE void u32_to_s16() { s16_push((s16)u32_pop()); }
-SK_INLINE void u32_to_s8() { s8_push((s8)u32_pop()); }
-SK_INLINE void u32_to_u64() { u64_push((u64)u32_pop()); }
-SK_INLINE void u32_to_u16() { u16_push((u16)u32_pop()); }
-SK_INLINE void u32_to_u8() { u8_push((u8)u32_pop()); }
-
-SK_INLINE void u16_to_bool() { bool_push(u16_pop() > 0 ? true : false); }
-SK_INLINE void u16_to_f64() { f64_push((f64)u16_pop()); }
-SK_INLINE void u16_to_f32() { f32_push((f32)u16_pop()); }
-SK_INLINE void u16_to_s64() { s64_push((s64)u16_pop()); }
-SK_INLINE void u16_to_s32() { s32_push((s32)u16_pop()); }
-SK_INLINE void u16_to_s16() { s16_push((s16)u16_pop()); }
-SK_INLINE void u16_to_s8() { s8_push((s8)u16_pop()); }
-SK_INLINE void u16_to_u64() { u64_push((u64)u16_pop()); }
-SK_INLINE void u16_to_u32() { u32_push((u32)u16_pop()); }
-SK_INLINE void u16_to_u8() { u8_push((u8)u16_pop()); }
-
-SK_INLINE void u8_to_bool() { bool_push(u8_pop() > 0 ? true : false); }
-SK_INLINE void u8_to_f64() { f64_push((f64)u8_pop()); }
-SK_INLINE void u8_to_f32() { f32_push((f32)u8_pop()); }
-SK_INLINE void u8_to_s64() { s64_push((s64)u8_pop()); }
-SK_INLINE void u8_to_s32() { s32_push((s32)u8_pop()); }
-SK_INLINE void u8_to_s16() { s16_push((s16)u8_pop()); }
-SK_INLINE void u8_to_s8() { s8_push((s8)u8_pop()); }
-SK_INLINE void u8_to_u64() { u64_push((u64)u8_pop()); }
-SK_INLINE void u8_to_u32() { u32_push((u32)u8_pop()); }
-SK_INLINE void u8_to_u16() { u16_push((u16)u8_pop()); }
-
-SK_INLINE void string_to_bool() { bool_push(string_pop().len > 0 ? true : false); }
-
-SK_INLINE void log_and() { bool_push(bool_pop() == true && bool_pop() == true); }
-SK_INLINE void log_or() { bool_push(bool_pop() == true || bool_pop() == true); }
-
-SK_INLINE void f64_eq() { f64 b = f64_pop(); f64 a = f64_pop(); bool_push(a == b); }
-SK_INLINE void f32_eq() { f32 b = f32_pop(); f32 a = f32_pop(); bool_push(a == b); }
-SK_INLINE void s64_eq() { s64 b = s64_pop(); s64 a = s64_pop(); bool_push(a == b); }
-SK_INLINE void s32_eq() { s32 b = s32_pop(); s32 a = s32_pop(); bool_push(a == b); }
-SK_INLINE void s16_eq() { s16 b = s16_pop(); s16 a = s16_pop(); bool_push(a == b); }
-SK_INLINE void s8_eq() { s8 b = s8_pop(); s8 a = s8_pop(); bool_push(a == b); }
-SK_INLINE void u64_eq() { u64 b = u64_pop(); u64 a = u64_pop(); bool_push(a == b); }
-SK_INLINE void u32_eq() { u32 b = u32_pop(); u32 a = u32_pop(); bool_push(a == b); }
-SK_INLINE void u16_eq() { u16 b = u16_pop(); u16 a = u16_pop(); bool_push(a == b); }
-SK_INLINE void u8_eq() { u8 b = u8_pop(); u8 a = u8_pop(); bool_push(a == b); }
-SK_INLINE void string_eq() { string b = string_pop(); string a = string_pop(); bool_push(a.len == b.len && memcmp(a.buf, b.buf, a.len) == 0); }
-
-SK_INLINE void f64_ne() { f64 b = f64_pop(); f64 a = f64_pop(); bool_push(a != b); }
-SK_INLINE void f32_ne() { f32 b = f32_pop(); f32 a = f32_pop(); bool_push(a != b); }
-SK_INLINE void s64_ne() { s64 b = s64_pop(); s64 a = s64_pop(); bool_push(a != b); }
-SK_INLINE void s32_ne() { s32 b = s32_pop(); s32 a = s32_pop(); bool_push(a != b); }
-SK_INLINE void s16_ne() { s16 b = s16_pop(); s16 a = s16_pop(); bool_push(a != b); }
-SK_INLINE void s8_ne() { s8 b = s8_pop(); s8 a = s8_pop(); bool_push(a != b); }
-SK_INLINE void u64_ne() { u64 b = u64_pop(); u64 a = u64_pop(); bool_push(a != b); }
-SK_INLINE void u32_ne() { u32 b = u32_pop(); u32 a = u32_pop(); bool_push(a != b); }
-SK_INLINE void u16_ne() { u16 b = u16_pop(); u16 a = u16_pop(); bool_push(a != b); }
-SK_INLINE void u8_ne() { u8 b = u8_pop(); u8 a = u8_pop(); bool_push(a != b); }
-SK_INLINE void string_ne() { string b = string_pop(); string a = string_pop(); bool_push(a.len != b.len || memcmp(a.buf, b.buf, a.len) != 0); }
-
-SK_INLINE void f64_gt() { f64 b = f64_pop(); f64 a = f64_pop(); bool_push(a > b); }
-SK_INLINE void f32_gt() { f32 b = f32_pop(); f32 a = f32_pop(); bool_push(a > b); }
-SK_INLINE void s64_gt() { s64 b = s64_pop(); s64 a = s64_pop(); bool_push(a > b); }
-SK_INLINE void s32_gt() { s32 b = s32_pop(); s32 a = s32_pop(); bool_push(a > b); }
-SK_INLINE void s16_gt() { s16 b = s16_pop(); s16 a = s16_pop(); bool_push(a > b); }
-SK_INLINE void s8_gt() { s8 b = s8_pop(); s8 a = s8_pop(); bool_push(a > b); }
-SK_INLINE void u64_gt() { u64 b = u64_pop(); u64 a = u64_pop(); bool_push(a > b); }
-SK_INLINE void u32_gt() { u32 b = u32_pop(); u32 a = u32_pop(); bool_push(a > b); }
-SK_INLINE void u16_gt() { u16 b = u16_pop(); u16 a = u16_pop(); bool_push(a > b); }
-SK_INLINE void u8_gt() { u8 b = u8_pop(); u8 a = u8_pop(); bool_push(a > b); }
-
-SK_INLINE void f64_ge() { f64 b = f64_pop(); f64 a = f64_pop(); bool_push(a >= b); }
-SK_INLINE void f32_ge() { f32 b = f32_pop(); f32 a = f32_pop(); bool_push(a >= b); }
-SK_INLINE void s64_ge() { s64 b = s64_pop(); s64 a = s64_pop(); bool_push(a >= b); }
-SK_INLINE void s32_ge() { s32 b = s32_pop(); s32 a = s32_pop(); bool_push(a >= b); }
-SK_INLINE void s16_ge() { s16 b = s16_pop(); s16 a = s16_pop(); bool_push(a >= b); }
-SK_INLINE void s8_ge() { s8 b = s8_pop(); s8 a = s8_pop(); bool_push(a >= b); }
-SK_INLINE void u64_ge() { u64 b = u64_pop(); u64 a = u64_pop(); bool_push(a >= b); }
-SK_INLINE void u32_ge() { u32 b = u32_pop(); u32 a = u32_pop(); bool_push(a >= b); }
-SK_INLINE void u16_ge() { u16 b = u16_pop(); u16 a = u16_pop(); bool_push(a >= b); }
-SK_INLINE void u8_ge() { u8 b = u8_pop(); u8 a = u8_pop(); bool_push(a >= b); }
-
-SK_INLINE void f64_lt() { f64 b = f64_pop(); f64 a = f64_pop(); bool_push(a < b); }
-SK_INLINE void f32_lt() { f32 b = f32_pop(); f32 a = f32_pop(); bool_push(a < b); }
-SK_INLINE void s64_lt() { s64 b = s64_pop(); s64 a = s64_pop(); bool_push(a < b); }
-SK_INLINE void s32_lt() { s32 b = s32_pop(); s32 a = s32_pop(); bool_push(a < b); }
-SK_INLINE void s16_lt() { s16 b = s16_pop(); s16 a = s16_pop(); bool_push(a < b); }
-SK_INLINE void s8_lt() { s8 b = s8_pop(); s8 a = s8_pop(); bool_push(a < b); }
-SK_INLINE void u64_lt() { u64 b = u64_pop(); u64 a = u64_pop(); bool_push(a < b); }
-SK_INLINE void u32_lt() { u32 b = u32_pop(); u32 a = u32_pop(); bool_push(a < b); }
-SK_INLINE void u16_lt() { u16 b = u16_pop(); u16 a = u16_pop(); bool_push(a < b); }
-SK_INLINE void u8_lt() { u8 b = u8_pop(); u8 a = u8_pop(); bool_push(a < b); }
-
-SK_INLINE void f64_le() { f64 b = f64_pop(); f64 a = f64_pop(); bool_push(a <= b); }
-SK_INLINE void f32_le() { f32 b = f32_pop(); f32 a = f32_pop(); bool_push(a <= b); }
-SK_INLINE void s64_le() { s64 b = s64_pop(); s64 a = s64_pop(); bool_push(a <= b); }
-SK_INLINE void s32_le() { s32 b = s32_pop(); s32 a = s32_pop(); bool_push(a <= b); }
-SK_INLINE void s16_le() { s16 b = s16_pop(); s16 a = s16_pop(); bool_push(a <= b); }
-SK_INLINE void s8_le() { s8 b = s8_pop(); s8 a = s8_pop(); bool_push(a <= b); }
-SK_INLINE void u64_le() { u64 b = u64_pop(); u64 a = u64_pop(); bool_push(a <= b); }
-SK_INLINE void u32_le() { u32 b = u32_pop(); u32 a = u32_pop(); bool_push(a <= b); }
-SK_INLINE void u16_le() { u16 b = u16_pop(); u16 a = u16_pop(); bool_push(a <= b); }
-SK_INLINE void u8_le() { u8 b = u8_pop(); u8 a = u8_pop(); bool_push(a <= b); }
-
-SK_INLINE void f64_plus() { f64 b = f64_pop(); f64 a = f64_pop(); f64_push(a + b); }
-SK_INLINE void f32_plus() { f32 b = f32_pop(); f32 a = f32_pop(); f32_push(a + b); }
-SK_INLINE void s64_plus() { s64 b = s64_pop(); s64 a = s64_pop(); s64_push(a + b); }
-SK_INLINE void s32_plus() { s32 b = s32_pop(); s32 a = s32_pop(); s32_push(a + b); }
-SK_INLINE void s16_plus() { s16 b = s16_pop(); s16 a = s16_pop(); s16_push(a + b); }
-SK_INLINE void s8_plus() { s8 b = s8_pop(); s8 a = s8_pop(); s8_push(a + b); }
-SK_INLINE void u64_plus() { u64 b = u64_pop(); u64 a = u64_pop(); u64_push(a + b); }
-SK_INLINE void u32_plus() { u32 b = u32_pop(); u32 a = u32_pop(); u32_push(a + b); }
-SK_INLINE void u16_plus() { u16 b = u16_pop(); u16 a = u16_pop(); u16_push(a + b); }
-SK_INLINE void u8_plus() { u8 b = u8_pop(); u8 a = u8_pop(); u8_push(a + b); }
-SK_INLINE void string_plus() {
-    string b = string_pop();
-    string a = string_pop();
-    int new_len = a.len + b.len;
-    byteptr new_str = (byteptr)malloc(sizeof(byte) * new_len);
-    { // Unsafe
-        memcpy(new_str, a.buf, a.len);
-        memcpy(new_str + a.len, b.buf, b.len);
-        new_str[new_len] = 0;
-    }
-    string_push((string){.buf = new_str, .len = new_len});
+SK_INLINE bool _builtin__stack_is_empty() {
+    return the_stack.top <= 0;
 }
 
-SK_INLINE void f64_minus() { f64 b = f64_pop(); f64 a = f64_pop(); f64_push(a - b); }
-SK_INLINE void f32_minus() { f32 b = f32_pop(); f32 a = f32_pop(); f32_push(a - b); }
-SK_INLINE void s64_minus() { s64 b = s64_pop(); s64 a = s64_pop(); s64_push(a - b); }
-SK_INLINE void s32_minus() { s32 b = s32_pop(); s32 a = s32_pop(); s32_push(a - b); }
-SK_INLINE void s16_minus() { s16 b = s16_pop(); s16 a = s16_pop(); s16_push(a - b); }
-SK_INLINE void s8_minus() { s8 b = s8_pop(); s8 a = s8_pop(); s8_push(a - b); }
-SK_INLINE void u64_minus() { u64 b = u64_pop(); u64 a = u64_pop(); u64_push(a - b); }
-SK_INLINE void u32_minus() { u32 b = u32_pop(); u32 a = u32_pop(); u32_push(a - b); }
-SK_INLINE void u16_minus() { u16 b = u16_pop(); u16 a = u16_pop(); u16_push(a - b); }
-SK_INLINE void u8_minus() { u8 b = u8_pop(); u8 a = u8_pop(); u8_push(a - b); }
+SK_INLINE bool _builtin__stack_is_full() {
+    return the_stack.top == STACK_MAX_SIZE - 1;
+}
 
-SK_INLINE void s64_modulo() { s64 b = s64_pop(); s64 a = s64_pop(); s64_push(a % b); }
-SK_INLINE void s32_modulo() { s32 b = s32_pop(); s32 a = s32_pop(); s32_push(a % b); }
-SK_INLINE void s16_modulo() { s16 b = s16_pop(); s16 a = s16_pop(); s16_push(a % b); }
-SK_INLINE void s8_modulo() { s8 b = s8_pop(); s8 a = s8_pop(); s8_push(a % b); }
-SK_INLINE void u64_modulo() { u64 b = u64_pop(); u64 a = u64_pop(); u64_push(a % b); }
-SK_INLINE void u32_modulo() { u32 b = u32_pop(); u32 a = u32_pop(); u32_push(a % b); }
-SK_INLINE void u16_modulo() { u16 b = u16_pop(); u16 a = u16_pop(); u16_push(a % b); }
-SK_INLINE void u8_modulo() { u8 b = u8_pop(); u8 a = u8_pop(); u8_push(a % b); }
+SK_INLINE void _builtin__push(SKTYPE t, SKVALUE v) {
+    the_stack.values[++the_stack.top] = (Stack_value){.t = t, .v = v};
+}
 
-SK_INLINE void f64_multiply() { f64 b = f64_pop(); f64 a = f64_pop(); f64_push(a * b); }
-SK_INLINE void f32_multiply() { f32 b = f32_pop(); f32 a = f32_pop(); f32_push(a * b); }
-SK_INLINE void s64_multiply() { s64 b = s64_pop(); s64 a = s64_pop(); s64_push(a * b); }
-SK_INLINE void s32_multiply() { s32 b = s32_pop(); s32 a = s32_pop(); s32_push(a * b); }
-SK_INLINE void s16_multiply() { s16 b = s16_pop(); s16 a = s16_pop(); s16_push(a * b); }
-SK_INLINE void s8_multiply() { s8 b = s8_pop(); s8 a = s8_pop(); s8_push(a * b); }
-SK_INLINE void u64_multiply() { u64 b = u64_pop(); u64 a = u64_pop(); u64_push(a * b); }
-SK_INLINE void u32_multiply() { u32 b = u32_pop(); u32 a = u32_pop(); u32_push(a * b); }
-SK_INLINE void u16_multiply() { u16 b = u16_pop(); u16 a = u16_pop(); u16_push(a * b); }
-SK_INLINE void u8_multiply() { u8 b = u8_pop(); u8 a = u8_pop(); u8_push(a * b); }
+SK_INLINE Stack_value _builtin__stack_peek() {
+    return the_stack.values[the_stack.top];
+}
 
-SK_INLINE void f64_divide() { f64 b = f64_pop(); f64 a = f64_pop(); f64_push(a / b); }
-SK_INLINE void f32_divide() { f32 b = f32_pop(); f32 a = f32_pop(); f32_push(a / b); }
-SK_INLINE void s64_divide() { s64 b = s64_pop(); s64 a = s64_pop(); s64_push(a / b); }
-SK_INLINE void s32_divide() { s32 b = s32_pop(); s32 a = s32_pop(); s32_push(a / b); }
-SK_INLINE void s16_divide() { s16 b = s16_pop(); s16 a = s16_pop(); s16_push(a / b); }
-SK_INLINE void s8_divide() { s8 b = s8_pop(); s8 a = s8_pop(); s8_push(a / b); }
-SK_INLINE void u64_divide() { u64 b = u64_pop(); u64 a = u64_pop(); u64_push(a / b); }
-SK_INLINE void u32_divide() { u32 b = u32_pop(); u32 a = u32_pop(); u32_push(a / b); }
-SK_INLINE void u16_divide() { u16 b = u16_pop(); u16 a = u16_pop(); u16_push(a / b); }
-SK_INLINE void u8_divide() { u8 b = u8_pop(); u8 a = u8_pop(); u8_push(a / b); }
+SK_INLINE Stack_value _builtin__pop() {
+    Stack_value a = the_stack.values[the_stack.top];
+    the_stack.top--;
+    return a;
+}
+
+SK_INLINE void _builtin__stack_dup() {
+    Stack_value a = _builtin__pop();
+    _builtin__push(a.t, a.v);
+    _builtin__push(a.t, a.v);
+}
+
+SK_INLINE void _builtin__stack_swap() {
+    Stack_value b = _builtin__pop();
+    Stack_value a = _builtin__pop();
+    _builtin__push(b.t, b.v);
+    _builtin__push(a.t, b.v);
+}
+
+SK_PROGRAM void _builtin__print() {
+    Stack_value a = _builtin__pop();
+
+    switch (a.t) {
+        case SK_bool: printf("%s", a.v._bool ? "true" : "false"); break;
+        case SK_f64: printf("%g", a.v._f64); break;
+        case SK_f32: printf("%f", a.v._f32); break;
+        case SK_s64: printf("%li", a.v._s64); break;
+        case SK_s32: printf("%i", a.v._s32); break;
+        case SK_s16: printf("%hi", a.v._s16); break;
+        case SK_s8: printf("%i", (s32)a.v._s8); break;
+        case SK_u64: printf("%lu", a.v._u64); break;
+        case SK_u32: printf("%u", a.v._u32); break;
+        case SK_u16: printf("%hu", a.v._u16); break;
+        case SK_u8: printf("%u", (s32)a.v._u8); break;
+        case SK_quotation: printf("%s", a.v._quotation); break;
+        case SK_string: {
+            string s = a.v._string;
+            printf("%.*s", s.len, s.buf);
+            if (!s.is_lit) free(s.buf);
+        } break;
+        default: assert(false);
+    }
+}
+
+SK_PROGRAM void _builtin__println() {
+    _builtin__print();
+    printf("\n");
+}
+
+SK_INLINE void _builtin__plus() {
+    Stack_value b = _builtin__pop();
+    Stack_value a = _builtin__pop();
+    Stack_value r = {};
+    r.t = a.t;
+
+    switch (a.t) {
+        case SK_f64: r.v._f64 = a.v._f64 + b.v._f64; break;
+        case SK_f32: r.v._f32 = a.v._f32 + b.v._f32; break;
+        case SK_s64: r.v._s64 = a.v._s64 + b.v._s64; break;
+        case SK_s32: r.v._s32 = a.v._s32 + b.v._s32; break;
+        case SK_s16: r.v._s16 = a.v._s16 + b.v._s16; break;
+        case SK_s8: r.v._s8 = a.v._s8 + b.v._s8; break;
+        case SK_u64: r.v._u64 = a.v._u64 + b.v._u64; break;
+        case SK_u32: r.v._u32 = a.v._u32 + b.v._u32; break;
+        case SK_u16: r.v._u16 = a.v._u16 + b.v._u16; break;
+        case SK_u8: r.v._u8 = a.v._u8 + b.v._u8; break;
+        case SK_string: {
+            string s1 = a.v._string;
+            string s2 = b.v._string;
+            int new_len = s1.len + s2.len;
+            byteptr new_str = (byteptr)malloc(sizeof(byte) * new_len);
+            { // Unsafe
+                memcpy(new_str, s1.buf, s1.len);
+                memcpy(new_str + s1.len, s2.buf, s2.len);
+                new_str[new_len] = 0;
+            }
+            r.v._string = (string){.buf = new_str, .len = new_len};
+        } break;
+        default: assert(false);
+    }
+
+    _builtin__push(r.t, r.v);
+}
+
+SK_INLINE void _builtin__minus() {
+    Stack_value b = _builtin__pop();
+    Stack_value a = _builtin__pop();
+    Stack_value r = {};
+    r.t = a.t;
+
+    switch (a.t) {
+        case SK_f64: r.v._f64 = a.v._f64 - b.v._f64; break;
+        case SK_f32: r.v._f32 = a.v._f32 - b.v._f32; break;
+        case SK_s64: r.v._s64 = a.v._s64 - b.v._s64; break;
+        case SK_s32: r.v._s32 = a.v._s32 - b.v._s32; break;
+        case SK_s16: r.v._s16 = a.v._s16 - b.v._s16; break;
+        case SK_s8: r.v._s8 = a.v._s8 - b.v._s8; break;
+        case SK_u64: r.v._u64 = a.v._u64 - b.v._u64; break;
+        case SK_u32: r.v._u32 = a.v._u32 - b.v._u32; break;
+        case SK_u16: r.v._u16 = a.v._u16 - b.v._u16; break;
+        case SK_u8: r.v._u8 = a.v._u8 - b.v._u8; break;
+        default: assert(false);
+    }
+
+    _builtin__push(r.t, r.v);
+}
+
+SK_INLINE void _builtin__modulo() {
+    Stack_value b = _builtin__pop();
+    Stack_value a = _builtin__pop();
+    Stack_value r = {};
+    r.t = a.t;
+
+    switch (a.t) {
+        case SK_s64: r.v._s64 = a.v._s64 % b.v._s64; break;
+        case SK_s32: r.v._s32 = a.v._s32 % b.v._s32; break;
+        case SK_s16: r.v._s16 = a.v._s16 % b.v._s16; break;
+        case SK_s8: r.v._s8 = a.v._s8 % b.v._s8; break;
+        case SK_u64: r.v._u64 = a.v._u64 % b.v._u64; break;
+        case SK_u32: r.v._u32 = a.v._u32 % b.v._u32; break;
+        case SK_u16: r.v._u16 = a.v._u16 % b.v._u16; break;
+        case SK_u8: r.v._u8 = a.v._u8 % b.v._u8; break;
+        default: assert(false);
+    }
+
+    _builtin__push(r.t, r.v);
+}
+
+SK_INLINE void _builtin__multiply() {
+    Stack_value b = _builtin__pop();
+    Stack_value a = _builtin__pop();
+    Stack_value r = {};
+    r.t = a.t;
+
+    switch (a.t) {
+        case SK_f64: r.v._f64 = a.v._f64 * b.v._f64; break;
+        case SK_f32: r.v._f32 = a.v._f32 * b.v._f32; break;
+        case SK_s64: r.v._s64 = a.v._s64 * b.v._s64; break;
+        case SK_s32: r.v._s32 = a.v._s32 * b.v._s32; break;
+        case SK_s16: r.v._s16 = a.v._s16 * b.v._s16; break;
+        case SK_s8: r.v._s8 = a.v._s8 * b.v._s8; break;
+        case SK_u64: r.v._u64 = a.v._u64 * b.v._u64; break;
+        case SK_u32: r.v._u32 = a.v._u32 * b.v._u32; break;
+        case SK_u16: r.v._u16 = a.v._u16 * b.v._u16; break;
+        case SK_u8: r.v._u8 = a.v._u8 * b.v._u8; break;
+        default: assert(false);
+    }
+
+    _builtin__push(r.t, r.v);
+}
+
+SK_INLINE void _builtin__divide() {
+    Stack_value b = _builtin__pop();
+    Stack_value a = _builtin__pop();
+    Stack_value r = {};
+    r.t = a.t;
+
+    switch (a.t) {
+        case SK_f64: r.v._f64 = a.v._f64 / b.v._f64; break;
+        case SK_f32: r.v._f32 = a.v._f32 / b.v._f32; break;
+        case SK_s64: r.v._s64 = a.v._s64 / b.v._s64; break;
+        case SK_s32: r.v._s32 = a.v._s32 / b.v._s32; break;
+        case SK_s16: r.v._s16 = a.v._s16 / b.v._s16; break;
+        case SK_s8: r.v._s8 = a.v._s8 / b.v._s8; break;
+        case SK_u64: r.v._u64 = a.v._u64 / b.v._u64; break;
+        case SK_u32: r.v._u32 = a.v._u32 / b.v._u32; break;
+        case SK_u16: r.v._u16 = a.v._u16 / b.v._u16; break;
+        case SK_u8: r.v._u8 = a.v._u8 / b.v._u8; break;
+        default: assert(false);
+    }
+
+    _builtin__push(r.t, r.v);
+}
+
+SK_INLINE SKVALUE f64_to_(f64 v, SKTYPE to) {
+    switch (to) {
+        case SK_bool: return (SKVALUE){._bool = v > 0.0f ? true : false};
+        case SK_f64: return (SKVALUE){._f64 = (f64)v};
+        case SK_f32: return (SKVALUE){._f32 = (f32)v};
+        case SK_s64: return (SKVALUE){._s64 = (s64)v};
+        case SK_s32: return (SKVALUE){._s32 = (s32)v};
+        case SK_s16: return (SKVALUE){._s16 = (s16)v};
+        case SK_s8: return (SKVALUE){._s8 = (s8)v};
+        case SK_u64: return (SKVALUE){._u64 = (u64)v};
+        case SK_u32: return (SKVALUE){._u32 = (u32)v};
+        case SK_u16: return (SKVALUE){._u16 = (u16)v};
+        case SK_u8: return (SKVALUE){._u8 = (u8)v};
+        default: assert(false);
+    }
+    assert(false);
+    return (SKVALUE){._f64 = v};
+}
+
+SK_INLINE SKVALUE f32_to_(f32 v, SKTYPE to) {
+    switch (to) {
+        case SK_bool: return (SKVALUE){._bool = v > 0.0f ? true : false};
+        case SK_f64: return (SKVALUE){._f64 = (f64)v};
+        case SK_f32: return (SKVALUE){._f32 = (f32)v};
+        case SK_s64: return (SKVALUE){._s64 = (s64)v};
+        case SK_s32: return (SKVALUE){._s32 = (s32)v};
+        case SK_s16: return (SKVALUE){._s16 = (s16)v};
+        case SK_s8: return (SKVALUE){._s8 = (s8)v};
+        case SK_u64: return (SKVALUE){._u64 = (u64)v};
+        case SK_u32: return (SKVALUE){._u32 = (u32)v};
+        case SK_u16: return (SKVALUE){._u16 = (u16)v};
+        case SK_u8: return (SKVALUE){._u8 = (u8)v};
+        default: assert(false);
+    }
+    assert(false);
+    return (SKVALUE){._f32 = v};
+}
+
+SK_INLINE SKVALUE s64_to_(s64 v, SKTYPE to) {
+    switch (to) {
+        case SK_bool: return (SKVALUE){._bool = v > 0 ? true : false};
+        case SK_f64: return (SKVALUE){._f64 = (f64)v};
+        case SK_f32: return (SKVALUE){._f32 = (f32)v};
+        case SK_s64: return (SKVALUE){._s64 = (s64)v};
+        case SK_s32: return (SKVALUE){._s32 = (s32)v};
+        case SK_s16: return (SKVALUE){._s16 = (s16)v};
+        case SK_s8: return (SKVALUE){._s8 = (s8)v};
+        case SK_u64: return (SKVALUE){._u64 = (u64)v};
+        case SK_u32: return (SKVALUE){._u32 = (u32)v};
+        case SK_u16: return (SKVALUE){._u16 = (u16)v};
+        case SK_u8: return (SKVALUE){._u8 = (u8)v};
+        default: assert(false);
+    }
+    assert(false);
+    return (SKVALUE){._s64 = v};
+}
+
+SK_INLINE SKVALUE s32_to_(s32 v, SKTYPE to) {
+    switch (to) {
+        case SK_bool: return (SKVALUE){._bool = v > 0 ? true : false};
+        case SK_f64: return (SKVALUE){._f64 = (f64)v};
+        case SK_f32: return (SKVALUE){._f32 = (f32)v};
+        case SK_s64: return (SKVALUE){._s64 = (s64)v};
+        case SK_s32: return (SKVALUE){._s32 = (s32)v};
+        case SK_s16: return (SKVALUE){._s16 = (s16)v};
+        case SK_s8: return (SKVALUE){._s8 = (s8)v};
+        case SK_u64: return (SKVALUE){._u64 = (u64)v};
+        case SK_u32: return (SKVALUE){._u32 = (u32)v};
+        case SK_u16: return (SKVALUE){._u16 = (u16)v};
+        case SK_u8: return (SKVALUE){._u8 = (u8)v};
+        default: assert(false);
+    }
+    assert(false);
+    return (SKVALUE){._s32 = v};
+}
+
+SK_INLINE SKVALUE s16_to_(s16 v, SKTYPE to) {
+    switch (to) {
+        case SK_bool: return (SKVALUE){._bool = v > 0 ? true : false};
+        case SK_f64: return (SKVALUE){._f64 = (f64)v};
+        case SK_f32: return (SKVALUE){._f32 = (f32)v};
+        case SK_s64: return (SKVALUE){._s64 = (s64)v};
+        case SK_s32: return (SKVALUE){._s32 = (s32)v};
+        case SK_s16: return (SKVALUE){._s16 = (s16)v};
+        case SK_s8: return (SKVALUE){._s8 = (s8)v};
+        case SK_u64: return (SKVALUE){._u64 = (u64)v};
+        case SK_u32: return (SKVALUE){._u32 = (u32)v};
+        case SK_u16: return (SKVALUE){._u16 = (u16)v};
+        case SK_u8: return (SKVALUE){._u8 = (u8)v};
+        default: assert(false);
+    }
+    assert(false);
+    return (SKVALUE){._s16 = v};
+}
+
+SK_INLINE SKVALUE s8_to_(s8 v, SKTYPE to) {
+    switch (to) {
+        case SK_bool: return (SKVALUE){._bool = v > 0 ? true : false};
+        case SK_f64: return (SKVALUE){._f64 = (f64)v};
+        case SK_f32: return (SKVALUE){._f32 = (f32)v};
+        case SK_s64: return (SKVALUE){._s64 = (s64)v};
+        case SK_s32: return (SKVALUE){._s32 = (s32)v};
+        case SK_s16: return (SKVALUE){._s16 = (s16)v};
+        case SK_s8: return (SKVALUE){._s8 = (s8)v};
+        case SK_u64: return (SKVALUE){._u64 = (u64)v};
+        case SK_u32: return (SKVALUE){._u32 = (u32)v};
+        case SK_u16: return (SKVALUE){._u16 = (u16)v};
+        case SK_u8: return (SKVALUE){._u8 = (u8)v};
+        default: assert(false);
+    }
+    assert(false);
+    return (SKVALUE){._s8 = v};
+}
+
+SK_INLINE SKVALUE u64_to_(u64 v, SKTYPE to) {
+    switch (to) {
+        case SK_bool: return (SKVALUE){._bool = v > 0 ? true : false};
+        case SK_f64: return (SKVALUE){._f64 = (f64)v};
+        case SK_f32: return (SKVALUE){._f32 = (f32)v};
+        case SK_s64: return (SKVALUE){._s64 = (s64)v};
+        case SK_s32: return (SKVALUE){._s32 = (s32)v};
+        case SK_s16: return (SKVALUE){._s16 = (s16)v};
+        case SK_s8: return (SKVALUE){._s8 = (s8)v};
+        case SK_u64: return (SKVALUE){._u64 = (u64)v};
+        case SK_u32: return (SKVALUE){._u32 = (u32)v};
+        case SK_u16: return (SKVALUE){._u16 = (u16)v};
+        case SK_u8: return (SKVALUE){._u8 = (u8)v};
+        default: assert(false);
+    }
+    assert(false);
+    return (SKVALUE){._u64 = v};
+}
+
+SK_INLINE SKVALUE u32_to_(u32 v, SKTYPE to) {
+    switch (to) {
+        case SK_bool: return (SKVALUE){._bool = v > 0 ? true : false};
+        case SK_f64: return (SKVALUE){._f64 = (f64)v};
+        case SK_f32: return (SKVALUE){._f32 = (f32)v};
+        case SK_s64: return (SKVALUE){._s64 = (s64)v};
+        case SK_s32: return (SKVALUE){._s32 = (s32)v};
+        case SK_s16: return (SKVALUE){._s16 = (s16)v};
+        case SK_s8: return (SKVALUE){._s8 = (s8)v};
+        case SK_u64: return (SKVALUE){._u64 = (u64)v};
+        case SK_u32: return (SKVALUE){._u32 = (u32)v};
+        case SK_u16: return (SKVALUE){._u16 = (u16)v};
+        case SK_u8: return (SKVALUE){._u8 = (u8)v};
+        default: assert(false);
+    }
+    assert(false);
+    return (SKVALUE){._u32 = v};
+}
+
+SK_INLINE SKVALUE u16_to_(u16 v, SKTYPE to) {
+    switch (to) {
+        case SK_bool: return (SKVALUE){._bool = v > 0 ? true : false};
+        case SK_f64: return (SKVALUE){._f64 = (f64)v};
+        case SK_f32: return (SKVALUE){._f32 = (f32)v};
+        case SK_s64: return (SKVALUE){._s64 = (s64)v};
+        case SK_s32: return (SKVALUE){._s32 = (s32)v};
+        case SK_s16: return (SKVALUE){._s16 = (s16)v};
+        case SK_s8: return (SKVALUE){._s8 = (s8)v};
+        case SK_u64: return (SKVALUE){._u64 = (u64)v};
+        case SK_u32: return (SKVALUE){._u32 = (u32)v};
+        case SK_u16: return (SKVALUE){._u16 = (u16)v};
+        case SK_u8: return (SKVALUE){._u8 = (u8)v};
+        default: assert(false);
+    }
+    assert(false);
+    return (SKVALUE){._u16 = v};
+}
+
+SK_INLINE SKVALUE u8_to_(u8 v, SKTYPE to) {
+    switch (to) {
+        case SK_bool: return (SKVALUE){._bool = v > 0 ? true : false};
+        case SK_f64: return (SKVALUE){._f64 = (f64)v};
+        case SK_f32: return (SKVALUE){._f32 = (f32)v};
+        case SK_s64: return (SKVALUE){._s64 = (s64)v};
+        case SK_s32: return (SKVALUE){._s32 = (s32)v};
+        case SK_s16: return (SKVALUE){._s16 = (s16)v};
+        case SK_s8: return (SKVALUE){._s8 = (s8)v};
+        case SK_u64: return (SKVALUE){._u64 = (u64)v};
+        case SK_u32: return (SKVALUE){._u32 = (u32)v};
+        case SK_u16: return (SKVALUE){._u16 = (u16)v};
+        case SK_u8: return (SKVALUE){._u8 = (u8)v};
+        default: assert(false);
+    }
+    assert(false);
+    return (SKVALUE){._u8 = v};
+}
+
+SK_INLINE SKVALUE string_to_(string v, SKTYPE to) {
+    switch (to) {
+        case SK_bool: return (SKVALUE){._bool = v.len > 0 ? true : false};
+        default: assert(false);
+    }
+    assert(false);
+    return (SKVALUE){._string = v};
+}
+
+SK_INLINE void _builtin__cast(SKTYPE to) {
+    Stack_value a = _builtin__pop();
+    Stack_value r = {};
+    r.t = to;
+    SKTYPE from = a.t;
+
+    switch (from) {
+        case SK_f64: r.v = f64_to_(a.v._f64, to); break;
+        case SK_f32: r.v = f32_to_(a.v._f32, to); break;
+        case SK_s64: r.v = s64_to_(a.v._s64, to); break;
+        case SK_s32: r.v = s32_to_(a.v._s32, to); break;
+        case SK_s16: r.v = s16_to_(a.v._s16, to); break;
+        case SK_s8: r.v = s8_to_(a.v._s8, to); break;
+        case SK_u64: r.v = u64_to_(a.v._u64, to); break;
+        case SK_u32: r.v = u32_to_(a.v._u32, to); break;
+        case SK_u16: r.v = u16_to_(a.v._u16, to); break;
+        case SK_u8: r.v = u8_to_(a.v._u8, to); break;
+        case SK_string: r.v = string_to_(a.v._string, to); break;
+        default: assert(false);
+    }
+
+    _builtin__push(r.t, r.v);
+}
+
+SK_INLINE void _builtin__and() {
+    Stack_value b = _builtin__pop();
+    Stack_value a = _builtin__pop();
+    Stack_value r = {};
+    r.t = SK_bool;
+    r.v._bool = a.v._bool && b.v._bool;
+    _builtin__push(a.t, r.v);
+}
+
+SK_INLINE void _builtin__or() {
+    Stack_value b = _builtin__pop();
+    Stack_value a = _builtin__pop();
+    Stack_value r = {};
+    r.t = SK_bool;
+    r.v._bool = a.v._bool || b.v._bool;
+    _builtin__push(a.t, r.v);
+}
+
+SK_INLINE void _builtin__eq() {
+    Stack_value b = _builtin__pop();
+    Stack_value a = _builtin__pop();
+    bool r;
+    switch (a.t) {
+        case SK_bool: r = a.v._bool == b.v._bool; break;
+        case SK_f64: r = a.v._f64 == b.v._f64; break;
+        case SK_f32: r = a.v._f32 == b.v._f32; break;
+        case SK_s64: r = a.v._s64 == b.v._s64; break;
+        case SK_s32: r = a.v._s32 == b.v._s32; break;
+        case SK_s16: r = a.v._s16 == b.v._s16; break;
+        case SK_s8: r = a.v._s8 == b.v._s8; break;
+        case SK_u64: r = a.v._u64 == b.v._u64; break;
+        case SK_u32: r = a.v._u32 == b.v._u32; break;
+        case SK_u16: r = a.v._u16 == b.v._u16; break;
+        case SK_u8: r = a.v._u8 == b.v._u8; break;
+        case SK_string: {
+            string s1 = a.v._string;
+            string s2 = b.v._string;
+            r = s1.len == s2.len && memcmp(s1.buf, s2.buf, s1.len) == 0;
+        } break;
+        default: assert(false);
+    }
+    _builtin__push(SK_bool, (SKVALUE){._bool = r});
+}
+
+SK_INLINE void _builtin__ne() {
+    Stack_value b = _builtin__pop();
+    Stack_value a = _builtin__pop();
+    bool r;
+    switch (a.t) {
+        case SK_bool: r = a.v._bool != b.v._bool; break;
+        case SK_f64: r = a.v._f64 != b.v._f64; break;
+        case SK_f32: r = a.v._f32 != b.v._f32; break;
+        case SK_s64: r = a.v._s64 != b.v._s64; break;
+        case SK_s32: r = a.v._s32 != b.v._s32; break;
+        case SK_s16: r = a.v._s16 != b.v._s16; break;
+        case SK_s8: r = a.v._s8 != b.v._s8; break;
+        case SK_u64: r = a.v._u64 != b.v._u64; break;
+        case SK_u32: r = a.v._u32 != b.v._u32; break;
+        case SK_u16: r = a.v._u16 != b.v._u16; break;
+        case SK_u8: r = a.v._u8 != b.v._u8; break;
+        case SK_string: {
+            string s1 = a.v._string;
+            string s2 = b.v._string;
+            r = s1.len != s2.len || memcmp(s1.buf, s2.buf, s1.len) != 0;
+        } break;
+        default: assert(false);
+    }
+    _builtin__push(SK_bool, (SKVALUE){._bool = r});
+}
+
+SK_INLINE void _builtin__gt() {
+    Stack_value b = _builtin__pop();
+    Stack_value a = _builtin__pop();
+    bool r;
+    switch (a.t) {
+        case SK_bool: r = a.v._bool > b.v._bool; break;
+        case SK_f64: r = a.v._f64 > b.v._f64; break;
+        case SK_f32: r = a.v._f32 > b.v._f32; break;
+        case SK_s64: r = a.v._s64 > b.v._s64; break;
+        case SK_s32: r = a.v._s32 > b.v._s32; break;
+        case SK_s16: r = a.v._s16 > b.v._s16; break;
+        case SK_s8: r = a.v._s8 > b.v._s8; break;
+        case SK_u64: r = a.v._u64 > b.v._u64; break;
+        case SK_u32: r = a.v._u32 > b.v._u32; break;
+        case SK_u16: r = a.v._u16 > b.v._u16; break;
+        case SK_u8: r = a.v._u8 > b.v._u8; break;
+        default: assert(false);
+    }
+    _builtin__push(SK_bool, (SKVALUE){._bool = r});
+}
+
+SK_INLINE void _builtin__ge() {
+    Stack_value b = _builtin__pop();
+    Stack_value a = _builtin__pop();
+    bool r;
+    switch (a.t) {
+        case SK_bool: r = a.v._bool >= b.v._bool; break;
+        case SK_f64: r = a.v._f64 >= b.v._f64; break;
+        case SK_f32: r = a.v._f32 >= b.v._f32; break;
+        case SK_s64: r = a.v._s64 >= b.v._s64; break;
+        case SK_s32: r = a.v._s32 >= b.v._s32; break;
+        case SK_s16: r = a.v._s16 >= b.v._s16; break;
+        case SK_s8: r = a.v._s8 >= b.v._s8; break;
+        case SK_u64: r = a.v._u64 >= b.v._u64; break;
+        case SK_u32: r = a.v._u32 >= b.v._u32; break;
+        case SK_u16: r = a.v._u16 >= b.v._u16; break;
+        case SK_u8: r = a.v._u8 >= b.v._u8; break;
+        default: assert(false);
+    }
+    _builtin__push(SK_bool, (SKVALUE){._bool = r});
+}
+
+SK_INLINE void _builtin__lt() {
+    Stack_value b = _builtin__pop();
+    Stack_value a = _builtin__pop();
+    bool r;
+    switch (a.t) {
+        case SK_bool: r = a.v._bool < b.v._bool; break;
+        case SK_f64: r = a.v._f64 < b.v._f64; break;
+        case SK_f32: r = a.v._f32 < b.v._f32; break;
+        case SK_s64: r = a.v._s64 < b.v._s64; break;
+        case SK_s32: r = a.v._s32 < b.v._s32; break;
+        case SK_s16: r = a.v._s16 < b.v._s16; break;
+        case SK_s8: r = a.v._s8 < b.v._s8; break;
+        case SK_u64: r = a.v._u64 < b.v._u64; break;
+        case SK_u32: r = a.v._u32 < b.v._u32; break;
+        case SK_u16: r = a.v._u16 < b.v._u16; break;
+        case SK_u8: r = a.v._u8 < b.v._u8; break;
+        default: assert(false);
+    }
+    _builtin__push(SK_bool, (SKVALUE){._bool = r});
+}
+
+SK_INLINE void _builtin__le() {
+    Stack_value b = _builtin__pop();
+    Stack_value a = _builtin__pop();
+    bool r;
+    switch (a.t) {
+        case SK_bool: r = a.v._bool <= b.v._bool; break;
+        case SK_f64: r = a.v._f64 <= b.v._f64; break;
+        case SK_f32: r = a.v._f32 <= b.v._f32; break;
+        case SK_s64: r = a.v._s64 <= b.v._s64; break;
+        case SK_s32: r = a.v._s32 <= b.v._s32; break;
+        case SK_s16: r = a.v._s16 <= b.v._s16; break;
+        case SK_s8: r = a.v._s8 <= b.v._s8; break;
+        case SK_u64: r = a.v._u64 <= b.v._u64; break;
+        case SK_u32: r = a.v._u32 <= b.v._u32; break;
+        case SK_u16: r = a.v._u16 <= b.v._u16; break;
+        case SK_u8: r = a.v._u8 <= b.v._u8; break;
+        default: assert(false);
+    }
+    _builtin__push(SK_bool, (SKVALUE){._bool = r});
+}
 
 SK_PROGRAM void main__stanczyk();
 
 int main() {
     // Initialize stack
-    _stack.top = -1;
+    the_stack.top = -1;
     main__stanczyk();
     return 0;
 }
