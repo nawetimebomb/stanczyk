@@ -95,10 +95,6 @@ Op_Call_Proc :: struct {
 
 Op_Cast :: struct {}
 
-Op_Describe_Type :: struct {
-    type: Type,
-}
-
 Op_Drop :: struct {}
 
 Op_Dup :: struct {}
@@ -112,6 +108,10 @@ Op_Print :: struct {
 }
 
 Op_Swap :: struct {}
+
+Op_Times :: struct {}
+
+Op_Typeof :: struct {}
 
 Op_Unary :: struct {
     operation: Unary_Operation,
@@ -134,11 +134,12 @@ Operation_Variant :: union {
     Op_Binary,
     Op_Call_Proc,
     Op_Cast,
-    Op_Describe_Type,
     Op_Drop,
     Op_Dup,
     Op_If,
     Op_Print,
     Op_Swap,
+    Op_Times,
+    Op_Typeof,
     Op_Unary,
 }

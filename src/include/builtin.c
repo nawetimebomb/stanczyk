@@ -86,7 +86,6 @@ typedef s64 b64;
 #endif
 
 #define __STRLIT0 (string){.buf=(byteptr)(""), .len=0, .literal=true}
-#define __STRLIT(s) ((string){.buf=(byteptr)("" s), .len=(size(s)-1, .literal=true)})
 #define __STRLEN(s, n) ((string){.buf=(byteptr)("" s), .len=n, .literal=true})
 #define __QUOTELIT(c, p)((quote){.contents=c, .proc=p})
 
@@ -110,7 +109,6 @@ typedef struct Program_stack Program_stack;
 
 enum SKTYPE {
     SK_any,
-
     SK_bool,
     SK_f64,
     SK_f32,
@@ -122,7 +120,6 @@ enum SKTYPE {
     SK_u32,
     SK_u16,
     SK_u8,
-
     SK_quote,
     SK_string,
     SK_type,
@@ -177,6 +174,7 @@ SK_PROGRAM char* SKTYPE_to_string(SKTYPE t) {
         case SK_u8: return "u8";
         case SK_quote: return "quote";
         case SK_string: return "string";
+        case SK_type: return "type";
         default: assert(false);
     }
 }
@@ -805,6 +803,11 @@ SK_INLINE void _builtin__apply() {
     a.v._quote.proc();
 }
 
+SK_INLINE void _builtin__typeof() {
+    Stack_value a = _builtin__pop();
+    _builtin__push(SK_type, (SKVALUE){._type = a.t});
+}
+
 SK_INLINE void _builtin__if() {
     Stack_value b = _builtin__pop();
     Stack_value a = _builtin__pop();
@@ -816,6 +819,12 @@ SK_INLINE void _builtin__if_else() {
     Stack_value b = _builtin__pop();
     Stack_value a = _builtin__pop();
     if (c.v._bool) a.v._quote.proc(); else b.v._quote.proc();
+}
+
+SK_INLINE void _builtin__times() {
+    Stack_value b = _builtin__pop();
+    Stack_value a = _builtin__pop();
+    for (int x = 0; x < b.v._s64; x++) { a.v._quote.proc(); }
 }
 
 SK_PROGRAM void main__stanczyk();
