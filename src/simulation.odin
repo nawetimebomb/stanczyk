@@ -1,13 +1,19 @@
+#+private file
 package main
 
 import "core:fmt"
+
+@(private)
+simulation :: proc() {
+
+}
 
 sim_stack: [dynamic]Type
 
 sim_expect :: proc(p: ^Procedure, m: ..bool) {
     for x in m {
         if !x {
-            p.error = true
+            p.errored = true
             break
         }
     }

@@ -26,43 +26,11 @@ Location :: struct {
     offset: int,
 }
 
-Program :: struct {
-    procs: [dynamic]Procedure,
-}
-
-Arity :: struct {
-    amount: int,
-    types: [dynamic]Type,
-}
-
-Procedure :: struct {
-    ip:        int,
-    loc:       Location,
-    name:      string,
-    namespace: string,
-    token:     Token,
-
-    ops:       [dynamic]Operation,
-
-    arguments: Arity,
-    results:   Arity,
-
-    called:    bool,
-    error:     bool,
-    c_like:    bool,
-    internal:  bool,
-    parsed:    bool,
-    is_inline: bool,
-
-    // bindings: Binding,
-    // constants: []Constant,
-}
-
 compiler_arch:     Compiler_Architecture
 compiler_mode:     enum { Compiler, Interpreter, REPL }
 source_files:      map[string]string
 output_file:       string
-program:           Program
+the_program:       Program
 word_size_in_bits: int
 
 keep_c_output_file := false
@@ -194,8 +162,9 @@ main :: proc() {
         cleanup_exit(1)
     }
 
-    parse_files()
-    gen_program()
+    parser()
+    simulation()
+    gen()
     compile()
 
     cleanup_exit(0)

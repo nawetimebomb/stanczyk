@@ -50,7 +50,6 @@ run_repl :: proc() {
 
         for t in tokens {
             #partial switch t.kind {
-                case .Dot_Exit: should_quit = true
 
                 case .String: append(&repl_stack, get_token_value(t))
 

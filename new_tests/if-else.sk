@@ -1,10 +1,10 @@
 main :: ()
   "Testing if with no else" println
-  true if "success!" println fi
+  { "if" } { } true if println
 
   "Testing if with else" println
-  true if "success!" println else "fail!" println fi
+  { "if" } { "else" } true if println
 
   "Testing if with else, going with else" println
-  false if "fail!" println else "success!" println fi
+  { "if" } { "else" } false if println
 ;
