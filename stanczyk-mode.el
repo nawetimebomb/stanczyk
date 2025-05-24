@@ -25,57 +25,32 @@
 
 ;;; Code:
 
-(defvar stanczyk-mode-syntax-table
-  (let ((table (make-syntax-table)))
-    (modify-syntax-entry ?/ ". 124b" table)
-    (modify-syntax-entry ?* ". 23" table)
-    (modify-syntax-entry ?\n "> b" table)
-    (modify-syntax-entry ?\' "\"" table)
-    (modify-syntax-entry ?\" "\"" table)
+(require 'generic-x)
 
-    (modify-syntax-entry ?@ "w" table)
-    (modify-syntax-entry ?\) "w" table)
-    (modify-syntax-entry ?\( "w" table)
-    (modify-syntax-entry ?? "w" table)
-    (modify-syntax-entry ?! "w" table)
-    (modify-syntax-entry ?= "w" table)
-    (modify-syntax-entry ?+ "w" table)
-    (modify-syntax-entry ?- "w" table)
-    (modify-syntax-entry ?> "w" table)
-    (modify-syntax-entry ?< "w" table)
-    table))
-
-(defvar stanczyk-keywords
-  '("if" "times" "let" "peek" "---"))
-
-
-(defvar stanczyk-types
-  '("float" "uint" "bool" "int" "string" "quote"
-    "f64" "f32" "s64" "s32" "s16" "s8" "u64" "u32" "u16" "u8"))
-
-
-(setq stanczyk-builtins
-  '("println" "print" "=" ">" "<" ">=" "<=" "!=" "or" "and" "dup" "swap" "drop"))
-
-(defvar stanczyk-constants
-  '("nil" "true" "false"))
-
-(defvar stanczyk-font-lock-keywords
-  `((,(regexp-opt stanczyk-types 'words) . font-lock-type-face)
-    (,(regexp-opt stanczyk-keywords 'words) . font-lock-keyword-face)
-    (,(regexp-opt stanczyk-builtins 'words) . font-lock-builtin-face)
-    (,(regexp-opt stanczyk-constants 'words) . font-lock-constant-face)))
-
-;;;###autoload
-(define-derived-mode stanczyk-mode prog-mode "Stańczyk"
-  "A major mode for the Stanczyk programming language."
-  :syntax-table stanczyk-mode-syntax-table
-  (setq-local font-lock-defaults '(stanczyk-font-lock-keywords))
-  (setq-local comment-start "// ")
-  (setq-local comment-end ""))
-
-;;;###autoload
-(add-to-list 'auto-mode-alist '("\\.sk\\'" . stanczyk-mode))
+(define-generic-mode
+    'stanczyk-mode
+  '("//")
+  '("if" "times" "let" "print" "println"
+    "swap" "dup" "drop" "rotate")
+  '(("float"  . font-lock-type-face)
+    ("uint"   . font-lock-type-face)
+    ("bool"   . font-lock-type-face)
+    ("int"    . font-lock-type-face)
+    ("string" . font-lock-type-face)
+    ("quote"  . font-lock-type-face)
+    ("f64"    . font-lock-type-face)
+    ("f32"    . font-lock-type-face)
+    ("s64"    . font-lock-type-face)
+    ("s32"    . font-lock-type-face)
+    ("s16"    . font-lock-type-face)
+    ("s8"     . font-lock-type-face)
+    ("u64"    . font-lock-type-face)
+    ("u32"    . font-lock-type-face)
+    ("u16"    . font-lock-type-face)
+    ("u8"     . font-lock-type-face))
+  '("\\.sk$")
+  nil
+  "Stanczyk mode")
 
 (provide 'stanczyk-mode)
 
