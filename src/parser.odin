@@ -258,6 +258,11 @@ parse_token :: proc(p: ^Parser, token: ^Token) {
     case .Less_Equal:
         op.variant = Op_Binary{operation = .le}
         emit(p, op)
+    case .Question:
+        op.variant = Op_Push_Type{"bool"}
+        emit(p, op)
+        op.variant = Op_Cast{}
+        emit(p, op)
     case .Minus:
         op.variant = Op_Binary{operation = .minus}
         emit(p, op)
@@ -298,6 +303,9 @@ parse_token :: proc(p: ^Parser, token: ^Token) {
     case .If:
         op.variant = Op_If{has_else = true}
         emit(p, op)
+    case .Times:
+        op.variant = Op_Times{}
+        emit(p, op)
     case .Keyword_Dup:
         op.variant = Op_Dup{}
         emit(p, op)
@@ -314,11 +322,8 @@ parse_token :: proc(p: ^Parser, token: ^Token) {
     case .Keyword_Type:
         assert(false, "Can't parse 'type' within procedure")
     case .Keyword_Typeof:
-        // TODO: this is currently pushing a string with the name of the last item
-        // in the stack, but technically, it should be able to push the
-        // type information
-        // op.variant = Op_Describe_Type{t}
-        // emit(p, op)
+        op.variant = Op_Typeof{}
+        emit(p, op)
     case .Keyword_Using:
         unimplemented()
     }

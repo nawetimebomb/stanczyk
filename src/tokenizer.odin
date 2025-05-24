@@ -42,6 +42,7 @@ Token_Kind :: enum u8 {
     Percentage,      // %
     Plus,            // +
     Plus_Plus,       // ++
+    Question,        // ?
     Semicolon,       // ;
     Slash,           // /
     Star,            // *
@@ -49,6 +50,7 @@ Token_Kind :: enum u8 {
     // Reserved words
     Cast,
     If,
+    Times,
     Keyword_And,     // and
     Keyword_Apply,   // apply
     Keyword_Dup,     // dup
@@ -129,6 +131,7 @@ get_next_token :: proc(t: ^Tokenizer) -> (token: Token) {
         case '>':  tokenize_greater(t, &token)
         case '-':  tokenize_minus  (t, &token)
         case '+':  tokenize_plus   (t, &token)
+        case '?':  token.kind = .Question;      t.offset += 1
         case ';':  token.kind = .Semicolon;     t.offset += 1
         case '{':  token.kind = .Brace_Left;    t.offset += 1
         case '}':  token.kind = .Brace_Right;   t.offset += 1
@@ -141,16 +144,14 @@ get_next_token :: proc(t: ^Tokenizer) -> (token: Token) {
         case '=':  token.kind = .Equal;         t.offset += 1
 
         case '\'': fallthrough
-        case '"':  tokenize_string_literal(t, &token)
+        case '"': tokenize_string_literal(t, &token); return
 
         case    : tokenize_symbol(t, &token)
         }
     }
 
     token.end = t.offset
-    if token.source == "" {
-        token.source = t.buffer[token.start:token.end]
-    }
+    token.source = t.buffer[token.start:token.end]
 
     return
 }
@@ -359,6 +360,7 @@ tokenize_string_literal :: proc(t: ^Tokenizer, token: ^Token) {
     if is_eof(t) { return }
     token.source = t.buffer[token.start + 1:t.offset]
     t.offset += 1
+    token.end = t.offset
 }
 
 @(private="file")
@@ -382,6 +384,7 @@ tokenize_symbol :: proc(t: ^Tokenizer, token: ^Token) {
 
     case "cast": token.kind = .Cast
     case "if": token.kind = .If
+    case "times": token.kind = .Times
 
     case "any": token.kind = .Any
     case "bool": token.kind = .Bool

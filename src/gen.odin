@@ -144,10 +144,6 @@ gen_op :: proc(g: ^Gen, op: Operation) {
         writefln(&g.source, "proc{}(); // {}", v.addr, v.name)
     case Op_Cast:
         writeln(&g.source, "_builtin__cast();")
-    case Op_Describe_Type:
-        type_name := type_to_ctype(v.type)
-        writeln(&g.source, "_builtin__pop();")
-        writefln(&g.source, "_builtin__push(SK_string, __STRLEN(\"{}\", {}));", type_name, len(type_name))
     case Op_Drop:
         writeln(&g.source, "_builtin__pop();")
     case Op_Dup:
@@ -158,6 +154,10 @@ gen_op :: proc(g: ^Gen, op: Operation) {
         writefln(&g.source, "_builtin__{}();", v.newline ? "println" : "print")
     case Op_Swap:
         writeln(&g.source, "_builtin__swap();")
+    case Op_Typeof:
+        writeln(&g.source, "_builtin__typeof();")
+    case Op_Times:
+        writeln(&g.source, "_builtin__times();")
     case Op_Unary:
         switch v.operation {
         case .minus_minus:
