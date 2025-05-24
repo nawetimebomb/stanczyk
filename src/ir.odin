@@ -1,13 +1,56 @@
 package main
 
+Calling_Convention :: enum u8 {
+    Invalid = 0,
+    Stanczyk,
+    CDecl,
+    Anonymous,
+}
+
+Entity :: struct {
+    addr:      uint,
+    kind:      Token_Kind,
+    name:      string,
+    value:     [dynamic]Token,
+    procedure: ^Procedure,
+    type:      Type,
+    global:    bool,
+}
+
+Entity_Table :: distinct map[string]Entity
+
+Arity :: distinct [dynamic]Type
+
+Procedure :: struct {
+    addr:       uint,
+    loc:        Location,
+    name:       string,
+    module:     string,
+    token:      Token,
+    entities:   Entity_Table,
+    ops:        [dynamic]Operation,
+    convention: Calling_Convention,
+    parent:     ^Procedure,
+    internal:   bool,
+
+    params:     Arity,
+    results:    Arity,
+
+    called:     bool,
+    errored:    bool,
+    inlined:    bool,
+    simulated:  bool,
+}
+
+Program :: struct {
+    procedures: map[string]Procedure,
+    quotes:     [dynamic]Procedure,
+}
+
 Binary_Operation :: enum u8 {
     and, or,
     plus, divide, minus, multiply, modulo,
     ge, gt, le, lt, eq, ne,
-}
-
-If_Operation :: enum u8 {
-    if_start, elif_start, else_start, if_end,
 }
 
 Unary_Operation :: enum u8 {
@@ -30,7 +73,12 @@ Op_Push_String :: struct {
     value: string,
 }
 
-Op_Push_Quotation :: struct {
+Op_Push_Quote :: struct {
+    contents: string,
+    procedure: ^Procedure,
+}
+
+Op_Push_Type :: struct {
     value: string,
 }
 
@@ -41,13 +89,11 @@ Op_Binary :: struct {
 }
 
 Op_Call_Proc :: struct {
-    ip: int,
+    addr: uint,
     name: string,
 }
 
-Op_Cast :: struct {
-    to: Type,
-}
+Op_Cast :: struct {}
 
 Op_Describe_Type :: struct {
     type: Type,
@@ -57,19 +103,17 @@ Op_Drop :: struct {}
 
 Op_Dup :: struct {}
 
-Op_If_Statement :: struct {
-    operation: If_Operation,
+Op_If :: struct {
+    has_else: bool,
 }
 
 Op_Print :: struct {
-    operand: Type,
     newline: bool,
 }
 
 Op_Swap :: struct {}
 
 Op_Unary :: struct {
-    operand: Type,
     operation: Unary_Operation,
 }
 
@@ -83,7 +127,8 @@ Operation_Variant :: union {
     Op_Push_Float,
     Op_Push_Integer,
     Op_Push_String,
-    Op_Push_Quotation,
+    Op_Push_Quote,
+    Op_Push_Type,
 
     Op_Apply,
     Op_Binary,
@@ -92,7 +137,7 @@ Operation_Variant :: union {
     Op_Describe_Type,
     Op_Drop,
     Op_Dup,
-    Op_If_Statement,
+    Op_If,
     Op_Print,
     Op_Swap,
     Op_Unary,

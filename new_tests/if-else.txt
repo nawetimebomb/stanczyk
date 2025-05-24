@@ -1,6 +1,6 @@
 Testing if with no else
-success!
+if
 Testing if with else
-success!
+if
 Testing if with else, going with else
-success!
+else

@@ -67,6 +67,7 @@ typedef size_t usize;
 typedef float f32;
 typedef double f64;
 
+typedef struct quote quote;
 typedef struct string string;
 
 typedef s8 b8;
@@ -84,14 +85,20 @@ typedef s64 b64;
   #define true (bool) 1
 #endif
 
-#define __STRLIT0 (string){.buf=(byteptr)(""), .len=0, .is_lit=true}
-#define __STRLIT(s) ((string){.buf=(byteptr)("" s), .len=(size(s)-1, .is_lit=true)})
-#define __STRLEN(s, n) ((string){.buf=(byteptr)("" s), .len=n, .is_lit=true})
+#define __STRLIT0 (string){.buf=(byteptr)(""), .len=0, .literal=true}
+#define __STRLIT(s) ((string){.buf=(byteptr)("" s), .len=(size(s)-1, .literal=true)})
+#define __STRLEN(s, n) ((string){.buf=(byteptr)("" s), .len=n, .literal=true})
+#define __QUOTELIT(c, p)((quote){.contents=c, .proc=p})
+
+struct quote {
+    char* contents;
+    void (*proc)();
+};
 
 struct string {
     byteptr buf;
     int len;
-    bool is_lit;
+    bool literal;
 };
 
 // Stanczyk stack
@@ -116,8 +123,9 @@ enum SKTYPE {
     SK_u16,
     SK_u8,
 
-    SK_quotation,
+    SK_quote,
     SK_string,
+    SK_type,
 };
 
 union SKVALUE {
@@ -136,8 +144,9 @@ union SKVALUE {
     u16 _u16;
     u8 _u8;
 
-    char* _quotation;
+    quote _quote;
     string _string;
+    SKTYPE _type;
 };
 
 struct Stack_value {
@@ -151,6 +160,26 @@ struct Program_stack {
 };
 
 SK_PROGRAM Program_stack the_stack;
+
+SK_PROGRAM char* SKTYPE_to_string(SKTYPE t) {
+    switch (t) {
+        case SK_any: return "any";
+        case SK_bool: return "bool";
+        case SK_f64: return "f64";
+        case SK_f32: return "f32";
+        case SK_s64: return "s64";
+        case SK_s32: return "s32";
+        case SK_s16: return "s16";
+        case SK_s8: return "s8";
+        case SK_u64: return "u64";
+        case SK_u32: return "u32";
+        case SK_u16: return "u16";
+        case SK_u8: return "u8";
+        case SK_quote: return "quote";
+        case SK_string: return "string";
+        default: assert(false);
+    }
+}
 
 SK_INLINE bool _builtin__stack_is_empty();
 SK_INLINE bool _builtin__stack_is_full();
@@ -177,6 +206,7 @@ SK_INLINE Stack_value _builtin__stack_peek() {
 }
 
 SK_INLINE Stack_value _builtin__pop() {
+    assert(the_stack.top > -1);
     Stack_value a = the_stack.values[the_stack.top];
     the_stack.top--;
     return a;
@@ -192,7 +222,7 @@ SK_INLINE void _builtin__swap() {
     Stack_value b = _builtin__pop();
     Stack_value a = _builtin__pop();
     _builtin__push(b.t, b.v);
-    _builtin__push(a.t, b.v);
+    _builtin__push(a.t, a.v);
 }
 
 SK_PROGRAM void _builtin__print() {
@@ -210,12 +240,13 @@ SK_PROGRAM void _builtin__print() {
         case SK_u32: printf("%u", a.v._u32); break;
         case SK_u16: printf("%hu", a.v._u16); break;
         case SK_u8: printf("%u", (s32)a.v._u8); break;
-        case SK_quotation: printf("%s", a.v._quotation); break;
+        case SK_quote: printf("%s", a.v._quote.contents); break;
         case SK_string: {
             string s = a.v._string;
             printf("%.*s", s.len, s.buf);
-            if (!s.is_lit) free(s.buf);
+            if (!s.literal) free(s.buf);
         } break;
+        case SK_type: printf("(%s)", SKTYPE_to_string(a.v._type)); break;
         default: assert(false);
     }
 }
@@ -223,6 +254,15 @@ SK_PROGRAM void _builtin__print() {
 SK_PROGRAM void _builtin__println() {
     _builtin__print();
     printf("\n");
+}
+
+SK_INLINE void _builtin__flush() {
+    printf("[ ");
+    while (the_stack.top > 0) {
+        _builtin__print();
+        printf(" ");
+    }
+    printf("]\n");
 }
 
 SK_INLINE void _builtin__plus() {
@@ -260,6 +300,28 @@ SK_INLINE void _builtin__plus() {
     _builtin__push(r.t, r.v);
 }
 
+SK_INLINE void _builtin__plus_plus() {
+    Stack_value a = _builtin__pop();
+    Stack_value r = {};
+    r.t = a.t;
+
+    switch (a.t) {
+        case SK_f64: r.v._f64 = a.v._f64 + 1; break;
+        case SK_f32: r.v._f32 = a.v._f32 + 1; break;
+        case SK_s64: r.v._s64 = a.v._s64 + 1; break;
+        case SK_s32: r.v._s32 = a.v._s32 + 1; break;
+        case SK_s16: r.v._s16 = a.v._s16 + 1; break;
+        case SK_s8: r.v._s8 = a.v._s8 + 1; break;
+        case SK_u64: r.v._u64 = a.v._u64 + 1; break;
+        case SK_u32: r.v._u32 = a.v._u32 + 1; break;
+        case SK_u16: r.v._u16 = a.v._u16 + 1; break;
+        case SK_u8: r.v._u8 = a.v._u8 + 1; break;
+        default: assert(false);
+    }
+
+    _builtin__push(r.t, r.v);
+}
+
 SK_INLINE void _builtin__minus() {
     Stack_value b = _builtin__pop();
     Stack_value a = _builtin__pop();
@@ -277,6 +339,28 @@ SK_INLINE void _builtin__minus() {
         case SK_u32: r.v._u32 = a.v._u32 - b.v._u32; break;
         case SK_u16: r.v._u16 = a.v._u16 - b.v._u16; break;
         case SK_u8: r.v._u8 = a.v._u8 - b.v._u8; break;
+        default: assert(false);
+    }
+
+    _builtin__push(r.t, r.v);
+}
+
+SK_INLINE void _builtin__minus_minus() {
+    Stack_value a = _builtin__pop();
+    Stack_value r = {};
+    r.t = a.t;
+
+    switch (a.t) {
+        case SK_f64: r.v._f64 = a.v._f64 - 1; break;
+        case SK_f32: r.v._f32 = a.v._f32 - 1; break;
+        case SK_s64: r.v._s64 = a.v._s64 - 1; break;
+        case SK_s32: r.v._s32 = a.v._s32 - 1; break;
+        case SK_s16: r.v._s16 = a.v._s16 - 1; break;
+        case SK_s8: r.v._s8 = a.v._s8 - 1; break;
+        case SK_u64: r.v._u64 = a.v._u64 - 1; break;
+        case SK_u32: r.v._u32 = a.v._u32 - 1; break;
+        case SK_u16: r.v._u16 = a.v._u16 - 1; break;
+        case SK_u8: r.v._u8 = a.v._u8 - 1; break;
         default: assert(false);
     }
 
@@ -460,8 +544,6 @@ SK_INLINE SKVALUE s8_to_(s8 v, SKTYPE to) {
         case SK_u8: return (SKVALUE){._u8 = (u8)v};
         default: assert(false);
     }
-    assert(false);
-    return (SKVALUE){._s8 = v};
 }
 
 SK_INLINE SKVALUE u64_to_(u64 v, SKTYPE to) {
@@ -479,8 +561,6 @@ SK_INLINE SKVALUE u64_to_(u64 v, SKTYPE to) {
         case SK_u8: return (SKVALUE){._u8 = (u8)v};
         default: assert(false);
     }
-    assert(false);
-    return (SKVALUE){._u64 = v};
 }
 
 SK_INLINE SKVALUE u32_to_(u32 v, SKTYPE to) {
@@ -498,8 +578,6 @@ SK_INLINE SKVALUE u32_to_(u32 v, SKTYPE to) {
         case SK_u8: return (SKVALUE){._u8 = (u8)v};
         default: assert(false);
     }
-    assert(false);
-    return (SKVALUE){._u32 = v};
 }
 
 SK_INLINE SKVALUE u16_to_(u16 v, SKTYPE to) {
@@ -517,8 +595,6 @@ SK_INLINE SKVALUE u16_to_(u16 v, SKTYPE to) {
         case SK_u8: return (SKVALUE){._u8 = (u8)v};
         default: assert(false);
     }
-    assert(false);
-    return (SKVALUE){._u16 = v};
 }
 
 SK_INLINE SKVALUE u8_to_(u8 v, SKTYPE to) {
@@ -536,8 +612,6 @@ SK_INLINE SKVALUE u8_to_(u8 v, SKTYPE to) {
         case SK_u8: return (SKVALUE){._u8 = (u8)v};
         default: assert(false);
     }
-    assert(false);
-    return (SKVALUE){._u8 = v};
 }
 
 SK_INLINE SKVALUE string_to_(string v, SKTYPE to) {
@@ -545,28 +619,27 @@ SK_INLINE SKVALUE string_to_(string v, SKTYPE to) {
         case SK_bool: return (SKVALUE){._bool = v.len > 0 ? true : false};
         default: assert(false);
     }
-    assert(false);
-    return (SKVALUE){._string = v};
 }
 
-SK_INLINE void _builtin__cast(SKTYPE to) {
+SK_INLINE void _builtin__cast() {
+    Stack_value b = _builtin__pop();
     Stack_value a = _builtin__pop();
     Stack_value r = {};
-    r.t = to;
+    r.t = b.v._type;
     SKTYPE from = a.t;
 
     switch (from) {
-        case SK_f64: r.v = f64_to_(a.v._f64, to); break;
-        case SK_f32: r.v = f32_to_(a.v._f32, to); break;
-        case SK_s64: r.v = s64_to_(a.v._s64, to); break;
-        case SK_s32: r.v = s32_to_(a.v._s32, to); break;
-        case SK_s16: r.v = s16_to_(a.v._s16, to); break;
-        case SK_s8: r.v = s8_to_(a.v._s8, to); break;
-        case SK_u64: r.v = u64_to_(a.v._u64, to); break;
-        case SK_u32: r.v = u32_to_(a.v._u32, to); break;
-        case SK_u16: r.v = u16_to_(a.v._u16, to); break;
-        case SK_u8: r.v = u8_to_(a.v._u8, to); break;
-        case SK_string: r.v = string_to_(a.v._string, to); break;
+        case SK_f64: r.v = f64_to_(a.v._f64, r.t); break;
+        case SK_f32: r.v = f32_to_(a.v._f32, r.t); break;
+        case SK_s64: r.v = s64_to_(a.v._s64, r.t); break;
+        case SK_s32: r.v = s32_to_(a.v._s32, r.t); break;
+        case SK_s16: r.v = s16_to_(a.v._s16, r.t); break;
+        case SK_s8: r.v = s8_to_(a.v._s8, r.t); break;
+        case SK_u64: r.v = u64_to_(a.v._u64, r.t); break;
+        case SK_u32: r.v = u32_to_(a.v._u32, r.t); break;
+        case SK_u16: r.v = u16_to_(a.v._u16, r.t); break;
+        case SK_u8: r.v = u8_to_(a.v._u8, r.t); break;
+        case SK_string: r.v = string_to_(a.v._string, r.t); break;
         default: assert(false);
     }
 
@@ -725,6 +798,24 @@ SK_INLINE void _builtin__le() {
         default: assert(false);
     }
     _builtin__push(SK_bool, (SKVALUE){._bool = r});
+}
+
+SK_INLINE void _builtin__apply() {
+    Stack_value a = _builtin__pop();
+    a.v._quote.proc();
+}
+
+SK_INLINE void _builtin__if() {
+    Stack_value b = _builtin__pop();
+    Stack_value a = _builtin__pop();
+    if (b.v._bool) a.v._quote.proc();
+}
+
+SK_INLINE void _builtin__if_else() {
+    Stack_value c = _builtin__pop();
+    Stack_value b = _builtin__pop();
+    Stack_value a = _builtin__pop();
+    if (c.v._bool) a.v._quote.proc(); else b.v._quote.proc();
 }
 
 SK_PROGRAM void main__stanczyk();

@@ -7,11 +7,11 @@ import "core:reflect"
 import "core:strings"
 
 Token_Kind :: enum u8 {
-    Invalid,
+    Invalid = 0,
     Comment,
     EOF,
 
-    Identifier,      // main
+    Symbol,      // main
 
     Paren_Left,      // (
     Paren_Right,     // )
@@ -20,22 +20,23 @@ Token_Kind :: enum u8 {
     Brace_Left,      // {
     Brace_Right,     // }
 
-    Integer,         // 123
-    False,           // false
-    Float,           // 1.23
-    Character,       // 'a'
-    String,          // "abc"
-    True,            // true
-
-    Bang,            // !
-    Bang_Equal,      // !=
     Colon_Colon,     // ::
     Dash_Dash_Dash,  // ---
+
+    Lit_Integer,     // 123
+    Lit_False,       // false
+    Lit_Float,       // 1.23
+    Lit_Character,   // 'a'
+    Lit_String,      // "abc"
+    Lit_True,        // true
+
     Equal,           // =
+    Not_Equal,       // !=
     Greater,         // >
     Greater_Equal,   // >=
     Less,            // <
     Less_Equal,      // <=
+
     Minus,           // -
     Minus_Minus,     // --
     Percentage,      // %
@@ -46,11 +47,12 @@ Token_Kind :: enum u8 {
     Star,            // *
 
     // Reserved words
+    Cast,
+    If,
     Keyword_And,     // and
     Keyword_Apply,   // apply
     Keyword_Dup,     // dup
     Keyword_Enum,    // enum
-    Keyword_If,      // if
     Keyword_Or,      // or
     Keyword_Print,   // print
     Keyword_Println, // println
@@ -61,24 +63,9 @@ Token_Kind :: enum u8 {
     Keyword_Using,   // using
 
     // Types
-    Type_Bool,       // bool
-    Type_Float,      // float
-    Type_F64,        // f64
-    Type_F32,        // f32
-    Type_Int,        // int
-    Type_Ptr,        // ptr
-    Type_S64,        // s64
-    Type_S32,        // s32
-    Type_S16,        // s16
-    Type_S8,         // s8
-    Type_String,     // string
-    Type_U64,        // u64
-    Type_U32,        // u32
-    Type_U16,        // u16
-    Type_U8,         // u8
-    Type_Uint,       // uint
-
-    Dot_Exit,        // .exit (REPL)
+    Any,
+    Bool, Float, Int, Quote, String, Uint,
+    F64, F32, S64, S32, S16, S8, U64, U32, U16, U8,
 }
 
 Token :: struct {
@@ -136,7 +123,6 @@ get_next_token :: proc(t: ^Tokenizer) -> (token: Token) {
     } else {
         switch get_char_at(t) {
         case '!':  tokenize_bang   (t, &token)
-        case '.':  tokenize_dot    (t, &token)
         case '/':  tokenize_slash  (t, &token)
         case ':':  tokenize_colon  (t, &token)
         case '<':  tokenize_less   (t, &token)
@@ -257,11 +243,10 @@ is_whitespace :: proc(t: ^Tokenizer) -> bool {
 
 @(private="file")
 tokenize_bang :: proc(t: ^Tokenizer, token: ^Token) {
-    token.kind = .Bang
     t.offset += 1
 
     if is_char(t, '=') {
-        token.kind = .Bang_Equal
+        token.kind = .Not_Equal
         t.offset += 1
     }
 }
@@ -276,28 +261,6 @@ tokenize_colon :: proc(t: ^Tokenizer, token: ^Token) {
         t.offset += 1
     } else {
         token.kind = .Invalid
-    }
-}
-
-@(private="file")
-tokenize_dot :: proc(t: ^Tokenizer, token: ^Token) {
-    if compiler_mode != .REPL {
-        token.kind = .Invalid
-        return
-    }
-
-    if is_eof(t) { return }
-    t.offset += 1
-
-    // Note: In REPL-mode, some reserved words start with ".", so we need to parse them.
-    if is_alpha(t) {
-        word := get_word_at(t)
-        full_word := temp_string(".", word)
-
-        switch full_word {
-        case ".exit": token.kind = .Dot_Exit
-        case: token.kind = .Invalid
-        }
     }
 }
 
@@ -343,11 +306,11 @@ tokenize_minus :: proc(t: ^Tokenizer, token: ^Token) {
 
 @(private="file")
 tokenize_number :: proc(t: ^Tokenizer, token: ^Token) {
-    token.kind  = .Integer
+    token.kind  = .Lit_Integer
 
     for is_number(t) || is_char(t, '.') || is_char(t, '_') {
         if is_char(t, '.') {
-            token.kind = .Float
+            token.kind = .Lit_Float
         }
 
         t.offset += 1
@@ -369,11 +332,11 @@ tokenize_plus :: proc(t: ^Tokenizer, token: ^Token) {
 tokenize_slash :: proc(t: ^Tokenizer, token: ^Token) {
     token.kind = .Slash
     t.offset += 1
-
     if is_char(t, '/') {
         // It's a comment, skip the rest of the line
         token.kind = .Comment
         for !is_eof(t) && !is_char(t, '\n') { t.offset += 1 }
+        t.offset += 1
     }
 }
 
@@ -384,7 +347,7 @@ tokenize_string_literal :: proc(t: ^Tokenizer, token: ^Token) {
     if is_eof(t) { return }
     t.offset += 1
 
-    token.kind = delimiter == '\'' ? .Character : .String
+    token.kind = delimiter == '\'' ? .Lit_Character : .Lit_String
     is_escaped := false
 
     for !is_eof(t) {
@@ -403,13 +366,12 @@ tokenize_symbol :: proc(t: ^Tokenizer, token: ^Token) {
     word := get_word_at(t)
 
     switch word {
-    case "false"   : token.kind = .False
-    case "true"    : token.kind = .True
+    case "false"   : token.kind = .Lit_False
+    case "true"    : token.kind = .Lit_True
 
     case "and"     : token.kind = .Keyword_And
     case "apply"   : token.kind = .Keyword_Apply
     case "dup"     : token.kind = .Keyword_Dup
-    case "if"      : token.kind = .Keyword_If
     case "or"      : token.kind = .Keyword_Or
     case "print"   : token.kind = .Keyword_Print
     case "println" : token.kind = .Keyword_Println
@@ -418,23 +380,27 @@ tokenize_symbol :: proc(t: ^Tokenizer, token: ^Token) {
     case "typeof"  : token.kind = .Keyword_Typeof
     case "using"   : token.kind = .Keyword_Using
 
-    case "bool"    : token.kind = .Type_Bool
-    case "float"   : token.kind = .Type_Float
-    case "f64"     : token.kind = .Type_F64
-    case "f32"     : token.kind = .Type_F32
-    case "int"     : token.kind = .Type_Int
-    case "ptr"     : token.kind = .Type_Ptr
-    case "s64"     : token.kind = .Type_S64
-    case "s32"     : token.kind = .Type_S32
-    case "s16"     : token.kind = .Type_S16
-    case "s8"      : token.kind = .Type_S8
-    case "string"  : token.kind = .Type_String
-    case "u64"     : token.kind = .Type_U64
-    case "u32"     : token.kind = .Type_U32
-    case "u16"     : token.kind = .Type_U16
-    case "u8"      : token.kind = .Type_U8
-    case "uint"    : token.kind = .Type_Uint
+    case "cast": token.kind = .Cast
+    case "if": token.kind = .If
 
-    case           : token.kind = .Identifier
+    case "any": token.kind = .Any
+    case "bool": token.kind = .Bool
+    case "float": token.kind = .Float
+    case "f64": token.kind = .F64
+    case "f32": token.kind = .F32
+    case "int": token.kind = .Int
+    case "quote": token.kind = .Quote
+    case "s64": token.kind = .S64
+    case "s32": token.kind = .S32
+    case "s16": token.kind = .S16
+    case "s8": token.kind = .S8
+    case "string": token.kind = .String
+    case "u64": token.kind = .U64
+    case "u32": token.kind = .U32
+    case "u16": token.kind = .U16
+    case "u8": token.kind = .U8
+    case "uint": token.kind = .Uint
+
+    case: token.kind = .Symbol
     }
 }

@@ -15,7 +15,7 @@ Type :: struct {
         Type_Integer,
         Type_Named,
         Type_Pointer,
-        Type_Quotation,
+        Type_Quote,
         Type_String,
     },
 }
@@ -34,7 +34,7 @@ Type_Named :: struct {} // TODO
 
 Type_Pointer :: struct {} // TODO
 
-Type_Quotation :: struct {}
+Type_Quote :: struct {}
 
 Type_String :: struct {
     is_cstring: bool,
@@ -56,8 +56,8 @@ TYPE_POINTER :: proc(base: Type) -> Type {
     return Type{variant = Type_Pointer{}}
 }
 
-TYPE_QUOTATION :: proc() -> Type {
-    return Type{variant = Type_Quotation{}}
+TYPE_QUOTE :: proc() -> Type {
+    return Type{variant = Type_Quote{}}
 }
 
 TYPE_STRING  :: proc(is_cstring := false) -> Type {
@@ -79,14 +79,24 @@ type_is_integer :: proc(t: Type) -> (ok: bool) {
     return
 }
 
-type_is_quotation :: proc(t: Type) -> (ok: bool) {
-    _, ok = t.variant.(Type_Quotation)
+type_is_quote :: proc(t: Type) -> (ok: bool) {
+    _, ok = t.variant.(Type_Quote)
     return
 }
 
 type_is_string :: proc(t: Type) -> (ok: bool) {
     _, ok = t.variant.(Type_String)
     return
+}
+
+type_get_real_name :: proc(v: string) -> string {
+    parsed := v
+    switch v {
+    case "float": parsed = fmt.tprintf("f{}", word_size_in_bits)
+    case "int": parsed = fmt.tprintf("s{}", word_size_in_bits)
+    case "uint": parsed = fmt.tprintf("u{}", word_size_in_bits)
+    }
+    return fmt.tprintf("SK_{}", parsed)
 }
 
 type_to_ctype :: proc(t: Type) -> string {
@@ -97,7 +107,7 @@ type_to_ctype :: proc(t: Type) -> string {
     case Type_Integer   : return fmt.tprintf("{}{}", v.is_signed ? "s" : "u", t.size)
     case Type_Named     : assert(false); return "invalid"
     case Type_Pointer   : assert(false); return "invalid"
-    case Type_Quotation : return "quotation"
+    case Type_Quote     : return "quote"
     case Type_String    : return v.is_cstring ? "cstring" : "string"
     }
 
@@ -113,7 +123,7 @@ type_to_cenum :: proc(t: Type) -> string {
     case Type_Integer   : return fmt.tprintf("SK_{}{}", v.is_signed ? "s" : "u", t.size)
     case Type_Named     : assert(false); return "invalid"
     case Type_Pointer   : assert(false); return "invalid"
-    case Type_Quotation : return "quotation"
+    case Type_Quote     : return "quote"
     case Type_String    : return v.is_cstring ? "SK_cstring" : "SK_string"
     }
 
