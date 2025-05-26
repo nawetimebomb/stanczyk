@@ -58,4 +58,20 @@
   "10 / 5 + 3 * 5 - 12 = 13  " print
   10 5 / 3 + 5 * 12 -          println
   "-----------"                println
+
+  "2.14 + 1.0 = 3.14  " print
+  2.14 1. +             println
+  "-----------"         println
+
+  "4.14 - 1.0 = 3.14  " print
+  4.14 1. -             println
+  "-----------"         println
+
+  "3.14 * 2.0 = 6.28  " print
+  3.14 2. *             println
+  "-----------"         println
+
+  "6.28 / 2.0 = 3.14  " print
+  6.28 2. /             println
+  "-----------"         println
 ;

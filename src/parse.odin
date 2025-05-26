@@ -49,8 +49,8 @@ Internal_Procedure :: enum {
 }
 
 Procedure_B :: struct {
+    using pos:  Position,
     addr:       uint,
-    pos:        Position,
     name:       string,
     convention: Calling_Convention,
     entities:   Entity_Table,
@@ -67,23 +67,11 @@ Parser_B :: struct {
     curr_token:     Token_B,
     tokenizer:      Tokenizer_B,
 
+    sim: Simulation,
+
     filename: string,
     errorf: proc(p: ^Parser_B, pos: Position, format: string,
                  args: ..any, loc := #caller_location) -> !,
-}
-
-Stack :: struct {
-    pop: proc(s: ^Stack) -> (t: Type_Kind_B),
-    push: proc(s: ^Stack, t: Type_Kind_B),
-    values: [dynamic]Type_Kind_B,
-}
-
-sim_push :: proc(s: ^Stack, t: Type_Kind_B) {
-    append(&s.values, t)
-}
-
-sim_pop :: proc(s: ^Stack) -> (t: Type_Kind_B) {
-    return pop(&s.values)
 }
 
 global_errorf :: proc(format: string, args: ..any, loc := #caller_location) {
@@ -108,19 +96,15 @@ default_errorf :: proc(
     os.exit(1)
 }
 
-stack: Stack
-
 parse :: proc() {
     p := &Parser_B{}
-    stack.pop = sim_pop
-    stack.push = sim_push
-    stack.values = make([dynamic]Type_Kind_B, 0, 16)
+    simulation_init(&p.sim)
 
     if p.errorf == nil {
         p.errorf = default_errorf
     }
 
-    global := push_procedure(p, "")
+    global := push_procedure(p, "", nil)
     defer pop_procedure(p)
 
     for filename, data in source_files {
@@ -150,7 +134,9 @@ parse :: proc() {
 
     assert(p.curr_procedure == global)
 
-    if "main__main" not_in global.entities {
+    if main_proc_ent, ok := global.entities["main"]; ok {
+        gen.main_proc_addr = main_proc_ent.addr
+    } else {
         global_errorf("main not defined in source files")
     }
 
@@ -167,33 +153,13 @@ parse :: proc() {
             #partial switch token.kind {
                 case .EOF: break parsing_loop
                 case .Colon_Colon: {
-                    proc_name := strings.builder_make(context.temp_allocator)
+                    // We only care of parsing procedures here.
                     name_token := next(p)
 
                     if allow(p, .Paren_Left) {
-                        strings.write_string(&proc_name, name_token.text)
-
-                        if !allow(p, .Paren_Right) {
-                            strings.write_string(&proc_name, "_")
-
-                            arity_loop: for {
-                                token := next(p)
-
-                                if token.kind == .Paren_Right {
-                                    break arity_loop
-                                } else if token.kind == .Dash_Dash_Dash {
-                                    strings.write_string(&proc_name, "_")
-                                } else {
-                                    parse_argument(p, token, nil, &proc_name)
-                                }
-                            }
-                        }
-
-                        parsed_name := strings.to_string(proc_name)
-                        if parsed_name == "main" { parsed_name = "main__main" }
-
-                        if parsed_name in global.entities {
-                            parse_procedure(p, parsed_name)
+                        name := proc_name_args(p, name_token.text)
+                        if ent, ok := global.entities[name]; ok {
+                            parse_procedure(p, name, &ent)
                         }
                     } else {
                         escape_loop: for {
@@ -245,13 +211,17 @@ peek :: proc(p: ^Parser_B) -> Token_Kind_B {
     return p.curr_token.kind
 }
 
-push_procedure :: proc(p: ^Parser_B, scope: string) -> ^Procedure_B {
+push_procedure :: proc(p: ^Parser_B, scope: string, ent: ^Entity) -> ^Procedure_B {
     new_proc := new_clone(Procedure_B{
         entities  = make(Entity_Table),
         name      = scope,
         is_global = scope == "",
         parent    = p.curr_procedure,
     })
+    if ent != nil {
+        new_proc.addr = ent.addr
+        new_proc.pos = ent.pos
+    }
     p.scopes[scope] = new_proc
     p.curr_procedure = new_proc
     return new_proc
@@ -273,37 +243,7 @@ declare :: proc(p: ^Parser_B, start_token_kind: Token_Kind_B) {
 
     if allow(p, .Paren_Left) {
         entity_proc := Entity_Procedure{}
-        proc_name := strings.builder_make(context.temp_allocator)
-        strings.write_string(&proc_name, name)
-
-        if !allow(p, .Paren_Right) {
-            strings.write_string(&proc_name, "_")
-            arity := &entity_proc.params
-
-            arity_loop: for {
-                token := next(p)
-
-                if token.kind == .Paren_Right {
-                    break arity_loop
-                } else if token.kind == .Dash_Dash_Dash {
-                    strings.write_string(&proc_name, "_")
-                    arity = &entity_proc.results
-                } else {
-                    parse_argument(p, token, arity, &proc_name)
-                }
-            }
-        }
-
-        name = strings.clone(strings.to_string(proc_name))
-
-        if name == "main" {
-            // NOTE: "main" is always being used as the entry point of the codegen,
-            // so the main Stanczyk procedure should always be called "main__main",
-            // which is the function that the generator will call after doing the
-            // initial bootstrapping and setup.
-            delete(name)
-            name = "main__main"
-        }
+        name = proc_name_args(p, name_token.text, &entity_proc)
 
         body_loop: for {
             token := next(p)
@@ -355,50 +295,80 @@ declare :: proc(p: ^Parser_B, start_token_kind: Token_Kind_B) {
     c.entities[name] = entity
 }
 
-parse_argument :: proc(p: ^Parser_B, t: Token_B, a: ^Arity_B, s: ^strings.Builder) {
-    type := Type_B{}
-
-    #partial switch t.kind {
-        case .Word: {
-            type.kind = .Parapoly
-            type.name = t.text
-            fmt.sbprintf(s, "_%s", t.text)
-        }
-        case .Any: {
-            type.kind = .Any
-            strings.write_string(s, "_any")
-        }
-        case .Bool: {
-            type.kind = .Bool
-            strings.write_string(s, "_bool")
-        }
-        case .Float: {
-            type.kind = .Float
-            strings.write_string(s, "_float")
-        }
-        case .Int: {
-            type.kind = .Int
-            strings.write_string(s, "_int")
-        }
-        case .Quote: assert(false)
-        case .String: {
-            type.kind = .String
-            strings.write_string(s, "_string")
-        }
-        case .Uint: {
-            type.kind = .Uint
-            strings.write_string(s, "_uint")
-        }
-        case: p->errorf(t.pos, "unexpected token %s", token_to_string(t))
+proc_name_args :: proc(
+    p: ^Parser_B, sk_name: string, ent: ^Entity_Procedure = nil,
+) -> string {
+    append_to_arity :: proc(a: ^Arity_B, k: Type_Kind_B, n: string = "") {
+        if a != nil { append(a, Type_B{ kind = k, name = n }) }
     }
 
-    if a != nil {
-        append(a, type)
+    append_to_name :: proc(nb: ^strings.Builder, s: ..string) {
+        for x in s {
+            // TODO: Clean up unwanted chars
+            strings.write_string(nb, x)
+        }
     }
+
+    nb := strings.builder_make()
+    name := ""
+
+    append_to_name(&nb, sk_name)
+
+    if !allow(p, .Paren_Right) {
+        append_to_name(&nb, "_")
+        arity: ^Arity_B = nil
+        if ent != nil { arity = &ent.params }
+
+        arity_loop: for {
+            token := next(p)
+
+            #partial switch token.kind {
+                case .Paren_Right: break arity_loop
+                case .Dash_Dash_Dash: {
+                    append_to_name(&nb, "_")
+                    if ent != nil { arity = &ent.results }
+                }
+                case .Word: {
+                    append_to_name(&nb, "_%s", token.text)
+                    append_to_arity(arity, .Parapoly, token.text )
+                }
+                case .Any: {
+                    append_to_name(&nb, "_any")
+                    append_to_arity(arity, .Any)
+                }
+                case .Bool: {
+                    append_to_name(&nb, "_bool")
+                    append_to_arity(arity, .Bool)
+                }
+                case .Float: {
+                    append_to_name(&nb, "_float")
+                    append_to_arity(arity, .Float)
+                }
+                case .Int: {
+                    append_to_name(&nb, "_int")
+                    append_to_arity(arity, .Int)
+                }
+                case .Quote: unimplemented()
+                case .String: {
+                    append_to_name(&nb, "_string")
+                    append_to_arity(arity, .String)
+                }
+                case .Uint: {
+                    append_to_name(&nb, "_uint")
+                    append_to_arity(arity, .Uint)
+                }
+                case: p->errorf(
+                    token.pos, "unexpected token %s", token_to_string(token),
+                )
+            }
+        }
+    }
+
+    return  strings.clone(strings.to_string(nb))
 }
 
-parse_procedure :: proc(p: ^Parser_B, name: string) {
-    push_procedure(p, name)
+parse_procedure :: proc(p: ^Parser_B, name: string, ent: ^Entity) {
+    push_procedure(p, name, ent)
     gen_proc(p.curr_procedure, .Head)
 
     body_loop: for {
@@ -418,109 +388,168 @@ parse_procedure :: proc(p: ^Parser_B, name: string) {
             // TODO: Temporarily we're looking for known words
             // these will be Stanczyk procedures
             switch token.text {
+            case "drop":
+                p.sim->pop()
+                gen_internal_proc_call(.Drop)
+            case "dup":
+                t := p.sim->pop()
+                p.sim->push(t)
+                p.sim->push(t)
+                gen_internal_proc_call(.Dup)
             case "print":
-                t := stack->pop()
+                t := p.sim->pop()
                 gen_internal_proc_call(.Print, t)
             case "println":
-                t := stack->pop()
+                t := p.sim->pop()
                 gen_internal_proc_call(.Println, t)
+            case "swap":
+                x := p.sim->pop()
+                y := p.sim->pop()
+                p.sim->push(x)
+                p.sim->push(y)
+                gen_internal_proc_call(.Swap)
             }
 
         case .Brace_Left:
+            unimplemented()
 
         case .Brace_Right:
+            unimplemented()
 
         case .Bracket_Left:
+            unimplemented()
 
         case .Bracket_Right:
+            unimplemented()
 
         case .Paren_Left:
+            unimplemented()
 
         case .Paren_Right:
+            unimplemented()
 
         case .Binary_Literal:
+            unimplemented()
 
         case .Character_Literal:
+            unimplemented()
 
         case .False_Literal:
             gen_push_literal(.Bool, token.text)
-            stack->push(.Bool)
+            p.sim->push(.Bool)
 
         case .Float_Literal:
             gen_push_literal(.Float, token.text)
-            stack->push(.Float)
+            p.sim->push(.Float)
 
         case .Hex_Literal:
+            unimplemented()
 
         case .Integer_Literal:
             gen_push_literal(.Int, token.text)
-            stack->push(.Int)
+            p.sim->push(.Int)
 
         case .Octal_Literal:
+            unimplemented()
 
         case .String_Literal:
             gen_push_literal(.String, token.text)
-            stack->push(.String)
+            p.sim->push(.String)
 
         case .True_Literal:
             gen_push_literal(.Bool, token.text)
-            stack->push(.Bool)
+            p.sim->push(.Bool)
 
         case .Add:
-            r := stack->pop()
-            l := stack->pop()
-            gen_arithmetic(l, r, l, .add)
-            stack->push(l)
+            t := p.sim->pop()
+            p.sim->pop()
+            if t == .String {
+                gen_concat_string()
+            } else {
+                gen_arithmetic(t, .add)
+            }
+            p.sim->push(t)
 
         case .Divide:
-            r := stack->pop()
-            l := stack->pop()
-            gen_arithmetic(l, r, l, .div)
-            stack->push(l)
+            t := p.sim->pop()
+            p.sim->pop()
+            gen_arithmetic(t, .div)
+            p.sim->push(t)
 
         case .Modulo:
-            r := stack->pop()
-            l := stack->pop()
-            gen_arithmetic(l, r, l, .mod)
-            stack->push(l)
+            t := p.sim->pop()
+            p.sim->pop()
+            gen_arithmetic(t, .mod)
+            p.sim->push(t)
 
         case .Multiply:
-            r := stack->pop()
-            l := stack->pop()
-            gen_arithmetic(l, r, l, .mul)
-            stack->push(l)
+            t := p.sim->pop()
+            p.sim->pop()
+            gen_arithmetic(t, .mul)
+            p.sim->push(t)
 
         case .Substract:
-            r := stack->pop()
-            l := stack->pop()
-            gen_arithmetic(l, r, l, .sub)
-            stack->push(l)
+            t := p.sim->pop()
+            p.sim->pop()
+            gen_arithmetic(t, .sub)
+            p.sim->push(t)
 
         case .Equal:
+            t := p.sim->pop()
+            p.sim->pop()
+            gen_comparison(t, .eq)
+            p.sim->push(.Bool)
 
         case .Greater_Equal:
+            t := p.sim->pop()
+            p.sim->pop()
+            gen_comparison(t, .ge)
+            p.sim->push(.Bool)
 
         case .Greater_Than:
+            t := p.sim->pop()
+            p.sim->pop()
+            gen_comparison(t, .gt)
+            p.sim->push(.Bool)
 
         case .Less_Equal:
+            t := p.sim->pop()
+            p.sim->pop()
+            gen_comparison(t, .le)
+            p.sim->push(.Bool)
 
         case .Less_Than:
+            t := p.sim->pop()
+            p.sim->pop()
+            gen_comparison(t, .lt)
+            p.sim->push(.Bool)
 
         case .Not_Equal:
+            t := p.sim->pop()
+            p.sim->pop()
+            gen_comparison(t, .ne)
+            p.sim->push(.Bool)
 
         case .Any:
+            unimplemented()
 
         case .Bool:
+            unimplemented()
 
         case .Float:
+            unimplemented()
 
         case .Int:
+            unimplemented()
 
         case .Quote:
+            unimplemented()
 
         case .String:
+            unimplemented()
 
         case .Uint:
+            unimplemented()
 
         }
     }

@@ -1,4 +1,4 @@
-main :: ( )
+:: main ( )
   "equal" println
   "2 2 = -> true " print 2 2 = println
   "2 3 = -> false " print 2 3 = println

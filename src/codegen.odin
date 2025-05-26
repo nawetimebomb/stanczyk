@@ -17,8 +17,9 @@ Generator :: struct {
     userprocdefs: strings.Builder,
     userprocs:    strings.Builder,
 
-    indentation: int,
-    global_ip:   uint,
+    indentation:    int,
+    global_ip:      uint,
+    main_proc_addr: uint,
 }
 
 gen := Generator{}
@@ -90,9 +91,10 @@ gen_file :: proc() {
     clear(&gen.userprocs.buf)
     writeln(&result, `int main(int ___argc, char** ___argv) {
 	g_main_argc = ___argc;
-	g_main_argv = ___argv;
-	main__main();
-	return 0;
+	g_main_argv = ___argv;`)
+    write(&result, "	")
+    writefln(&result, "skproc_ip{}();", gen.main_proc_addr)
+    writeln(&result, `	return 0;
 }`)
     os.write_entire_file(fmt.tprintf("{}.c", output_filename), result.buf[:])
 }
@@ -114,6 +116,7 @@ gen_bootstrap :: proc() {
 typedef int8_t skbool;
 typedef uint8_t skbyte;
 typedef unsigned char* skbyteptr;
+typedef void* voidptr;
 typedef struct skstring skstring;
 typedef struct skquote skquote;
 typedef struct skstack skstack;
@@ -153,11 +156,13 @@ struct skstack {
 
     writeln(&gen.builtinglobals, `SK_PROGRAM skstack g_stack;
 int g_main_argc = ((int)(0));
-void* g_main_argv = ((void*)0);`)
+voidptr g_main_argv = ((voidptr)0);`)
 
-    writeln(&gen.builtinprocdefs, `SK_PROGRAM void _write_to_fd(int fd, uint8_t* buf, int buf_len);
-SK_PROGRAM void _push(skvalue v);
+    writeln(&gen.builtinprocdefs, `SK_PROGRAM void _push(skvalue v);
 SK_PROGRAM skvalue _pop();
+SK_PROGRAM skbool _string_eq(skstring a, skstring b);
+SK_PROGRAM skstring _string_plus(skstring a, skstring b);
+SK_PROGRAM void _write_to_fd(int fd, skbyteptr buf, int buf_len);
 SK_PROGRAM void print(sktype t);
 SK_PROGRAM void println(sktype t);`)
 
@@ -173,13 +178,32 @@ SK_PROGRAM skvalue _pop() {
 	return v;
 }
 
-SK_PROGRAM void _write_to_fd(int fd, uint8_t* buf, int buf_len) {
-	uint8_t* ptr = buf;
+SK_PROGRAM skbool _string_eq(skstring s1, skstring s2) {
+	if (s1.len != s2.len) {
+		return SKFALSE;
+	}
+	// Unsafe
+	return memcmp(s1.data, s2.data, s1.len) == 0 ? SKTRUE : SKFALSE;
+}
+
+SK_PROGRAM skstring _string_plus(skstring s1, skstring s2) {
+	int rlen = s1.len + s2.len; // result len
+	skbyteptr rstr = (skbyteptr)malloc(sizeof(skbyte) * rlen); // result str
+	{ // Unsafe block
+		memcpy(rstr, s1.data, s1.len);
+		memcpy(rstr + s1.len, s2.data, s2.len);
+		rstr[rlen] = 0;
+	}
+	return (skstring){.data=rstr,.len=rlen};
+}
+
+SK_PROGRAM void _write_to_fd(int fd, skbyteptr buf, int buf_len) {
+	skbyteptr ptr = buf;
 	size_t remaining_bytes = ((size_t)(buf_len));
 	size_t x = ((size_t)(0));
-	void* stream = ((void*)(stdout));
-	if (fd == 2) stream = ((void*)(stderr));
-	{ // Unsafe
+	voidptr stream = ((voidptr)(stdout));
+	if (fd == 2) stream = ((voidptr)(stderr));
+	{ // Unsafe block
 		for (;;) {
 			if (!(remaining_bytes > 0)) break;
 			x = ((size_t)(fwrite(ptr, 1, remaining_bytes, stream)));
@@ -195,35 +219,31 @@ SK_PROGRAM void print(sktype t) {
 		case skbool_t: printf("%s", a.skbool == SKTRUE ? "true" : "false"); break;
 		case skfloat_t: printf("%g", a.skfloat); break;
 		case skint_t: printf("%li", a.skint); break;
-		case skstring_t: printf("%.*s", (int)a.skstring.len, a.skstring.data); break;
+		case skstring_t: _write_to_fd(0, a.skstring.data, a.skstring.len); break;
 		default: assert(SKFALSE);
 	}
-	// _write_to_fd(0, s.data, s.len);
 }
 
 SK_PROGRAM void println(sktype t) {
     print(t);
-	skvalue a = (skvalue){.skstring = __STRLIT("\n", 1)};
-    _push(a);
-    print(skstring_t);
-	// uint8_t lf = ((uint8_t)('\n'));
-	// _write_to_fd(0, s.data, s.len);
-	// _write_to_fd(0, &lf, 1);
+	skbyte lf = ((skbyte)('\n'));
+	_write_to_fd(0, &lf, 1);
 }`)
 }
 
 gen_proc :: proc(p: ^Procedure_B, part: enum { Head, Tail }) {
-    gproc := &gen.userprocs
-    gdef := &gen.userprocdefs
+    s := &gen.userprocs
+    d := &gen.userprocdefs
     switch part {
     case .Head:
-        writefln(gdef, "SK_PROGRAM void {}();", p.name)
-        writefln(gproc, "SK_PROGRAM void {}() {{", p.name)
-        indentation_forward(gproc)
-        writeln(gproc, "skvalue a, b, c;")
+        writefln(d, "// {} ({}:{}:{})", p.name, p.filename, p.line, p.column)
+        writefln(d, "SK_PROGRAM void skproc_ip{}();", p.addr)
+        writefln(s, "SK_PROGRAM void skproc_ip{}() {{", p.addr)
+        indentation_forward(s)
+        writeln(s, "skvalue a, b, c;")
     case .Tail:
-        indentation_backward(gproc)
-        writeln(gproc, "}")
+        indentation_backward(s)
+        writeln(s, "}")
     }
 }
 
@@ -239,9 +259,7 @@ gen_push_literal :: proc(type: Type_Kind_B, value: string) {
     writeln(s, "; _push(a);")
 }
 
-gen_arithmetic :: proc(
-    l, r, res: Type_Kind_B, op: enum { add, sub, mul, div, mod },
-) {
+gen_arithmetic :: proc(t: Type_Kind_B, op: enum { add, sub, mul, div, mod }) {
     s := &gen.userprocs
     opstr: string
 
@@ -254,10 +272,43 @@ gen_arithmetic :: proc(
     }
 
     writeln(s, "b = _pop(); a = _pop();")
-    writef(s, "a.{} = ", type_to_cname(res))
-    writef(s, "a.{} ", type_to_cname(l))
+    writef(s, "a.{} = ", type_to_cname(t))
+    writef(s, "a.{} ", type_to_cname(t))
     write(s, opstr)
-    writefln(s, " b.{}; _push(a);", type_to_cname(r))
+    writefln(s, " b.{}; _push(a);", type_to_cname(t))
+}
+
+gen_concat_string :: proc() {
+    s := &gen.userprocs
+    writeln(s, "b = _pop(); a = _pop();")
+    writeln(s, "a.skstring = _string_plus(a.skstring, b.skstring);")
+    writeln(s, "_push(a);")
+}
+
+gen_comparison :: proc(t: Type_Kind_B, op: enum { eq, ge, gt, le, lt, ne }) {
+    s := &gen.userprocs
+    opstr: string
+    switch op {
+    case .eq: opstr = "=="
+    case .ge: opstr = ">="
+    case .gt: opstr = ">"
+    case .le: opstr = "<="
+    case .lt: opstr = "<"
+    case .ne: opstr = "!="
+    }
+    writeln(s, "b = _pop(); a = _pop();")
+    writef(s, "a.skbool = ")
+    if t == .String {
+        if op == .eq {
+            writeln(s, "_string_eq(a.skstring, b.skstring); _push(a);")
+        } else if op == .ne {
+            writeln(s, "!(_string_eq(a.skstring, b.skstring)); _push(a);")
+        }
+    } else {
+        writef(s, "a.{} ", type_to_cname(t))
+        write(s, opstr)
+        writefln(s, " b.{}; _push(a);", type_to_cname(t))
+    }
 }
 
 gen_internal_proc_call :: proc(i: Internal_Procedure, args: ..Type_Kind_B) {
@@ -265,11 +316,16 @@ gen_internal_proc_call :: proc(i: Internal_Procedure, args: ..Type_Kind_B) {
 
     switch i {
     case .Drop:
+        writeln(s, "_pop();")
     case .Dup:
+        writeln(s, "a = _pop();")
+        writeln(s, "_push(a); _push(a);")
     case .Print: fallthrough
     case .Println:
         t := args[0]
         writefln(s, "{}({}_t);", i == .Print ? "print" : "println", type_to_cname(t))
     case .Swap:
+        writeln(s, "b = _pop(); a = _pop();")
+        writeln(s, "_push(b); _push(a);")
     }
 }
