@@ -5,6 +5,7 @@ import "core:fmt"
 import "core:log"
 import "core:mem"
 import "core:os"
+import "core:path/filepath"
 import "core:strings"
 
 COMPILER_DATE    :: "2025-03-03"
@@ -29,11 +30,11 @@ Location :: struct {
 compiler_arch:     Compiler_Architecture
 compiler_mode:     enum { Compiler, Interpreter, REPL }
 source_files:      map[string]string
-output_file:       string
+output_filename:       string
 the_program:       Program
 word_size_in_bits: int
 
-keep_c_output_file := false
+keep_c_output := false
 run_program := false
 
 // TODO: This is useful for debugging, but maybe I need an Arena allocator as the default
@@ -90,9 +91,13 @@ cleanup_exit :: proc(code: int) {
 }
 
 compile :: proc() {
-    libc.system(fmt.ctprintf("gcc {} -o output", GENERATED_FILE_NAME))
-    if !keep_c_output_file { libc.system("rm skgen.c") }
-    if run_program { libc.system("./output") }
+    libc.system(fmt.ctprintf("gcc {0}.c -o {0}", output_filename))
+    when !ODIN_DEBUG {
+        if !keep_c_output {
+            libc.system(fmt.ctprintf("rm {}.c", output_filename))
+        }
+    }
+    if run_program { libc.system(fmt.ctprintf("./{}", output_filename)) }
 }
 
 main :: proc() {
@@ -116,9 +121,12 @@ main :: proc() {
             fmt.printfln(MSG_VERSION, COMPILER_VERSION)
             cleanup_exit(0)
         case "-keepc":
-            keep_c_output_file = true
+            keep_c_output = true
         case "-run":
             run_program = true
+        case "-out":
+            i += 1
+            output_filename = args[i]
         case :
             if !os.exists(arg) {
                 fmt.printfln(ERROR_FILE_OR_DIR_NOT_FOUND, arg)
@@ -129,6 +137,7 @@ main :: proc() {
                 f, _ := os.stat(arg, context.temp_allocator)
                 data, success :=
                     os.read_entire_file(f.fullpath, context.temp_allocator)
+                output_filename = filepath.short_stem(arg)
 
                 if !success {
                     fmt.printfln(ERROR_FILE_CANT_OPEN, f.fullpath)
@@ -140,6 +149,7 @@ main :: proc() {
             } else {
                 v, _ := os.open(arg)
                 fis, _ := os.read_dir(v, 0, context.temp_allocator)
+                output_filename = filepath.base(arg)
 
                 for f in fis {
                     if strings.ends_with(f.name, ".sk") {
@@ -162,9 +172,9 @@ main :: proc() {
         cleanup_exit(1)
     }
 
-    parser()
-    simulation()
-    gen()
+    parse()
+    // simulation()
+    // gen()
     compile()
 
     cleanup_exit(0)

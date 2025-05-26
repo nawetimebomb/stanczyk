@@ -3,7 +3,7 @@
 # If save is provided, (like `./test.sh save`) the test runner will automatically save the results
 # into a .txt file and make sure the tests runs. This helps to make sure I have updated tests when needed.
 
-SKC_EXEC="./bin/skc"
+SKC_EXEC="skc"
 FAIL=0
 SUCCESS=0
 TOTAL=0
@@ -53,11 +53,15 @@ for FILE in tests/*.sk; do
         TEST_NAME="${TEST_SRC##*/}"
 
         if [ "$1" == "save" ]; then
-            ${SKC_EXEC} build ${TEST_SRC}.sk -clean -silent
+            ${SKC_EXEC} ${TEST_SRC}.sk -out output
             ./output > ${TEST_SRC}.txt
         fi
 
-        ${SKC_EXEC} build ${TEST_SRC}.sk -clean -silent
+        if [ ! -f "${TEST_SRC}.txt" ]; then
+            continue
+        fi
+
+        ${SKC_EXEC} ${TEST_SRC}.sk -out output
         ./output > result.txt
 
         RESULT=$(diff ${TEST_SRC}.txt result.txt)
@@ -78,6 +82,7 @@ for FILE in tests/*.sk; do
         echo -e $RED'  ┃'
         rm result.txt
         rm output
+        rm output.c
     fi
 done
 

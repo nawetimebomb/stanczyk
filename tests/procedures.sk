@@ -1,18 +1,18 @@
-print_proc :: (string)
+print_proc :: ( string )
   println
 ;
 
-main :: ()
+main :: ( )
   "Test calling print_proc" print_proc
   declared_late
   "The next function takes 2 int values and returns the sum of them" println
   7 6 sum println
 ;
 
-declared_late :: ()
+declared_late :: ( )
   "This procedure was called late" println
 ;
 
-sum :: (int int --- int)
+sum :: ( int int --- int )
   +
 ;

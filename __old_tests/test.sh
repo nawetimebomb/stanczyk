@@ -3,7 +3,7 @@
 # If save is provided, (like `./test.sh save`) the test runner will automatically save the results
 # into a .txt file and make sure the tests runs. This helps to make sure I have updated tests when needed.
 
-SKC_EXEC="skc"
+SKC_EXEC="./bin/skc"
 FAIL=0
 SUCCESS=0
 TOTAL=0
@@ -46,18 +46,18 @@ echo -e '┏━  The Stańczyk Programming Language  ━━━━━━━━━
 
 echo -ne $RESET
 
-for FILE in new_tests/*.sk; do
+for FILE in tests/*.sk; do
     if [ -f "$FILE" ]; then
         TOTAL=$(($TOTAL + 1))
         TEST_SRC="${FILE%.*}"
         TEST_NAME="${TEST_SRC##*/}"
 
         if [ "$1" == "save" ]; then
-            ${SKC_EXEC} ${TEST_SRC}.sk
+            ${SKC_EXEC} build ${TEST_SRC}.sk -clean -silent
             ./output > ${TEST_SRC}.txt
         fi
 
-        ${SKC_EXEC} ${TEST_SRC}.sk
+        ${SKC_EXEC} build ${TEST_SRC}.sk -clean -silent
         ./output > result.txt
 
         RESULT=$(diff ${TEST_SRC}.txt result.txt)

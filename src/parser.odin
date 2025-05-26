@@ -339,7 +339,6 @@ register_procedure :: proc(p: ^Parser, t: ^Token, loc := #caller_location) {
     new_proc.called = t.source == "main"
     new_proc.loc = get_location(t)
     new_proc.name = name
-    new_proc.entities = make(Entity_Table)
     new_proc.ops = make([dynamic]Operation, 0, 16)
     new_proc.token = t^
 

@@ -12,8 +12,7 @@ BACKEND_BUILTIN_C :: #load("include/builtin.c")
 INLINE_PROC_DEF :: "SK_INLINE"
 STATIC_PROC_DEF :: "SK_PROGRAM"
 
-@(private)
-gen :: proc() {
+gen_code :: proc() {
     g = Gen{
         definitions = strings.builder_make(),
         headers = strings.builder_make(),

@@ -1,33 +1,12 @@
 package main
 
-Calling_Convention :: enum u8 {
-    Invalid = 0,
-    Stanczyk,
-    CDecl,
-    Anonymous,
-}
-
-Entity :: struct {
-    addr:      uint,
-    kind:      Token_Kind,
-    name:      string,
-    value:     [dynamic]Token,
-    procedure: ^Procedure,
-    type:      Type,
-    global:    bool,
-}
-
-Entity_Table :: distinct map[string]Entity
-
-Arity :: distinct [dynamic]Type
-
 Procedure :: struct {
     addr:       uint,
     loc:        Location,
     name:       string,
     module:     string,
     token:      Token,
-    entities:   Entity_Table,
+    // entities:   Entity_Table,
     ops:        [dynamic]Operation,
     convention: Calling_Convention,
     parent:     ^Procedure,
@@ -41,6 +20,8 @@ Procedure :: struct {
     inlined:    bool,
     simulated:  bool,
 }
+
+Arity :: distinct [dynamic]Type
 
 Program :: struct {
     procedures: map[string]Procedure,

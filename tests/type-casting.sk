@@ -1,4 +1,4 @@
-main :: ()
+main :: ( )
   "- casting any positive number to boolean gives true" println
   "  -- 1 " print 1 bool cast println
   "  -- 1337 " print 1337 bool cast println

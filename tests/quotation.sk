@@ -1,4 +1,4 @@
-main :: ()
+main :: ( )
   { "this is within quotation" } print " { \"this is within quotation\" }" println
   { dup dup * * } 5 swap apply print " 125" println
 ;

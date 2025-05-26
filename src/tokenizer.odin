@@ -348,17 +348,24 @@ tokenize_string_literal :: proc(t: ^Tokenizer, token: ^Token) {
     if is_eof(t) { return }
     t.offset += 1
 
+    result := strings.builder_make()
     token.kind = delimiter == '\'' ? .Lit_Character : .Lit_String
     is_escaped := false
 
     for !is_eof(t) {
         if is_char(t, delimiter) && !is_escaped { break }
+        c := get_char_at(t)
+        if c == '\n' {
+            strings.write_string(&result, "\\n")
+        } else {
+            strings.write_byte(&result, c)
+        }
         is_escaped = !is_escaped && is_char(t, '\\')
         t.offset += 1
     }
 
     if is_eof(t) { return }
-    token.source = t.buffer[token.start + 1:t.offset]
+    token.source = strings.to_string(result)
     t.offset += 1
     token.end = t.offset
 }
