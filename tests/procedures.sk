@@ -7,6 +7,7 @@
   declared_late
   "The next function takes 2 int values and returns the sum of them" println
   7 6 sum println
+  "Hello, " "Stańczyk" sum println
 ;
 
 :: declared_late ( )
@@ -14,5 +15,9 @@
 ;
 
 :: sum ( int int --- int )
+  +
+;
+
+:: sum ( string string --- string )
   +
 ;

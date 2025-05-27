@@ -21,6 +21,7 @@ Entity_Constant :: struct {
 }
 
 Entity_Procedure :: struct {
+    parapoly: bool,
     params: Arity_B,
     results: Arity_B,
 }
@@ -121,7 +122,8 @@ parse :: proc() {
                 }
                 case .Colon_Colon, .Colon_Equal: declare(p, token.kind)
                 case .EOF: break loop
-                case: p->errorf(token.pos,
+                case: p->errorf(
+                    token.pos,
                     "unexpected token of type %s",
                     token_to_string(token),
                 )
@@ -165,11 +167,16 @@ parse :: proc() {
                         ent: ^Entity
                         // TODO: support poly
                         for &e in global.entities {
-                            if e.name == name { ent = &e; break }
+                            if e.name == name {
+                                ep := e.variant.(Entity_Procedure)
+                                if slice.equal(ep.params[:], params[:]) && slice.equal(ep.results[:], results[:]) {
+                                    ent = &e
+                                    break
+                                }
+                            }
                         }
-                        if ent != nil {
-                            parse_procedure(p, name, ent)
-                        }
+                        if ent == nil { p->errorf(name_token.pos, "procedure not found") }
+                        parse_procedure(p, name, ent)
                     } else {
                         escape_loop: for {
                             token := next(p)
@@ -334,34 +341,16 @@ parse_proc_args :: proc(p: ^Parser_B, params, results: ^Arity_B) {
 
             #partial switch token.kind {
                 case .Paren_Right: break arity_loop
-                case .Dash_Dash_Dash: {
-                    arity = results
-                }
-                case .Word: {
-                    append_to_arity(arity, .Parapoly, token.text )
-                }
-                case .Any: {
-                    append_to_arity(arity, .Any)
-                }
-                case .Bool: {
-                    append_to_arity(arity, .Bool)
-                }
-                case .Float: {
-                    append_to_arity(arity, .Float)
-                }
-                case .Int: {
-                    append_to_arity(arity, .Int)
-                }
+                case .Dash_Dash_Dash: arity = results
+                case .Word: append_to_arity(arity, .Parapoly, token.text )
+                case .Any: append_to_arity(arity, .Any)
+                case .Bool: append_to_arity(arity, .Bool)
+                case .Float: append_to_arity(arity, .Float)
+                case .Int: append_to_arity(arity, .Int)
                 case .Quote: unimplemented()
-                case .String: {
-                    append_to_arity(arity, .String)
-                }
-                case .Uint: {
-                    append_to_arity(arity, .Uint)
-                }
-                case: p->errorf(
-                    token.pos, "unexpected token %s", token_to_string(token),
-                )
+                case .String: append_to_arity(arity, .String)
+                case .Uint: append_to_arity(arity, .Uint)
+                case: p->errorf(token.pos, "unexpected token %s", token_to_string(token))
             }
         }
     }
@@ -377,213 +366,297 @@ parse_procedure :: proc(p: ^Parser_B, name: string, ent: ^Entity) {
     }
 
     body_loop: for {
-        token := next(p)
-
-        switch token.kind {
-        case .EOF, .Invalid, .Using, .Colon_Colon,
-                .Colon_Equal, .Dash_Dash_Dash:
-            p->errorf(
-                token.pos,
-                "invalid token as procedure body %s",
-                token_to_string(token),
-            )
-        case .Semicolon: break body_loop
-
-        case .Word:
-            // TODO: Temporarily we're looking for known words
-            // these will be Stanczyk procedures
-            switch token.text {
-            case "drop":
-                p.sim->pop()
-                gen_internal_proc_call(.Drop)
-            case "dup":
-                t := p.sim->pop()
-                p.sim->push(t)
-                p.sim->push(t)
-                gen_internal_proc_call(.Dup)
-            case "print":
-                t := p.sim->pop()
-                gen_internal_proc_call(.Print, t)
-            case "println":
-                t := p.sim->pop()
-                gen_internal_proc_call(.Println, t)
-            case "swap":
-                x := p.sim->pop()
-                y := p.sim->pop()
-                p.sim->push(x)
-                p.sim->push(y)
-                gen_internal_proc_call(.Swap)
-            case :
-                ents := find_symbol(p, token)
-                if len(ents) == 1 {
-                    ent := ents[0]
-                    switch v in ent.variant {
-                    case Entity_Constant: // TODO: handle
-                    case Entity_Variable: // TODO: handle
-                    case Entity_Procedure:
-                        #reverse for param in v.params {
-                            t := p.sim->pop()
-                            if t != param.kind {
-                                p->errorf(token.pos, "mismatched parameter")
-                            }
-                        }
-
-                        for result in v.results {
-                            p.sim->push(result.kind)
-                        }
-
-                        gen_proc_call(ent.addr)
-                    }
-                }
-                // If more than one is found, we need to check for it.
-            }
-
-        case .Brace_Left:
-            unimplemented()
-
-        case .Brace_Right:
-            unimplemented()
-
-        case .Bracket_Left:
-            unimplemented()
-
-        case .Bracket_Right:
-            unimplemented()
-
-        case .Paren_Left:
-            unimplemented()
-
-        case .Paren_Right:
-            unimplemented()
-
-        case .Binary_Literal:
-            unimplemented()
-
-        case .Character_Literal:
-            unimplemented()
-
-        case .False_Literal:
-            gen_push_literal(.Bool, token.text)
-            p.sim->push(.Bool)
-
-        case .Float_Literal:
-            gen_push_literal(.Float, token.text)
-            p.sim->push(.Float)
-
-        case .Hex_Literal:
-            unimplemented()
-
-        case .Integer_Literal:
-            gen_push_literal(.Int, token.text)
-            p.sim->push(.Int)
-
-        case .Octal_Literal:
-            unimplemented()
-
-        case .String_Literal:
-            gen_push_literal(.String, token.text)
-            p.sim->push(.String)
-
-        case .True_Literal:
-            gen_push_literal(.Bool, token.text)
-            p.sim->push(.Bool)
-
-        case .Add:
-            t := p.sim->pop()
-            p.sim->pop()
-            if t == .String {
-                gen_concat_string()
-            } else {
-                gen_arithmetic(t, .add)
-            }
-            p.sim->push(t)
-
-        case .Divide:
-            t := p.sim->pop()
-            p.sim->pop()
-            gen_arithmetic(t, .div)
-            p.sim->push(t)
-
-        case .Modulo:
-            t := p.sim->pop()
-            p.sim->pop()
-            gen_arithmetic(t, .mod)
-            p.sim->push(t)
-
-        case .Multiply:
-            t := p.sim->pop()
-            p.sim->pop()
-            gen_arithmetic(t, .mul)
-            p.sim->push(t)
-
-        case .Substract:
-            t := p.sim->pop()
-            p.sim->pop()
-            gen_arithmetic(t, .sub)
-            p.sim->push(t)
-
-        case .Equal:
-            t := p.sim->pop()
-            p.sim->pop()
-            gen_comparison(t, .eq)
-            p.sim->push(.Bool)
-
-        case .Greater_Equal:
-            t := p.sim->pop()
-            p.sim->pop()
-            gen_comparison(t, .ge)
-            p.sim->push(.Bool)
-
-        case .Greater_Than:
-            t := p.sim->pop()
-            p.sim->pop()
-            gen_comparison(t, .gt)
-            p.sim->push(.Bool)
-
-        case .Less_Equal:
-            t := p.sim->pop()
-            p.sim->pop()
-            gen_comparison(t, .le)
-            p.sim->push(.Bool)
-
-        case .Less_Than:
-            t := p.sim->pop()
-            p.sim->pop()
-            gen_comparison(t, .lt)
-            p.sim->push(.Bool)
-
-        case .Not_Equal:
-            t := p.sim->pop()
-            p.sim->pop()
-            gen_comparison(t, .ne)
-            p.sim->push(.Bool)
-
-        case .Any:
-            unimplemented()
-
-        case .Bool:
-            unimplemented()
-
-        case .Float:
-            unimplemented()
-
-        case .Int:
-            unimplemented()
-
-        case .Quote:
-            unimplemented()
-
-        case .String:
-            unimplemented()
-
-        case .Uint:
-            unimplemented()
-
+        if !parse_token(p, next(p)) {
+            break body_loop
         }
     }
 
-    assert(len(p.sim.stack) == len(entp.results))
+    if len(p.sim.stack) != len(entp.results) {
+        p->errorf(
+            ent.pos, "mismatched results in procedure {}\n\tExpected: {},\tHave: {}",
+            ent.name,
+            entp.results,
+            p.sim.stack,
+        )
+    }
 
     gen_proc(p.curr_procedure, .Tail)
     pop_procedure(p)
+    p.sim->clear()
+}
+
+parse_token :: proc(p: ^Parser_B, token: Token_B) -> bool {
+    switch token.kind {
+    case .EOF, .Invalid, .Using, .Colon_Colon,
+            .Colon_Equal, .Dash_Dash_Dash:
+        p->errorf(
+            token.pos,
+            "invalid token as procedure body %s",
+            token_to_string(token),
+        )
+    case .Semicolon: return false
+
+    case .Word:
+        // TODO: Temporarily we're looking for known words
+        // these will be Stanczyk procedures
+        switch token.text {
+        case "drop":
+            p.sim->pop()
+            gen_internal_proc_call(.Drop)
+        case "dup":
+            t := p.sim->pop()
+            p.sim->push(t)
+            p.sim->push(t)
+            gen_internal_proc_call(.Dup)
+        case "print":
+            t := p.sim->pop()
+            gen_internal_proc_call(.Print, t)
+        case "println":
+            t := p.sim->pop()
+            gen_internal_proc_call(.Println, t)
+        case "swap":
+            x := p.sim->pop()
+            y := p.sim->pop()
+            p.sim->push(x)
+            p.sim->push(y)
+            gen_internal_proc_call(.Swap)
+        case :
+            ents := find_symbol(p, token)
+
+            if len(ents) == 1 {
+                ent := ents[0]
+                switch v in ent.variant {
+                case Entity_Constant: // TODO: handle
+                case Entity_Variable: // TODO: handle
+                case Entity_Procedure:
+                    #reverse for param in v.params {
+                        t := p.sim->pop()
+                        if t != param.kind {
+                            p->errorf(token.pos, "mismatched parameter")
+                        }
+                    }
+
+                    for result in v.results {
+                        p.sim->push(result.kind)
+                    }
+
+                    gen_proc_call(ent.addr)
+                }
+            } else {
+                // NOTE: This is always a collection of procedures,
+                // as constants and variables are not polymorphistic.
+                Match_Stats :: struct {
+                    entity: Entity,
+                    // the stack matches exactly by the number of parameters required for this
+                    // procedure to be called. We prioritize this!
+                    exact_number_of_params: bool,
+                }
+                possible_matches := make([dynamic]Match_Stats, 0, 1, context.temp_allocator)
+                ent: Entity
+                ok: bool
+
+                for e in ents {
+                    test := e.variant.(Entity_Procedure)
+
+                    if len(p.sim.stack) >= len(test.params) {
+                        stack_copy := slice.clone(p.sim.stack[:], context.temp_allocator)
+                        slice.reverse(stack_copy)
+                        sim_test_stack := stack_copy[:len(test.params)]
+                        proc_test_stack := make([dynamic]Type_Kind_B)
+
+                        for param in test.params {
+                            append(&proc_test_stack, param.kind)
+                        }
+
+                        if slice.equal(sim_test_stack, proc_test_stack[:]) {
+                            append(&possible_matches, Match_Stats{
+                                entity = e,
+                                exact_number_of_params = len(p.sim.stack) == len(test.params),
+                            })
+                        }
+                    }
+                }
+
+                if len(possible_matches) == 1 {
+                    ent = possible_matches[0].entity
+                    ok = true
+                } else {
+                    for m in possible_matches {
+                        if m.exact_number_of_params {
+                            ok = true
+                            ent = m.entity
+                            break
+                        }
+                    }
+                }
+
+                if !ok {
+                    p->errorf(
+                        token.pos,
+                        "can't find a matching polymorphic procedure of name '{}' with current stack values: {}",
+                        token.text, p.sim.stack,
+                    )
+                }
+
+                v := ent.variant.(Entity_Procedure)
+
+                #reverse for param in v.params {
+                    t := p.sim->pop()
+                    if t != param.kind {
+                        p->errorf(token.pos, "mismatched parameter")
+                    }
+                }
+
+                for result in v.results {
+                    p.sim->push(result.kind)
+                }
+
+                gen_proc_call(ent.addr)
+            }
+        }
+
+    case .Brace_Left:
+        unimplemented()
+
+    case .Brace_Right:
+        unimplemented()
+
+    case .Bracket_Left:
+        unimplemented()
+
+    case .Bracket_Right:
+        unimplemented()
+
+    case .Paren_Left:
+        unimplemented()
+
+    case .Paren_Right:
+        unimplemented()
+
+    case .Binary_Literal:
+        unimplemented()
+
+    case .Character_Literal:
+        unimplemented()
+
+    case .False_Literal:
+        gen_push_literal(.Bool, token.text)
+        p.sim->push(.Bool)
+
+    case .Float_Literal:
+        gen_push_literal(.Float, token.text)
+        p.sim->push(.Float)
+
+    case .Hex_Literal:
+        unimplemented()
+
+    case .Integer_Literal:
+        gen_push_literal(.Int, token.text)
+        p.sim->push(.Int)
+
+    case .Octal_Literal:
+        unimplemented()
+
+    case .String_Literal:
+        gen_push_literal(.String, token.text)
+        p.sim->push(.String)
+
+    case .True_Literal:
+        gen_push_literal(.Bool, token.text)
+        p.sim->push(.Bool)
+
+    case .Add:
+        t := p.sim->pop()
+        p.sim->pop()
+        if t == .String {
+            gen_concat_string()
+        } else {
+            gen_arithmetic(t, .add)
+        }
+        p.sim->push(t)
+
+    case .Divide:
+        t := p.sim->pop()
+        p.sim->pop()
+        gen_arithmetic(t, .div)
+        p.sim->push(t)
+
+    case .Modulo:
+        t := p.sim->pop()
+        p.sim->pop()
+        gen_arithmetic(t, .mod)
+        p.sim->push(t)
+
+    case .Multiply:
+        t := p.sim->pop()
+        p.sim->pop()
+        gen_arithmetic(t, .mul)
+        p.sim->push(t)
+
+    case .Substract:
+        t := p.sim->pop()
+        p.sim->pop()
+        gen_arithmetic(t, .sub)
+        p.sim->push(t)
+
+    case .Equal:
+        t := p.sim->pop()
+        p.sim->pop()
+        gen_comparison(t, .eq)
+        p.sim->push(.Bool)
+
+    case .Greater_Equal:
+        t := p.sim->pop()
+        p.sim->pop()
+        gen_comparison(t, .ge)
+        p.sim->push(.Bool)
+
+    case .Greater_Than:
+        t := p.sim->pop()
+        p.sim->pop()
+        gen_comparison(t, .gt)
+        p.sim->push(.Bool)
+
+    case .Less_Equal:
+        t := p.sim->pop()
+        p.sim->pop()
+        gen_comparison(t, .le)
+        p.sim->push(.Bool)
+
+    case .Less_Than:
+        t := p.sim->pop()
+        p.sim->pop()
+        gen_comparison(t, .lt)
+        p.sim->push(.Bool)
+
+    case .Not_Equal:
+        t := p.sim->pop()
+        p.sim->pop()
+        gen_comparison(t, .ne)
+        p.sim->push(.Bool)
+
+    case .Any:
+        unimplemented()
+
+    case .Bool:
+        unimplemented()
+
+    case .Float:
+        unimplemented()
+
+    case .Int:
+        unimplemented()
+
+    case .Quote:
+        unimplemented()
+
+    case .String:
+        unimplemented()
+
+    case .Uint:
+        unimplemented()
+
+    }
+
+    return true
 }
