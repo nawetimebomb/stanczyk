@@ -119,6 +119,7 @@ parse :: proc() {
                         // TODO: Add these files to the source_files global
                         //token := p.prev_token
                     }
+                    expect(p, .Semicolon)
                 }
                 case .Colon_Colon, .Colon_Equal: declare(p, token.kind)
                 case .EOF: break loop
@@ -460,7 +461,6 @@ parse_token :: proc(p: ^Parser_B, token: Token_B) -> bool {
 
                     if len(p.sim.stack) >= len(test.params) {
                         stack_copy := slice.clone(p.sim.stack[:], context.temp_allocator)
-                        slice.reverse(stack_copy)
                         sim_test_stack := stack_copy[:len(test.params)]
                         proc_test_stack := make([dynamic]Type_Kind_B)
 
