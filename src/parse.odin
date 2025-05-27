@@ -20,12 +20,12 @@ Entity_Constant :: struct {
     value: union { f64, i64, string, u64 },
 }
 
-Entity_Variable :: struct {}
-
 Entity_Procedure :: struct {
     params: Arity_B,
     results: Arity_B,
 }
+
+Entity_Variable :: struct {}
 
 Entity_Variant :: union {
     Entity_Constant,
@@ -42,7 +42,7 @@ Entity :: struct {
     is_global: bool,
 }
 
-Entity_Table :: distinct map[string]Entity
+Entity_Array :: distinct [dynamic]Entity
 
 Internal_Procedure :: enum {
     Drop, Dup, Print, Println, Swap,
@@ -53,7 +53,7 @@ Procedure_B :: struct {
     addr:       uint,
     name:       string,
     convention: Calling_Convention,
-    entities:   Entity_Table,
+    entities:   Entity_Array,
     local_ip:   uint,
 
     parent:  ^Procedure_B,
@@ -83,11 +83,8 @@ global_errorf :: proc(format: string, args: ..any, loc := #caller_location) {
 }
 
 default_errorf :: proc(
-    p: ^Parser_B,
-    pos: Position,
-    format: string,
-    args: ..any,
-    loc := #caller_location,
+    p: ^Parser_B, pos: Position, format: string,
+    args: ..any, loc := #caller_location,
 ) -> ! {
     fmt.eprintf("%s(%d:%d): ", p.filename, pos.line, pos.column)
     fmt.eprintf(format, ..args)
@@ -134,9 +131,14 @@ parse :: proc() {
 
     assert(p.curr_procedure == global)
 
-    if main_proc_ent, ok := global.entities["main"]; ok {
-        gen.main_proc_addr = main_proc_ent.addr
-    } else {
+    for e in global.entities {
+        if e.name == "main" {
+            gen.main_proc_addr = e.addr
+            break
+        }
+    }
+
+    if gen.main_proc_addr == 0 {
         global_errorf("main not defined in source files")
     }
 
@@ -157,9 +159,16 @@ parse :: proc() {
                     name_token := next(p)
 
                     if allow(p, .Paren_Left) {
-                        name := proc_name_args(p, name_token.text)
-                        if ent, ok := global.entities[name]; ok {
-                            parse_procedure(p, name, &ent)
+                        name := name_token.text
+                        params, results := Arity_B{}, Arity_B{}
+                        parse_proc_args(p, &params, &results)
+                        ent: ^Entity
+                        // TODO: support poly
+                        for &e in global.entities {
+                            if e.name == name { ent = &e; break }
+                        }
+                        if ent != nil {
+                            parse_procedure(p, name, ent)
                         }
                     } else {
                         escape_loop: for {
@@ -211,9 +220,26 @@ peek :: proc(p: ^Parser_B) -> Token_Kind_B {
     return p.curr_token.kind
 }
 
+find_symbol :: proc(p: ^Parser_B, token: Token_B) -> (ents: Entity_Array) {
+    name := token.text
+    check_proc := p.curr_procedure
+    ok := false
+    for check_proc != nil && !ok {
+        for e in check_proc.entities {
+            if e.name == name {
+                append(&ents, e)
+                ok = true
+            }
+        }
+        if !ok { check_proc = check_proc.parent }
+    }
+    if !ok { p->errorf(token.pos, "undeclared symbol '%s'", name) }
+    return
+}
+
 push_procedure :: proc(p: ^Parser_B, scope: string, ent: ^Entity) -> ^Procedure_B {
     new_proc := new_clone(Procedure_B{
-        entities  = make(Entity_Table),
+        entities  = make(Entity_Array),
         name      = scope,
         is_global = scope == "",
         parent    = p.curr_procedure,
@@ -242,8 +268,8 @@ declare :: proc(p: ^Parser_B, start_token_kind: Token_Kind_B) {
     }
 
     if allow(p, .Paren_Left) {
-        entity_proc := Entity_Procedure{}
-        name = proc_name_args(p, name_token.text, &entity_proc)
+        eproc := Entity_Procedure{}
+        parse_proc_args(p, &eproc.params, &eproc.results)
 
         body_loop: for {
             token := next(p)
@@ -254,7 +280,7 @@ declare :: proc(p: ^Parser_B, start_token_kind: Token_Kind_B) {
             }
         }
 
-        entity.variant = entity_proc
+        entity.variant = eproc
     } else {
         #partial switch start_token_kind {
             case .Colon_Colon: {
@@ -274,50 +300,34 @@ declare :: proc(p: ^Parser_B, start_token_kind: Token_Kind_B) {
         }
     }
 
-    if name in c.entities {
-        previous_decl := c.entities[name]
-        opos := previous_decl.pos
-        p->errorf(
-            name_token.pos, "redeclaration of '%s' in %s(%d:%d)",
-            name, opos.filename, opos.line, opos.column,
-        )
-    }
+    // TODO: add check for redeclaration
+    // if name in c.entities {
+    //     ppos := c.entities[name].pos
+    //     p->errorf(
+    //         name_token.pos, "redeclaration of '%s' in %s(%d:%d)",
+    //         name, ppos.filename, ppos.line, ppos.column,
+    //     )
+    // }
 
     if c.is_global {
-        entity.addr = gen.global_ip
         gen.global_ip += 1
+        entity.addr = gen.global_ip
     } else {
-        entity.addr = c.local_ip
         c.local_ip += 1
+        entity.addr = c.local_ip
     }
 
     entity.name = name
-    c.entities[name] = entity
+    append(&c.entities, entity)
 }
 
-proc_name_args :: proc(
-    p: ^Parser_B, sk_name: string, ent: ^Entity_Procedure = nil,
-) -> string {
+parse_proc_args :: proc(p: ^Parser_B, params, results: ^Arity_B) {
     append_to_arity :: proc(a: ^Arity_B, k: Type_Kind_B, n: string = "") {
         if a != nil { append(a, Type_B{ kind = k, name = n }) }
     }
 
-    append_to_name :: proc(nb: ^strings.Builder, s: ..string) {
-        for x in s {
-            // TODO: Clean up unwanted chars
-            strings.write_string(nb, x)
-        }
-    }
-
-    nb := strings.builder_make()
-    name := ""
-
-    append_to_name(&nb, sk_name)
-
     if !allow(p, .Paren_Right) {
-        append_to_name(&nb, "_")
-        arity: ^Arity_B = nil
-        if ent != nil { arity = &ent.params }
+        arity := params
 
         arity_loop: for {
             token := next(p)
@@ -325,36 +335,28 @@ proc_name_args :: proc(
             #partial switch token.kind {
                 case .Paren_Right: break arity_loop
                 case .Dash_Dash_Dash: {
-                    append_to_name(&nb, "_")
-                    if ent != nil { arity = &ent.results }
+                    arity = results
                 }
                 case .Word: {
-                    append_to_name(&nb, "_%s", token.text)
                     append_to_arity(arity, .Parapoly, token.text )
                 }
                 case .Any: {
-                    append_to_name(&nb, "_any")
                     append_to_arity(arity, .Any)
                 }
                 case .Bool: {
-                    append_to_name(&nb, "_bool")
                     append_to_arity(arity, .Bool)
                 }
                 case .Float: {
-                    append_to_name(&nb, "_float")
                     append_to_arity(arity, .Float)
                 }
                 case .Int: {
-                    append_to_name(&nb, "_int")
                     append_to_arity(arity, .Int)
                 }
                 case .Quote: unimplemented()
                 case .String: {
-                    append_to_name(&nb, "_string")
                     append_to_arity(arity, .String)
                 }
                 case .Uint: {
-                    append_to_name(&nb, "_uint")
                     append_to_arity(arity, .Uint)
                 }
                 case: p->errorf(
@@ -363,13 +365,16 @@ proc_name_args :: proc(
             }
         }
     }
-
-    return  strings.clone(strings.to_string(nb))
 }
 
 parse_procedure :: proc(p: ^Parser_B, name: string, ent: ^Entity) {
+    entp := ent.variant.(Entity_Procedure)
     push_procedure(p, name, ent)
     gen_proc(p.curr_procedure, .Head)
+
+    for param in entp.params {
+        p.sim->push(param.kind)
+    }
 
     body_loop: for {
         token := next(p)
@@ -408,6 +413,29 @@ parse_procedure :: proc(p: ^Parser_B, name: string, ent: ^Entity) {
                 p.sim->push(x)
                 p.sim->push(y)
                 gen_internal_proc_call(.Swap)
+            case :
+                ents := find_symbol(p, token)
+                if len(ents) == 1 {
+                    ent := ents[0]
+                    switch v in ent.variant {
+                    case Entity_Constant: // TODO: handle
+                    case Entity_Variable: // TODO: handle
+                    case Entity_Procedure:
+                        #reverse for param in v.params {
+                            t := p.sim->pop()
+                            if t != param.kind {
+                                p->errorf(token.pos, "mismatched parameter")
+                            }
+                        }
+
+                        for result in v.results {
+                            p.sim->push(result.kind)
+                        }
+
+                        gen_proc_call(ent.addr)
+                    }
+                }
+                // If more than one is found, we need to check for it.
             }
 
         case .Brace_Left:
@@ -553,6 +581,9 @@ parse_procedure :: proc(p: ^Parser_B, name: string, ent: ^Entity) {
 
         }
     }
+
+    assert(len(p.sim.stack) == len(entp.results))
+
     gen_proc(p.curr_procedure, .Tail)
     pop_procedure(p)
 }

@@ -311,6 +311,11 @@ gen_comparison :: proc(t: Type_Kind_B, op: enum { eq, ge, gt, le, lt, ne }) {
     }
 }
 
+gen_proc_call :: proc(addr: uint) {
+    s := &gen.userprocs
+    writefln(s, "skproc_ip{}();", addr)
+}
+
 gen_internal_proc_call :: proc(i: Internal_Procedure, args: ..Type_Kind_B) {
     s := &gen.userprocs
 
