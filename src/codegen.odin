@@ -92,9 +92,15 @@ indent_backward :: proc(f: ^Function, should_write := true) {
     }
 }
 
-gen_global_ip :: proc() -> (ip: uint) {
-    ip = gen.global_ip
+gen_global_address :: proc() -> (address: uint) {
+    address = gen.global_ip
     gen.global_ip += 1
+    return
+}
+
+gen_local_address :: proc(f: ^Function) -> (address: uint) {
+    address = f.local_ip
+    f.local_ip += 1
     return
 }
 
