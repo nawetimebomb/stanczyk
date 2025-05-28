@@ -14,62 +14,91 @@ Generator :: struct {
     builtinprocdefs: strings.Builder,
     builtinprocs:    strings.Builder,
 
-    userprocdefs: strings.Builder,
-    userprocs:    strings.Builder,
+    userdefs:     strings.Builder,
+    userfuncs:    strings.Builder,
 
-    indentation:    int,
-    global_ip:      uint,
-    main_proc_addr: uint,
+    global_ip:   uint,
+
+    main_func_address: uint,
 }
 
 gen := Generator{}
 
-write :: proc(s: ^strings.Builder, args: ..any) {
+write :: proc{write_to_builder, write_to_function}
+writef :: proc{writef_to_builder, writef_to_function}
+writeln :: proc{writeln_to_builder, writeln_to_function}
+writefln :: proc{writefln_to_builder, writefln_to_function}
+
+write_to_builder :: proc(s: ^strings.Builder, args: ..any) {
     fmt.sbprint(s, args = args)
 }
 
-writef :: proc(s: ^strings.Builder, format: string, args: ..any) {
-    fmt.sbprintf(s, fmt = format, args = args)
+write_to_function :: proc(f: ^Function, args: ..any) {
+    fmt.sbprint(&f.code, args = args)
 }
 
-writeln :: proc(s: ^strings.Builder, args: ..any) {
+writef_to_builder :: proc(s: ^strings.Builder, format: string, args: ..any) {
+    fmt.sbprintf(s, format, args = args)
+}
+
+writef_to_function :: proc(f: ^Function, format: string, args: ..any) {
+    fmt.sbprintf(&f.code, format, args = args)
+}
+
+writeln_to_builder :: proc(s: ^strings.Builder, args: ..any) {
     write(s, args = args)
     write(s, "\n")
-    write_indentation(s)
 }
 
-writefln :: proc(s: ^strings.Builder, format: string, args: ..any) {
-    fmt.sbprintf(s, fmt = format, args = args)
+writeln_to_function :: proc(f: ^Function, args: ..any) {
+    write(f, args = args)
+    write(f, "\n")
+    write_indent(f)
+}
+
+writefln_to_builder :: proc(s: ^strings.Builder, format: string, args: ..any) {
+    writef(s, format, args = args)
     write(s, "\n")
-    write_indentation(s)
 }
 
-write_indentation :: proc(s: ^strings.Builder) {
-    if gen.indentation > 0 {
-        indentation_str := "\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t"
-        write(s, indentation_str[:clamp(gen.indentation, 0, len(indentation_str) - 1)])
+writefln_to_function :: proc(f: ^Function, format: string, args: ..any) {
+    writef(f, format, args = args)
+    write(f, "\n")
+    write_indent(f)
+}
+
+write_indent :: proc(f: ^Function) {
+    if f.indent > 0 {
+        indent_str := "\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t"
+        write(f, indent_str[:clamp(f.indent, 0, len(indent_str) - 1)])
     }
 }
 
-reindentation :: proc(s: ^strings.Builder) {
-    for s.buf[len(s.buf) - 1] == '\t' { pop(&s.buf) }
-    write_indentation(s)
+reindent :: proc(f: ^Function) {
+    for f.code.buf[len(f.code.buf) - 1] == '\t' { pop(&f.code.buf) }
+    write_indent(f)
 }
 
-indentation_forward :: proc(s: ^strings.Builder, should_write := true) {
-    gen.indentation += 1
-    if should_write { write_indentation(s) }
+indent_forward :: proc(f: ^Function, should_write := true) {
+    f.indent += 1
+    if should_write { write_indent(f) }
 }
 
-indentation_backward :: proc(s: ^strings.Builder, should_write := true) {
-    gen.indentation = max(gen.indentation - 1, 0)
+indent_backward :: proc(f: ^Function, should_write := true) {
+    f.indent = max(f.indent - 1, 0)
     if should_write {
-        reindentation(s)
-        write_indentation(s)
+        reindent(f)
+        write_indent(f)
     }
 }
 
-gen_file :: proc() {
+gen_global_ip :: proc() -> (ip: uint) {
+    ip = gen.global_ip
+    gen.global_ip += 1
+    return
+}
+
+gen_compilation_unit :: proc() {
     result := strings.builder_make(context.temp_allocator)
     writeln(&result, string(gen.includes.buf[:]))
     clear(&gen.includes.buf)
@@ -85,17 +114,16 @@ gen_file :: proc() {
     clear(&gen.builtinprocdefs.buf)
     writeln(&result, string(gen.builtinprocs.buf[:]))
     clear(&gen.builtinprocs.buf)
-    writeln(&result, string(gen.userprocdefs.buf[:]))
-    clear(&gen.userprocdefs.buf)
-    writeln(&result, string(gen.userprocs.buf[:]))
-    clear(&gen.userprocs.buf)
-    writeln(&result, `int main(int ___argc, char** ___argv) {
+    writeln(&result, string(gen.userdefs.buf[:]))
+    clear(&gen.userdefs.buf)
+    writeln(&result, string(gen.userfuncs.buf[:]))
+    clear(&gen.userfuncs.buf)
+    writefln(&result, `int main(int ___argc, char** ___argv) {{
 	g_main_argc = ___argc;
-	g_main_argv = ___argv;`)
-    write(&result, "	")
-    writefln(&result, "skproc_ip{}();", gen.main_proc_addr)
-    writeln(&result, `	return 0;
-}`)
+	g_main_argv = ___argv;
+	skfuncip{}();
+	return 0;
+}`, gen.main_func_address)
     os.write_entire_file(fmt.tprintf("{}.c", output_filename), result.buf[:])
 }
 
@@ -231,106 +259,163 @@ SK_PROGRAM void println(sktype t) {
 }`)
 }
 
-gen_proc :: proc(p: ^Procedure_B, part: enum { Head, Tail }) {
-    s := &gen.userprocs
-    d := &gen.userprocdefs
+gen_function_declaration :: proc(f: ^Function) {
+    c := &gen.userdefs
+
+    writefln(
+        c, "// {} ({}:{}:{})",
+        f.name, f.filename, f.line, f.column,
+    )
+    writefln(c, "SK_PROGRAM void skfuncip{}();", f.address)
+}
+
+gen_function :: proc(f: ^Function, part: enum { Head, Tail }) {
+    c := &f.code
     switch part {
     case .Head:
-        writefln(d, "// {} ({}:{}:{})", p.name, p.filename, p.line, p.column)
-        writefln(d, "SK_PROGRAM void skproc_ip{}();", p.addr)
-        writefln(s, "SK_PROGRAM void skproc_ip{}() {{", p.addr)
-        indentation_forward(s)
-        writeln(s, "skvalue a, b, c;")
+        writefln(
+            f, "// {} ({}:{}:{})",
+            f.name, f.filename, f.line, f.column,
+        )
+        writefln(f, "SK_PROGRAM void skfuncip{}() {{", f.address)
+        indent_forward(f)
+        writeln(f, "skvalue a, b, c;")
     case .Tail:
-        indentation_backward(s)
-        writeln(s, "}")
+        indent_backward(f)
+        writeln(f, "}")
+        writeln(&gen.userfuncs, strings.to_string(f.code))
     }
 }
 
-gen_push_literal :: proc(type: Type_Kind_B, value: string) {
-    s := &gen.userprocs
-    writef(s, "a.{} = ", type_to_cname(type))
-    #partial switch type {
-        case .Bool: writef(s, "{}", value == "true" ? "SKTRUE" : "SKFALSE")
-        case .Float: writef(s, "{}", strconv.atof(value))
-        case .Int: writef(s,"{}", strconv.atoi(value))
-        case .String: writef(s, "__STRLIT(\"{}\", {})", value, len(value))
-    }
-    writeln(s, "; _push(a);")
+gen_push_bool :: proc(f: ^Function, v: string) {
+    writefln(f, "a.skbool = {}; _push(a);", v)
 }
 
-gen_arithmetic :: proc(t: Type_Kind_B, op: enum { add, sub, mul, div, mod }) {
-    s := &gen.userprocs
-    opstr: string
-
-    switch op {
-    case .add: opstr = "+"
-    case .sub: opstr = "-"
-    case .mul: opstr = "*"
-    case .div: opstr = "/"
-    case .mod: opstr = "%"
-    }
-
-    writeln(s, "b = _pop(); a = _pop();")
-    writef(s, "a.{} = ", type_to_cname(t))
-    writef(s, "a.{} ", type_to_cname(t))
-    write(s, opstr)
-    writefln(s, " b.{}; _push(a);", type_to_cname(t))
+gen_push_float :: proc(f: ^Function, v: f64) {
+    writefln(f, "a.skfloat = {}; _push(a);", v)
 }
 
-gen_concat_string :: proc() {
-    s := &gen.userprocs
-    writeln(s, "b = _pop(); a = _pop();")
-    writeln(s, "a.skstring = _string_plus(a.skstring, b.skstring);")
-    writeln(s, "_push(a);")
+gen_push_int :: proc(f: ^Function, v: int) {
+    writefln(f, "a.skint = {}; _push(a);", v)
 }
 
-gen_comparison :: proc(t: Type_Kind_B, op: enum { eq, ge, gt, le, lt, ne }) {
-    s := &gen.userprocs
-    opstr: string
-    switch op {
-    case .eq: opstr = "=="
-    case .ge: opstr = ">="
-    case .gt: opstr = ">"
-    case .le: opstr = "<="
-    case .lt: opstr = "<"
-    case .ne: opstr = "!="
-    }
-    writeln(s, "b = _pop(); a = _pop();")
-    writef(s, "a.skbool = ")
+gen_push_string :: proc(f: ^Function, v: string) {
+    writefln(f, "a.skstring = __STRLIT(\"{}\", {}); _push(a);", v, len(v))
+}
+
+gen_push_binding :: proc(f: ^Function, address: uint) {
+    writefln(f, "_push(sklocalip{});", address)
+}
+
+gen_literal_c :: proc(f: ^Function, format: string, args: ..any) {
+    writefln(f, format, ..args)
+}
+
+gen_function_call :: proc(f: ^Function, address: uint) {
+    writefln(f, "skfuncip{}();", address)
+}
+
+gen_drop :: proc(f: ^Function) {
+    writeln(f, "_pop();")
+}
+
+gen_dup :: proc(f: ^Function) {
+    writeln(f, "a = _pop(); _push(a); _push(a);")
+}
+
+gen_swap :: proc(f: ^Function) {
+    writeln(f, "b = _pop(); a = _pop();")
+    writeln(f, "_push(b); _push(a);")
+}
+
+gen_add :: proc(f: ^Function, t: Type_Kind) {
+    writeln(f, "b = _pop(); a = _pop();")
+
     if t == .String {
-        if op == .eq {
-            writeln(s, "_string_eq(a.skstring, b.skstring); _push(a);")
-        } else if op == .ne {
-            writeln(s, "!(_string_eq(a.skstring, b.skstring)); _push(a);")
-        }
+        writeln(f, "a.skstring = _string_plus(a.skstring, b.skstring);")
+        writeln(f, "_push(a);")
     } else {
-        writef(s, "a.{} ", type_to_cname(t))
-        write(s, opstr)
-        writefln(s, " b.{}; _push(a);", type_to_cname(t))
+        writefln(f, "a.{0} = a.{0} + b.{0}; _push(a);", type_to_cname(t))
     }
 }
 
-gen_proc_call :: proc(addr: uint) {
-    s := &gen.userprocs
-    writefln(s, "skproc_ip{}();", addr)
+gen_divide :: proc(f: ^Function, t: Type_Kind) {
+    writeln(f, "b = _pop(); a = _pop();")
+    writefln(f, "a.{0} = a.{0} / b.{0}; _push(a);", type_to_cname(t))
 }
 
-gen_internal_proc_call :: proc(i: Internal_Procedure, args: ..Type_Kind_B) {
-    s := &gen.userprocs
+gen_modulo :: proc(f: ^Function, t: Type_Kind) {
+    writeln(f, "b = _pop(); a = _pop();")
+    writefln(f, "a.{0} = a.{0} %% b.{0}; _push(a);", type_to_cname(t))
+}
 
-    switch i {
-    case .Drop:
-        writeln(s, "_pop();")
-    case .Dup:
-        writeln(s, "a = _pop();")
-        writeln(s, "_push(a); _push(a);")
-    case .Print: fallthrough
-    case .Println:
-        t := args[0]
-        writefln(s, "{}({}_t);", i == .Print ? "print" : "println", type_to_cname(t))
-    case .Swap:
-        writeln(s, "b = _pop(); a = _pop();")
-        writeln(s, "_push(b); _push(a);")
+gen_multiply :: proc(f: ^Function, t: Type_Kind) {
+    writeln(f, "b = _pop(); a = _pop();")
+    writefln(f, "a.{0} = a.{0} * b.{0}; _push(a);", type_to_cname(t))
+}
+
+gen_substract :: proc(f: ^Function, t: Type_Kind) {
+    writeln(f, "b = _pop(); a = _pop();")
+    writefln(f, "a.{0} = a.{0} - b.{0}; _push(a);", type_to_cname(t))
+}
+
+gen_equal :: proc(f: ^Function, t: Type_Kind) {
+    writeln(f, "b = _pop(); a = _pop();")
+    write(f, "a.skbool = ")
+
+    if t == .String {
+        write(f, "_string_eq(a.skstring, b.skstring); ")
+    } else {
+        writef(f, "a.{0} == b.{0}; ", type_to_cname(t))
+    }
+    writefln(f, "_push(a);")
+}
+
+gen_greater_equal :: proc(f: ^Function, t: Type_Kind) {
+    writeln(f, "b = _pop(); a = _pop();")
+    writefln(f, "a.skbool = a.{0} >= b.{0}; _push(a);", type_to_cname(t))
+}
+
+gen_greater_than :: proc(f: ^Function, t: Type_Kind) {
+    writeln(f, "b = _pop(); a = _pop();")
+    writefln(f, "a.skbool = a.{0} > b.{0}; _push(a);", type_to_cname(t))
+}
+
+gen_less_equal :: proc(f: ^Function, t: Type_Kind) {
+    writeln(f, "b = _pop(); a = _pop();")
+    writefln(f, "a.skbool = a.{0} <= b.{0}; _push(a);", type_to_cname(t))
+}
+
+gen_less_than :: proc(f: ^Function, t: Type_Kind) {
+    writeln(f, "b = _pop(); a = _pop();")
+    writefln(f, "a.skbool = a.{0} < b.{0}; _push(a);", type_to_cname(t))
+}
+
+gen_not_equal :: proc(f: ^Function, t: Type_Kind) {
+    writeln(f, "b = _pop(); a = _pop();")
+    write(f, "a.skbool = ")
+
+    if t == .String {
+        write(f, "!_string_eq(a.skstring, b.skstring); ")
+    } else {
+        writef(f, "a.{0} != b.{0}; ", type_to_cname(t))
+    }
+    writefln(f, "_push(a);")
+}
+
+gen_binding :: proc(f: ^Function, address: uint) {
+    writefln(f, "skvalue sklocalip{} = _pop();", address)
+}
+
+gen_code_block :: proc(f: ^Function, part: enum { start, end }) {
+    switch part {
+    case .start:
+        writeln(f, "{")
+        indent_forward(f)
+        reindent(f)
+    case .end:
+        indent_backward(f)
+        reindent(f)
+        writeln(f, "}")
     }
 }

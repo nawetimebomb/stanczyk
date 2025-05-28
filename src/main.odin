@@ -30,8 +30,7 @@ Location :: struct {
 compiler_arch:     Compiler_Architecture
 compiler_mode:     enum { Compiler, Interpreter, REPL }
 source_files:      map[string]string
-output_filename:       string
-the_program:       Program
+output_filename:   string
 word_size_in_bits: int
 
 keep_c_output := false
@@ -106,8 +105,7 @@ main :: proc() {
     args := os.args[1:]
 
     if len(args) == 0 {
-        compiler_mode = .REPL
-        run_repl()
+        os.exit(1)
     }
 
     for i := 0; i < len(args); i += 1 {
@@ -173,8 +171,6 @@ main :: proc() {
     }
 
     parse()
-    // simulation()
-    // gen()
     compile()
 
     cleanup_exit(0)
