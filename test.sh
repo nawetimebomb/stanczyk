@@ -86,6 +86,8 @@ for FILE in tests/*.sk; do
     fi
 done
 
+SKIPPED=$(($TOTAL - $SUCCESS - $FAIL))
+
 RCOLOR=""
 if [[ "$FAIL" -gt 0 ]]; then
     RCOLOR="$RED"
@@ -94,7 +96,7 @@ else
 fi
 echo -e $RED'┃                                                                      ┃
 ┃                                                                      ┃'
-printf "${RED}┃${RESET}                                   ${RCOLOR}${BOLD}TOTAL %2d :: Success %2d | Fails %2d${RESET}" $TOTAL $SUCCESS $FAIL
+printf "${RED}┃${RESET}                     ${RCOLOR}${BOLD}TOTAL %2d :: Success %2d | Fails %2d | Skipped %2d ${RESET}" $TOTAL $SUCCESS $FAIL $SKIPPED
 echo -e $RED'  ┃'
 echo -e $RED'┃                                                                      ┃
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  The Stańczyk Programming Language  ━┛'

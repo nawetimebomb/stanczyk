@@ -28,6 +28,7 @@ Location :: struct {
 }
 
 compiler_arch:     Compiler_Architecture
+compiler_dir:      string
 compiler_mode:     enum { Compiler, Interpreter, REPL }
 source_files:      map[string]string
 output_filename:   string
@@ -99,13 +100,55 @@ compile :: proc() {
     if run_program { libc.system(fmt.ctprintf("./{}", output_filename)) }
 }
 
+load_file :: proc(filename: string, dir := "") {
+    parsed := filename
+
+    if dir != "" {
+        parsed = fmt.tprintf("{}/{}", dir, filename)
+    }
+
+    f, _ := os.stat(parsed, context.temp_allocator)
+    data, success :=
+        os.read_entire_file(f.fullpath, context.temp_allocator)
+
+    if !success {
+        fmt.printfln(ERROR_FILE_CANT_OPEN, f.fullpath)
+        cleanup_exit(1)
+    }
+
+    source_files[strings.clone(f.fullpath)] =
+        strings.clone(string(data))
+}
+
+load_files_from_dir :: proc(dir: string) {
+    v, _ := os.open(dir)
+    fis, _ := os.read_dir(v, 0, context.temp_allocator)
+
+    for f in fis {
+        if strings.ends_with(f.name, ".sk") {
+            data, success := os.read_entire_file(f.fullpath, context.temp_allocator)
+
+            if !success {
+                fmt.printfln(ERROR_FILE_CANT_OPEN, f.fullpath)
+                cleanup_exit(1)
+            }
+
+            source_files[strings.clone(f.fullpath)] = strings.clone(string(data))
+        }
+    }
+}
+
 main :: proc() {
     init()
 
     args := os.args[1:]
 
-    if len(args) == 0 {
-        os.exit(1)
+    base_dir, dir_found := os.lookup_env("STANCZYK")
+    compiler_dir, dir_found = filepath.abs(base_dir)
+
+    if !dir_found || len(args) == 0 {
+        fmt.println(MSG_HELP)
+        cleanup_exit(0)
     }
 
     for i := 0; i < len(args); i += 1 {
@@ -132,35 +175,15 @@ main :: proc() {
             }
 
             if strings.ends_with(arg, ".sk") {
-                f, _ := os.stat(arg, context.temp_allocator)
-                data, success :=
-                    os.read_entire_file(f.fullpath, context.temp_allocator)
-                output_filename = filepath.short_stem(arg)
-
-                if !success {
-                    fmt.printfln(ERROR_FILE_CANT_OPEN, f.fullpath)
-                    cleanup_exit(1)
+                if output_filename == "" {
+                    output_filename = filepath.short_stem(arg)
                 }
-
-                source_files[strings.clone(f.fullpath)] =
-                    strings.clone(string(data))
+                load_file(arg)
             } else {
-                v, _ := os.open(arg)
-                fis, _ := os.read_dir(v, 0, context.temp_allocator)
-                output_filename = filepath.base(arg)
-
-                for f in fis {
-                    if strings.ends_with(f.name, ".sk") {
-                        data, success := os.read_entire_file(f.fullpath, context.temp_allocator)
-
-                        if !success {
-                            fmt.printfln(ERROR_FILE_CANT_OPEN, f.fullpath)
-                            cleanup_exit(1)
-                        }
-
-                        source_files[strings.clone(f.fullpath)] = strings.clone(string(data))
-                    }
+                if output_filename == "" {
+                    output_filename = filepath.base(arg)
                 }
+                load_files_from_dir(arg)
             }
         }
     }
@@ -169,6 +192,8 @@ main :: proc() {
         fmt.println(ERROR_NO_INPUT_FILE)
         cleanup_exit(1)
     }
+
+    load_file("runtime.sk", fmt.tprintf("{}/base", compiler_dir))
 
     parse()
     compile()

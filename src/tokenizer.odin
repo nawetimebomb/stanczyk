@@ -30,11 +30,12 @@ Token_Kind :: enum u8 {
     Paren_Left,
     Paren_Right,
 
-    Colon_Colon,
-    Colon_Equal,
+    Const, Fn,
     Dash_Dash_Dash,
     Semicolon,
-    Let,
+
+    Let, In, End,
+    If, Fi, Then,
 
     Binary_Literal,
     Character_Literal,
@@ -45,6 +46,8 @@ Token_Kind :: enum u8 {
     Octal_Literal,
     String_Literal,
     True_Literal,
+    Type_Literal,
+    Uint_Literal,
 
     Add,
     Divide,
@@ -58,14 +61,6 @@ Token_Kind :: enum u8 {
     Less_Equal,
     Less_Than,
     Not_Equal,
-
-    Any,
-    Bool,
-    Float,
-    Int,
-    Quote,
-    String,
-    Uint,
 }
 
 Token :: struct {
@@ -90,21 +85,30 @@ token_string_table := [Token_Kind]string{
         .Bracket_Right = "]",
         .Paren_Left = "(",
         .Paren_Right = ")",
-        .Colon_Colon = "::",
-        .Colon_Equal = ":=",
+
+        .Const = "const",
+        .Fn = "fn",
         .Dash_Dash_Dash = "---",
         .Semicolon = ";",
-        .Let = "let",
 
-        .Binary_Literal = "literal binary. Example 0b10",
+        .Let = "let",
+        .In = "in",
+        .End = "end",
+        .If = "if",
+        .Then = "then",
+        .Fi = "fi",
+
+        .Binary_Literal = "literal binary. Example 0b10 or 2b",
         .Character_Literal = "literal character. Example: 'a'",
         .False_Literal = "literal boolean false",
         .Float_Literal = "literal float. Example: 3.14",
-        .Hex_Literal = "literal hex. Example: 0xff",
+        .Hex_Literal = "literal hex. Example: 0xff or 16x",
         .Integer_Literal = "literal integer. Example: 1337",
-        .Octal_Literal = "literal octal. Example 0o07",
+        .Octal_Literal = "literal octal. Example 0o07 or 8o",
         .String_Literal = "literal string. Example: \"Hello\"",
         .True_Literal = "literal boolean true",
+        .Type_Literal = "literal type name. Example: int",
+        .Uint_Literal = "literal unsigned integer. Example: 1337u",
 
         .Add = "+",
         .Divide = "/",
@@ -118,14 +122,6 @@ token_string_table := [Token_Kind]string{
         .Less_Equal = "<=",
         .Less_Than = "<",
         .Not_Equal = "!=",
-
-        .Any = "any",
-        .Bool = "bool",
-        .Float = "float",
-        .Int = "int",
-        .Quote = "quote",
-        .String = "string",
-        .Uint = "uint",
 }
 
 tokenizer_init :: proc(t: ^Tokenizer, filename, data: string) {
@@ -165,6 +161,68 @@ get_next_token :: proc(t: ^Tokenizer) -> (token: Token, err: Error) {
             if is_whitespace(t) { break loop }
             advance(t)
         }
+    }
+
+    try_evaluate_as_number :: proc(token: ^Token) -> (ok: bool) {
+        if len(token.text) > 1 {
+            first_part := token.text[:len(token.text) - 1]
+            last_part := token.text[len(token.text) - 1]
+            _, maybe_int := strconv.parse_int(first_part)
+
+            switch {
+            case last_part == 'b' && maybe_int:
+                token.text = first_part
+                token.kind = .Binary_Literal
+                return true
+            case last_part == 'f' && maybe_int:
+                token.text = first_part
+                token.kind = .Float_Literal
+                return true
+            case last_part == 'i' && maybe_int:
+                token.text = first_part
+                token.kind = .Integer_Literal
+                return true
+            case last_part == 'o' && maybe_int:
+                token.text = first_part
+                token.kind = .Octal_Literal
+                return true
+            case last_part == 'u' && maybe_int:
+                if strings.starts_with(first_part, "-") {
+                    global_errorf(
+                        "unsigned integer with a sign ({}) found at {}:{}:{}",
+                        token.text, token.filename, token.line, token.column,
+                    )
+                }
+                token.text = first_part
+                token.kind = .Uint_Literal
+                return true
+            case last_part == 'x' && maybe_int:
+                token.text = first_part
+                token.kind = .Hex_Literal
+                return true
+            }
+        }
+
+        if _, ok = strconv.parse_int(token.text); ok {
+            token.kind = .Integer_Literal
+
+            if len(token.text) > 1 {
+                switch token.text[1] {
+                case 'b': token.kind = .Binary_Literal
+                case 'o': token.kind = .Octal_Literal
+                case 'x': token.kind = .Hex_Literal
+                }
+            }
+
+            return
+        }
+
+        if _, ok = strconv.parse_f64(token.text); ok {
+            token.kind = .Float_Literal
+            return
+        }
+
+        return false
     }
 
     skip_whitespace(t)
@@ -207,26 +265,11 @@ get_next_token :: proc(t: ^Tokenizer) -> (token: Token, err: Error) {
         forward_word(t)
         token.text = string(t.data[token.offset:t.offset])
 
-        if _, maybe_int := strconv.parse_int(token.text); maybe_int {
-            // TODO: This can be hex, octal or binary. Check for these.
-            token.kind = .Integer_Literal
-
-            if len(token.text) > 1 {
-                switch token.text[1] {
-                case 'b': token.kind = .Binary_Literal
-                case 'o': token.kind = .Octal_Literal
-                case 'x': token.kind = .Hex_Literal
-                }
-            }
+        if ok := try_evaluate_as_number(&token); ok {
             return
         }
 
-        if _, maybe_float := strconv.parse_f64(token.text); maybe_float {
-            token.kind = .Float_Literal
-            return
-        }
-
-        if token.text == "//" {
+        if strings.starts_with(token.text, "//") {
             // skips this token because it's a comment, loop through the line,
             // then return the next immediate token
             loop: for t.offset < len(t.data) {
@@ -253,11 +296,18 @@ string_to_token_kind :: proc(str: string) -> (kind: Token_Kind) {
     case "]": kind = .Bracket_Right
     case "(": kind = .Paren_Left
     case ")": kind = .Paren_Right
-    case "::": kind = .Colon_Colon
-    case ":=": kind = .Colon_Equal
+
+    case "const": kind = .Const
+    case "fn": kind = .Fn
     case "---": kind = .Dash_Dash_Dash
     case ";": kind = .Semicolon
+
     case "let": kind = .Let
+    case "in": kind = .In
+    case "end": kind = .End
+    case "if": kind = .If
+    case "fi": kind = .Fi
+    case "then": kind = .Then
 
     case "false": kind = .False_Literal
     case "true": kind = .True_Literal
@@ -274,13 +324,14 @@ string_to_token_kind :: proc(str: string) -> (kind: Token_Kind) {
     case "<=": kind = .Less_Equal
     case "<": kind = .Less_Than
     case "!=": kind = .Not_Equal
-    case "any": kind = .Any
-    case "bool": kind = .Bool
-    case "float": kind = .Float
-    case "int": kind = .Int
-    case "quote": kind = .Quote
-    case "string": kind = .String
-    case "uint": kind = .Uint
+
+    case "any": kind = .Type_Literal
+    case "bool": kind = .Type_Literal
+    case "float": kind = .Type_Literal
+    case "int": kind = .Type_Literal
+    case "quote": kind = .Type_Literal
+    case "string": kind = .Type_Literal
+    case "uint": kind = .Type_Literal
     }
 
     return kind

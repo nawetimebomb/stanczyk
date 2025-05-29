@@ -21,6 +21,34 @@ Type_Kind :: enum u8 {
     Variadic,
 }
 
+type_readable_table := [Type_Kind]string{
+        .Invalid = "invalid",
+        .Any = "any",
+        .Bool = "bool",
+        .Byte = "byte",
+        .Float = "float",
+        .Int = "int",
+        .Parapoly = "parapoly",
+        .String = "string",
+        .Uint = "uint",
+        .Variadic = "variadic",
+}
+
+type_string_to_kind :: proc(s: string) -> Type_Kind {
+    switch s {
+    case "any": return .Any
+    case "bool": return .Bool
+    case "byte": return .Byte
+    case "float": return .Float
+    case "int": return .Int
+    case "string": return .String
+    case "uint": return .Uint
+    }
+
+    assert(false)
+    return .Invalid
+}
+
 type_to_cname :: proc(t: Type_Kind) -> string {
     switch t {
     case .Invalid: assert(false)

@@ -1,0 +1,21 @@
+const a 10 5 + ;
+const b 2.14 1. + ;
+const c 1000 10 % ;
+const d 1340 3 - ;
+const e 10 3 * ;
+const f 1024 8 / ;
+const g c ;
+const h int c  1 + ;
+const i string "Stańczyk" ;
+
+fn main ( )
+  "15  " print a println
+  "3.14  " print b println
+  "0  " print c println
+  "1337  " print d println
+  "30  " print e println
+  "128  " print f println
+  "0  " print g println
+  "1  " print h println
+  "Stańczyk  " print i println
+;

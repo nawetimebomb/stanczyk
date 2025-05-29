@@ -172,7 +172,7 @@ typedef enum sktype sktype;`)
 };
 
 enum sktype {
-	skstring_t, skbool_t, skint_t, skfloat_t,
+	skbool_t, skfloat_t, skint_t, skstring_t, skuint_t,
 };
 
 union skvalue {
@@ -181,6 +181,7 @@ union skvalue {
 	skfloat skfloat;
 	skint skint;
 	skstring skstring;
+    skuint skuint;
 };
 
 struct skstack {
@@ -253,6 +254,7 @@ SK_PROGRAM void print(sktype t) {
 		case skbool_t: printf("%s", a.skbool == SKTRUE ? "true" : "false"); break;
 		case skfloat_t: printf("%g", a.skfloat); break;
 		case skint_t: printf("%li", a.skint); break;
+		case skuint_t: printf("%lu", a.skuint); break;
 		case skstring_t: _write_to_fd(0, a.skstring.data, a.skstring.len); break;
 		default: assert(SKFALSE);
 	}
@@ -305,6 +307,10 @@ gen_push_int :: proc(f: ^Function, v: int) {
     writefln(f, "a.skint = {}; _push(a);", v)
 }
 
+gen_push_uint :: proc(f: ^Function, v: u64) {
+    writefln(f, "a.skuint = {}u; _push(a);", v)
+}
+
 gen_push_string :: proc(f: ^Function, v: string) {
     writefln(f, "a.skstring = __STRLIT(\"{}\", {}); _push(a);", v, len(v))
 }
@@ -319,19 +325,6 @@ gen_literal_c :: proc(f: ^Function, format: string, args: ..any) {
 
 gen_function_call :: proc(f: ^Function, address: uint) {
     writefln(f, "skfuncip{}();", address)
-}
-
-gen_drop :: proc(f: ^Function) {
-    writeln(f, "_pop();")
-}
-
-gen_dup :: proc(f: ^Function) {
-    writeln(f, "a = _pop(); _push(a); _push(a);")
-}
-
-gen_swap :: proc(f: ^Function) {
-    writeln(f, "b = _pop(); a = _pop();")
-    writeln(f, "_push(b); _push(a);")
 }
 
 gen_add :: proc(f: ^Function, t: Type_Kind) {
