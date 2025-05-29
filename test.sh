@@ -3,7 +3,7 @@
 # If save is provided, (like `./test.sh save`) the test runner will automatically save the results
 # into a .txt file and make sure the tests runs. This helps to make sure I have updated tests when needed.
 
-SKC_EXEC="skc"
+SKC_EXEC="./skc"
 FAIL=0
 SUCCESS=0
 TOTAL=0
