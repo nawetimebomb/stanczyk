@@ -36,6 +36,7 @@ word_size_in_bits: int
 
 keep_c_output := false
 run_program := false
+show_compiler_error_location := false
 
 // TODO: This is useful for debugging, but maybe I need an Arena allocator as the default
 skc_allocator: mem.Tracking_Allocator
@@ -161,6 +162,8 @@ main :: proc() {
         case "-version":
             fmt.printfln(MSG_VERSION, COMPILER_VERSION)
             cleanup_exit(0)
+        case "-show-error-loc":
+            show_compiler_error_location = true
         case "-keepc":
             keep_c_output = true
         case "-run":

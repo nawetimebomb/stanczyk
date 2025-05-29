@@ -89,7 +89,7 @@ global_errorf :: proc(format: string, args: ..any, loc := #caller_location) {
     fmt.eprintf("compilation error: ")
     fmt.eprintf(format, ..args)
     fmt.eprintln()
-    when ODIN_DEBUG { fmt.eprintln("called from", loc) }
+    if show_compiler_error_location { fmt.eprintln("called from", loc) }
     os.exit(1)
 }
 
@@ -100,7 +100,7 @@ default_errorf :: proc(
     fmt.eprintf("%s(%d:%d): ", pos.filename, pos.line, pos.column)
     fmt.eprintf(format, ..args)
     fmt.eprintln()
-    when ODIN_DEBUG { fmt.eprintln("called from", loc) }
+    if show_compiler_error_location { fmt.eprintln("called from", loc) }
     os.exit(1)
 }
 
@@ -281,10 +281,7 @@ find_entity :: proc(p: ^Parser, token: Token) -> Entity {
         // other types of values are not polymorphic.
         // We track the possible result by prioritizing the number of inputs
         // that the function can receive, but we also check for its arity.
-        Match_Stats :: struct {
-            entity: Entity,
-            exact_number_inputs: bool,
-        }
+        Match_Stats :: struct { entity: Entity, exact_number_inputs: bool, }
         matches := make([dynamic]Match_Stats, 0, 1)
         defer delete(matches)
 
@@ -456,7 +453,7 @@ declare_const :: proc(p: ^Parser) {
                     inferred_type = v.kind
 
                     #partial switch v.kind {
-                        case .Float, .Int: append(&temp_value_stack, v.value)
+                        case .Float, .Int, .Uint: append(&temp_value_stack, v.value)
                         case: {
                             ec.value = v.value
                             expect(p, .Semicolon)

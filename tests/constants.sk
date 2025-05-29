@@ -6,7 +6,9 @@ const e 10 3 * ;
 const f 1024 8 / ;
 const g c ;
 const h int c  1 + ;
-const i string "Stańczyk" ;
+const i uint 127u ;
+const j 128u i + ;
+const k string "Stańczyk" ;
 
 fn main ( )
   "15  " print a println
@@ -17,5 +19,7 @@ fn main ( )
   "128  " print f println
   "0  " print g println
   "1  " print h println
-  "Stańczyk  " print i println
+  "127  " print i println
+  "255  " print j println
+  "Stańczyk  " print k println
 ;

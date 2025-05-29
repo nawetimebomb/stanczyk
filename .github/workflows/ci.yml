@@ -4,10 +4,11 @@ jobs:
     builds:
         runs-on: ubuntu-latest
         steps:
+            - name: Setup Odin
+              uses: laytan/setup-odin@v2.10.0
             - uses: actions/checkout@v3
             - name: run tests
               run: |
                    sudo apt-get update
-                   sudo apt-get install -qq make fasm binutils
+                   sudo apt-get install -qq make
                    make
-                   bash ./test.sh
