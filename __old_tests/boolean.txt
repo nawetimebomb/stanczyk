@@ -1,3 +1,0 @@
-true value:  1
------------
-false value:  0

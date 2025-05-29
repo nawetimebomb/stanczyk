@@ -1,7 +1,0 @@
-Save values to local and global memory and print them
-Also, using them in arithmetics
-Global is 13, local is 17
-Global: 13
-Local: 17
-Result should be 30
-Result: 30

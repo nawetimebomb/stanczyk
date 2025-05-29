@@ -1,2 +1,0 @@
-adding to a ptr only works when type casting the pointer to int
-6  6

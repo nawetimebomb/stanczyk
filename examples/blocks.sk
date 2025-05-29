@@ -1,9 +1,0 @@
-:= global "this is a global var" .
-
-;; declaring and using a variable within a block
-do
-    := local-bind "and this is local" .
-    = global global " " + local-bind + .
-.
-
-global print

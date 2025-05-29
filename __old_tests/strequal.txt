@@ -1,4 +1,0 @@
-Testing strings in Stańczyk is a little bit more complicated
-1- test success
-2- test success
-3- test success

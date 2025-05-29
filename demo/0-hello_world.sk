@@ -1,5 +1,0 @@
-using io
-
-main :: ()
-  "Hello, World" print
-;

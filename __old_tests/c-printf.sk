@@ -1,6 +1,0 @@
-using libc
-using unix
-
-fn main ()
-  "Stańczyk" "Hello, %s\n" c.printf
-ret
