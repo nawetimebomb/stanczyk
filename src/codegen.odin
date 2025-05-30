@@ -83,7 +83,6 @@ indent_forward :: proc(f: ^Function, should_write := true) {
     f.indent += 1
     if should_write {
         reindent(f)
-        write_indent(f)
     }
 }
 
@@ -91,7 +90,6 @@ indent_backward :: proc(f: ^Function, should_write := true) {
     f.indent = max(f.indent - 1, 0)
     if should_write {
         reindent(f)
-        write_indent(f)
     }
 }
 
@@ -420,17 +418,17 @@ gen_code_block :: proc(f: ^Function, part: enum { start, end }) {
     }
 }
 
-gen_if_statement :: proc(f: ^Function, part: enum { open_if, open_else, close }) {
+gen_if_statement :: proc(f: ^Function, part: enum { o_if, o_else, c }) {
     switch part {
-    case .open_if:
+    case .o_if:
         writeln(f, "a = _pop();")
         writeln(f, "if (a.skbool) {")
         indent_forward(f)
-    case .open_else:
+    case .o_else:
         indent_backward(f)
         writeln(f, "} else {")
         indent_forward(f)
-    case .close:
+    case .c:
         indent_backward(f)
         writeln(f, "}")
     }

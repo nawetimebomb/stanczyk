@@ -70,7 +70,7 @@ Function :: struct {
 
 Scope_Kind :: enum {
     Global, Function,
-    If_Inline, If, If_Else, If_Else_If,
+    If_Inline, If, If_Else,
 }
 
 Scope :: struct {
@@ -589,12 +589,14 @@ declare_const :: proc(p: ^Parser) {
                         #partial switch inferred_type {
                             case .Float: append(&temp_value_stack, v1.(f64) * v2.(f64))
                             case .Int: append(&temp_value_stack, v1.(int) * v2.(int))
+                            case .Uint: append(&temp_value_stack, v1.(u64) * v2.(u64))
                         }
                     }
                     case .Substract: {
                         #partial switch inferred_type {
                             case .Float: append(&temp_value_stack, v1.(f64) - v2.(f64))
                             case .Int: append(&temp_value_stack, v1.(int) - v2.(int))
+                            case .Uint: append(&temp_value_stack, v1.(u64) - v2.(u64))
                         }
                     }
                 }
@@ -853,18 +855,19 @@ parse_token :: proc(p: ^Parser, token: Token) -> bool {
     case .Then:
         t := p.tstack->pop()
         if t != .Bool { p->errorf(token.pos, "Non-boolean condition in 'if' statement") }
-        gen_if_statement(f, .open_if)
 
-        switch {
-        case p.curr_scope.kind == .If:
-
-        case p.curr_scope.kind != .If:
-            // This is redundant but easier to understand what's happening.
-            // Here we're doing inline branching a.k.a. ternary.
+        if p.curr_scope.kind == .If {
+            create_stack_snapshot(p)
+            p.tstack->save()
+            gen_if_statement(f, .o_if)
+        } else {
+            // This has to be an inline (ternary) if test, we don't need to
+            // start the block with 'if', and we support only one function for the body.
             scope := push_scope(p, token)
             scope.kind = .If_Inline
             scope.validation_at_end = .Stack_Is_Unchanged
             p.tstack->save()
+            gen_if_statement(f, .o_if)
 
             parse_token(p, next(p))
             create_stack_snapshot(p)
@@ -872,26 +875,37 @@ parse_token :: proc(p: ^Parser, token: Token) -> bool {
 
             if allow(p, .Else) {
                 scope.validation_at_end = .Stack_Match_Between
-                gen_if_statement(f, .open_else)
+                gen_if_statement(f, .o_else)
                 parse_token(p, next(p))
                 create_stack_snapshot(p)
             }
 
+            allow(p, .Fi)
             pop_scope(p)
-            gen_if_statement(f, .close)
+            gen_if_statement(f, .c)
         }
 
-    case .Elif:
-        unimplemented()
-
     case .Else:
+        p.curr_scope.kind = .If_Else
         p.curr_scope.validation_at_end = .Stack_Match_Between
-        create_stack_snapshot(p)
-        gen_if_statement(f, .open_else)
+        refresh_stack_snapshot(p)
+        p.tstack->reset()
+        gen_if_statement(f, .o_else)
 
     case .Fi:
-        pop_scope(p)
-        gen_if_statement(f, .close)
+        close_if_statements: for {
+            switch {
+            case p.curr_scope.kind == .If:
+                pop_scope(p)
+                p.tstack->reset()
+            case p.curr_scope.kind == .If_Else:
+                create_stack_snapshot(p)
+                pop_scope(p)
+            case: break close_if_statements
+            }
+
+            gen_if_statement(f, .c)
+        }
 
     case .Brace_Left:
         unimplemented()

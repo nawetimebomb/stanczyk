@@ -35,7 +35,7 @@ Token_Kind :: enum u8 {
     Semicolon,
 
     Let, In, End,
-    Case, Elif, Else, Fi, If, Then,
+    Case, Else, Fi, If, Then,
 
     Binary_Literal,
     Character_Literal,
@@ -95,7 +95,7 @@ token_string_table := [Token_Kind]string{
         .In = "in",
         .End = "end",
 
-        .Case = "case", .Elif = "elif", .Else = "else",
+        .Case = "case", .Else = "else",
         .Fi = "fi", .If = "if", .Then = "then",
 
         .Binary_Literal = "literal binary. Example 0b10 or 2b",
@@ -306,7 +306,6 @@ string_to_token_kind :: proc(str: string) -> (kind: Token_Kind) {
     case "in": kind = .In
     case "end": kind = .End
     case "case": kind = .Case
-    case "elif": kind = .Elif
     case "else": kind = .Else
     case "if": kind = .If
     case "fi": kind = .Fi
