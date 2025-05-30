@@ -3,4 +3,4 @@ PROJECT_NAME  := Stanczyk
 all: compile
 
 compile:
-	STANCZYK=$(pwd) ./compile.sh t
+	STANCZYK_DIR=$(pwd) ./compile.sh t
