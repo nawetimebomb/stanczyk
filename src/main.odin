@@ -12,27 +12,24 @@ COMPILER_DATE    :: "2025-03-03"
 COMPILER_EXEC    :: "skc"
 COMPILER_NAME    :: "Stańczyk"
 COMPILER_VERSION :: "5"
+COMPILER_ENV     :: "STANCZYK_DIR"
 
 ARCH_64 :: 64
 ARCH_32 :: 32
 
 GENERATED_FILE_NAME :: "skgen.c"
 
-Compiler_Architecture :: enum u8 {
-    ARCH_64, ARCH_32,
-}
-
 Location :: struct {
     file: string,
     offset: int,
 }
 
-compiler_arch:     Compiler_Architecture
 compiler_dir:      string
-compiler_mode:     enum { Compiler, Interpreter, REPL }
-source_files:      map[string]string
 output_filename:   string
-word_size_in_bits: int
+source_files:      map[string]string
+
+
+compiler_mode:     enum { Compiler, Interpreter, REPL }
 
 keep_c_output := false
 run_program := false
@@ -53,35 +50,13 @@ when ODIN_DEBUG {
     }
 }
 
-is_64bit :: proc() -> bool {
-    return compiler_arch == .ARCH_64
-}
-
-init :: proc() {
-    when ODIN_DEBUG {
-        context.logger = log.create_console_logger()
-
-        default_allocator := context.allocator
-        mem.tracking_allocator_init(&skc_allocator, default_allocator)
-        context.allocator = mem.tracking_allocator(&skc_allocator)
-    }
-
-    switch ODIN_ARCH {
-    case .i386, .wasm32, .arm32, .Unknown:
-        compiler_arch = .ARCH_32
-        word_size_in_bits = 32
-    case .amd64, .wasm64p32, .arm64, .riscv64:
-        compiler_arch = .ARCH_64
-        word_size_in_bits = 64
-    }
-}
-
 cleanup_exit :: proc(code: int) {
     for key, value in source_files {
         delete(key)
         delete(value)
     }
     delete(source_files)
+    delete(compiler_dir)
 
     when ODIN_DEBUG {
         reset_tracking_allocator(&skc_allocator)
@@ -89,20 +64,6 @@ cleanup_exit :: proc(code: int) {
     }
 
     os.exit(code)
-}
-
-compile :: proc() {
-    libc.system(fmt.ctprintf("gcc {0}.c -o {0}", output_filename))
-    when !ODIN_DEBUG {
-        if !keep_c_output {
-            os.remove(fmt.tprintf("{}.c", output_filename))
-        }
-    }
-    if run_program {
-        libc.system(fmt.ctprintf("./{}", output_filename))
-        os.remove(output_filename)
-        os.remove(fmt.tprintf("{}.c", output_filename))
-    }
 }
 
 load_file :: proc(filename: string, dir := "") {
@@ -143,54 +104,97 @@ load_files_from_dir :: proc(dir: string) {
     }
 }
 
+Compiler_Error :: enum u8 {
+    Missing_Environment = 1,
+    Compiler_Dir_Undefined,
+}
+
 main :: proc() {
-    init()
+    setup_fatalf :: proc(e: Compiler_Error, format: string, args: ..any) {
+        fmt.eprintf("compiler error: ")
+        fmt.eprintfln(format, ..args)
+        fmt.eprintln()
+        cleanup_exit(int(e))
+    }
 
-    args := os.args[1:]
+    when ODIN_DEBUG {
+        context.logger = log.create_console_logger()
 
-    base_dir, dir_found := os.lookup_env("STANCZYK")
-    compiler_dir, dir_found = filepath.abs(base_dir)
+        default_allocator := context.allocator
+        mem.tracking_allocator_init(&skc_allocator, default_allocator)
+        context.allocator = mem.tracking_allocator(&skc_allocator)
+    }
 
-    if !dir_found || len(args) == 0 {
+    base_dir, ok := os.lookup_env(COMPILER_ENV, context.temp_allocator)
+    if !ok {
+        // TODO: Maybe allow the user to access some kind of command that sets the environment variable for them.
+        setup_fatalf(
+                .Missing_Environment,
+            `'{0}' environment variable is not set
+Make sure '{0}' is set and points to the directory where The {1} Compiler is installed.`,
+            COMPILER_ENV, COMPILER_NAME,
+        )
+    }
+
+    compiler_dir, ok = filepath.abs(base_dir)
+    if !ok {
+        setup_fatalf(
+                .Compiler_Dir_Undefined,
+            "couldn't determine compiler directory from {} (taken from the environment variable '{}')",
+            base_dir, COMPILER_ENV,
+        )
+    }
+
+    if len(os.args) < 2 {
         fmt.println(MSG_HELP)
         cleanup_exit(0)
     }
 
-    for i := 0; i < len(args); i += 1 {
-        arg := args[i]
+    command := os.args[1]
 
-        switch arg {
-        case "-help":
+    switch command {
+    case "build", "run":
+        if len(os.args) < 3 {
             fmt.println(MSG_HELP)
             cleanup_exit(0)
-        case "-version":
-            fmt.printfln(MSG_VERSION, COMPILER_VERSION)
-            cleanup_exit(0)
-        case "-show-error-loc":
-            show_compiler_error_location = true
-        case "-keepc":
-            keep_c_output = true
-        case "-run":
-            run_program = true
-        case "-out":
-            i += 1
-            output_filename = args[i]
-        case :
-            if !os.exists(arg) {
-                fmt.printfln(ERROR_FILE_OR_DIR_NOT_FOUND, arg)
-                cleanup_exit(1)
-            }
+        }
 
-            if strings.ends_with(arg, ".sk") {
-                if output_filename == "" {
-                    output_filename = filepath.short_stem(arg)
+        input := os.args[2]
+
+        if !os.exists(input) {
+            fmt.printfln(ERROR_FILE_OR_DIR_NOT_FOUND, input)
+            cleanup_exit(1)
+        }
+
+        if strings.ends_with(input, ".sk") {
+            if output_filename == "" { output_filename = filepath.short_stem(input) }
+            load_file(input)
+        } else {
+            if output_filename == "" { output_filename = filepath.base(input) }
+            load_files_from_dir(input)
+        }
+
+    case "help":
+        fmt.println(MSG_HELP)
+        cleanup_exit(0)
+    case "version":
+        fmt.printfln(MSG_VERSION, COMPILER_VERSION)
+        cleanup_exit(0)
+    }
+
+    // Handle switches
+    if len(os.args) > 2 {
+        rest := os.args[3:]
+
+        for i := 0; i < len(rest); i += 1 {
+            v := rest[i]
+
+            switch v {
+            case "-out":
+                if len(rest) >= i + 1 {
+                    i += 1
+                    output_filename = rest[i]
                 }
-                load_file(arg)
-            } else {
-                if output_filename == "" {
-                    output_filename = filepath.base(arg)
-                }
-                load_files_from_dir(arg)
             }
         }
     }
@@ -203,7 +207,18 @@ main :: proc() {
     load_file("runtime.sk", fmt.tprintf("{}/base", compiler_dir))
 
     parse()
-    compile()
+
+    libc.system(fmt.ctprintf("gcc {0}.c -o {0}", output_filename))
+
+    when !ODIN_DEBUG {
+        os.remove(fmt.tprintf("{}.c", output_filename))
+    }
+
+    if command == "run" {
+        libc.system(fmt.ctprintf("./{}", output_filename))
+        os.remove(output_filename)
+        os.remove(fmt.tprintf("{}.c", output_filename))
+    }
 
     cleanup_exit(0)
 }

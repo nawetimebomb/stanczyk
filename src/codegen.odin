@@ -24,6 +24,18 @@ Generator :: struct {
 
 gen := Generator{}
 
+init_generator :: proc() {
+    gen.includes = strings.builder_make(context.temp_allocator)
+    gen.defines = strings.builder_make(context.temp_allocator)
+    gen.typedefs = strings.builder_make(context.temp_allocator)
+    gen.structs = strings.builder_make(context.temp_allocator)
+    gen.builtinglobals = strings.builder_make(context.temp_allocator)
+    gen.builtinprocdefs = strings.builder_make(context.temp_allocator)
+    gen.builtinprocs = strings.builder_make(context.temp_allocator)
+    gen.userdefs = strings.builder_make(context.temp_allocator)
+    gen.userfuncs = strings.builder_make(context.temp_allocator)
+}
+
 write :: proc{write_to_builder, write_to_function}
 writef :: proc{writef_to_builder, writef_to_function}
 writeln :: proc{writeln_to_builder, writeln_to_function}

@@ -42,7 +42,7 @@ init_reference_stack :: proc(t: ^Reference_Stack) {
     t.clear = rs_clear
     t.pop = rs_pop
     t.push = rs_push
-    t.v = make([dynamic]Reference)
+    t.v = make([dynamic]Reference, context.temp_allocator)
 }
 
 init_type_stack :: proc(t: ^Type_Stack) {
@@ -74,5 +74,5 @@ init_type_stack :: proc(t: ^Type_Stack) {
     t.push = ts_push
     t.reset = ts_reset
     t.save = ts_save
-    t.v = make([dynamic]Type_Kind)
+    t.v = make([dynamic]Type_Kind, context.temp_allocator)
 }

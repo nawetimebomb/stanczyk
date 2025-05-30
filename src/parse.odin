@@ -127,6 +127,7 @@ parse :: proc() {
     p := &Parser{}
     init_type_stack(&p.tstack)
     init_reference_stack(&p.rstack)
+    init_generator()
 
     if p.errorf == nil {
         p.errorf = default_errorf
@@ -223,6 +224,9 @@ parse :: proc() {
     }
 
     gen_compilation_unit()
+
+    delete(p.rstack.v)
+    delete(p.tstack.v)
 }
 
 next :: proc(p: ^Parser) -> Token {
@@ -262,8 +266,7 @@ peek :: proc(p: ^Parser) -> Token_Kind {
 }
 
 find_entity :: proc(p: ^Parser, token: Token) -> Entity {
-    possible_matches := make(Entities)
-    defer delete(possible_matches)
+    possible_matches := make(Entities, context.temp_allocator)
     name := token.text
     test_scope := p.curr_scope
     found := false
@@ -291,8 +294,7 @@ find_entity :: proc(p: ^Parser, token: Token) -> Entity {
         // We track the possible result by prioritizing the number of inputs
         // that the function can receive, but we also check for its arity.
         Match_Stats :: struct { entity: Entity, exact_number_inputs: bool, }
-        matches := make([dynamic]Match_Stats, 0, 1)
-        defer delete(matches)
+        matches := make([dynamic]Match_Stats, 0, 1, context.temp_allocator)
 
         for other in possible_matches {
             test := other.variant.(Entity_Function)
@@ -301,7 +303,7 @@ find_entity :: proc(p: ^Parser, token: Token) -> Entity {
                 stack_copy := slice.clone(p.tstack.v[:])
                 defer delete(stack_copy)
                 sim_test_stack := stack_copy[:len(test.inputs)]
-                func_test_stack := make([dynamic]Type_Kind)
+                func_test_stack := make([dynamic]Type_Kind, context.temp_allocator)
                 defer delete(func_test_stack)
 
                 for input in test.inputs {
@@ -343,10 +345,9 @@ find_entity :: proc(p: ^Parser, token: Token) -> Entity {
 }
 
 push_function :: proc(p: ^Parser, name: string, ent: ^Entity) -> ^Scope {
-    token := Token{}
-    if ent != nil { token = ent.token }
-    scope := push_scope(p, token)
-    new_func := new_clone(Function{
+    scope := push_scope(p, ent != nil ? ent.token : Token{})
+    p.curr_function = new_clone(Function{
+        code      = strings.builder_make(context.temp_allocator),
         entities  = &scope.entities,
         name      = name,
         is_global = name == "",
@@ -354,27 +355,27 @@ push_function :: proc(p: ^Parser, name: string, ent: ^Entity) -> ^Scope {
     })
 
     if ent != nil {
-        new_func.address = ent.address
-        new_func.pos = ent.pos
+        p.curr_function.address = ent.address
+        p.curr_function.pos = ent.pos
     }
 
     scope.kind = .Function
-    p.curr_function = new_func
     return p.curr_scope
 }
 
 pop_function :: proc(p: ^Parser) {
-    p.curr_function = p.curr_function.parent
+    old_function := p.curr_function
+    p.curr_function = old_function.parent
     pop_scope(p)
+    free(old_function)
 }
 
 push_scope :: proc(p: ^Parser, token: Token) -> ^Scope {
-    scope := new_clone(Scope{
+    p.curr_scope = new_clone(Scope{
         token = token,
-        entities = make(Entities),
+        entities = make(Entities, context.temp_allocator),
         parent = p.curr_scope,
     })
-    p.curr_scope = scope
     return p.curr_scope
 }
 
@@ -408,9 +409,15 @@ pop_scope :: proc(p: ^Parser) {
         }
     }
 
+    for item in p.curr_scope.tstack_copies {
+        delete(item)
+    }
+
     delete(p.curr_scope.entities)
     delete(p.curr_scope.tstack_copies)
-    p.curr_scope = p.curr_scope.parent
+    old_scope := p.curr_scope
+    p.curr_scope = old_scope.parent
+    free(old_scope)
 }
 
 create_stack_snapshot :: proc(p: ^Parser, scope: ^Scope = nil) {
@@ -471,7 +478,7 @@ declare_const :: proc(p: ^Parser) {
     address := is_global ? gen_global_address() : gen_local_address(f)
     entities := &p.curr_scope.entities
     inferred_type: Type_Kind
-    temp_value_stack := make([dynamic]Constant_Value)
+    temp_value_stack := make([dynamic]Constant_Value, context.temp_allocator)
     defer delete(temp_value_stack)
 
     if allow(p, .Type_Literal) {
@@ -649,7 +656,10 @@ declare_func :: proc(p: ^Parser) {
     name_token := expect(p, .Word)
     name := name_token.text
     f := p.curr_function
-    ef := Entity_Function{}
+    ef := Entity_Function{
+        inputs = make(Arity, context.temp_allocator),
+        outputs = make(Arity, context.temp_allocator),
+    }
     is_global := f.is_global
     address := is_global ? gen_global_address() : gen_local_address(f)
     entities := &p.curr_scope.entities
@@ -763,7 +773,7 @@ parse_token :: proc(p: ^Parser, token: Token) -> bool {
             p.tstack->push(v.kind)
         case Entity_C_Function: // TODO: Handle
         case Entity_Function:
-            parapoly_table := make(map[string]Type_Kind)
+            parapoly_table := make(map[string]Type_Kind, context.temp_allocator)
             defer delete(parapoly_table)
 
             #reverse for input in v.inputs {
