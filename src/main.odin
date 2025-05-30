@@ -95,10 +95,14 @@ compile :: proc() {
     libc.system(fmt.ctprintf("gcc {0}.c -o {0}", output_filename))
     when !ODIN_DEBUG {
         if !keep_c_output {
-            libc.system(fmt.ctprintf("rm {}.c", output_filename))
+            os.remove(fmt.tprintf("{}.c", output_filename))
         }
     }
-    if run_program { libc.system(fmt.ctprintf("./{}", output_filename)) }
+    if run_program {
+        libc.system(fmt.ctprintf("./{}", output_filename))
+        os.remove(output_filename)
+        os.remove(fmt.tprintf("{}.c", output_filename))
+    }
 }
 
 load_file :: proc(filename: string, dir := "") {

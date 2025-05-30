@@ -859,7 +859,7 @@ parse_token :: proc(p: ^Parser, token: Token) -> bool {
         if p.curr_scope.kind == .If {
             create_stack_snapshot(p)
             p.tstack->save()
-            gen_if_statement(f, .o_if)
+            gen_if_statement(f, .s_if)
         } else {
             // This has to be an inline (ternary) if test, we don't need to
             // start the block with 'if', and we support only one function for the body.
@@ -867,7 +867,7 @@ parse_token :: proc(p: ^Parser, token: Token) -> bool {
             scope.kind = .If_Inline
             scope.validation_at_end = .Stack_Is_Unchanged
             p.tstack->save()
-            gen_if_statement(f, .o_if)
+            gen_if_statement(f, .s_if)
 
             parse_token(p, next(p))
             create_stack_snapshot(p)
@@ -875,14 +875,14 @@ parse_token :: proc(p: ^Parser, token: Token) -> bool {
 
             if allow(p, .Else) {
                 scope.validation_at_end = .Stack_Match_Between
-                gen_if_statement(f, .o_else)
+                gen_if_statement(f, .s_else)
                 parse_token(p, next(p))
                 create_stack_snapshot(p)
             }
 
             allow(p, .Fi)
             pop_scope(p)
-            gen_if_statement(f, .c)
+            gen_if_statement(f, .fi)
         }
 
     case .Else:
@@ -890,7 +890,7 @@ parse_token :: proc(p: ^Parser, token: Token) -> bool {
         p.curr_scope.validation_at_end = .Stack_Match_Between
         refresh_stack_snapshot(p)
         p.tstack->reset()
-        gen_if_statement(f, .o_else)
+        gen_if_statement(f, .s_else)
 
     case .Fi:
         close_if_statements: for {
@@ -904,8 +904,11 @@ parse_token :: proc(p: ^Parser, token: Token) -> bool {
             case: break close_if_statements
             }
 
-            gen_if_statement(f, .c)
+            gen_if_statement(f, .fi)
         }
+
+    case .Leave:
+        gen_literal_c(f, "return;")
 
     case .Brace_Left:
         unimplemented()

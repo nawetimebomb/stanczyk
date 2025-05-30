@@ -1,0 +1,9 @@
+fn fibonacci ( int --- int )
+  if dup 2 < then take else dup 1 - fibonacci swap 2 - fibonacci + fi
+;
+
+// This program runs a recursive function to find the Nth number on the
+// Fibonacci sequence. Usage: <number> fibonacci println
+fn main ( )
+  "The 7th number in the Fibonacci sequence is " print 7 fibonacci println
+;

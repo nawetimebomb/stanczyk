@@ -418,17 +418,17 @@ gen_code_block :: proc(f: ^Function, part: enum { start, end }) {
     }
 }
 
-gen_if_statement :: proc(f: ^Function, part: enum { o_if, o_else, c }) {
+gen_if_statement :: proc(f: ^Function, part: enum { s_if, s_else, fi }) {
     switch part {
-    case .o_if:
+    case .s_if:
         writeln(f, "a = _pop();")
         writeln(f, "if (a.skbool) {")
         indent_forward(f)
-    case .o_else:
+    case .s_else:
         indent_backward(f)
         writeln(f, "} else {")
         indent_forward(f)
-    case .c:
+    case .fi:
         indent_backward(f)
         writeln(f, "}")
     }

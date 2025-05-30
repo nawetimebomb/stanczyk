@@ -37,6 +37,8 @@ Token_Kind :: enum u8 {
     Let, In, End,
     Case, Else, Fi, If, Then,
 
+    Leave,
+
     Binary_Literal,
     Character_Literal,
     False_Literal,
@@ -97,6 +99,8 @@ token_string_table := [Token_Kind]string{
 
         .Case = "case", .Else = "else",
         .Fi = "fi", .If = "if", .Then = "then",
+
+        .Leave = "leave",
 
         .Binary_Literal = "literal binary. Example 0b10 or 2b",
         .Character_Literal = "literal character. Example: 'a'",
@@ -310,6 +314,8 @@ string_to_token_kind :: proc(str: string) -> (kind: Token_Kind) {
     case "if": kind = .If
     case "fi": kind = .Fi
     case "then": kind = .Then
+
+    case "leave": kind = .Leave
 
     case "false": kind = .False_Literal
     case "true": kind = .True_Literal
