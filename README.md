@@ -1,44 +1,49 @@
+<p align="center">
+   <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/7/78/Jan_Matejko%2C_Sta%C5%84czyk.jpg/2560px-Jan_Matejko%2C_Sta%C5%84czyk.jpg" alt="Jan Matejko's Stańczyk" style="width:75%" />
+   <br />
+   A Concatenative Type Safe Stack-Based Programming Language
+   <br />
+   <br />
+   <img alt="GitHub commit activity" src="https://img.shields.io/github/commit-activity/w/nawetimebomb/stanczyk">
+   <img alt="GitHub Actions Workflow Status" src="https://img.shields.io/github/actions/workflow/status/nawetimebomb/stanczyk/ci.yml">
+   <img alt="GitHub License" src="https://img.shields.io/github/license/nawetimebomb/stanczyk">
+</p>
+
 # The Stańczyk Programming Language
-
-[![CI](https://img.shields.io/github/actions/workflow/status/elnawe/stanczyk/ci.yml?style=for-the-badge)](https://github.com/elnawe/stanczyk/actions/workflows/ci.yml)
-[![Commits](https://img.shields.io/github/commit-activity/w/elnawe/stanczyk?style=for-the-badge)](https://github.com/elnawe/stanczyk/commits/main)
-[![License](https://img.shields.io/github/license/elnawe/stanczyk?style=for-the-badge)](https://github.com/elnawe/stanczyk/blob/main/LICENSE)
-
-![Jan Matejko's Stańczyk](https://upload.wikimedia.org/wikipedia/commons/thumb/7/78/Jan_Matejko%2C_Sta%C5%84czyk.jpg/2560px-Jan_Matejko%2C_Sta%C5%84czyk.jpg)
 
 **NOTE: This is a work in progress, things can change without any notice. Use with discretion.**
 
-This repository contains the source code for [Stańczyk]. You can find the compiler, standard library and documentation.
+[Stańczyk] is a general-purpose stack-based programming language insired in Forth that prefer words over symbols and strive on trying to be easy to read by anyone. It uses Reverse Polish Notation, which also inspired the name of this language (plus my admiration to Jan Matejko's art), because it makes it easier to parse for the compiler and for the Human eye without the need of extra parenthesis. The language compiles to C and it is trying to be compatible with all the major platforms. The backend compiler supported for now is `gcc`, although it is planned to support multiple backends. At the moment of this writing, the compiler is written in Odin.
+
+Website: https://stanczyk-lang.org
 
 [Stańczyk]: https://stanczyk-lang.org
 
-## What is Stańczyk?
+```stanczyk
+using core.io ;
 
-Stańczyk is a [concatenative](https://en.wikipedia.org/wiki/Concatenative_programming_language) Programming Language that compiles to Assembly and then to an executable using the GCC back-end. It writes in Reverse Polish Notation and fits into the [stack-oriented programming paradigm](https://en.wikipedia.org/wiki/Stack-oriented_programming).
+fn main ( )
+  "Hello, Stańczyk" println
+;
+```
 
-## Installation
+## Documentation
 
-- TODO: Add installation
+### [Getting Started](https://stanczyk-lang.org)
+
+Instructions to download and compile Stańczyk.
+
+### [Learning Stańczyk](docs/overview.md)
+
+Learn how to use and make programs in Stańczyk.
 
 ### Dependencies
 
-Make sure you have the following dependencies in your system before building Stańczyk:
+The following is required to compile and use Stańczyk:
 
-* `git`
-* `gcc` (build the source and also used to build the Assembly output)
+* [Odin](https://github.com/odin-lang/Odin) - To compile the compiler
+* [gcc](https://gcc.gnu.org/) - To compile the output of this compiler into a binary
 
-## My first program
+### Unit tests
 
-A simple *Hello, Stańczyk* program could be:
-
-```
-using "io"
-
-"Hello, Stańczyk\n" write
-```
-
-You can find more examples on [demos](demo)
-
-## Unit tests
-
-After you get the Stańczyk Compiler executable, you can run `./test.sh`.
+After you get the Stańczyk compiler executable, you can run `./test.sh`.
