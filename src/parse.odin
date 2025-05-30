@@ -194,7 +194,6 @@ parse :: proc() {
                 case .Fn: {
                     name_token := expect(p, .Word)
                     parsing_entity: ^Entity
-                    expect(p, .Paren_Left)
 
                     // Searching the function by its token
                     for &other in gscope.entities {
@@ -211,9 +210,11 @@ parse :: proc() {
                         )
                     }
 
-                    skip_to_body: for {
-                        if next(p).kind == .Paren_Right {
-                            break skip_to_body
+                    if allow(p, .Paren_Left) {
+                        skip_to_body: for {
+                            if next(p).kind == .Paren_Right {
+                                break skip_to_body
+                            }
                         }
                     }
 
@@ -434,36 +435,36 @@ refresh_stack_snapshot :: proc(p: ^Parser, scope: ^Scope = nil) {
 }
 
 parse_function_head :: proc(p: ^Parser, ef: ^Entity_Function) {
-    expect(p, .Paren_Left)
+    if allow(p, .Paren_Left) {
+        if !allow(p, .Paren_Right) {
+            arity := &ef.inputs
+            outputs := false
 
-    if !allow(p, .Paren_Right) {
-        arity := &ef.inputs
-        outputs := false
+            arity_loop: for {
+                token := next(p)
 
-        arity_loop: for {
-            token := next(p)
-
-            #partial switch token.kind {
-                case .Paren_Right: break arity_loop
-                case .Dash_Dash_Dash: arity = &ef.outputs; outputs = true
-                case .Word: {
-                    ef.is_parapoly = true
-                    append(arity, Type{.Parapoly, token.text})
-                }
-                case .Type_Literal: {
-                    t := type_string_to_kind(token.text)
-                    if t == .Any {
-                        ef.has_any_input = true
-
-                        if outputs {
-                            p->errorf(token.pos, "functions can't have 'Any' as outputs")
-                        }
+                #partial switch token.kind {
+                    case .Paren_Right: break arity_loop
+                    case .Dash_Dash_Dash: arity = &ef.outputs; outputs = true
+                    case .Word: {
+                        ef.is_parapoly = true
+                        append(arity, Type{.Parapoly, token.text})
                     }
-                    append(arity, Type{t, token.text})
+                    case .Type_Literal: {
+                        t := type_string_to_kind(token.text)
+                        if t == .Any {
+                            ef.has_any_input = true
+
+                            if outputs {
+                                p->errorf(token.pos, "functions can't have 'Any' as outputs")
+                            }
+                        }
+                        append(arity, Type{t, token.text})
+                    }
+                    case: p->errorf(
+                        token.pos, "unexpected token %s", token_to_string(token),
+                    )
                 }
-                case: p->errorf(
-                    token.pos, "unexpected token %s", token_to_string(token),
-                )
             }
         }
     }

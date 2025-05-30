@@ -22,7 +22,7 @@ Website: https://stanczyk-lang.org
 ```stanczyk
 using core.io ;
 
-fn main ( )
+fn main
   "Hello, Stańczyk" println
 ;
 ```

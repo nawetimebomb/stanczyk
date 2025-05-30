@@ -27,6 +27,10 @@
 
 (require 'generic-x)
 
+(defun insert-stanczyk ()
+  (interactive)
+  (insert "Stańczyk"))
+
 (define-generic-mode
     'stanczyk-mode
   '("//")
