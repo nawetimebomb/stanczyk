@@ -1,5 +1,7 @@
 package main
 
+import "core:slice"
+
 Reference :: struct {
 
 }
@@ -11,11 +13,16 @@ Reference_Stack :: struct {
     v: [dynamic]Reference,
 }
 
+Type_Stack_Value :: [dynamic]Type_Kind
+
 Type_Stack :: struct {
     clear: proc(t: ^Type_Stack),
     pop: proc(t: ^Type_Stack) -> (k: Type_Kind),
     push: proc(t: ^Type_Stack, k: Type_Kind),
+    reset: proc(t: ^Type_Stack),
+    save: proc(t: ^Type_Stack),
     v: [dynamic]Type_Kind,
+    saved: []Type_Kind,
 }
 
 init_reference_stack :: proc(t: ^Reference_Stack) {
@@ -52,8 +59,20 @@ init_type_stack :: proc(t: ^Type_Stack) {
         append(&t.v, k)
     }
 
+    ts_reset :: proc(t: ^Type_Stack) {
+        delete(t.v)
+        t.v = slice.clone_to_dynamic(t.saved)
+        delete(t.saved)
+    }
+
+    ts_save :: proc(t: ^Type_Stack) {
+        t.saved = slice.clone(t.v[:])
+    }
+
     t.clear = ts_clear
     t.pop = ts_pop
     t.push = ts_push
+    t.reset = ts_reset
+    t.save = ts_save
     t.v = make([dynamic]Type_Kind)
 }

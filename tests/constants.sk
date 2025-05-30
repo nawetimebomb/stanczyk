@@ -11,6 +11,8 @@ const j 128u i + ;
 const k string "Stańczyk" ;
 
 fn main ( )
+  const x "internal constant" ;
+
   "15  " print a println
   "3.14  " print b println
   "0  " print c println
@@ -22,4 +24,8 @@ fn main ( )
   "127  " print i println
   "255  " print j println
   "Stańczyk  " print k println
+  "internal constant  " print x println
+
+  const a "shadowing" ;
+  "shadowing  " print a println
 ;

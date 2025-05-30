@@ -30,7 +30,7 @@
 (define-generic-mode
     'stanczyk-mode
   '("//")
-  '("if" "if*" "case" "then" "else" "elif" "fi"
+  '("if" "if*" "case" "then" "else" "elif" "fi" ";"
     "for" "do" "times" "leave" "let" "in" "end" "defer"
     "var" "const" "fn" "set" "get")
   '(("float"  . font-lock-type-face)

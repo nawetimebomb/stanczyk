@@ -59,21 +59,38 @@ Function :: struct {
     using pos: Position,
     address:   uint,
     name:      string,
+    entities:  ^Entities,
+    local_ip:  uint,
 
-    entities:    ^Entities,
-    local_ip:    uint,
-
-    code:   strings.Builder,
-    indent: int,
-
-    parent:  ^Function,
+    code:      strings.Builder,
+    indent:    int,
+    parent:    ^Function,
     is_global: bool,
 }
 
-Parser :: struct {
-    scopes: [dynamic]Entities,
+Scope_Kind :: enum {
+    Global, Function,
+    If_Inline, If, If_Else, If_Else_If,
+}
 
+Scope :: struct {
+    kind:  Scope_Kind,
+    token: Token,
+    parent: ^Scope,
+
+    entities:      Entities,
+    tstack_copies: [dynamic][]Type_Kind,
+
+    validation_at_end: enum {
+        Skip,
+        Stack_Is_Unchanged,
+        Stack_Match_Between,
+    },
+}
+
+Parser :: struct {
     curr_function: ^Function,
+    curr_scope:    ^Scope,
     prev_token:    Token,
     curr_token:    Token,
     tokenizer:     Tokenizer,
@@ -104,7 +121,7 @@ default_errorf :: proc(
     os.exit(1)
 }
 
-gscope: ^Entities
+gscope: ^Scope
 
 parse :: proc() {
     p := &Parser{}
@@ -146,9 +163,7 @@ parse :: proc() {
                         #partial switch token.kind {
                             case .Const: scope_level += 1
                             case .Fn: scope_level += 1
-                            case .EOF: p->errorf(
-                                token.pos, "unexpected end of file",
-                            )
+                            case .EOF: p->errorf(token.pos, "unexpected end of file")
                             case .Semicolon: {
                                 scope_level -= 1
                                 if scope_level == 0 { break body_loop }
@@ -163,8 +178,6 @@ parse :: proc() {
             }
         }
     }
-
-    assert(len(p.scopes) == 1)
 
     gen_bootstrap()
 
@@ -183,7 +196,7 @@ parse :: proc() {
                     expect(p, .Paren_Left)
 
                     // Searching the function by its token
-                    for &other in gscope {
+                    for &other in gscope.entities {
                         if other.token == name_token {
                             parsing_entity = &other
                             break
@@ -252,22 +265,18 @@ find_entity :: proc(p: ^Parser, token: Token) -> Entity {
     possible_matches := make(Entities)
     defer delete(possible_matches)
     name := token.text
-    curr_scope_index := len(p.scopes) - 1
-    curr_scope := p.scopes[curr_scope_index]
+    test_scope := p.curr_scope
     found := false
 
-    for curr_scope_index >= 0 && !found {
-        for check in curr_scope {
+    for !found && test_scope != nil {
+        for check in test_scope.entities {
             if check.name == name {
                 append(&possible_matches, check)
                 found = true
             }
         }
 
-        if !found {
-            curr_scope_index -= 1
-            curr_scope = p.scopes[max(curr_scope_index, 0)]
-        }
+        if !found { test_scope = test_scope.parent }
     }
 
     switch len(possible_matches) {
@@ -333,31 +342,12 @@ find_entity :: proc(p: ^Parser, token: Token) -> Entity {
     return Entity{}
 }
 
-find_word_meaning :: proc(p: ^Parser, token: Token) -> (ents: Entities) {
-    name := token.text
-    check_index := len(p.scopes) - 1
-    curr_scope := p.scopes[check_index]
-    found := false
-    for check_index >= 0 && !found {
-        for e in curr_scope {
-            if e.name == name {
-                append(&ents, e)
-                found = true
-            }
-        }
-        if !found {
-            check_index -= 1
-            curr_scope = p.scopes[check_index]
-        }
-    }
-    if !found { p->errorf(token.pos, "undeclared word '%s'", name) }
-    return
-}
-
-push_function :: proc(p: ^Parser, name: string, ent: ^Entity) -> ^Entities {
-    scope := push_scope(p)
+push_function :: proc(p: ^Parser, name: string, ent: ^Entity) -> ^Scope {
+    token := Token{}
+    if ent != nil { token = ent.token }
+    scope := push_scope(p, token)
     new_func := new_clone(Function{
-        entities  = scope,
+        entities  = &scope.entities,
         name      = name,
         is_global = name == "",
         parent    = p.curr_function,
@@ -368,8 +358,9 @@ push_function :: proc(p: ^Parser, name: string, ent: ^Entity) -> ^Entities {
         new_func.pos = ent.pos
     }
 
+    scope.kind = .Function
     p.curr_function = new_func
-    return scope
+    return p.curr_scope
 }
 
 pop_function :: proc(p: ^Parser) {
@@ -377,13 +368,62 @@ pop_function :: proc(p: ^Parser) {
     pop_scope(p)
 }
 
-push_scope :: proc(p: ^Parser) -> ^Entities {
-    append(&p.scopes, make(Entities))
-    return &p.scopes[len(p.scopes) - 1]
+push_scope :: proc(p: ^Parser, token: Token) -> ^Scope {
+    scope := new_clone(Scope{
+        token = token,
+        entities = make(Entities),
+        parent = p.curr_scope,
+    })
+    p.curr_scope = scope
+    return p.curr_scope
 }
 
 pop_scope :: proc(p: ^Parser) {
-    pop(&p.scopes)
+    switch p.curr_scope.validation_at_end {
+    case .Skip:
+        // Do nothing
+
+    case .Stack_Is_Unchanged:
+        // The stack hasn't changed in length and types. It only supports one stack copy
+        stack_copies := &p.curr_scope.tstack_copies
+
+        if len(stack_copies) != 1 || !slice.equal(stack_copies[0], p.tstack.v[:]) {
+            p->errorf(
+                p.curr_scope.token,
+                "stack changes not allowed on this scope block",
+            )
+        }
+
+    case .Stack_Match_Between:
+        // The stack has to have the same result between its branching values
+        stack_copies := &p.curr_scope.tstack_copies
+
+        for x in 0..<len(stack_copies) - 1 {
+            if !slice.equal(stack_copies[x], stack_copies[x + 1]) {
+                p->errorf(
+                    p.curr_scope.token,
+                    "different stack effects between scopes not allowed",
+                )
+            }
+        }
+    }
+
+    delete(p.curr_scope.entities)
+    delete(p.curr_scope.tstack_copies)
+    p.curr_scope = p.curr_scope.parent
+}
+
+create_stack_snapshot :: proc(p: ^Parser, scope: ^Scope = nil) {
+    s := scope
+    if s == nil { s = p.curr_scope }
+    append(&s.tstack_copies, slice.clone(p.tstack.v[:]))
+}
+
+refresh_stack_snapshot :: proc(p: ^Parser, scope: ^Scope = nil) {
+    s := scope
+    if s == nil { s = p.curr_scope }
+    delete(pop(&s.tstack_copies))
+    create_stack_snapshot(p, s)
 }
 
 parse_function_head :: proc(p: ^Parser, ef: ^Entity_Function) {
@@ -391,20 +431,27 @@ parse_function_head :: proc(p: ^Parser, ef: ^Entity_Function) {
 
     if !allow(p, .Paren_Right) {
         arity := &ef.inputs
+        outputs := false
 
         arity_loop: for {
             token := next(p)
 
             #partial switch token.kind {
                 case .Paren_Right: break arity_loop
-                case .Dash_Dash_Dash: arity = &ef.outputs
+                case .Dash_Dash_Dash: arity = &ef.outputs; outputs = true
                 case .Word: {
                     ef.is_parapoly = true
                     append(arity, Type{.Parapoly, token.text})
                 }
                 case .Type_Literal: {
                     t := type_string_to_kind(token.text)
-                    if t == .Any { ef.has_any_input = true }
+                    if t == .Any {
+                        ef.has_any_input = true
+
+                        if outputs {
+                            p->errorf(token.pos, "functions can't have 'Any' as outputs")
+                        }
+                    }
                     append(arity, Type{t, token.text})
                 }
                 case: p->errorf(
@@ -422,7 +469,7 @@ declare_const :: proc(p: ^Parser) {
     ec := Entity_Constant{}
     is_global := f.is_global
     address := is_global ? gen_global_address() : gen_local_address(f)
-    scope := &p.scopes[len(p.scopes) - 1]
+    entities := &p.curr_scope.entities
     inferred_type: Type_Kind
     temp_value_stack := make([dynamic]Constant_Value)
     defer delete(temp_value_stack)
@@ -577,7 +624,7 @@ declare_const :: proc(p: ^Parser) {
         p->errorf(name_token.pos, "main is a reserved word for the entry point function of the program")
     }
 
-    for other in scope {
+    for other in entities {
         if other.name == name {
             p->errorf(
                 name_token.pos, "redeclaration of '{}' found in {}:{}:{}",
@@ -586,7 +633,7 @@ declare_const :: proc(p: ^Parser) {
         }
     }
 
-    append(scope, Entity{
+    append(entities, Entity{
         address = address,
         is_global = is_global,
         name = name,
@@ -603,7 +650,7 @@ declare_func :: proc(p: ^Parser) {
     ef := Entity_Function{}
     is_global := f.is_global
     address := is_global ? gen_global_address() : gen_local_address(f)
-    scope := &p.scopes[len(p.scopes) - 1]
+    entities := &p.curr_scope.entities
     parse_function_head(p, &ef)
     is_main := false
 
@@ -612,7 +659,7 @@ declare_func :: proc(p: ^Parser) {
         is_main = true
     }
 
-    for &other in scope {
+    for &other in entities {
         if other.name == name {
             if is_main {
                 p->errorf(
@@ -644,7 +691,7 @@ declare_func :: proc(p: ^Parser) {
         }
     }
 
-    append(scope, Entity{
+    append(entities, Entity{
         address = address,
         is_global = is_global,
         name = name,
@@ -731,11 +778,12 @@ parse_token :: proc(p: ^Parser, token: Token) -> bool {
 
                     if t != v {
                         p->errorf(
-                            token.pos, "parapoly of name '{}' means '{}' in this declaration, got '{}'",
+                            token.pos,
+                            "parapoly of name '{}' means '{}' in this declaration, got '{}'",
                             input.name, type_readable_table[v], type_readable_table[t],
                         )
                     }
-                case input.kind != t:
+                case input.kind != t && input.kind != .Any:
                     p->errorf(
                         token.pos,
                         "input mismatch in function {}\n\tExpected: {},\tHave: {}",
@@ -749,7 +797,10 @@ parse_token :: proc(p: ^Parser, token: Token) -> bool {
                     v, ok := parapoly_table[output.name]
 
                     if !ok {
-                        p->errorf(token.pos, "parapoly of the name {} not defined in inputs", output.name)
+                        p->errorf(
+                            token.pos,
+                            "parapoly of the name {} not defined in inputs", output.name,
+                        )
                     }
 
                     p.tstack->push(v)
@@ -763,7 +814,7 @@ parse_token :: proc(p: ^Parser, token: Token) -> bool {
         }
 
     case .Let:
-        scope := push_scope(p)
+        scope := push_scope(p, token)
         words := make([dynamic]Token, context.temp_allocator)
         defer delete(words)
         gen_code_block(f, .start)
@@ -776,7 +827,7 @@ parse_token :: proc(p: ^Parser, token: Token) -> bool {
         #reverse for word in words {
             t := p.tstack->pop()
             address := gen_local_address(f)
-            append(scope, Entity{
+            append(&scope.entities, Entity{
                 address = address,
                 pos = word.pos,
                 name = word.text,
@@ -792,11 +843,55 @@ parse_token :: proc(p: ^Parser, token: Token) -> bool {
         pop_scope(p)
         gen_code_block(f, .end)
 
+    case .Case: unimplemented()
+
     case .If:
+        scope := push_scope(p, token)
+        scope.validation_at_end = .Stack_Is_Unchanged
+        scope.kind = .If
 
     case .Then:
+        t := p.tstack->pop()
+        if t != .Bool { p->errorf(token.pos, "Non-boolean condition in 'if' statement") }
+        gen_if_statement(f, .open_if)
+
+        switch {
+        case p.curr_scope.kind == .If:
+
+        case p.curr_scope.kind != .If:
+            // This is redundant but easier to understand what's happening.
+            // Here we're doing inline branching a.k.a. ternary.
+            scope := push_scope(p, token)
+            scope.kind = .If_Inline
+            scope.validation_at_end = .Stack_Is_Unchanged
+            p.tstack->save()
+
+            parse_token(p, next(p))
+            create_stack_snapshot(p)
+            p.tstack->reset()
+
+            if allow(p, .Else) {
+                scope.validation_at_end = .Stack_Match_Between
+                gen_if_statement(f, .open_else)
+                parse_token(p, next(p))
+                create_stack_snapshot(p)
+            }
+
+            pop_scope(p)
+            gen_if_statement(f, .close)
+        }
+
+    case .Elif:
+        unimplemented()
+
+    case .Else:
+        p.curr_scope.validation_at_end = .Stack_Match_Between
+        create_stack_snapshot(p)
+        gen_if_statement(f, .open_else)
 
     case .Fi:
+        pop_scope(p)
+        gen_if_statement(f, .close)
 
     case .Brace_Left:
         unimplemented()

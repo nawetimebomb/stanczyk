@@ -9,3 +9,5 @@
 127  127
 255  255
 Stańczyk  Stańczyk
+internal constant  internal constant
+shadowing  shadowing
