@@ -9,6 +9,7 @@ Position :: struct {
     column:   int,
     line:     int,
     offset:   int,
+    internal: bool,
 }
 
 Error :: enum {
@@ -30,7 +31,10 @@ Token_Kind :: enum u8 {
     Paren_Left,
     Paren_Right,
 
-    Const, Fn,
+    Const,
+    Fn,
+    Builtin,
+    Foreign,
     Dash_Dash_Dash,
     Semicolon,
 
@@ -50,12 +54,6 @@ Token_Kind :: enum u8 {
     True_Literal,
     Type_Literal,
     Uint_Literal,
-
-    Add,
-    Divide,
-    Multiply,
-    Modulo,
-    Substract,
 
     Equal,
     Greater_Equal,
@@ -90,6 +88,8 @@ token_string_table := [Token_Kind]string{
 
         .Const = "const",
         .Fn = "fn",
+        .Builtin = "builtin",
+        .Foreign = "foreign",
         .Dash_Dash_Dash = "---",
         .Semicolon = ";",
 
@@ -114,12 +114,6 @@ token_string_table := [Token_Kind]string{
         .Type_Literal = "literal type name. Example: int",
         .Uint_Literal = "literal unsigned integer. Example: 1337u",
 
-        .Add = "+",
-        .Divide = "/",
-        .Modulo = "%",
-        .Multiply = "*",
-        .Substract = "-",
-
         .Equal = "=",
         .Greater_Equal = ">=",
         .Greater_Than = ">",
@@ -128,9 +122,10 @@ token_string_table := [Token_Kind]string{
         .Not_Equal = "!=",
 }
 
-tokenizer_init :: proc(t: ^Tokenizer, filename, data: string) {
-    t.data = data
-    t.filename = filename
+tokenizer_init :: proc(t: ^Tokenizer, source: Source_File) {
+    t.data = source.data
+    t.filename = source.filename
+    t.internal = source.internal
     t.line = 1
     t.column = 0
     t.offset = 0
@@ -152,17 +147,22 @@ get_next_token :: proc(t: ^Tokenizer) -> (token: Token, err: Error) {
         return c == ' ' || c == '\t' || c == '\r' || c == '\n'
     }
 
+    is_special_char :: proc(t: ^Tokenizer) -> bool {
+        c := t.data[t.offset]
+        return c == '(' || c == ')' || c == ';'
+    }
+
     skip_whitespace :: proc(t: ^Tokenizer) {
         old_offset := t.offset
         loop: for t.offset < len(t.data) {
-            if !is_whitespace(t) { break loop }
+            if is_special_char(t) || !is_whitespace(t) { break loop }
             advance(t)
         }
     }
 
     forward_word :: proc(t: ^Tokenizer) {
         loop: for t.offset < len(t.data) {
-            if is_whitespace(t) { break loop }
+            if is_special_char(t) || is_whitespace(t) { break loop }
             advance(t)
         }
     }
@@ -235,6 +235,7 @@ get_next_token :: proc(t: ^Tokenizer) -> (token: Token, err: Error) {
     token.column = t.column
     token.line = t.line
     token.offset = t.offset
+    token.internal = t.internal
     token.kind = .Word
 
     if t.offset >= len(t.data) {
@@ -242,7 +243,20 @@ get_next_token :: proc(t: ^Tokenizer) -> (token: Token, err: Error) {
         return
     }
 
-    if t.data[t.offset] == '\'' || t.data[t.offset] == '"' {
+    switch t.data[t.offset] {
+    case '(':
+        token.kind = .Paren_Left
+        advance(t)
+        return
+    case ')':
+        token.kind = .Paren_Right
+        advance(t)
+        return
+    case ';':
+        token.kind = .Semicolon
+        advance(t)
+        return
+    case '\'', '"':
         delimiter := t.data[t.offset]
         result := strings.builder_make(context.temp_allocator)
         token.kind = delimiter == '\'' ? .Character_Literal : .String_Literal
@@ -265,7 +279,7 @@ get_next_token :: proc(t: ^Tokenizer) -> (token: Token, err: Error) {
 
         advance(t)
         token.text = strings.to_string(result)
-    } else {
+    case :
         forward_word(t)
         token.text = string(t.data[token.offset:t.offset])
 
@@ -298,11 +312,11 @@ string_to_token_kind :: proc(str: string) -> (kind: Token_Kind) {
     case "}": kind = .Brace_Right
     case "[": kind = .Bracket_Left
     case "]": kind = .Bracket_Right
-    case "(": kind = .Paren_Left
-    case ")": kind = .Paren_Right
 
     case "const": kind = .Const
     case "fn": kind = .Fn
+    case "builtin": kind = .Builtin
+    case "foreign": kind = .Foreign
     case "---": kind = .Dash_Dash_Dash
     case ";": kind = .Semicolon
 
@@ -319,12 +333,6 @@ string_to_token_kind :: proc(str: string) -> (kind: Token_Kind) {
 
     case "false": kind = .False_Literal
     case "true": kind = .True_Literal
-
-    case "+": kind = .Add
-    case "/": kind = .Divide
-    case "%": kind = .Modulo
-    case "*": kind = .Multiply
-    case "-": kind = .Substract
 
     case "=": kind = .Equal
     case ">=": kind = .Greater_Equal

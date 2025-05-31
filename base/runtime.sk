@@ -29,20 +29,7 @@
 
 // The Stańczyk Runtime Library
 // Note: The Runtime library is automatically loaded into any program created
-// with Stańczyk by the compiler. Some definitions and documentation provided
-// are also defined within the compiler itself.
-
-/// Compiler-Defined Constants
-
-// Operating System
-// bool OS_LINUX   - True if program is running on Linux.
-// bool OS_MAC     - True if program is running on Mac.
-// bool OS_WINDOWS - True if program is running on Windows.
-
-// Stańczyk Internals
-// bool SK_DEBUG   - True if program is compiled with `-debug` switch.
-// bool SK_TEST    - True if program is running in test mode (`skc test`)
-// str  SK_VERSION - The Stańczyk Compiler version (`skc version`)
+// with Stańczyk by the compiler.
 
 // Maximum Values for Signed Integers (int)
 const MAX_INT8  int 127 ;
@@ -60,94 +47,94 @@ const MIN_INT64 int -9223372036854775808 ;
 const MAX_UINT8  uint 255u ;
 const MAX_UINT16 uint 65535u ;
 const MAX_UINT32 uint 4294967295u ;
-const MAX_UINT64 uint 18446744073709551615u ;
+const MAX_UINT64 uint 18_446_744_073_709_551_615u ;
 
 // Helper function to increment a number or a pointer by 1.
 // Calling:
 //   - <int/pointer> ++
 // Returns:
 //   - The given argument + 1
-fn ++ ( x --- x ) 1 + ;
+// fn ++ (x --- x) 1 + ;
 
 // Helper function to decrement a number or a pointer by 1.
 // Calling:
 //   - <int/pointer> --
 // Returns:
 //   - The given argument - 1.
-fn -- ( x --- x ) 1 - ;
+// fn -- (x --- x) 1 - ;
 
 // Removes one value from the stack
 // Calling
 //   - <any value> drop
-fn drop ( any ) let x in end ;
+fn drop (any) let x in end ;
 
 // Removes two values from the stack
 // Calling
 //   - <any> <any> 2drop
-fn 2drop ( any any ) let x y in end ;
+fn 2drop (any any) let x y in end ;
 
 // Removes the second to last value from the stack
 // Calling:
 //		- <arg1> <arg2> nip
 // Returns
 //		- The second given argument (<arg2>)
-fn nip ( x y --- y ) let x y in y end ;
+fn nip (x y --- y) let x y in y end ;
 
 // Duplicate the last value on the stack
 // Calling:
 //   - <any> dup
 // Returns:
 //   - The given argument, twice
-fn dup ( x --- x x ) let x in x x end ;
+fn dup (x --- x x) let x in x x end ;
 
 // Duplicate the last 2 values on the stack
 // Calling:
 //   - <arg1> <arg2> 2dup
 // Returns:
 //   - The 2 given arguments, twice
-fn 2dup ( x y --- x y x y ) let x y in x y x y end ;
+fn 2dup (x y --- x y x y) let x y in x y x y end ;
 
 // Duplicates the second to last value on the stack and add it at the end
 // Calling:
 //   - <arg1> <arg2> over
 // Returns:
 //   - The given arguments, plus <arg1> duplicated at the end (<arg1> <arg2> <arg1>)
-fn over ( x y --- x y x ) let x y in x y x end ;
+fn over (x y --- x y x) let x y in x y x end ;
 
 // Takes the last three values of the stack and rotates, moving the third one to the top.
 // Calling:
 //   - <arg1> <arg2> <arg3> rot
 // Returns:
 //   - The following order: <arg2> <arg3> <arg1>
-fn rot ( x y z --- y z x ) let x y z in y z x end ;
+fn rot (x y z --- y z x) let x y z in y z x end ;
 
 // Takes the last three values of the stack and rotates, moving the first one to the bottom.
 // Calling:
 //   - <arg1> <arg2> <arg3> -rot
 // Returns:
 //   - The following order: <arg3> <arg1> <arg2>
-fn -rot ( x y z --- z x y ) let x y z in z x y end ;
+fn -rot (x y z --- z x y) let x y z in z x y end ;
 
 // Takes the last two values in the stack and swap them in order
 // Calling:
 //   - <arg1> <arg2> swap
 // Returns:
 //   - The given argument in opposite order (<arg2> <arg1>)
-fn swap ( x y --- y x ) let x y in y x end ;
+fn swap (x y --- y x) let x y in y x end ;
 
 // Takes the last value from the stack and push it back so it can be used in special cases
 // Calling:
 //   - <arg> take
 // Returns:
 //   - Same <arg>
-fn take ( x --- x ) let x in x end ;
+fn take (x --- x) let x in x end ;
 
 // Duplicates the last value on the data stack and swap the other values
 // Calling:
 //   - <arg1> <arg2> swap
 // Returns:
 //   - Last stack data dupped and swap the previous two (<arg2> <arg1> <arg2>)
-fn tuck ( x y --- y x y ) let x y in y x y end ;
+fn tuck (x y --- y x y) let x y in y x y end ;
 
 // Helper function for Logical And operator (&&).
 // Calling:

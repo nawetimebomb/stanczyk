@@ -95,7 +95,8 @@ The length of a string can be calculated at compile-time by using the word `len`
 The Stańczyk parser is straight forward. It will parse the code from left-to-right, token by token. The following order of parsing is used:
 
 * The parser will test the starting of a word. If it starts with `"` (double quotes) or `'` (single quote) it will find the enclosing character and parse it as a string literal.
-* If the word wasn't a string, then it will try to convert the content to a number. If it succeeds, it is going to be considered one of the number literals (integer, unsigned integer, etc.)
+* If the word wasn't a string, then it will try to convert the content to a number. If
+ it succeeds, it is going to be considered one of the number literals (integer, unsigned integer, etc.)
 * Finally, it will be parsed as a `word`.
 
 Words are the main entity in Stańczyk. A word can sometimes have many meanings and, in some context, have specific significance. There are some native words, some reserved words and then we have the user-defined words. Words are used in any type of declarations, can start and contain any character. Native words cannot be overriden, reserved words can have other meaning in some context. User-defined words might be reserved in some contexts.

@@ -24,9 +24,15 @@ Location :: struct {
     offset: int,
 }
 
+Source_File :: struct {
+    filename: string,
+    data: string,
+    internal: bool,
+}
+
 compiler_dir:      string
 output_filename:   string
-source_files:      map[string]string
+source_files:      [dynamic]Source_File
 
 
 compiler_mode:     enum { Compiler, Interpreter, REPL }
@@ -51,9 +57,9 @@ when ODIN_DEBUG {
 }
 
 cleanup_exit :: proc(code: int) {
-    for key, value in source_files {
-        delete(key)
-        delete(value)
+    for x in source_files {
+        delete(x.filename)
+        delete(x.data)
     }
     delete(source_files)
     delete(compiler_dir)
@@ -66,7 +72,7 @@ cleanup_exit :: proc(code: int) {
     os.exit(code)
 }
 
-load_file :: proc(filename: string, dir := "") {
+load_file :: proc(filename: string, internal := false, dir := "") {
     parsed := filename
 
     if dir != "" {
@@ -82,8 +88,11 @@ load_file :: proc(filename: string, dir := "") {
         cleanup_exit(1)
     }
 
-    source_files[strings.clone(f.fullpath)] =
-        strings.clone(string(data))
+    append(&source_files, Source_File{
+        filename = strings.clone(f.fullpath),
+        data = strings.clone(string(data)),
+        internal = internal,
+    })
 }
 
 load_files_from_dir :: proc(dir: string) {
@@ -92,14 +101,7 @@ load_files_from_dir :: proc(dir: string) {
 
     for f in fis {
         if strings.ends_with(f.name, ".sk") {
-            data, success := os.read_entire_file(f.fullpath, context.temp_allocator)
-
-            if !success {
-                fmt.printfln(ERROR_FILE_CANT_OPEN, f.fullpath)
-                cleanup_exit(1)
-            }
-
-            source_files[strings.clone(f.fullpath)] = strings.clone(string(data))
+            load_file(f.fullpath)
         }
     }
 }
@@ -144,6 +146,11 @@ Make sure '{0}' is set and points to the directory where The {1} Compiler is ins
             base_dir, COMPILER_ENV,
         )
     }
+
+    load_file("builtin.sk", true, fmt.tprintf("{}/base", compiler_dir))
+    load_file("runtime.sk", true, fmt.tprintf("{}/base", compiler_dir))
+
+    bootstrap_files_count := len(source_files)
 
     if len(os.args) < 2 {
         fmt.println(MSG_HELP)
@@ -199,12 +206,10 @@ Make sure '{0}' is set and points to the directory where The {1} Compiler is ins
         }
     }
 
-    if len(source_files) == 0 {
+    if len(source_files) == bootstrap_files_count {
         fmt.println(ERROR_NO_INPUT_FILE)
         cleanup_exit(1)
     }
-
-    load_file("runtime.sk", fmt.tprintf("{}/base", compiler_dir))
 
     parse()
 

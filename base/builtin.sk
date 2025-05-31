@@ -1,0 +1,65 @@
+// ;;  The Stańczyk Programming Language  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+// ;                                                                      ;
+// ;            ¿«fº"└└-.`└└*∞▄_              ╓▄∞╙╙└└└╙╙*▄▄               ;
+// ;         J^. ,▄▄▄▄▄▄_      └▀████▄ç    JA▀            └▀v             ;
+// ;       ,┘ ▄████████████▄¿     ▀██████▄▀└      ╓▄██████▄¿ "▄_          ;
+// ;      ,─╓██▀└└└╙▀█████████      ▀████╘      ▄████████████_`██▄        ;
+// ;     ;"▄█└      ,██████████-     ▐█▀      ▄███████▀▀J█████▄▐▀██▄      ;
+// ;     ▌█▀      _▄█▀▀█████████      █      ▄██████▌▄▀╙     ▀█▐▄,▀██▄    ;
+// ;    ▐▄▀     A└-▀▌  █████████      ║     J███████▀         ▐▌▌╙█µ▀█▄   ;
+// ;  A╙└▀█∩   [    █  █████████      ▌     ███████H          J██ç ▀▄╙█_  ;
+// ; █    ▐▌    ▀▄▄▀  J█████████      H    ████████          █    █  ▀▄▌  ;
+// ;  ▀▄▄█▀.          █████████▌           ████████          █ç__▄▀ ╓▀└╙%_;
+// ;                 ▐█████████      ▐    J████████▌          .└╙   █¿  ,▌;
+// ;                 █████████▀╙╙█▌└▐█╙└██▀▀████████                 ╙▀▀▀ ;
+// ;                ▐██▀┘Å▀▄A └▓█╓▐█▄▄██▄J▀@└▐▄Å▌▀██▌                     ;
+// ;                █▄▌▄█M╨╙└└-           .└└▀**▀█▄,▌                     ;
+// ;                ²▀█▄▄L_                  _J▄▄▄█▀└                     ;
+// ;                     └╙▀▀▀▀▀MMMR████▀▀▀▀▀▀▀└                          ;
+// ;                                                                      ;
+// ;                                                                      ;
+// ; ███████╗████████╗ █████╗ ███╗   ██╗ ██████╗███████╗██╗   ██╗██╗  ██╗ ;
+// ; ██╔════╝╚══██╔══╝██╔══██╗████╗  ██║██╔════╝╚══███╔╝╚██╗ ██╔╝██║ ██╔╝ ;
+// ; ███████╗   ██║   ███████║██╔██╗ ██║██║       ███╔╝  ╚████╔╝ █████╔╝  ;
+// ; ╚════██║   ██║   ██╔══██║██║╚██╗██║██║      ███╔╝    ╚██╔╝  ██╔═██╗  ;
+// ; ███████║   ██║   ██║  ██║██║ ╚████║╚██████╗███████╗   ██║   ██║  ██╗ ;
+// ; ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝╚══════╝   ╚═╝   ╚═╝  ╚═╝ ;
+// ;                                                                      ;
+// ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;  The Stańczyk Programming Language  ;;
+
+// The Stańczyk Builtin Library
+// Note: The Builtin library is automatically loaded into any program created
+// with Stańczyk by the compiler. Definitions and documentation provided
+// are also defined within the compiler itself.
+
+/// Compiler-Defined Constants
+
+// Operating System
+// bool OS_LINUX   - True if program is running on Linux.
+// bool OS_MAC     - True if program is running on Mac.
+// bool OS_WINDOWS - True if program is running on Windows.
+
+// Stańczyk Internals
+// bool SK_DEBUG   - True if program is compiled with `-debug` switch.
+// bool SK_TEST    - True if program is running in test mode (`skc test`)
+// str  SK_VERSION - The Stańczyk Compiler version (`skc version`)
+
+
+// Basic arithmetic functions
+builtin fn + (int int --- int) ---
+builtin fn - (int int --- int) ---
+builtin fn * (int int --- int) ---
+builtin fn / (int int --- int) ---
+builtin fn % (int int --- int) ---
+
+builtin fn + (uint uint --- uint) ---
+builtin fn - (uint uint --- uint) ---
+builtin fn * (uint uint --- uint) ---
+builtin fn / (uint uint --- uint) ---
+
+builtin fn + (float float --- float) ---
+builtin fn - (float float --- float) ---
+builtin fn * (float float --- float) ---
+builtin fn / (float float --- float) ---
+
+builtin fn + (string string --- string) ---

@@ -31,12 +31,15 @@
   (interactive)
   (insert "Stańczyk"))
 
+(setenv "STANCZYK_DIR" "/home/nawe/repos/stanczyk/")
+
 (define-generic-mode
     'stanczyk-mode
   '("//")
-  '("if" "if*" "case" "then" "else" "elif" "fi" ";"
+  '("alias" "if" "if*" "case" "---" "then" "else" "elif" "fi" ";"
     "for" "do" "times" "leave" "let" "in" "end" "defer"
-    "var" "const" "fn" "set" "get")
+    "var" "const" "fn" "set" "get"
+    "foreign" "builtin" "namespace")
   '(("float"  . font-lock-type-face)
     ("uint"   . font-lock-type-face)
     ("bool"   . font-lock-type-face)
@@ -56,6 +59,13 @@
   '("\\.sk$")
   nil
   "Stanczyk mode")
+
+(defun nemacs-run-skc-on-file ()
+  (interactive)
+  (async-shell-command
+   (concat "STANCZYK_DIR=/home/nawe/repos/stanczyk/ skc run " (buffer-name)) nil nil))
+
+(global-set-key (kbd "<f9>") 'nemacs-run-skc-on-file)
 
 (provide 'stanczyk-mode)
 

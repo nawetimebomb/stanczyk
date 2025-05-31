@@ -1,4 +1,4 @@
-fn factorial ( int --- int )
+fn factorial (int --- int)
   let n in
     if n 2 < then 1 else n 1 - factorial n * fi
   end
@@ -6,6 +6,4 @@ fn factorial ( int --- int )
 
 // This program runs a recursive function to find the factorial
 // of a number. Usage: <number> factorial println
-fn main ( )
-  "Factorial of 5 is " print 5 factorial println
-;
+fn main "Factorial of 5 is " print 5 factorial println ;

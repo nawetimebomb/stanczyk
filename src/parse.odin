@@ -7,9 +7,9 @@ import "core:slice"
 import "core:strconv"
 import "core:strings"
 
-Arity :: distinct [dynamic]Type
-
 Constant_Value :: union { bool, f64, int, string, u64 }
+
+Arity :: distinct [dynamic]Type
 
 Entity_Binding :: struct {
     kind: Type_Kind,
@@ -20,13 +20,27 @@ Entity_Constant :: struct {
     value: Constant_Value,
 }
 
-Entity_C_Function :: struct {
-
+Builtin_Function_Kind :: enum {
+    Invalid,
+    Basic_Arith_Add,
+    Basic_Arith_Substract,
+    Basic_Arith_Multiply,
+    Basic_Arith_Divide,
+    Basic_Arith_Modulo,
 }
 
 Entity_Function :: struct {
     inputs:  Arity,
     outputs: Arity,
+
+    is_builtin:   bool,
+    builtin_kind: Builtin_Function_Kind,
+
+    is_foreign:   bool,
+    foreign_name: string,
+
+    is_inline:     bool,
+    inline_tokens: []Token,
 
     has_any_input:  bool,
     is_parapoly:    bool,
@@ -38,7 +52,6 @@ Entity_Variable :: struct {}
 Entity_Variant :: union {
     Entity_Binding,
     Entity_Constant,
-    Entity_C_Function,
     Entity_Function,
     Entity_Variable,
 }
@@ -136,8 +149,8 @@ parse :: proc() {
     gscope = push_function(p, "", nil)
     defer pop_function(p)
 
-    for filename, data in source_files {
-        tokenizer_init(&p.tokenizer, filename, data)
+    for source in source_files {
+        tokenizer_init(&p.tokenizer, source)
         next(p)
 
         loop: for {
@@ -153,6 +166,15 @@ parse :: proc() {
                 }
                 case .Const: {
                     declare_const(p)
+                }
+                case .Builtin: {
+                    if !token.internal {
+                        p->errorf(token.pos, "'builtin' keyword cannot be used outside of internal compiler files.")
+                    }
+
+                    expect(p, .Fn)
+                    declare_func(p, .Builtin)
+                    expect(p, .Dash_Dash_Dash)
                 }
                 case .Fn: {
                     declare_func(p)
@@ -182,8 +204,8 @@ parse :: proc() {
 
     gen_bootstrap()
 
-    for filename, data in source_files {
-        tokenizer_init(&p.tokenizer, filename, data)
+    for source in source_files {
+        tokenizer_init(&p.tokenizer, source)
         next(p)
 
         parsing_loop: for {
@@ -191,6 +213,13 @@ parse :: proc() {
 
             #partial switch token.kind {
                 case .EOF: break parsing_loop
+                case .Builtin: {
+                    skip_to_end: for {
+                        if next(p).kind == .Dash_Dash_Dash {
+                            break skip_to_end
+                        }
+                    }
+                }
                 case .Fn: {
                     name_token := expect(p, .Word)
                     parsing_entity: ^Entity
@@ -488,34 +517,77 @@ declare_const :: proc(p: ^Parser) {
 
     body_loop: for {
         token := next(p)
-
         #partial switch token.kind {
             case .EOF: p->errorf(token.pos, "unexpected end of file")
             case .Semicolon: break body_loop
             case .Word: {
-                entity := find_entity(p, token)
-
-                #partial switch v in entity.variant {
-                case Entity_Constant:
-                    if inferred_type != .Invalid && inferred_type != v.kind {
-                        p->errorf(
-                            token.pos,
-                            "word '{}' of type '{}' cannot be used in expected type of {}",
-                            entity.name, v.kind, inferred_type,
-                        )
-                    }
-
-                    inferred_type = v.kind
-
-                    #partial switch v.kind {
-                        case .Float, .Int, .Uint: append(&temp_value_stack, v.value)
-                        case: {
-                            ec.value = v.value
-                            expect(p, .Semicolon)
-                            break body_loop
+                // This is some dirty stuff but we have to manage basic operations internally
+                // Because +, -, /, *, % are not internal functionality, we need to do this
+                // within the compiler.
+                switch token.text {
+                case "+", "-", "%", "/", "*":
+                    v2 := pop(&temp_value_stack)
+                    v1 := pop(&temp_value_stack)
+                    switch token.text {
+                    case "+":
+                        #partial switch inferred_type {
+                            case .Float: append(&temp_value_stack, v1.(f64) + v2.(f64))
+                            case .Int: append(&temp_value_stack, v1.(int) + v2.(int))
+                            case .Uint: append(&temp_value_stack, v1.(u64) + v2.(u64))
+                        }
+                    case "/":
+                        #partial switch inferred_type {
+                            case .Float: append(&temp_value_stack, v1.(f64) / v2.(f64))
+                            case .Int: append(&temp_value_stack, v1.(int) / v2.(int))
+                            case .Uint: append(&temp_value_stack, v1.(u64) / v2.(u64))
+                        }
+                    case "%":
+                        #partial switch inferred_type {
+                            case .Float: p->errorf(
+                                token.pos, "Opertor '%' only allowed with integers",
+                            )
+                            case .Int: append(&temp_value_stack, v1.(int) % v2.(int))
+                            case .Uint: append(&temp_value_stack, v1.(u64) % v2.(u64))
+                        }
+                    case "*":
+                        #partial switch inferred_type {
+                            case .Float: append(&temp_value_stack, v1.(f64) * v2.(f64))
+                            case .Int: append(&temp_value_stack, v1.(int) * v2.(int))
+                            case .Uint: append(&temp_value_stack, v1.(u64) * v2.(u64))
+                        }
+                    case "-":
+                        #partial switch inferred_type {
+                            case .Float: append(&temp_value_stack, v1.(f64) - v2.(f64))
+                            case .Int: append(&temp_value_stack, v1.(int) - v2.(int))
+                            case .Uint: append(&temp_value_stack, v1.(u64) - v2.(u64))
                         }
                     }
-                    case: p->errorf(token.pos, "'{}' is not a compile-time known constant")
+                case :
+                    entity := find_entity(p, token)
+
+                    #partial switch v in entity.variant {
+                        case Entity_Constant: {
+                            if inferred_type != .Invalid && inferred_type != v.kind {
+                                p->errorf(
+                                    token.pos,
+                                    "word '{}' of type '{}' cannot be used in expected type of {}",
+                                    entity.name, v.kind, inferred_type,
+                                )
+                            }
+
+                            inferred_type = v.kind
+
+                            #partial switch v.kind {
+                                case .Float, .Int, .Uint: append(&temp_value_stack, v.value)
+                                case: {
+                                    ec.value = v.value
+                                    expect(p, .Semicolon)
+                                    break body_loop
+                                }
+                            }
+                        }
+                        case: p->errorf(token.pos, "'{}' is not a compile-time known constant")
+                    }
                 }
             }
             case .False_Literal: {
@@ -559,54 +631,6 @@ declare_const :: proc(p: ^Parser) {
                     inferred_type = .Uint
                 } else if inferred_type != .Uint {
                     p->errorf(token.pos, "can't mix type of values in constant")
-                }
-            }
-
-            t1: u64 = 1000
-            t2: u64 = 10
-            result := t1 % t2
-
-            case .Add, .Divide, .Modulo, .Multiply, .Substract: {
-                v2 := pop(&temp_value_stack)
-                v1 := pop(&temp_value_stack)
-                #partial switch token.kind {
-                    case .Add: {
-                        #partial switch inferred_type {
-                            case .Float: append(&temp_value_stack, v1.(f64) + v2.(f64))
-                            case .Int: append(&temp_value_stack, v1.(int) + v2.(int))
-                            case .Uint: append(&temp_value_stack, v1.(u64) + v2.(u64))
-                        }
-                    }
-                    case .Divide: {
-                        #partial switch inferred_type {
-                            case .Float: append(&temp_value_stack, v1.(f64) / v2.(f64))
-                            case .Int: append(&temp_value_stack, v1.(int) / v2.(int))
-                            case .Uint: append(&temp_value_stack, v1.(u64) / v2.(u64))
-                        }
-                    }
-                    case .Modulo: {
-                        #partial switch inferred_type {
-                            case .Float: p->errorf(
-                                token.pos, "Opertor '%' only allowed with integers",
-                            )
-                            case .Int: append(&temp_value_stack, v1.(int) % v2.(int))
-                            case .Uint: append(&temp_value_stack, v1.(u64) % v2.(u64))
-                        }
-                    }
-                    case .Multiply: {
-                        #partial switch inferred_type {
-                            case .Float: append(&temp_value_stack, v1.(f64) * v2.(f64))
-                            case .Int: append(&temp_value_stack, v1.(int) * v2.(int))
-                            case .Uint: append(&temp_value_stack, v1.(u64) * v2.(u64))
-                        }
-                    }
-                    case .Substract: {
-                        #partial switch inferred_type {
-                            case .Float: append(&temp_value_stack, v1.(f64) - v2.(f64))
-                            case .Int: append(&temp_value_stack, v1.(int) - v2.(int))
-                            case .Uint: append(&temp_value_stack, v1.(u64) - v2.(u64))
-                        }
-                    }
                 }
             }
         }
@@ -653,13 +677,17 @@ declare_const :: proc(p: ^Parser) {
     })
 }
 
-declare_func :: proc(p: ^Parser) {
+declare_func :: proc(p: ^Parser, kind: enum { Default, Builtin, Foreign } = .Default) {
     name_token := expect(p, .Word)
     name := name_token.text
     f := p.curr_function
     ef := Entity_Function{
         inputs = make(Arity, context.temp_allocator),
         outputs = make(Arity, context.temp_allocator),
+
+        is_builtin = kind == .Builtin,
+        is_foreign = kind == .Foreign,
+        //is_inline = start_token.kind == .Inline_Fn,
     }
     is_global := f.is_global
     address := is_global ? gen_global_address() : gen_local_address(f)
@@ -704,6 +732,10 @@ declare_func :: proc(p: ^Parser) {
         }
     }
 
+    if ef.is_builtin {
+        ef.builtin_kind = get_builtin_function_kind(name)
+    }
+
     append(entities, Entity{
         address = address,
         is_global = is_global,
@@ -712,6 +744,86 @@ declare_func :: proc(p: ^Parser) {
         token = name_token,
         variant = ef,
     })
+}
+
+get_builtin_function_kind :: proc(name: string) -> Builtin_Function_Kind {
+    switch name {
+    case "+": return .Basic_Arith_Add
+    case "-": return .Basic_Arith_Substract
+    case "/": return .Basic_Arith_Divide
+    case "*": return .Basic_Arith_Multiply
+    case "%": return .Basic_Arith_Modulo
+    }
+
+    return .Invalid
+}
+
+call_builtin_func :: proc(p: ^Parser, ef: Entity_Function) {
+    switch ef.builtin_kind {
+    case .Invalid: // noop
+    case .Basic_Arith_Add, .Basic_Arith_Substract, .Basic_Arith_Multiply,
+            .Basic_Arith_Divide, .Basic_Arith_Modulo:
+        rhs := p.tstack->pop()
+        lhs := p.tstack->pop()
+        res := ef.outputs[0].kind
+        gen_basic_arithmetic(p.curr_function, lhs, rhs, res, ef.builtin_kind)
+        p.tstack->push(res)
+    }
+}
+
+call_function :: proc(p: ^Parser, entity: Entity) {
+    f := p.curr_function
+    ef := entity.variant.(Entity_Function)
+    token := p.prev_token
+    parapoly_table := make(map[string]Type_Kind, context.temp_allocator)
+    defer delete(parapoly_table)
+
+    #reverse for input in ef.inputs {
+        t := p.tstack->pop()
+
+        switch {
+        case input.kind == .Parapoly:
+            v, ok := parapoly_table[input.name]
+
+            if !ok {
+                parapoly_table[input.name] = t
+                v = t
+            }
+
+            if t != v {
+                p->errorf(
+                    token.pos,
+                    "parapoly of name '{}' means '{}' in this declaration, got '{}'",
+                    input.name, type_readable_table[v], type_readable_table[t],
+                )
+            }
+        case input.kind != t && input.kind != .Any:
+            p->errorf(
+                token.pos,
+                "input mismatch in function {}\n\tExpected: {},\tHave: {}",
+                token.text, input, t,
+            )
+        }
+    }
+
+    for output in ef.outputs {
+        if output.kind == .Parapoly {
+            v, ok := parapoly_table[output.name]
+
+            if !ok {
+                p->errorf(
+                    token.pos,
+                    "parapoly of the name {} not defined in inputs", output.name,
+                )
+            }
+
+            p.tstack->push(v)
+        } else {
+            p.tstack->push(output.kind)
+        }
+    }
+
+    gen_function_call(f, entity.address)
 }
 
 parse_function :: proc(p: ^Parser, name: string, e: ^Entity) {
@@ -747,6 +859,8 @@ parse_token :: proc(p: ^Parser, token: Token) -> bool {
             token.pos, "invalid token as function body {}",
             token_to_string(token),
         )
+    case .Builtin, .Foreign: unimplemented()
+
     case .Semicolon: return false
 
     case .Const: declare_const(p)
@@ -772,57 +886,11 @@ parse_token :: proc(p: ^Parser, token: Token) -> bool {
             case u64: gen_push_uint(f, v2)
             }
             p.tstack->push(v.kind)
-        case Entity_C_Function: // TODO: Handle
         case Entity_Function:
-            parapoly_table := make(map[string]Type_Kind, context.temp_allocator)
-            defer delete(parapoly_table)
-
-            #reverse for input in v.inputs {
-                t := p.tstack->pop()
-
-                switch {
-                case input.kind == .Parapoly:
-                    v, ok := parapoly_table[input.name]
-
-                    if !ok {
-                        parapoly_table[input.name] = t
-                        v = t
-                    }
-
-                    if t != v {
-                        p->errorf(
-                            token.pos,
-                            "parapoly of name '{}' means '{}' in this declaration, got '{}'",
-                            input.name, type_readable_table[v], type_readable_table[t],
-                        )
-                    }
-                case input.kind != t && input.kind != .Any:
-                    p->errorf(
-                        token.pos,
-                        "input mismatch in function {}\n\tExpected: {},\tHave: {}",
-                        token.text, input, t,
-                    )
-                }
+            switch {
+            case v.is_builtin: call_builtin_func(p, v)
+            case: call_function(p, result)
             }
-
-            for output in v.outputs {
-                if output.kind == .Parapoly {
-                    v, ok := parapoly_table[output.name]
-
-                    if !ok {
-                        p->errorf(
-                            token.pos,
-                            "parapoly of the name {} not defined in inputs", output.name,
-                        )
-                    }
-
-                    p.tstack->push(v)
-                } else {
-                    p.tstack->push(output.kind)
-                }
-            }
-
-            gen_function_call(f, result.address)
         case Entity_Variable: // TODO: Handle
         }
 
@@ -977,36 +1045,6 @@ parse_token :: proc(p: ^Parser, token: Token) -> bool {
         p.tstack->push(.Uint)
 
     case .Type_Literal: unimplemented()
-
-    case .Add:
-        t := p.tstack->pop()
-        p.tstack->pop()
-        gen_add(f, t)
-        p.tstack->push(t)
-
-    case .Divide:
-        t := p.tstack->pop()
-        p.tstack->pop()
-        gen_divide(f, t)
-        p.tstack->push(t)
-
-    case .Modulo:
-        t := p.tstack->pop()
-        p.tstack->pop()
-        gen_modulo(f, t)
-        p.tstack->push(t)
-
-    case .Multiply:
-        t := p.tstack->pop()
-        p.tstack->pop()
-        gen_multiply(f, t)
-        p.tstack->push(t)
-
-    case .Substract:
-        t := p.tstack->pop()
-        p.tstack->pop()
-        gen_substract(f, t)
-        p.tstack->push(t)
 
     case .Equal:
         t := p.tstack->pop()

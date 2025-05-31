@@ -10,7 +10,7 @@ const i uint 127u ;
 const j 128u i + ;
 const k string "Stańczyk" ;
 
-fn main ( )
+fn main
   const x "internal constant" ;
 
   "15  " print a println

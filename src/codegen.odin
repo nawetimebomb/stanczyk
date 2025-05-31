@@ -340,35 +340,48 @@ gen_function_call :: proc(f: ^Function, address: uint) {
     writefln(f, "skfuncip{}();", address)
 }
 
-gen_add :: proc(f: ^Function, t: Type_Kind) {
+gen_basic_arithmetic :: proc(
+    f: ^Function, lhs, rhs, res: Type_Kind, op: Builtin_Function_Kind,
+) {
     writeln(f, "b = _pop(); a = _pop();")
 
-    if t == .String {
-        writeln(f, "a.skstring = _string_plus(a.skstring, b.skstring);")
-        writeln(f, "_push(a);")
-    } else {
-        writefln(f, "a.{0} = a.{0} + b.{0}; _push(a);", type_to_cname(t))
+    #partial switch op {
+        case .Basic_Arith_Add: {
+            if lhs == .String && rhs == .String {
+                writeln(f, "a.skstring = _string_plus(a.skstring, b.skstring);")
+                writeln(f, "_push(a);")
+            } else {
+                writefln(
+                    f, "a.{0} = a.{1} + b.{2}; _push(a);",
+                    type_to_cname(res), type_to_cname(lhs), type_to_cname(rhs),
+                )
+            }
+        }
+        case .Basic_Arith_Substract: {
+            writefln(
+                f, "a.{0} = a.{1} - b.{2}; _push(a);",
+                type_to_cname(res), type_to_cname(lhs), type_to_cname(rhs),
+            )
+        }
+        case .Basic_Arith_Divide: {
+            writefln(
+                f, "a.{0} = a.{1} / b.{2}; _push(a);",
+                type_to_cname(res), type_to_cname(lhs), type_to_cname(rhs),
+            )
+        }
+        case .Basic_Arith_Modulo: {
+            writefln(
+                f, "a.{0} = a.{1} %% b.{2}; _push(a);",
+                type_to_cname(res), type_to_cname(lhs), type_to_cname(rhs),
+            )
+        }
+        case .Basic_Arith_Multiply: {
+            writefln(
+                f, "a.{0} = a.{1} * b.{2}; _push(a);",
+                type_to_cname(res), type_to_cname(lhs), type_to_cname(rhs),
+            )
+        }
     }
-}
-
-gen_divide :: proc(f: ^Function, t: Type_Kind) {
-    writeln(f, "b = _pop(); a = _pop();")
-    writefln(f, "a.{0} = a.{0} / b.{0}; _push(a);", type_to_cname(t))
-}
-
-gen_modulo :: proc(f: ^Function, t: Type_Kind) {
-    writeln(f, "b = _pop(); a = _pop();")
-    writefln(f, "a.{0} = a.{0} %% b.{0}; _push(a);", type_to_cname(t))
-}
-
-gen_multiply :: proc(f: ^Function, t: Type_Kind) {
-    writeln(f, "b = _pop(); a = _pop();")
-    writefln(f, "a.{0} = a.{0} * b.{0}; _push(a);", type_to_cname(t))
-}
-
-gen_substract :: proc(f: ^Function, t: Type_Kind) {
-    writeln(f, "b = _pop(); a = _pop();")
-    writefln(f, "a.{0} = a.{0} - b.{0}; _push(a);", type_to_cname(t))
 }
 
 gen_equal :: proc(f: ^Function, t: Type_Kind) {

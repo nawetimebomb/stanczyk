@@ -1,8 +1,8 @@
-fn print_proc ( string )
+fn print_proc (string)
   println
 ;
 
-fn main ( )
+fn main
   "Test calling print_proc" print_proc
   declared_late
   "The next function takes 2 int values and returns the sum of them" println
@@ -10,14 +10,14 @@ fn main ( )
   "Hello, " "Stańczyk" sum println
 ;
 
-fn declared_late ( )
+fn declared_late
   "This procedure was called late" println
 ;
 
-fn sum ( int int --- int )
+fn sum (int int --- int)
   +
 ;
 
-fn sum ( string string --- string )
+fn sum (string string --- string)
   +
 ;
