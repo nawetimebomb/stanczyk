@@ -340,48 +340,31 @@ gen_function_call :: proc(f: ^Function, address: uint) {
     writefln(f, "skfuncip{}();", address)
 }
 
-gen_basic_arithmetic :: proc(
-    f: ^Function, lhs, rhs, res: Type_Kind, op: Builtin_Function_Kind,
-) {
+gen_basic_arithmetic :: proc(f: ^Function, lhs, rhs, res: Type_Kind, op: string) {
     writeln(f, "b = _pop(); a = _pop();")
 
-    #partial switch op {
-        case .Basic_Arith_Add: {
-            if lhs == .String && rhs == .String {
-                writeln(f, "a.skstring = _string_plus(a.skstring, b.skstring);")
-                writeln(f, "_push(a);")
-            } else {
-                writefln(
-                    f, "a.{0} = a.{1} + b.{2}; _push(a);",
-                    type_to_cname(res), type_to_cname(lhs), type_to_cname(rhs),
-                )
-            }
-        }
-        case .Basic_Arith_Substract: {
+    switch op {
+    case "+":
+        if lhs == .String && rhs == .String {
+            writeln(f, "a.skstring = _string_plus(a.skstring, b.skstring);")
+            writeln(f, "_push(a);")
+        } else {
             writefln(
-                f, "a.{0} = a.{1} - b.{2}; _push(a);",
+                f, "a.{0} = a.{1} + b.{2}; _push(a);",
                 type_to_cname(res), type_to_cname(lhs), type_to_cname(rhs),
             )
         }
-        case .Basic_Arith_Divide: {
-            writefln(
-                f, "a.{0} = a.{1} / b.{2}; _push(a);",
-                type_to_cname(res), type_to_cname(lhs), type_to_cname(rhs),
-            )
-        }
-        case .Basic_Arith_Modulo: {
-            writefln(
-                f, "a.{0} = a.{1} %% b.{2}; _push(a);",
-                type_to_cname(res), type_to_cname(lhs), type_to_cname(rhs),
-            )
-        }
-        case .Basic_Arith_Multiply: {
-            writefln(
-                f, "a.{0} = a.{1} * b.{2}; _push(a);",
-                type_to_cname(res), type_to_cname(lhs), type_to_cname(rhs),
-            )
-        }
+    case :
+        writefln(
+            f, "a.{0} = a.{1} {2} b.{3}; _push(a);",
+            type_to_cname(res), type_to_cname(lhs), op, type_to_cname(rhs),
+        )
     }
+}
+
+gen_string_length :: proc(f: ^Function) {
+    writeln(f, "a = _pop();")
+    writeln(f, "a.skint = a.skstring.len; _push(a);")
 }
 
 gen_equal :: proc(f: ^Function, t: Type_Kind) {

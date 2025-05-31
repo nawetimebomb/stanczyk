@@ -20,21 +20,11 @@ Entity_Constant :: struct {
     value: Constant_Value,
 }
 
-Builtin_Function_Kind :: enum {
-    Invalid,
-    Basic_Arith_Add,
-    Basic_Arith_Substract,
-    Basic_Arith_Multiply,
-    Basic_Arith_Divide,
-    Basic_Arith_Modulo,
-}
-
 Entity_Function :: struct {
     inputs:  Arity,
     outputs: Arity,
 
     is_builtin:   bool,
-    builtin_kind: Builtin_Function_Kind,
 
     is_foreign:   bool,
     foreign_name: string,
@@ -420,11 +410,39 @@ find_entity :: proc(p: ^Parser, token: Token) -> Entity {
             }
         }
 
+        report_posible_matches :: proc(possible_matches: []Entity) -> string {
+            if len(possible_matches) == 0 {
+                return ""
+            }
+            builder := strings.builder_make(context.temp_allocator)
+            strings.write_string(&builder, "\nPossible matches:\n")
+
+            for e in possible_matches {
+                if ef, ok := e.variant.(Entity_Function); ok {
+                    fmt.sbprintf(&builder, "\t{0} (", e.name)
+                    for input in ef.inputs { fmt.sbprintf(&builder, "{} ", type_readable_table[input.kind]) }
+                    if len(ef.outputs) > 0 { fmt.sbprint(&builder, "--- ") }
+                    for output, index in ef.outputs {
+                        if index == len(ef.outputs) - 1 {
+                            fmt.sbprintf(&builder, "{})", type_readable_table[output.kind])
+                        } else {
+                            fmt.sbprintf(&builder, "{} ", type_readable_table[output.kind])
+                        }
+                    }
+                    fmt.sbprint(&builder, "\n")
+                }
+            }
+
+            return strings.to_string(builder)
+        }
+
         // Unfortunately we couldn't find a reliable result, so we error out.
         p->errorf(
             token.pos,
-            "can't find a matching polymorphic function of name '{}' with current stack values: {}",
-            token.text, p.tstack.v,
+            "unable to find matching function of name '{}' with stack {}{}",
+            token.text,
+            pretty_print_stack(&p.tstack),
+            report_posible_matches(possible_matches[:]),
         )
     }
 
@@ -787,10 +805,6 @@ declare_func :: proc(p: ^Parser, kind: enum { Default, Builtin, Foreign } = .Def
         }
     }
 
-    if ef.is_builtin {
-        ef.builtin_kind = get_builtin_function_kind(name)
-    }
-
     append(entities, Entity{
         address = address,
         is_global = is_global,
@@ -801,27 +815,21 @@ declare_func :: proc(p: ^Parser, kind: enum { Default, Builtin, Foreign } = .Def
     })
 }
 
-get_builtin_function_kind :: proc(name: string) -> Builtin_Function_Kind {
-    switch name {
-    case "+": return .Basic_Arith_Add
-    case "-": return .Basic_Arith_Substract
-    case "/": return .Basic_Arith_Divide
-    case "*": return .Basic_Arith_Multiply
-    case "%": return .Basic_Arith_Modulo
-    }
+call_builtin_func :: proc(p: ^Parser, e: Entity) {
+    f := p.curr_function
+    ef := e.variant.(Entity_Function)
 
-    return .Invalid
-}
+    switch e.name {
+    case "len":
+        p.tstack->pop()
+        gen_string_length(f)
+        p.tstack->push(.Int)
 
-call_builtin_func :: proc(p: ^Parser, ef: Entity_Function) {
-    switch ef.builtin_kind {
-    case .Invalid: // noop
-    case .Basic_Arith_Add, .Basic_Arith_Substract, .Basic_Arith_Multiply,
-            .Basic_Arith_Divide, .Basic_Arith_Modulo:
+    case "+", "-", "%", "*", "/":
         rhs := p.tstack->pop()
         lhs := p.tstack->pop()
         res := ef.outputs[0].kind
-        gen_basic_arithmetic(p.curr_function, lhs, rhs, res, ef.builtin_kind)
+        gen_basic_arithmetic(f, lhs, rhs, res, e.name)
         p.tstack->push(res)
     }
 }
@@ -943,7 +951,7 @@ parse_token :: proc(p: ^Parser, token: Token) -> bool {
             p.tstack->push(v.kind)
         case Entity_Function:
             switch {
-            case v.is_builtin: call_builtin_func(p, v)
+            case v.is_builtin: call_builtin_func(p, result)
             case: call_function(p, result)
             }
         case Entity_Variable: // TODO: Handle

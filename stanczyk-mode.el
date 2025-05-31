@@ -40,7 +40,8 @@
     "for" "do" "times" "leave" "let" "in" "end" "defer"
     "var" "const" "fn" "set" "get"
     "foreign" "builtin" "namespace")
-  '(("float"  . font-lock-type-face)
+  '(("len"    . font-lock-builtin-face)
+    ("float"  . font-lock-type-face)
     ("uint"   . font-lock-type-face)
     ("bool"   . font-lock-type-face)
     ("int"    . font-lock-type-face)

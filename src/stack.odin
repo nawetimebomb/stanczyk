@@ -1,6 +1,8 @@
 package main
 
+import "core:fmt"
 import "core:slice"
+import "core:strings"
 
 Reference :: struct {
 
@@ -75,4 +77,23 @@ init_type_stack :: proc(t: ^Type_Stack) {
     t.reset = ts_reset
     t.save = ts_save
     t.v = make([dynamic]Type_Kind, context.temp_allocator)
+}
+
+pretty_print_stack :: proc(t: ^Type_Stack) -> string {
+    if len(t.v) == 0 {
+        return "()"
+    }
+    builder := strings.builder_make(context.temp_allocator)
+    fmt.sbprint(&builder, "(")
+
+    for v, index in t.v {
+        if len(t.v) - 1 == index {
+            fmt.sbprintf(&builder, "{})", type_readable_table[v])
+        } else {
+            fmt.sbprintf(&builder, "{} ", type_readable_table[v])
+        }
+    }
+
+    return strings.to_string(builder)
+
 }
