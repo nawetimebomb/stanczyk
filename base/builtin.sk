@@ -32,20 +32,22 @@
 // with Stańczyk by the compiler. Definitions and documentation provided
 // are also defined within the compiler itself.
 
-/// Compiler-Defined Constants
+/// Compiler-defined Constants
 
-// Operating System
-// bool OS_LINUX   - True if program is running on Linux.
-// bool OS_MAC     - True if program is running on Mac.
-// bool OS_WINDOWS - True if program is running on Windows.
+// Operating System - True when the program is compiled on the specific Operating System.
+builtin const OS_DARWIN   bool  OS_DARWIN ;
+builtin const OS_LINUX    bool  OS_LINUX ;
+builtin const OS_WINDOWS  bool  OS_WINDOWS ;
 
-// Stańczyk Internals
-// bool SK_DEBUG   - True if program is compiled with `-debug` switch.
-// bool SK_TEST    - True if program is running in test mode (`skc test`)
-// str  SK_VERSION - The Stańczyk Compiler version (`skc version`)
+// Stańczyk Internals - Constants about Stańczyk Compiler configurations.
+builtin const SK_DEBUG bool SK_DEBUG ;
+builtin const SK_VERSION string SK_VERSION ;
 
+/// Compiler-defined Functions
 
 // Basic arithmetic functions
+// Users are allowed to use the same word for any kind of function that don't match of these.
+// Example: fn + (int float --- float) swap int->float + ;
 builtin fn + (int int --- int) ---
 builtin fn - (int int --- int) ---
 builtin fn * (int int --- int) ---

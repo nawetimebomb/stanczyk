@@ -119,7 +119,6 @@ global_errorf :: proc(format: string, args: ..any, loc := #caller_location) {
     fmt.eprintf("compilation error: ")
     fmt.eprintf(format, ..args)
     fmt.eprintln()
-    if show_compiler_error_location { fmt.eprintln("called from", loc) }
     os.exit(1)
 }
 
@@ -130,11 +129,44 @@ default_errorf :: proc(
     fmt.eprintf("%s(%d:%d): ", pos.filename, pos.line, pos.column)
     fmt.eprintf(format, ..args)
     fmt.eprintln()
-    if show_compiler_error_location { fmt.eprintln("called from", loc) }
     os.exit(1)
 }
 
 gscope: ^Scope
+
+add_global_bool_constant :: proc(p: ^Parser, name: string, value: bool) {
+    append(&gscope.entities, Entity{
+        is_global = true,
+        name = name,
+        variant = Entity_Constant{
+            kind = .Bool,
+            value = value,
+        },
+    })
+}
+
+add_global_string_constant :: proc(p: ^Parser, name: string, value: string) {
+    append(&gscope.entities, Entity{
+        is_global = true,
+        name = name,
+        variant = Entity_Constant{
+            kind = .String,
+            value = value,
+        },
+    })
+}
+
+init_everything :: proc(p: ^Parser) {
+    gscope = push_function(p, "", nil)
+
+    // Add compiler defined constants
+    add_global_bool_constant(p, "OS_DARWIN", ODIN_OS == .Darwin)
+    add_global_bool_constant(p, "OS_LINUX", ODIN_OS == .Linux)
+    add_global_bool_constant(p, "OS_WINDOWS", ODIN_OS == .Windows)
+    add_global_bool_constant(p, "SK_DEBUG", debug_switch_enabled)
+
+    add_global_string_constant(p, "SK_VERSION", COMPILER_VERSION)
+}
 
 parse :: proc() {
     p := &Parser{}
@@ -146,8 +178,7 @@ parse :: proc() {
         p.errorf = default_errorf
     }
 
-    gscope = push_function(p, "", nil)
-    defer pop_function(p)
+    init_everything(p)
 
     for source in source_files {
         tokenizer_init(&p.tokenizer, source)
@@ -172,9 +203,31 @@ parse :: proc() {
                         p->errorf(token.pos, "'builtin' keyword cannot be used outside of internal compiler files.")
                     }
 
-                    expect(p, .Fn)
-                    declare_func(p, .Builtin)
-                    expect(p, .Dash_Dash_Dash)
+                    if allow(p, .Fn) {
+                        declare_func(p, .Builtin)
+                        expect(p, .Dash_Dash_Dash)
+                    } else if allow(p, .Const) {
+                        name_token := expect(p, .Word)
+
+                        found := false
+                        for &other in gscope.entities {
+                            if other.name == name_token.text {
+                                found = true
+                                other.pos = name_token.pos
+                                other.token = name_token
+                                break
+                            }
+                        }
+
+                        if !found {
+                            p->errorf(
+                                name_token.pos,
+                                "compiler defined constant {} missing", name_token.text,
+                            )
+                        }
+
+                        for { if next(p).kind == .Semicolon { break } }
+                    }
                 }
                 case .Fn: {
                     declare_func(p)
@@ -252,6 +305,10 @@ parse :: proc() {
             }
         }
     }
+
+    pop_function(p)
+
+    assert(p.curr_function == nil && p.curr_scope == nil)
 
     gen_compilation_unit()
 
@@ -505,7 +562,6 @@ declare_const :: proc(p: ^Parser) {
     f := p.curr_function
     ec := Entity_Constant{}
     is_global := f.is_global
-    address := is_global ? gen_global_address() : gen_local_address(f)
     entities := &p.curr_scope.entities
     inferred_type: Type_Kind
     temp_value_stack := make([dynamic]Constant_Value, context.temp_allocator)
@@ -668,7 +724,6 @@ declare_const :: proc(p: ^Parser) {
     }
 
     append(entities, Entity{
-        address = address,
         is_global = is_global,
         name = name,
         pos = name_token.pos,

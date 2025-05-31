@@ -1,3 +1,4 @@
+
 package main
 
 import "core:c/libc"
@@ -11,7 +12,7 @@ import "core:strings"
 COMPILER_DATE    :: "2025-03-03"
 COMPILER_EXEC    :: "skc"
 COMPILER_NAME    :: "Stańczyk"
-COMPILER_VERSION :: "5"
+COMPILER_VERSION :: "6"
 COMPILER_ENV     :: "STANCZYK_DIR"
 
 ARCH_64 :: 64
@@ -31,15 +32,11 @@ Source_File :: struct {
 }
 
 compiler_dir:      string
-output_filename:   string
 source_files:      [dynamic]Source_File
 
-
-compiler_mode:     enum { Compiler, Interpreter, REPL }
-
-keep_c_output := false
-run_program := false
-show_compiler_error_location := false
+// Switches
+output_filename:      string
+debug_switch_enabled: bool
 
 // TODO: This is useful for debugging, but maybe I need an Arena allocator as the default
 skc_allocator: mem.Tracking_Allocator
@@ -197,6 +194,8 @@ Make sure '{0}' is set and points to the directory where The {1} Compiler is ins
             v := rest[i]
 
             switch v {
+            case "-debug":
+                debug_switch_enabled = true
             case "-out":
                 if len(rest) >= i + 1 {
                     i += 1

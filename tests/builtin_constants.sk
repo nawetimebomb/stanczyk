@@ -1,0 +1,8 @@
+fn main
+  "OS_DARWIN  " print OS_DARWIN println
+  "OS_LINUX  " print OS_LINUX println
+  "OS_WINDOWS  " print OS_WINDOWS println
+  "" println
+  "SK_DEBUG  " print SK_DEBUG println
+  "SK_VERSION  " print SK_VERSION println
+;
