@@ -107,7 +107,7 @@ Parser :: struct {
                  args: ..any, loc := #caller_location) -> !,
 }
 
-the_program := make([dynamic]Function)
+functions := make([dynamic]Function)
 
 global_fatalf :: proc(format: string, args: ..any, loc := #caller_location) {
     fmt.eprintf("compilation error: ")
@@ -311,7 +311,7 @@ deinit_everything :: proc(p: ^Parser) {
     assert(p.curr_function == nil)
     delete(p.tstack.v)
 
-    for &f in the_program { f.stack->free() }
+    for &f in functions { f.stack->free() }
 }
 
 next :: proc(p: ^Parser) -> Token {
@@ -460,7 +460,7 @@ find_entity :: proc(p: ^Parser, token: Token) -> Entity {
 push_function :: proc(p: ^Parser, entity: ^Entity) -> ^Scope {
     // TODO: This only support global functions, which I think it's fine, but if sometime
     // we want to support functions inside another function scope, we need to allow it here.
-    for &f in the_program {
+    for &f in functions {
         if f.entity.token == entity.token {
             p.curr_function = &f
             break
@@ -834,7 +834,7 @@ declare_func :: proc(p: ^Parser, kind: enum { Default, Builtin, Foreign } = .Def
     if !is_builtin {
         // Builtin functions are compiler-defined, so they don't
         // really create any code, but instead do custom code generation.
-        append(&the_program, Function{
+        append(&functions, Function{
             entity = &entities[len(entities) - 1],
             called = name == "main",
             local_ip = 0,
@@ -915,7 +915,7 @@ call_function :: proc(p: ^Parser, entity: Entity) {
     }
 
     // Mark the function as called.
-    for &f in the_program {
+    for &f in functions {
         if f.entity.token == entity.token { f.called = true }
     }
 

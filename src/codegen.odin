@@ -285,7 +285,7 @@ SK_PROGRAM void println(sktype t) {
 
 gen_program :: proc() {
     writeln(&gen.userfuncs, "// CODE STARTS HERE\n")
-    for &f in the_program {
+    for &f in functions {
         if f.called {
             pos := f.entity.pos
             userdefs := &gen.userdefs
