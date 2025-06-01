@@ -283,15 +283,24 @@ SK_PROGRAM void println(sktype t) {
 }`)
 }
 
-gen_function_declaration :: proc(f: ^Function) {
-    assert(f != nil)
-    c := &gen.userdefs
-    pos := f.entity.pos
-    writefln(
-        c, "// {} ({}:{}:{})",
-        f.entity.name, pos.filename, pos.line, pos.column,
-    )
-    writefln(c, "SK_PROGRAM void skfuncip{}();", f.entity.address)
+gen_program :: proc() {
+    writeln(&gen.userfuncs, "// CODE STARTS HERE\n")
+    for &f in the_program {
+        if f.called {
+            pos := f.entity.pos
+            userdefs := &gen.userdefs
+
+            writefln(
+                userdefs, "// {} ({}:{}:{})",
+                f.entity.name, pos.filename, pos.line, pos.column,
+            )
+            writefln(userdefs, "SK_PROGRAM void skfuncip{}();", f.entity.address)
+
+            writeln(&gen.userfuncs, strings.to_string(f.code))
+        }
+        delete(f.code.buf)
+    }
+    writeln(&gen.userfuncs, "// CODE ENDS HERE")
 }
 
 gen_function :: proc(f: ^Function, part: enum { Head, Tail }) {
@@ -310,8 +319,6 @@ gen_function :: proc(f: ^Function, part: enum { Head, Tail }) {
     case .Tail:
         indent_backward(f)
         writeln(f, "}")
-        writeln(&gen.userfuncs, strings.to_string(f.code))
-        delete(f.code.buf)
     }
 }
 

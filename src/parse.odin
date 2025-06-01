@@ -296,9 +296,11 @@ parse :: proc() {
     }
 
 
+    gen_program()
     gen_compilation_unit()
-    pop_scope(p)
-    assert(p.curr_function == nil && p.curr_scope == nil)
+    assert(p.curr_scope.parent == nil)
+    delete_scope(p.curr_scope)
+    assert(p.curr_function == nil)
     delete(p.rstack.v)
     delete(p.tstack.v)
 }
@@ -463,8 +465,8 @@ push_function :: proc(p: ^Parser, entity: ^Entity) -> ^Scope {
 
 pop_function :: proc(p: ^Parser) {
     assert(p.curr_function != nil)
-    p.curr_function = p.curr_function.parent
     pop_scope(p)
+    p.curr_function = p.curr_function.parent
 }
 
 push_scope :: proc(p: ^Parser, t: Token, k: Scope_Kind) -> ^Scope {
@@ -479,6 +481,7 @@ push_scope :: proc(p: ^Parser, t: Token, k: Scope_Kind) -> ^Scope {
 
 pop_scope :: proc(p: ^Parser) {
     assert(p.curr_scope != nil)
+    assert(p.curr_function != nil)
 
     switch p.curr_scope.validation_at_end {
     case .Skip:
@@ -513,11 +516,15 @@ pop_scope :: proc(p: ^Parser) {
         delete(item)
     }
 
-    delete(p.curr_scope.entities)
-    delete(p.curr_scope.tstack_copies)
     old_scope := p.curr_scope
     p.curr_scope = old_scope.parent
-    free(old_scope)
+    delete_scope(old_scope)
+}
+
+delete_scope :: proc(s: ^Scope) {
+    delete(s.entities)
+    delete(s.tstack_copies)
+    free(s)
 }
 
 create_stack_snapshot :: proc(p: ^Parser, scope: ^Scope = nil) {
@@ -804,11 +811,17 @@ declare_func :: proc(p: ^Parser, kind: enum { Default, Builtin, Foreign } = .Def
         token = name_token,
         variant = ef,
     })
-    append(&the_program, Function{
-        entity = &entities[len(entities) - 1],
-        local_ip = 0,
-        code = strings.builder_make(),
-    })
+
+    if !ef.is_builtin {
+        // Builtin functions are compiler-defined, so they don't
+        // really create any code, but instead do custom code generation.
+        append(&the_program, Function{
+            entity = &entities[len(entities) - 1],
+            called = name == "main",
+            local_ip = 0,
+            code = strings.builder_make(),
+        })
+    }
 }
 
 call_builtin_func :: proc(p: ^Parser, e: Entity) {
@@ -882,6 +895,11 @@ call_function :: proc(p: ^Parser, entity: Entity) {
         }
     }
 
+    // Mark the function as called.
+    for &f in the_program {
+        if f.entity.token == entity.token { f.called = true }
+    }
+
     gen_function_call(f, entity.address)
 }
 
@@ -889,23 +907,18 @@ parse_function :: proc(p: ^Parser, e: ^Entity) {
     ef := e.variant.(Entity_Function)
     push_function(p, e)
     f := p.curr_function
-
-    gen_function_declaration(f)
+    // gen_function_declaration(f)
     gen_function(f, .Head)
-
     for param in ef.inputs { p.tstack->push(param.kind) }
     body_loop: for { if !parse_token(p, next(p)) { break body_loop } }
-
     if len(p.tstack.v) != len(ef.outputs) {
         p->errorf(
             e.pos, "mismatched outputs in function {}\n\tExpected: {},\tHave: {}",
             e.name, ef.outputs, p.tstack.v,
         )
     }
-
     gen_function(f, .Tail)
     pop_function(p)
-
     p.tstack->clear()
 }
 
