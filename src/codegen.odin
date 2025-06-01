@@ -25,15 +25,15 @@ Generator :: struct {
 gen := Generator{}
 
 init_generator :: proc() {
-    gen.includes = strings.builder_make(context.temp_allocator)
-    gen.defines = strings.builder_make(context.temp_allocator)
-    gen.typedefs = strings.builder_make(context.temp_allocator)
-    gen.structs = strings.builder_make(context.temp_allocator)
-    gen.builtinglobals = strings.builder_make(context.temp_allocator)
-    gen.builtinprocdefs = strings.builder_make(context.temp_allocator)
-    gen.builtinprocs = strings.builder_make(context.temp_allocator)
-    gen.userdefs = strings.builder_make(context.temp_allocator)
-    gen.userfuncs = strings.builder_make(context.temp_allocator)
+    gen.includes = strings.builder_make()
+    gen.defines = strings.builder_make()
+    gen.typedefs = strings.builder_make()
+    gen.structs = strings.builder_make()
+    gen.builtinglobals = strings.builder_make()
+    gen.builtinprocdefs = strings.builder_make()
+    gen.builtinprocs = strings.builder_make()
+    gen.userdefs = strings.builder_make()
+    gen.userfuncs = strings.builder_make()
 }
 
 write :: proc{write_to_builder, write_to_function}
@@ -118,32 +118,35 @@ gen_local_address :: proc(f: ^Function) -> (address: uint) {
 }
 
 gen_compilation_unit :: proc() {
-    result := strings.builder_make(context.temp_allocator)
+    result := strings.builder_make()
     writeln(&result, string(gen.includes.buf[:]))
-    clear(&gen.includes.buf)
+    delete(gen.includes.buf)
     writeln(&result, string(gen.typedefs.buf[:]))
-    clear(&gen.typedefs.buf)
+    delete(gen.typedefs.buf)
     writeln(&result, string(gen.defines.buf[:]))
-    clear(&gen.defines.buf)
+    delete(gen.defines.buf)
     writeln(&result, string(gen.structs.buf[:]))
-    clear(&gen.structs.buf)
+    delete(gen.structs.buf)
     writeln(&result, string(gen.builtinglobals.buf[:]))
-    clear(&gen.builtinglobals.buf)
+    delete(gen.builtinglobals.buf)
     writeln(&result, string(gen.builtinprocdefs.buf[:]))
-    clear(&gen.builtinprocdefs.buf)
+    delete(gen.builtinprocdefs.buf)
     writeln(&result, string(gen.builtinprocs.buf[:]))
-    clear(&gen.builtinprocs.buf)
+    delete(gen.builtinprocs.buf)
     writeln(&result, string(gen.userdefs.buf[:]))
-    clear(&gen.userdefs.buf)
+    delete(gen.userdefs.buf)
     writeln(&result, string(gen.userfuncs.buf[:]))
-    clear(&gen.userfuncs.buf)
+    delete(gen.userfuncs.buf)
     writefln(&result, `int main(int ___argc, char** ___argv) {{
 	g_main_argc = ___argc;
 	g_main_argv = ___argv;
 	skfuncip{}();
 	return 0;
 }`, gen.main_func_address)
+
     os.write_entire_file(fmt.tprintf("{}.c", output_filename), result.buf[:])
+
+    delete(result.buf)
 }
 
 gen_bootstrap :: proc() {
@@ -281,30 +284,34 @@ SK_PROGRAM void println(sktype t) {
 }
 
 gen_function_declaration :: proc(f: ^Function) {
+    assert(f != nil)
     c := &gen.userdefs
-
+    pos := f.entity.pos
     writefln(
         c, "// {} ({}:{}:{})",
-        f.name, f.filename, f.line, f.column,
+        f.entity.name, pos.filename, pos.line, pos.column,
     )
-    writefln(c, "SK_PROGRAM void skfuncip{}();", f.address)
+    writefln(c, "SK_PROGRAM void skfuncip{}();", f.entity.address)
 }
 
 gen_function :: proc(f: ^Function, part: enum { Head, Tail }) {
     c := &f.code
+    pos := f.entity.pos
+
     switch part {
     case .Head:
         writefln(
             f, "// {} ({}:{}:{})",
-            f.name, f.filename, f.line, f.column,
+            f.entity.name, pos.filename, pos.line, pos.column,
         )
-        writefln(f, "SK_PROGRAM void skfuncip{}() {{", f.address)
+        writefln(f, "SK_PROGRAM void skfuncip{}() {{", f.entity.address)
         indent_forward(f)
         writeln(f, "skvalue a, b, c;")
     case .Tail:
         indent_backward(f)
         writeln(f, "}")
         writeln(&gen.userfuncs, strings.to_string(f.code))
+        delete(f.code.buf)
     }
 }
 
@@ -325,7 +332,20 @@ gen_push_uint :: proc(f: ^Function, v: u64) {
 }
 
 gen_push_string :: proc(f: ^Function, v: string) {
-    writefln(f, "a.skstring = __STRLIT(\"{}\", {}); _push(a);", v, len(v))
+    parse_string :: proc(v: string) -> string {
+        nv := strings.builder_make()
+        defer delete(nv.buf)
+
+        for r in v {
+            strings.write_escaped_rune(&nv, r, '\\')
+        }
+
+        result := strings.clone(strings.to_string(nv))
+        return result
+    }
+    parsed := parse_string(v)
+    writefln(f, "a.skstring = __STRLIT(\"{}\", {}); _push(a);", parsed, len(v))
+    delete(parsed)
 }
 
 gen_push_binding :: proc(f: ^Function, address: uint) {

@@ -59,20 +59,17 @@ Entity :: struct {
 Entities :: distinct [dynamic]Entity
 
 Function :: struct {
-    using pos: Position,
-    address:   uint,
-    name:      string,
-    entities:  ^Entities,
-    local_ip:  uint,
+    entity: ^Entity,
 
-    code:      strings.Builder,
-    indent:    int,
-    parent:    ^Function,
-    is_global: bool,
+    called:   bool,
+    local_ip: uint,
+    code:     strings.Builder,
+    indent:   int,
+    parent:   ^Function,
 }
 
 Scope_Kind :: enum {
-    Global, Function,
+    Global, Function, Let,
     If_Inline, If, If_Else,
 }
 
@@ -104,6 +101,8 @@ Parser :: struct {
     errorf: proc(p: ^Parser, pos: Position, format: string,
                  args: ..any, loc := #caller_location) -> !,
 }
+
+the_program := make([dynamic]Function)
 
 global_errorf :: proc(format: string, args: ..any, loc := #caller_location) {
     fmt.eprintf("compilation error: ")
@@ -147,7 +146,7 @@ add_global_string_constant :: proc(p: ^Parser, name: string, value: string) {
 }
 
 init_everything :: proc(p: ^Parser) {
-    gscope = push_function(p, "", nil)
+    gscope = push_scope(p, Token{}, .Global)
 
     // Add compiler defined constants
     add_global_bool_constant(p, "OS_DARWIN", ODIN_OS == .Darwin)
@@ -290,18 +289,16 @@ parse :: proc() {
                         }
                     }
 
-                    parse_function(p, name_token.text, parsing_entity)
+                    parse_function(p, parsing_entity)
                 }
             }
         }
     }
 
-    pop_function(p)
-
-    assert(p.curr_function == nil && p.curr_scope == nil)
 
     gen_compilation_unit()
-
+    pop_scope(p)
+    assert(p.curr_function == nil && p.curr_scope == nil)
     delete(p.rstack.v)
     delete(p.tstack.v)
 }
@@ -449,42 +446,40 @@ find_entity :: proc(p: ^Parser, token: Token) -> Entity {
     return Entity{}
 }
 
-push_function :: proc(p: ^Parser, name: string, ent: ^Entity) -> ^Scope {
-    scope := push_scope(p, ent != nil ? ent.token : Token{})
-    p.curr_function = new_clone(Function{
-        code      = strings.builder_make(context.temp_allocator),
-        entities  = &scope.entities,
-        name      = name,
-        is_global = name == "",
-        parent    = p.curr_function,
-    })
-
-    if ent != nil {
-        p.curr_function.address = ent.address
-        p.curr_function.pos = ent.pos
+push_function :: proc(p: ^Parser, entity: ^Entity) -> ^Scope {
+    // TODO: This only support global functions, which I think it's fine, but if sometime
+    // we want to support functions inside another function scope, we need to allow it here.
+    for &f in the_program {
+        if f.entity.token == entity.token {
+            p.curr_function = &f
+            break
+        }
     }
 
-    scope.kind = .Function
-    return p.curr_scope
+    assert(p.curr_function != nil)
+
+    return push_scope(p, entity.token, .Function)
 }
 
 pop_function :: proc(p: ^Parser) {
-    old_function := p.curr_function
-    p.curr_function = old_function.parent
+    assert(p.curr_function != nil)
+    p.curr_function = p.curr_function.parent
     pop_scope(p)
-    free(old_function)
 }
 
-push_scope :: proc(p: ^Parser, token: Token) -> ^Scope {
+push_scope :: proc(p: ^Parser, t: Token, k: Scope_Kind) -> ^Scope {
     p.curr_scope = new_clone(Scope{
-        token = token,
+        token = t,
         entities = make(Entities, context.temp_allocator),
         parent = p.curr_scope,
+        kind = k,
     })
     return p.curr_scope
 }
 
 pop_scope :: proc(p: ^Parser) {
+    assert(p.curr_scope != nil)
+
     switch p.curr_scope.validation_at_end {
     case .Skip:
         // Do nothing
@@ -579,7 +574,6 @@ declare_const :: proc(p: ^Parser) {
     name := name_token.text
     f := p.curr_function
     ec := Entity_Constant{}
-    is_global := f.is_global
     entities := &p.curr_scope.entities
     inferred_type: Type_Kind
     temp_value_stack := make([dynamic]Constant_Value, context.temp_allocator)
@@ -742,7 +736,6 @@ declare_const :: proc(p: ^Parser) {
     }
 
     append(entities, Entity{
-        is_global = is_global,
         name = name,
         pos = name_token.pos,
         token = name_token,
@@ -753,7 +746,6 @@ declare_const :: proc(p: ^Parser) {
 declare_func :: proc(p: ^Parser, kind: enum { Default, Builtin, Foreign } = .Default) {
     name_token := expect(p, .Word)
     name := name_token.text
-    f := p.curr_function
     ef := Entity_Function{
         inputs = make(Arity, context.temp_allocator),
         outputs = make(Arity, context.temp_allocator),
@@ -762,8 +754,7 @@ declare_func :: proc(p: ^Parser, kind: enum { Default, Builtin, Foreign } = .Def
         is_foreign = kind == .Foreign,
         //is_inline = start_token.kind == .Inline_Fn,
     }
-    is_global := f.is_global
-    address := is_global ? gen_global_address() : gen_local_address(f)
+    address := gen_global_address()
     entities := &p.curr_scope.entities
     parse_function_head(p, &ef)
     is_main := false
@@ -807,11 +798,16 @@ declare_func :: proc(p: ^Parser, kind: enum { Default, Builtin, Foreign } = .Def
 
     append(entities, Entity{
         address = address,
-        is_global = is_global,
+        is_global = true, // functions are only allowed in global scope
         name = name,
         pos = name_token.pos,
         token = name_token,
         variant = ef,
+    })
+    append(&the_program, Function{
+        entity = &entities[len(entities) - 1],
+        local_ip = 0,
+        code = strings.builder_make(),
     })
 }
 
@@ -889,9 +885,9 @@ call_function :: proc(p: ^Parser, entity: Entity) {
     gen_function_call(f, entity.address)
 }
 
-parse_function :: proc(p: ^Parser, name: string, e: ^Entity) {
+parse_function :: proc(p: ^Parser, e: ^Entity) {
     ef := e.variant.(Entity_Function)
-    push_function(p, name, e)
+    push_function(p, e)
     f := p.curr_function
 
     gen_function_declaration(f)
@@ -958,7 +954,7 @@ parse_token :: proc(p: ^Parser, token: Token) -> bool {
         }
 
     case .Let:
-        scope := push_scope(p, token)
+        scope := push_scope(p, token, .Let)
         words := make([dynamic]Token, context.temp_allocator)
         defer delete(words)
         gen_code_block(f, .start)
@@ -990,9 +986,8 @@ parse_token :: proc(p: ^Parser, token: Token) -> bool {
     case .Case: unimplemented()
 
     case .If:
-        scope := push_scope(p, token)
+        scope := push_scope(p, token, .If)
         scope.validation_at_end = .Stack_Is_Unchanged
-        scope.kind = .If
 
     case .Then:
         t := p.tstack->pop()
@@ -1005,8 +1000,7 @@ parse_token :: proc(p: ^Parser, token: Token) -> bool {
         } else {
             // This has to be an inline (ternary) if test, we don't need to
             // start the block with 'if', and we support only one function for the body.
-            scope := push_scope(p, token)
-            scope.kind = .If_Inline
+            scope := push_scope(p, token, .If_Inline)
             scope.validation_at_end = .Stack_Is_Unchanged
             p.tstack->save()
             gen_if_statement(f, .s_if)

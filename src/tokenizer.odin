@@ -8,7 +8,7 @@ Position :: struct {
     filename: string,
     column:   int,
     line:     int,
-    offset:   int,
+    offset:    int,
     internal: bool,
 }
 
@@ -266,13 +266,7 @@ get_next_token :: proc(t: ^Tokenizer) -> (token: Token, err: Error) {
         for t.offset < len(t.data) {
             if t.data[t.offset] == delimiter && !is_escaped { break }
             c := t.data[t.offset]
-            switch c {
-            case '\t', '\v', '\f', '\r', '\n':
-                strings.write_byte(&result, '\\')
-                strings.write_byte(&result, c)
-            case :
-                strings.write_byte(&result, c)
-            }
+            strings.write_byte(&result, c)
             is_escaped = !is_escaped && c == '\\'
             advance(t)
         }

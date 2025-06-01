@@ -145,7 +145,7 @@ Make sure '{0}' is set and points to the directory where The {1} Compiler is ins
     }
 
     load_file("builtin.sk", true, fmt.tprintf("{}/base", compiler_dir))
-    load_file("runtime.sk", true, fmt.tprintf("{}/base", compiler_dir))
+    // load_file("runtime.sk", true, fmt.tprintf("{}/base", compiler_dir))
 
     bootstrap_files_count := len(source_files)
 
