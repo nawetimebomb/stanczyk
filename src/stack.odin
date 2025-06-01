@@ -4,16 +4,80 @@ import "core:fmt"
 import "core:slice"
 import "core:strings"
 
-Reference :: struct {
+Value :: struct {
+    address: uint,
+    kind:    Type_Kind,
+}
+
+Stack :: struct {
+    free:  proc(s: ^Stack),
+    pop:   proc(s: ^Stack) -> (v: Value),
+    push:  proc(s: ^Stack, v: Value),
+    reset: proc(s: ^Stack),
+    save:  proc(s: ^Stack),
+
+    v: [dynamic]Value,
+    snapshot: []Value,
+}
+
+stack_create :: proc(f: ^Function) {
+    stack_free :: proc(s: ^Stack) {
+        delete(s.v)
+        delete(s.snapshot)
+    }
+
+    stack_pop :: proc(s: ^Stack) -> (v: Value) {
+        assert(len(s.v) > 0)
+        return pop(&s.v)
+    }
+
+    stack_push :: proc(s: ^Stack, v: Value) {
+        append(&s.v, v)
+    }
+
+    stack_reset :: proc(s: ^Stack) {
+        delete(s.v)
+        s.v = slice.clone_to_dynamic(s.snapshot)
+        delete(s.snapshot)
+    }
+
+    stack_save :: proc(s: ^Stack) {
+        fmt.assertf(len(s.snapshot) > 0, "ERROR: There's an existing saved snapshot")
+        s.snapshot = slice.clone(s.v[:])
+    }
+
+    f.stack = Stack{
+        free = stack_free,
+        pop = stack_pop,
+        push = stack_push,
+        reset = stack_reset,
+        save = stack_save,
+
+        v = make([dynamic]Value, 0, 2),
+    }
+}
+
+stack_prettyprint :: proc(s: ^Stack) -> string {
+    if len(s.v) == 0 {
+        return "()"
+    }
+    // temp allocated since it might be used in errors
+    builder := strings.builder_make(context.temp_allocator)
+    fmt.sbprint(&builder, "(")
+
+    for v, index in s.v {
+        if len(s.v) - 1 == index {
+            fmt.sbprintf(&builder, "{})", type_readable_table[v.kind])
+        } else {
+            fmt.sbprintf(&builder, "{} ", type_readable_table[v.kind])
+        }
+    }
+
+    return strings.to_string(builder)
 
 }
 
-Reference_Stack :: struct {
-    clear: proc(t: ^Reference_Stack),
-    pop: proc(t: ^Reference_Stack) -> (r: Reference),
-    push: proc(t: ^Reference_Stack, r: Reference),
-    v: [dynamic]Reference,
-}
+// OLD CODE STARTS HERE
 
 Type_Stack_Value :: [dynamic]Type_Kind
 
@@ -25,26 +89,6 @@ Type_Stack :: struct {
     save: proc(t: ^Type_Stack),
     v: [dynamic]Type_Kind,
     saved: []Type_Kind,
-}
-
-init_reference_stack :: proc(t: ^Reference_Stack) {
-    rs_clear :: proc(t: ^Reference_Stack) {
-        clear(&t.v)
-    }
-
-    rs_pop :: proc(t: ^Reference_Stack) -> (r: Reference) {
-        assert(len(t.v) > 0)
-        return pop(&t.v)
-    }
-
-    rs_push :: proc(t: ^Reference_Stack, r: Reference) {
-        append(&t.v, r)
-    }
-
-    t.clear = rs_clear
-    t.pop = rs_pop
-    t.push = rs_push
-    t.v = make([dynamic]Reference, context.temp_allocator)
 }
 
 init_type_stack :: proc(t: ^Type_Stack) {

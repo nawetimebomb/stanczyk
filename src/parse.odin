@@ -24,8 +24,6 @@ Entity_Function :: struct {
     inputs:  Arity,
     outputs: Arity,
 
-    is_builtin:   bool,
-
     is_foreign:   bool,
     foreign_name: string,
 
@@ -53,6 +51,8 @@ Entity :: struct {
     is_global: bool,
     token:     Token,
 
+    is_builtin:   bool,
+
     variant: Entity_Variant,
 }
 
@@ -60,17 +60,23 @@ Entities :: distinct [dynamic]Entity
 
 Function :: struct {
     entity: ^Entity,
+    parent: ^Function,
 
     called:   bool,
     local_ip: uint,
     code:     strings.Builder,
     indent:   int,
-    parent:   ^Function,
+    stack:    Stack,
 }
 
 Scope_Kind :: enum {
-    Global, Function, Let,
-    If_Inline, If, If_Else,
+    Invalid,
+    Function,
+    Global,
+    If,
+    If_Else,
+    If_Inline,
+    Let,
 }
 
 Scope :: struct {
@@ -79,7 +85,7 @@ Scope :: struct {
     parent: ^Scope,
 
     entities:      Entities,
-    tstack_copies: [dynamic][]Type_Kind,
+    stack_copies:  [dynamic][]Type_Kind,
 
     validation_at_end: enum {
         Skip,
@@ -95,23 +101,22 @@ Parser :: struct {
     curr_token:    Token,
     tokenizer:     Tokenizer,
 
-    rstack: Reference_Stack,
     tstack: Type_Stack,
 
-    errorf: proc(p: ^Parser, pos: Position, format: string,
+    fatalf: proc(p: ^Parser, pos: Position, format: string,
                  args: ..any, loc := #caller_location) -> !,
 }
 
 the_program := make([dynamic]Function)
 
-global_errorf :: proc(format: string, args: ..any, loc := #caller_location) {
+global_fatalf :: proc(format: string, args: ..any, loc := #caller_location) {
     fmt.eprintf("compilation error: ")
     fmt.eprintf(format, ..args)
     fmt.eprintln()
     os.exit(1)
 }
 
-default_errorf :: proc(
+default_fatalf :: proc(
     p: ^Parser, pos: Position, format: string,
     args: ..any, loc := #caller_location,
 ) -> ! {
@@ -145,26 +150,13 @@ add_global_string_constant :: proc(p: ^Parser, name: string, value: string) {
     })
 }
 
-init_everything :: proc(p: ^Parser) {
-    gscope = push_scope(p, Token{}, .Global)
-
-    // Add compiler defined constants
-    add_global_bool_constant(p, "OS_DARWIN", ODIN_OS == .Darwin)
-    add_global_bool_constant(p, "OS_LINUX", ODIN_OS == .Linux)
-    add_global_bool_constant(p, "OS_WINDOWS", ODIN_OS == .Windows)
-    add_global_bool_constant(p, "SK_DEBUG", debug_switch_enabled)
-
-    add_global_string_constant(p, "SK_VERSION", COMPILER_VERSION)
-}
-
 parse :: proc() {
     p := &Parser{}
     init_type_stack(&p.tstack)
-    init_reference_stack(&p.rstack)
     init_generator()
 
-    if p.errorf == nil {
-        p.errorf = default_errorf
+    if p.fatalf == nil {
+        p.fatalf = default_fatalf
     }
 
     init_everything(p)
@@ -189,7 +181,7 @@ parse :: proc() {
                 }
                 case .Builtin: {
                     if !token.internal {
-                        p->errorf(token.pos, "'builtin' keyword cannot be used outside of internal compiler files.")
+                        p->fatalf(token.pos, "'builtin' keyword cannot be used outside of internal compiler files.")
                     }
 
                     if allow(p, .Fn) {
@@ -209,7 +201,7 @@ parse :: proc() {
                         }
 
                         if !found {
-                            p->errorf(
+                            p->fatalf(
                                 name_token.pos,
                                 "compiler defined constant {} missing", name_token.text,
                             )
@@ -228,7 +220,7 @@ parse :: proc() {
                         #partial switch token.kind {
                             case .Const: scope_level += 1
                             case .Fn: scope_level += 1
-                            case .EOF: p->errorf(token.pos, "unexpected end of file")
+                            case .EOF: p->fatalf(token.pos, "unexpected end of file")
                             case .Semicolon: {
                                 scope_level -= 1
                                 if scope_level == 0 { break body_loop }
@@ -237,7 +229,7 @@ parse :: proc() {
                     }
                 }
                 case .EOF: break loop
-                case: p->errorf(
+                case: p->fatalf(
                     token.pos, "unexpected token of type %s", token_to_string(token),
                 )
             }
@@ -275,7 +267,7 @@ parse :: proc() {
                     }
 
                     if parsing_entity == nil {
-                        p->errorf(
+                        p->fatalf(
                             name_token.pos,
                             "compiler error failed to find Function entity",
                         )
@@ -298,17 +290,34 @@ parse :: proc() {
 
     gen_program()
     gen_compilation_unit()
+    deinit_everything(p)
+}
+
+init_everything :: proc(p: ^Parser) {
+    gscope = push_scope(p, Token{}, .Global)
+
+    // Add compiler defined constants
+    add_global_bool_constant(p, "OS_DARWIN", ODIN_OS == .Darwin)
+    add_global_bool_constant(p, "OS_LINUX", ODIN_OS == .Linux)
+    add_global_bool_constant(p, "OS_WINDOWS", ODIN_OS == .Windows)
+    add_global_bool_constant(p, "SK_DEBUG", debug_switch_enabled)
+
+    add_global_string_constant(p, "SK_VERSION", COMPILER_VERSION)
+}
+
+deinit_everything :: proc(p: ^Parser) {
     assert(p.curr_scope.parent == nil)
     delete_scope(p.curr_scope)
     assert(p.curr_function == nil)
-    delete(p.rstack.v)
     delete(p.tstack.v)
+
+    for &f in the_program { f.stack->free() }
 }
 
 next :: proc(p: ^Parser) -> Token {
     token, err := get_next_token(&p.tokenizer)
     if err != nil && token.kind != .EOF {
-        p->errorf(token.pos, "found invalid token: %v", err)
+        p->fatalf(token.pos, "found invalid token: %v", err)
     }
     p.prev_token, p.curr_token = p.curr_token, token
     return p.prev_token
@@ -318,7 +327,7 @@ expect :: proc(p: ^Parser, kind: Token_Kind) -> Token {
     token := next(p)
 
     if token.kind != kind {
-        p->errorf(
+        p->fatalf(
             token.pos,
             "expected %q, got %s",
             token_string_table[kind],
@@ -360,7 +369,7 @@ find_entity :: proc(p: ^Parser, token: Token) -> Entity {
 
     switch len(possible_matches) {
     case 0: // Nothing found, so we error out
-        p->errorf(token.pos, "undefined word '%s'", name)
+        p->fatalf(token.pos, "undefined word '%s'", name)
     case 1: // Just one definition found, return
         return possible_matches[0]
     case :
@@ -436,7 +445,7 @@ find_entity :: proc(p: ^Parser, token: Token) -> Entity {
         }
 
         // Unfortunately we couldn't find a reliable result, so we error out.
-        p->errorf(
+        p->fatalf(
             token.pos,
             "unable to find matching function of name '{}' with stack {}{}",
             token.text,
@@ -458,7 +467,7 @@ push_function :: proc(p: ^Parser, entity: ^Entity) -> ^Scope {
         }
     }
 
-    assert(p.curr_function != nil)
+    fmt.assertf(p.curr_function != nil, "missing {}", entity.name)
 
     return push_scope(p, entity.token, .Function)
 }
@@ -489,10 +498,10 @@ pop_scope :: proc(p: ^Parser) {
 
     case .Stack_Is_Unchanged:
         // The stack hasn't changed in length and types. It only supports one stack copy
-        stack_copies := &p.curr_scope.tstack_copies
+        stack_copies := &p.curr_scope.stack_copies
 
         if len(stack_copies) != 1 || !slice.equal(stack_copies[0], p.tstack.v[:]) {
-            p->errorf(
+            p->fatalf(
                 p.curr_scope.token,
                 "stack changes not allowed on this scope block",
             )
@@ -500,11 +509,11 @@ pop_scope :: proc(p: ^Parser) {
 
     case .Stack_Match_Between:
         // The stack has to have the same result between its branching values
-        stack_copies := &p.curr_scope.tstack_copies
+        stack_copies := &p.curr_scope.stack_copies
 
         for x in 0..<len(stack_copies) - 1 {
             if !slice.equal(stack_copies[x], stack_copies[x + 1]) {
-                p->errorf(
+                p->fatalf(
                     p.curr_scope.token,
                     "different stack effects between scopes not allowed",
                 )
@@ -512,7 +521,7 @@ pop_scope :: proc(p: ^Parser) {
         }
     }
 
-    for item in p.curr_scope.tstack_copies {
+    for item in p.curr_scope.stack_copies {
         delete(item)
     }
 
@@ -522,21 +531,30 @@ pop_scope :: proc(p: ^Parser) {
 }
 
 delete_scope :: proc(s: ^Scope) {
+    for &e in s.entities {
+        #partial switch v in e.variant {
+            case Entity_Function: {
+                delete(v.inputs)
+                delete(v.outputs)
+            }
+        }
+    }
+
     delete(s.entities)
-    delete(s.tstack_copies)
+    delete(s.stack_copies)
     free(s)
 }
 
 create_stack_snapshot :: proc(p: ^Parser, scope: ^Scope = nil) {
     s := scope
     if s == nil { s = p.curr_scope }
-    append(&s.tstack_copies, slice.clone(p.tstack.v[:]))
+    append(&s.stack_copies, slice.clone(p.tstack.v[:]))
 }
 
 refresh_stack_snapshot :: proc(p: ^Parser, scope: ^Scope = nil) {
     s := scope
     if s == nil { s = p.curr_scope }
-    delete(pop(&s.tstack_copies))
+    delete(pop(&s.stack_copies))
     create_stack_snapshot(p, s)
 }
 
@@ -562,12 +580,12 @@ parse_function_head :: proc(p: ^Parser, ef: ^Entity_Function) {
                             ef.has_any_input = true
 
                             if outputs {
-                                p->errorf(token.pos, "functions can't have 'Any' as outputs")
+                                p->fatalf(token.pos, "functions can't have 'Any' as outputs")
                             }
                         }
                         append(arity, Type{t, token.text})
                     }
-                    case: p->errorf(
+                    case: p->fatalf(
                         token.pos, "unexpected token %s", token_to_string(token),
                     )
                 }
@@ -593,7 +611,7 @@ declare_const :: proc(p: ^Parser) {
     body_loop: for {
         token := next(p)
         #partial switch token.kind {
-            case .EOF: p->errorf(token.pos, "unexpected end of file")
+            case .EOF: p->fatalf(token.pos, "unexpected end of file")
             case .Semicolon: break body_loop
             case .Word: {
                 // This is some dirty stuff but we have to manage basic operations internally
@@ -618,7 +636,7 @@ declare_const :: proc(p: ^Parser) {
                         }
                     case "%":
                         #partial switch inferred_type {
-                            case .Float: p->errorf(
+                            case .Float: p->fatalf(
                                 token.pos, "Opertor '%' only allowed with integers",
                             )
                             case .Int: append(&temp_value_stack, v1.(int) % v2.(int))
@@ -643,7 +661,7 @@ declare_const :: proc(p: ^Parser) {
                     #partial switch v in entity.variant {
                         case Entity_Constant: {
                             if inferred_type != .Invalid && inferred_type != v.kind {
-                                p->errorf(
+                                p->fatalf(
                                     token.pos,
                                     "word '{}' of type '{}' cannot be used in expected type of {}",
                                     entity.name, v.kind, inferred_type,
@@ -661,7 +679,7 @@ declare_const :: proc(p: ^Parser) {
                                 }
                             }
                         }
-                        case: p->errorf(token.pos, "'{}' is not a compile-time known constant")
+                        case: p->fatalf(token.pos, "'{}' is not a compile-time known constant")
                     }
                 }
             }
@@ -676,7 +694,7 @@ declare_const :: proc(p: ^Parser) {
                 if inferred_type == .Invalid {
                     inferred_type = .Float
                 } else if inferred_type != .Float {
-                    p->errorf(token.pos, "expected type {} in constant", inferred_type)
+                    p->fatalf(token.pos, "expected type {} in constant", inferred_type)
                 }
             }
             case .Integer_Literal: {
@@ -684,7 +702,7 @@ declare_const :: proc(p: ^Parser) {
                 if inferred_type == .Invalid {
                     inferred_type = .Int
                 } else if inferred_type != .Int {
-                    p->errorf(token.pos, "can't mix type of values in constant")
+                    p->fatalf(token.pos, "can't mix type of values in constant")
                 }
             }
             case .String_Literal: {
@@ -705,7 +723,7 @@ declare_const :: proc(p: ^Parser) {
                 if inferred_type == .Invalid {
                     inferred_type = .Uint
                 } else if inferred_type != .Uint {
-                    p->errorf(token.pos, "can't mix type of values in constant")
+                    p->fatalf(token.pos, "can't mix type of values in constant")
                 }
             }
         }
@@ -714,7 +732,7 @@ declare_const :: proc(p: ^Parser) {
     if ec.kind == .Invalid {
         ec.kind = inferred_type
     } else if ec.kind != inferred_type {
-        p->errorf(
+        p->fatalf(
             name_token,
             "type declaration of {} doesn't match value type of {} in constant '{}'",
             ec.kind, inferred_type, name,
@@ -723,19 +741,19 @@ declare_const :: proc(p: ^Parser) {
 
     if len(temp_value_stack) > 0 {
         if len(temp_value_stack) != 1 {
-            p->errorf(name_token, "values in constant don't compile to a single value")
+            p->fatalf(name_token, "values in constant don't compile to a single value")
         }
 
         ec.value = pop(&temp_value_stack)
     }
 
     if name == "main" {
-        p->errorf(name_token.pos, "main is a reserved word for the entry point function of the program")
+        p->fatalf(name_token.pos, "main is a reserved word for the entry point function of the program")
     }
 
     for other in entities {
         if other.name == name {
-            p->errorf(
+            p->fatalf(
                 name_token.pos, "redeclaration of '{}' found in {}:{}:{}",
                 name, other.filename, other.line, other.column,
             )
@@ -753,18 +771,18 @@ declare_const :: proc(p: ^Parser) {
 declare_func :: proc(p: ^Parser, kind: enum { Default, Builtin, Foreign } = .Default) {
     name_token := expect(p, .Word)
     name := name_token.text
+    is_builtin := kind == .Builtin
+    address := gen_global_address()
+    entities := &p.curr_scope.entities
+    is_main := false
     ef := Entity_Function{
-        inputs = make(Arity, context.temp_allocator),
-        outputs = make(Arity, context.temp_allocator),
-
-        is_builtin = kind == .Builtin,
+        inputs = make(Arity),
+        outputs = make(Arity),
         is_foreign = kind == .Foreign,
         //is_inline = start_token.kind == .Inline_Fn,
     }
-    address := gen_global_address()
-    entities := &p.curr_scope.entities
+
     parse_function_head(p, &ef)
-    is_main := false
 
     if name == "main" {
         gen.main_func_address = address
@@ -774,7 +792,7 @@ declare_func :: proc(p: ^Parser, kind: enum { Default, Builtin, Foreign } = .Def
     for &other in entities {
         if other.name == name {
             if is_main {
-                p->errorf(
+                p->fatalf(
                     name_token.pos, "redeclared main in {}:{}:{}",
                     other.filename, other.line, other.column,
                 )
@@ -784,18 +802,18 @@ declare_func :: proc(p: ^Parser, kind: enum { Default, Builtin, Foreign } = .Def
                 case Entity_Function: {
                     if v.has_any_input || ef.has_any_input {
                         err_token := v.has_any_input ? other.token : name_token
-                        p->errorf(err_token.pos, "a function with 'any' input exists and it can't be polymorphic")
+                        p->fatalf(err_token.pos, "a function with 'any' input exists and it can't be polymorphic")
                     }
 
                     if v.is_parapoly || ef.is_parapoly {
                         err_token := v.is_parapoly ? other.token : name_token
-                        p->errorf(err_token.pos, "parapoly functions can't be polymorphic")
+                        p->fatalf(err_token.pos, "parapoly functions can't be polymorphic")
                     }
 
                     v.is_polymorphic = true
                     ef.is_polymorphic = true
                 }
-                case: p->errorf(
+                case: p->fatalf(
                     name_token.pos, "{} redeclared at {}:{}:{}",
                     other.filename, other.line, other.column,
                 )
@@ -806,13 +824,14 @@ declare_func :: proc(p: ^Parser, kind: enum { Default, Builtin, Foreign } = .Def
     append(entities, Entity{
         address = address,
         is_global = true, // functions are only allowed in global scope
+        is_builtin = is_builtin,
         name = name,
         pos = name_token.pos,
         token = name_token,
         variant = ef,
     })
 
-    if !ef.is_builtin {
+    if !is_builtin {
         // Builtin functions are compiler-defined, so they don't
         // really create any code, but instead do custom code generation.
         append(&the_program, Function{
@@ -863,14 +882,14 @@ call_function :: proc(p: ^Parser, entity: Entity) {
             }
 
             if t != v {
-                p->errorf(
+                p->fatalf(
                     token.pos,
                     "parapoly of name '{}' means '{}' in this declaration, got '{}'",
                     input.name, type_readable_table[v], type_readable_table[t],
                 )
             }
         case input.kind != t && input.kind != .Any:
-            p->errorf(
+            p->fatalf(
                 token.pos,
                 "input mismatch in function {}\n\tExpected: {},\tHave: {}",
                 token.text, input, t,
@@ -883,7 +902,7 @@ call_function :: proc(p: ^Parser, entity: Entity) {
             v, ok := parapoly_table[output.name]
 
             if !ok {
-                p->errorf(
+                p->fatalf(
                     token.pos,
                     "parapoly of the name {} not defined in inputs", output.name,
                 )
@@ -906,18 +925,17 @@ call_function :: proc(p: ^Parser, entity: Entity) {
 parse_function :: proc(p: ^Parser, e: ^Entity) {
     ef := e.variant.(Entity_Function)
     push_function(p, e)
-    f := p.curr_function
-    // gen_function_declaration(f)
-    gen_function(f, .Head)
+    stack_create(p.curr_function)
+    gen_function(p.curr_function, .Head)
     for param in ef.inputs { p.tstack->push(param.kind) }
     body_loop: for { if !parse_token(p, next(p)) { break body_loop } }
     if len(p.tstack.v) != len(ef.outputs) {
-        p->errorf(
+        p->fatalf(
             e.pos, "mismatched outputs in function {}\n\tExpected: {},\tHave: {}",
             e.name, ef.outputs, p.tstack.v,
         )
     }
-    gen_function(f, .Tail)
+    gen_function(p.curr_function, .Tail)
     pop_function(p)
     p.tstack->clear()
 }
@@ -926,13 +944,11 @@ parse_token :: proc(p: ^Parser, token: Token) -> bool {
     f := p.curr_function
 
     switch token.kind {
-    case .EOF, .Invalid, .Fn, .Using, .Dash_Dash_Dash:
-        p->errorf(
+    case .EOF, .Invalid, .Fn, .Using, .Dash_Dash_Dash, .Builtin, .Foreign:
+        p->fatalf(
             token.pos, "invalid token as function body {}",
             token_to_string(token),
         )
-    case .Builtin, .Foreign: unimplemented()
-
     case .Semicolon: return false
 
     case .Const: declare_const(p)
@@ -960,7 +976,7 @@ parse_token :: proc(p: ^Parser, token: Token) -> bool {
             p.tstack->push(v.kind)
         case Entity_Function:
             switch {
-            case v.is_builtin: call_builtin_func(p, result)
+            case result.is_builtin: call_builtin_func(p, result)
             case: call_function(p, result)
             }
         case Entity_Variable: // TODO: Handle
@@ -1004,7 +1020,7 @@ parse_token :: proc(p: ^Parser, token: Token) -> bool {
 
     case .Then:
         t := p.tstack->pop()
-        if t != .Bool { p->errorf(token.pos, "Non-boolean condition in 'if' statement") }
+        if t != .Bool { p->fatalf(token.pos, "Non-boolean condition in 'if' statement") }
 
         if p.curr_scope.kind == .If {
             create_stack_snapshot(p)

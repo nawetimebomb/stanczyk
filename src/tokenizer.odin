@@ -192,7 +192,7 @@ get_next_token :: proc(t: ^Tokenizer) -> (token: Token, err: Error) {
                 return true
             case last_part == 'u' && maybe_int:
                 if strings.starts_with(first_part, "-") {
-                    global_errorf(
+                    global_fatalf(
                         "unsigned integer with a sign ({}) found at {}:{}:{}",
                         token.text, token.filename, token.line, token.column,
                     )
