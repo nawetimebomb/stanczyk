@@ -37,8 +37,8 @@
     'stanczyk-mode
   '("//")
   '("alias" "if" "if*" "case" "---" "then" "else" "elif" "fi" ";"
-    "for" "do" "times" "leave" "let" "in" "end" "defer"
-    "var" "const" "fn" "set" "get"
+    "for" "do" "times" "return" "let" "in" "end" "defer"
+    "var" "const" "fn" "set" "get" "using" "as"
     "foreign" "builtin" "namespace")
   '(("len"    . font-lock-builtin-face)
     ("float"  . font-lock-type-face)

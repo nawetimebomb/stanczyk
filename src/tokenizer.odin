@@ -38,20 +38,20 @@ Token_Kind :: enum u8 {
     Dash_Dash_Dash,
     Semicolon,
 
+    As,
     Let, In, End,
-    Case, Else, Fi, If, Then,
-
-    Leave,
+    Case, Else, Fi, If,
+    Return,
 
     Binary_Literal,
     Character_Literal,
-    False_Literal,
+    Cstring_Literal,
+    Bool_Literal,
     Float_Literal,
     Hex_Literal,
     Integer_Literal,
     Octal_Literal,
     String_Literal,
-    True_Literal,
     Type_Literal,
     Uint_Literal,
 
@@ -93,24 +93,24 @@ token_string_table := [Token_Kind]string{
         .Dash_Dash_Dash = "---",
         .Semicolon = ";",
 
+        .As = "as",
         .Let = "let",
         .In = "in",
         .End = "end",
 
         .Case = "case", .Else = "else",
-        .Fi = "fi", .If = "if", .Then = "then",
-
-        .Leave = "leave",
+        .Fi = "fi", .If = "if",
+        .Return = "return",
 
         .Binary_Literal = "literal binary. Example 0b10 or 2b",
+        .Bool_Literal = "literal boolean. Example: false or true",
         .Character_Literal = "literal character. Example: 'a'",
-        .False_Literal = "literal boolean false",
+        .Cstring_Literal = "literal C string. Example: \"Hello\"c",
         .Float_Literal = "literal float. Example: 3.14",
         .Hex_Literal = "literal hex. Example: 0xff or 16x",
         .Integer_Literal = "literal integer. Example: 1337",
         .Octal_Literal = "literal octal. Example 0o07 or 8o",
         .String_Literal = "literal string. Example: \"Hello\"",
-        .True_Literal = "literal boolean true",
         .Type_Literal = "literal type name. Example: int",
         .Uint_Literal = "literal unsigned integer. Example: 1337u",
 
@@ -266,13 +266,38 @@ get_next_token :: proc(t: ^Tokenizer) -> (token: Token, err: Error) {
         for t.offset < len(t.data) {
             if t.data[t.offset] == delimiter && !is_escaped { break }
             c := t.data[t.offset]
-            strings.write_byte(&result, c)
             is_escaped = !is_escaped && c == '\\'
+            if is_escaped {
+                advance(t)
+                c = t.data[t.offset]
+                r: byte
+                switch c {
+                case '\\': r = '\\'
+                case 'n': r = '\n'
+                case : r = c
+                }
+                strings.write_byte(&result, r)
+                is_escaped = false
+            } else {
+                strings.write_byte(&result, c)
+            }
             advance(t)
         }
 
         advance(t)
         token.text = strings.to_string(result)
+
+        if token.kind == .String_Literal && t.data[t.offset] == 'c' {
+            token.kind = .Cstring_Literal
+            advance(t)
+        }
+
+        if token.kind == .Character_Literal && len(token.text) > 1 {
+            global_fatalf(
+                "character literal cannot have length {} found at {}:{}:{}",
+                len(token.text), token.filename, token.line, token.column,
+            )
+        }
     case :
         forward_word(t)
         token.text = string(t.data[token.offset:t.offset])
@@ -312,8 +337,8 @@ string_to_token_kind :: proc(str: string) -> (kind: Token_Kind) {
     case "builtin": kind = .Builtin
     case "foreign": kind = .Foreign
     case "---": kind = .Dash_Dash_Dash
-    case ";": kind = .Semicolon
 
+    case "as": kind = .As
     case "let": kind = .Let
     case "in": kind = .In
     case "end": kind = .End
@@ -321,12 +346,11 @@ string_to_token_kind :: proc(str: string) -> (kind: Token_Kind) {
     case "else": kind = .Else
     case "if": kind = .If
     case "fi": kind = .Fi
-    case "then": kind = .Then
 
-    case "leave": kind = .Leave
+    case "return": kind = .Return
 
-    case "false": kind = .False_Literal
-    case "true": kind = .True_Literal
+    case "false": kind = .Bool_Literal
+    case "true": kind = .Bool_Literal
 
     case "=": kind = .Equal
     case ">=": kind = .Greater_Equal

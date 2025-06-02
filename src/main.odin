@@ -81,6 +81,7 @@ load_file :: proc(filename: string, internal := false, dir := "") {
         os.read_entire_file(f.fullpath, context.temp_allocator)
 
     if !success {
+        fmt.println(filename, dir)
         fmt.printfln(ERROR_FILE_CANT_OPEN, f.fullpath)
         cleanup_exit(1)
     }
@@ -210,18 +211,21 @@ Make sure '{0}' is set and points to the directory where The {1} Compiler is ins
         cleanup_exit(1)
     }
 
-    parse()
+    compile()
 
-    libc.system(fmt.ctprintf("gcc {0}.c -o {0}", output_filename))
+    libc.system(fmt.ctprintf("fasm2 {0}.asm -n", output_filename))
+    libc.system(fmt.ctprintf("ld {0}.o -lc -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o {0}", output_filename))
 
     when !ODIN_DEBUG {
-        os.remove(fmt.tprintf("{}.c", output_filename))
+        os.remove(fmt.tprintf("{}.asm", output_filename))
+        os.remove(fmt.tprintf("{}.o", output_filename))
     }
 
     if command == "run" {
         libc.system(fmt.ctprintf("./{}", output_filename))
         os.remove(output_filename)
-        os.remove(fmt.tprintf("{}.c", output_filename))
+        os.remove(fmt.tprintf("{}.asm", output_filename))
+        os.remove(fmt.tprintf("{}.o", output_filename))
     }
 
     cleanup_exit(0)

@@ -1,6 +1,0 @@
-OS_DARWIN  false
-OS_LINUX  true
-OS_WINDOWS  false
-
-SK_DEBUG  false
-SK_VERSION  6

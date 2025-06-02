@@ -7,12 +7,13 @@ import "core:slice"
 import "core:strconv"
 import "core:strings"
 
-Constant_Value :: union { bool, f64, int, string, u64 }
+Constant_Value :: union { bool, f64, int, string }
 
 Arity :: distinct [dynamic]Type
 
 Entity_Binding :: struct {
     kind: Type_Kind,
+    index: int,
 }
 
 Entity_Constant :: struct {
@@ -23,9 +24,6 @@ Entity_Constant :: struct {
 Entity_Function :: struct {
     inputs:  Arity,
     outputs: Arity,
-
-    is_foreign:   bool,
-    foreign_name: string,
 
     is_inline:     bool,
     inline_tokens: []Token,
@@ -52,11 +50,13 @@ Entity :: struct {
     token:     Token,
 
     is_builtin:   bool,
+    is_foreign:   bool,
+    foreign_name: string,
 
     variant: Entity_Variant,
 }
 
-Entities :: distinct [dynamic]Entity
+Code :: distinct [dynamic]Bytecode
 
 Function :: struct {
     entity: ^Entity,
@@ -64,7 +64,9 @@ Function :: struct {
 
     called:   bool,
     local_ip: uint,
-    code:     strings.Builder,
+
+    code:     Code,
+    codestr:  strings.Builder,
     indent:   int,
     stack:    Stack,
 }
@@ -79,10 +81,14 @@ Scope_Kind :: enum {
     Let,
 }
 
+Entities :: distinct [dynamic]Entity
+
 Scope :: struct {
     kind:  Scope_Kind,
     token: Token,
     parent: ^Scope,
+
+    start_op: ^Bytecode,
 
     entities:      Entities,
     stack_copies:  [dynamic][]Type_Kind,
@@ -108,6 +114,8 @@ Parser :: struct {
 }
 
 functions := make([dynamic]Function)
+strings_count := 0
+strings_table := map[string]int{}
 
 global_fatalf :: proc(format: string, args: ..any, loc := #caller_location) {
     fmt.eprintf("compilation error: ")
@@ -128,6 +136,18 @@ default_fatalf :: proc(
 
 gscope: ^Scope
 
+add_to_string_table :: proc(v: string) -> int {
+    id, ok := strings_table[v]
+
+    if !ok {
+        id = strings_count
+        strings_table[v] = id
+        strings_count += 1
+    }
+
+    return id
+}
+
 add_global_bool_constant :: proc(p: ^Parser, name: string, value: bool) {
     append(&gscope.entities, Entity{
         is_global = true,
@@ -145,12 +165,12 @@ add_global_string_constant :: proc(p: ^Parser, name: string, value: string) {
         name = name,
         variant = Entity_Constant{
             kind = .String,
-            value = value,
+            value = add_to_string_table(value),
         },
     })
 }
 
-parse :: proc() {
+compile :: proc() {
     p := &Parser{}
     init_type_stack(&p.tstack)
     init_generator()
@@ -170,14 +190,34 @@ parse :: proc() {
 
             #partial switch token.kind {
                 case .Using: {
-                    for allow(p, .Word) {
-                        // TODO: Add these files to the source_files global
-                        //token := p.prev_token
+                    for {
+                        token := next(p)
+                        if token.kind == .Semicolon { break }
+
+                        if token.kind == .Word {
+                            dir := "base"
+                            filename := token.text
+
+                            if strings.contains(filename, ".") {
+                                dir, _, filename = strings.partition(filename, ".")
+                            }
+
+                            load_file(fmt.tprintf("{}.sk", filename), false, fmt.tprintf("{}/{}", compiler_dir, dir))
+                        }
                     }
-                    expect(p, .Semicolon)
                 }
                 case .Const: {
                     declare_const(p)
+                }
+                case .Foreign: {
+                    if allow(p, .Fn) {
+                        declare_func(p, .Foreign)
+                        expect(p, .Dash_Dash_Dash)
+                    } else {
+                        p->fatalf(
+                            token.pos, "unimplemented functionality",
+                        )
+                    }
                 }
                 case .Builtin: {
                     if !token.internal {
@@ -236,8 +276,6 @@ parse :: proc() {
         }
     }
 
-    gen_bootstrap()
-
     for source in source_files {
         tokenizer_init(&p.tokenizer, source)
         next(p)
@@ -247,7 +285,7 @@ parse :: proc() {
 
             #partial switch token.kind {
                 case .EOF: break parsing_loop
-                case .Builtin: {
+                case .Builtin, .Foreign: {
                     skip_to_end: for {
                         if next(p).kind == .Dash_Dash_Dash {
                             break skip_to_end
@@ -287,9 +325,7 @@ parse :: proc() {
         }
     }
 
-
     gen_program()
-    gen_compilation_unit()
     deinit_everything(p)
 }
 
@@ -311,7 +347,21 @@ deinit_everything :: proc(p: ^Parser) {
     assert(p.curr_function == nil)
     delete(p.tstack.v)
 
-    for &f in functions { f.stack->free() }
+    for &f in functions {
+        f.stack->free()
+        delete(f.code)
+    }
+
+    delete(strings_table)
+}
+
+emit :: proc(f: ^Function, token: Token, v: Bytecode_Variant) -> ^Bytecode {
+    append(&f.code, Bytecode{
+        address = get_local_address(f),
+        pos = token.pos,
+        variant = v,
+    })
+    return &f.code[len(f.code) - 1]
 }
 
 next :: proc(p: ^Parser) -> Token {
@@ -428,13 +478,21 @@ find_entity :: proc(p: ^Parser, token: Token) -> Entity {
             for e in possible_matches {
                 if ef, ok := e.variant.(Entity_Function); ok {
                     fmt.sbprintf(&builder, "\t{0} (", e.name)
-                    for input in ef.inputs { fmt.sbprintf(&builder, "{} ", type_readable_table[input.kind]) }
-                    if len(ef.outputs) > 0 { fmt.sbprint(&builder, "--- ") }
-                    for output, index in ef.outputs {
-                        if index == len(ef.outputs) - 1 {
-                            fmt.sbprintf(&builder, "{})", type_readable_table[output.kind])
+                    for input, index in ef.inputs {
+                        if len(ef.outputs) == 0 && index == len(ef.inputs) - 1 {
+                            fmt.sbprintf(&builder, "{})", type_readable_table[input.kind])
                         } else {
-                            fmt.sbprintf(&builder, "{} ", type_readable_table[output.kind])
+                            fmt.sbprintf(&builder, "{} ", type_readable_table[input.kind])
+                        }
+                    }
+                    if len(ef.outputs) > 0 {
+                        fmt.sbprint(&builder, "--- ")
+                        for output, index in ef.outputs {
+                            if index == len(ef.outputs) - 1 {
+                                fmt.sbprintf(&builder, "{})", type_readable_table[output.kind])
+                            } else {
+                                fmt.sbprintf(&builder, "{} ", type_readable_table[output.kind])
+                            }
                         }
                     }
                     fmt.sbprint(&builder, "\n")
@@ -499,11 +557,13 @@ pop_scope :: proc(p: ^Parser) {
     case .Stack_Is_Unchanged:
         // The stack hasn't changed in length and types. It only supports one stack copy
         stack_copies := &p.curr_scope.stack_copies
+        assert(len(stack_copies) > 0)
 
         if len(stack_copies) != 1 || !slice.equal(stack_copies[0], p.tstack.v[:]) {
             p->fatalf(
                 p.curr_scope.token,
-                "stack changes not allowed on this scope block",
+                "stack changes not allowed on this scope block\n\tBefore: {}\n\tAfter: {}",
+                stack_copies[0], p.tstack,
             )
         }
 
@@ -626,13 +686,13 @@ declare_const :: proc(p: ^Parser) {
                         #partial switch inferred_type {
                             case .Float: append(&temp_value_stack, v1.(f64) + v2.(f64))
                             case .Int: append(&temp_value_stack, v1.(int) + v2.(int))
-                            case .Uint: append(&temp_value_stack, v1.(u64) + v2.(u64))
+                            case .Uint: append(&temp_value_stack, v1.(int) + v2.(int))
                         }
                     case "/":
                         #partial switch inferred_type {
                             case .Float: append(&temp_value_stack, v1.(f64) / v2.(f64))
                             case .Int: append(&temp_value_stack, v1.(int) / v2.(int))
-                            case .Uint: append(&temp_value_stack, v1.(u64) / v2.(u64))
+                            case .Uint: append(&temp_value_stack, v1.(int) / v2.(int))
                         }
                     case "%":
                         #partial switch inferred_type {
@@ -640,19 +700,19 @@ declare_const :: proc(p: ^Parser) {
                                 token.pos, "Opertor '%' only allowed with integers",
                             )
                             case .Int: append(&temp_value_stack, v1.(int) % v2.(int))
-                            case .Uint: append(&temp_value_stack, v1.(u64) % v2.(u64))
+                            case .Uint: append(&temp_value_stack, v1.(int) % v2.(int))
                         }
                     case "*":
                         #partial switch inferred_type {
                             case .Float: append(&temp_value_stack, v1.(f64) * v2.(f64))
                             case .Int: append(&temp_value_stack, v1.(int) * v2.(int))
-                            case .Uint: append(&temp_value_stack, v1.(u64) * v2.(u64))
+                            case .Uint: append(&temp_value_stack, v1.(int) * v2.(int))
                         }
                     case "-":
                         #partial switch inferred_type {
                             case .Float: append(&temp_value_stack, v1.(f64) - v2.(f64))
                             case .Int: append(&temp_value_stack, v1.(int) - v2.(int))
-                            case .Uint: append(&temp_value_stack, v1.(u64) - v2.(u64))
+                            case .Uint: append(&temp_value_stack, v1.(int) - v2.(int))
                         }
                     }
                 case :
@@ -683,12 +743,13 @@ declare_const :: proc(p: ^Parser) {
                     }
                 }
             }
-            case .False_Literal: {
-                ec.value = false
+            case .Bool_Literal: {
+                ec.value = token.text == "true" ? true : false
                 inferred_type = .Bool
                 expect(p, .Semicolon)
                 break body_loop
             }
+            case .Cstring_Literal: unimplemented()
             case .Float_Literal: {
                 append(&temp_value_stack, strconv.atof(token.text))
                 if inferred_type == .Invalid {
@@ -711,15 +772,8 @@ declare_const :: proc(p: ^Parser) {
                 expect(p, .Semicolon)
                 break body_loop
             }
-            case .True_Literal: {
-                ec.value = true
-                inferred_type = .Bool
-                expect(p, .Semicolon)
-                break body_loop
-            }
             case .Uint_Literal: {
-                val, _ := strconv.parse_u64(token.text)
-                append(&temp_value_stack, val)
+                append(&temp_value_stack, strconv.atoi(token.text))
                 if inferred_type == .Invalid {
                     inferred_type = .Uint
                 } else if inferred_type != .Uint {
@@ -771,15 +825,24 @@ declare_const :: proc(p: ^Parser) {
 declare_func :: proc(p: ^Parser, kind: enum { Default, Builtin, Foreign } = .Default) {
     name_token := expect(p, .Word)
     name := name_token.text
+    is_foreign := kind == .Foreign
     is_builtin := kind == .Builtin
-    address := gen_global_address()
+    foreign_name := name
+    address := get_global_address()
     entities := &p.curr_scope.entities
     is_main := false
     ef := Entity_Function{
         inputs = make(Arity),
         outputs = make(Arity),
-        is_foreign = kind == .Foreign,
         //is_inline = start_token.kind == .Inline_Fn,
+    }
+
+    if is_foreign {
+        if allow(p, .As) {
+            foreign_name = name
+            name_token = expect(p, .Word)
+            name = name_token.text
+        }
     }
 
     parse_function_head(p, &ef)
@@ -825,40 +888,73 @@ declare_func :: proc(p: ^Parser, kind: enum { Default, Builtin, Foreign } = .Def
         address = address,
         is_global = true, // functions are only allowed in global scope
         is_builtin = is_builtin,
+        is_foreign = is_foreign,
         name = name,
+        foreign_name = foreign_name,
         pos = name_token.pos,
         token = name_token,
         variant = ef,
     })
 
-    if !is_builtin {
+    if !is_builtin && !is_foreign {
         // Builtin functions are compiler-defined, so they don't
         // really create any code, but instead do custom code generation.
         append(&functions, Function{
             entity = &entities[len(entities) - 1],
             called = name == "main",
             local_ip = 0,
-            code = strings.builder_make(),
+            codestr = strings.builder_make(),
         })
     }
 }
 
-call_builtin_func :: proc(p: ^Parser, e: Entity) {
-    f := p.curr_function
+call_foreign_func :: proc(p: ^Parser, f: ^Function, t: Token, e: Entity) {
+    ef := e.variant.(Entity_Function)
+
+    #reverse for input in ef.inputs {
+        T := p.tstack->pop()
+
+        if input.kind != T {
+            p->fatalf(
+                t.pos,
+                "input mismatch in function {}\n\tExpected: {},\tHave: {}",
+                t.text, input, T,
+            )
+        }
+    }
+
+    for output in ef.outputs {
+        p.tstack->push(output.kind)
+    }
+
+    emit(f, t, Call_C_Function{
+        name = e.foreign_name,
+        inputs = len(ef.inputs),
+        outputs = len(ef.outputs),
+    })
+}
+
+call_builtin_func :: proc(p: ^Parser, f: ^Function, t: Token, e: Entity) {
     ef := e.variant.(Entity_Function)
 
     switch e.name {
     case "len":
         p.tstack->pop()
-        gen_string_length(f)
+        // gen_string_length(f)
         p.tstack->push(.Int)
 
     case "+", "-", "%", "*", "/":
         rhs := p.tstack->pop()
         lhs := p.tstack->pop()
         res := ef.outputs[0].kind
-        gen_basic_arithmetic(f, lhs, rhs, res, e.name)
         p.tstack->push(res)
+        switch e.name {
+        case "+": emit(f, t, Add{})
+        case "/": emit(f, t, Divide{})
+        case "%": emit(f, t, Modulo{})
+        case "*": emit(f, t, Multiply{})
+        case "-": emit(f, t, Substract{})
+        }
     }
 }
 
@@ -919,161 +1015,195 @@ call_function :: proc(p: ^Parser, entity: Entity) {
         if f.entity.token == entity.token { f.called = true }
     }
 
-    gen_function_call(f, entity.address)
+    emit(f, token, Call_Function{
+        address = entity.address,
+        name = entity.name,
+    })
+    // gen_function_call(f, entity.address)
 }
 
 parse_function :: proc(p: ^Parser, e: ^Entity) {
     ef := e.variant.(Entity_Function)
     push_function(p, e)
     stack_create(p.curr_function)
-    gen_function(p.curr_function, .Head)
+    // gen_function(p.curr_function, .Head)
     for param in ef.inputs { p.tstack->push(param.kind) }
-    body_loop: for { if !parse_token(p, next(p)) { break body_loop } }
+    body_loop: for { if !parse_token(p, next(p), p.curr_function) { break body_loop } }
     if len(p.tstack.v) != len(ef.outputs) {
         p->fatalf(
             e.pos, "mismatched outputs in function {}\n\tExpected: {},\tHave: {}",
             e.name, ef.outputs, p.tstack.v,
         )
     }
-    gen_function(p.curr_function, .Tail)
     pop_function(p)
     p.tstack->clear()
 }
 
-parse_token :: proc(p: ^Parser, token: Token) -> bool {
-    f := p.curr_function
-
+parse_token :: proc(p: ^Parser, token: Token, f: ^Function) -> bool {
     switch token.kind {
     case .EOF, .Invalid, .Fn, .Using, .Dash_Dash_Dash, .Builtin, .Foreign:
         p->fatalf(
             token.pos, "invalid token as function body {}",
             token_to_string(token),
         )
-    case .Semicolon: return false
+
+    case .Semicolon:
+        emit(f, token, Return{})
+        return false
 
     case .Const: declare_const(p)
 
     case .Word:
         if token.text == "println" || token.text == "print" {
             t := p.tstack->pop()
-            gen_literal_c(f, "{}({}_t);", token.text, type_to_cname(t))
+            emit(f, token, Print{t})
             return true
         }
         result := find_entity(p, token)
 
         switch v in result.variant {
         case Entity_Binding:
-            gen_push_binding(f, result.address)
+            emit(f, token, Push_Bound{v.index})
             p.tstack->push(v.kind)
         case Entity_Constant:
-            switch v2 in v.value {
-            case bool: gen_push_bool(f, v2 ? "SKTRUE" : "SKFALSE")
-            case f64: gen_push_float(f, v2)
-            case int: gen_push_int(f, v2)
-            case string: gen_push_string(f, v2)
-            case u64: gen_push_uint(f, v2)
+            #partial switch v.kind {
+                case .Bool: emit(f, token, Push_Bool{v.value.(bool)})
+                case .Int:  emit(f, token, Push_Int{v.value.(int)})
+                case .String: emit(
+                    f, token, Push_String{
+                        add_to_string_table(v.value.(string)),
+                        len(v.value.(string)),
+                    },
+                )
+                case .Uint: emit(f, token, Push_Int{v.value.(int)})
             }
             p.tstack->push(v.kind)
         case Entity_Function:
             switch {
-            case result.is_builtin: call_builtin_func(p, result)
+            case result.is_builtin: call_builtin_func(p, f, token, result)
+            case result.is_foreign: call_foreign_func(p, f, token, result)
             case: call_function(p, result)
             }
         case Entity_Variable: // TODO: Handle
         }
 
+    case .As:
     case .Let:
         scope := push_scope(p, token, .Let)
         words := make([dynamic]Token, context.temp_allocator)
         defer delete(words)
-        gen_code_block(f, .start)
 
         for !allow(p, .In) {
             token := expect(p, .Word)
             append(&words, token)
         }
 
-        #reverse for word in words {
+        #reverse for word, index in words {
             t := p.tstack->pop()
-            address := gen_local_address(f)
+            address := get_local_address(f)
             append(&scope.entities, Entity{
                 address = address,
                 pos = word.pos,
                 name = word.text,
-                variant = Entity_Binding{kind = t},
+                variant = Entity_Binding{kind = t, index = index},
             })
-            gen_binding(f, address)
         }
+
+        emit(f, token, Let_Bind{len(words)})
 
     case .In:
         unimplemented()
 
     case .End:
+        if p.curr_scope.kind == .Let {
+            bindsCount := 0
+
+            for e in p.curr_scope.entities {
+                if _, ok := e.variant.(Entity_Binding); ok {
+                    bindsCount += 1
+                }
+            }
+
+            emit(f, token, Let_Unbind{bindsCount})
+        }
+
         pop_scope(p)
-        gen_code_block(f, .end)
 
     case .Case: unimplemented()
 
     case .If:
-        scope := push_scope(p, token, .If)
-        scope.validation_at_end = .Stack_Is_Unchanged
-
-    case .Then:
         t := p.tstack->pop()
         if t != .Bool { p->fatalf(token.pos, "Non-boolean condition in 'if' statement") }
 
-        if p.curr_scope.kind == .If {
-            create_stack_snapshot(p)
-            p.tstack->save()
-            gen_if_statement(f, .s_if)
-        } else {
-            // This has to be an inline (ternary) if test, we don't need to
-            // start the block with 'if', and we support only one function for the body.
-            scope := push_scope(p, token, .If_Inline)
-            scope.validation_at_end = .Stack_Is_Unchanged
-            p.tstack->save()
-            gen_if_statement(f, .s_if)
-
-            parse_token(p, next(p))
-            create_stack_snapshot(p)
-            p.tstack->reset()
-
-            if allow(p, .Else) {
-                scope.validation_at_end = .Stack_Match_Between
-                gen_if_statement(f, .s_else)
-                parse_token(p, next(p))
-                create_stack_snapshot(p)
-            }
-
-            allow(p, .Fi)
-            pop_scope(p)
-            gen_if_statement(f, .fi)
-        }
+        scope := push_scope(p, token, .If)
+        scope.validation_at_end = .Stack_Is_Unchanged
+        scope.start_op = emit(f, token, If{})
+        create_stack_snapshot(p)
+        p.tstack->save()
 
     case .Else:
+        if p.curr_scope.kind != .If {
+            p->fatalf(token.pos, "'else' unattached to an 'if' statement")
+        }
+
         p.curr_scope.kind = .If_Else
         p.curr_scope.validation_at_end = .Stack_Match_Between
         refresh_stack_snapshot(p)
         p.tstack->reset()
-        gen_if_statement(f, .s_else)
+        b := emit(f, token, Else{})
+        #partial switch &v in p.curr_scope.start_op.variant {
+            case If: v.jump_ip = b.address
+            case : p->fatalf(
+                token.pos,
+                "COMPILER ERROR: Bytecode in 'if' scope is not of type 'If'",
+            )
+        }
+        p.curr_scope.start_op = b
 
     case .Fi:
+        should_error := true
         close_if_statements: for {
             switch {
             case p.curr_scope.kind == .If:
+                b := emit(f, token, Fi{})
+                #partial switch &v in p.curr_scope.start_op.variant {
+                    case If: v.jump_ip = b.address
+                    case : p->fatalf(
+                        token.pos,
+                        "COMPILER ERROR: Bytecode in 'if' scope is not of type 'If'",
+                    )
+                }
+
+                should_error = false
                 pop_scope(p)
                 p.tstack->reset()
             case p.curr_scope.kind == .If_Else:
+                b := emit(f, token, Fi{})
+                #partial switch &v in p.curr_scope.start_op.variant {
+                    case Else: v.jump_ip = b.address
+                    case : p->fatalf(
+                        token.pos,
+                        "COMPILER ERROR: Bytecode in 'if' scope is not of type 'If'",
+                    )
+                }
+
+                should_error = false
                 create_stack_snapshot(p)
                 pop_scope(p)
-            case: break close_if_statements
+            case :
+                if should_error {
+                    p->fatalf(
+                        token.pos, "'fi' unattached to an 'if' statement",
+                    )
+                }
+                break close_if_statements
             }
 
-            gen_if_statement(f, .fi)
+            // gen_if_statement(f, .fi)
         }
 
-    case .Leave:
-        gen_literal_c(f, "return;")
+    case .Return:
+        emit(f, token, Return{})
 
     case .Brace_Left:
         unimplemented()
@@ -1097,37 +1227,38 @@ parse_token :: proc(p: ^Parser, token: Token) -> bool {
         unimplemented()
 
     case .Character_Literal:
-        unimplemented()
+        emit(f, token, Push_Byte{token.text[0]})
+        p.tstack->push(.Byte)
 
-    case .False_Literal:
-        gen_push_bool(f, "SKFALSE")
+    case .Bool_Literal:
+        emit(f, token, Push_Bool{token.text == "true" ? true : false})
         p.tstack->push(.Bool)
 
+    case .Cstring_Literal:
+        emit(f, token, Push_Cstring{add_to_string_table(token.text)})
+        p.tstack->push(.String)
+
     case .Float_Literal:
-        gen_push_float(f, strconv.atof(token.text))
+        fmt.assertf(false, "unimplemented for now")
         p.tstack->push(.Float)
 
     case .Hex_Literal:
         unimplemented()
 
     case .Integer_Literal:
-        gen_push_int(f, strconv.atoi(token.text))
+        emit(f, token, Push_Int{strconv.atoi(token.text)})
         p.tstack->push(.Int)
 
     case .Octal_Literal:
         unimplemented()
 
     case .String_Literal:
-        gen_push_string(f, token.text)
+        emit(f, token, Push_String{add_to_string_table(token.text), len(token.text)})
         p.tstack->push(.String)
-
-    case .True_Literal:
-        gen_push_bool(f, "SKTRUE")
-        p.tstack->push(.Bool)
+        p.tstack->push(.Int)
 
     case .Uint_Literal:
-        val, _ := strconv.parse_u64(token.text)
-        gen_push_uint(f, val)
+        emit(f, token, Push_Int{strconv.atoi(token.text)})
         p.tstack->push(.Uint)
 
     case .Type_Literal: unimplemented()
@@ -1135,37 +1266,37 @@ parse_token :: proc(p: ^Parser, token: Token) -> bool {
     case .Equal:
         t := p.tstack->pop()
         p.tstack->pop()
-        gen_equal(f, t)
+        emit(f, token, Equal{})
         p.tstack->push(.Bool)
 
     case .Greater_Equal:
         t := p.tstack->pop()
         p.tstack->pop()
-        gen_greater_equal(f, t)
+        emit(f, token, Greater_Equal{})
         p.tstack->push(.Bool)
 
     case .Greater_Than:
         t := p.tstack->pop()
         p.tstack->pop()
-        gen_greater_than(f, t)
+        emit(f, token, Greater{})
         p.tstack->push(.Bool)
 
     case .Less_Equal:
         t := p.tstack->pop()
         p.tstack->pop()
-        gen_less_equal(f, t)
+        emit(f, token, Less_Equal{})
         p.tstack->push(.Bool)
 
     case .Less_Than:
         t := p.tstack->pop()
         p.tstack->pop()
-        gen_less_than(f, t)
+        emit(f, token, Less{})
         p.tstack->push(.Bool)
 
     case .Not_Equal:
         t := p.tstack->pop()
         p.tstack->pop()
-        gen_not_equal(f, t)
+        emit(f, token, Not_Equal{})
         p.tstack->push(.Bool)
 
     }

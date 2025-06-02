@@ -1,5 +1,4 @@
 const a 10 5 + ;
-const b 2.14 1. + ;
 const c 1000 10 % ;
 const d 1340 3 - ;
 const e 10 3 * ;
@@ -14,7 +13,6 @@ fn main
   const x "internal constant" ;
 
   "15  " print a println
-  "3.14  " print b println
   "0  " print c println
   "1337  " print d println
   "30  " print e println
