@@ -79,6 +79,8 @@ Scope_Kind :: enum {
     If_Else,
     If_Inline,
     Let,
+    Do,
+    For_Range,
 }
 
 Entities :: distinct [dynamic]Entity
@@ -87,6 +89,7 @@ Scope :: struct {
     kind:  Scope_Kind,
     token: Token,
     parent: ^Scope,
+    level: int,
 
     start_op: ^Bytecode,
 
@@ -437,6 +440,7 @@ find_entity :: proc(p: ^Parser, token: Token) -> Entity {
             if len(p.tstack.v) >= len(test.inputs) {
                 stack_copy := slice.clone(p.tstack.v[:])
                 defer delete(stack_copy)
+                slice.reverse(stack_copy)
                 sim_test_stack := stack_copy[:len(test.inputs)]
                 func_test_stack := make([dynamic]Type_Kind, context.temp_allocator)
                 defer delete(func_test_stack)
@@ -541,6 +545,7 @@ push_scope :: proc(p: ^Parser, t: Token, k: Scope_Kind) -> ^Scope {
         token = t,
         entities = make(Entities, context.temp_allocator),
         parent = p.curr_scope,
+        level = p.curr_scope == nil ? 0 : p.curr_scope.level + 1,
         kind = k,
     })
     return p.curr_scope
@@ -563,7 +568,7 @@ pop_scope :: proc(p: ^Parser) {
             p->fatalf(
                 p.curr_scope.token,
                 "stack changes not allowed on this scope block\n\tBefore: {}\n\tAfter: {}",
-                stack_copies[0], p.tstack,
+                stack_copies[0], p.tstack.v,
             )
         }
 
@@ -583,6 +588,27 @@ pop_scope :: proc(p: ^Parser) {
 
     for item in p.curr_scope.stack_copies {
         delete(item)
+    }
+
+    // Realign bindings after the scope is closed
+    binds_count_in_scope := 0
+
+    for e in p.curr_scope.entities {
+        if _, ok := e.variant.(Entity_Binding); ok {
+            binds_count_in_scope += 1
+        }
+    }
+
+    update_scope := p.curr_scope.parent
+
+    for update_scope != nil {
+        for &e in update_scope.entities {
+            #partial switch &v in e.variant {
+                case Entity_Binding: v.index -= binds_count_in_scope
+            }
+        }
+
+        update_scope = update_scope.parent
     }
 
     old_scope := p.curr_scope
@@ -1072,7 +1098,6 @@ parse_token :: proc(p: ^Parser, token: Token, f: ^Function) -> bool {
                 case .String: emit(
                     f, token, Push_String{
                         add_to_string_table(v.value.(string)),
-                        len(v.value.(string)),
                     },
                 )
                 case .Uint: emit(f, token, Push_Int{v.value.(int)})
@@ -1098,17 +1123,7 @@ parse_token :: proc(p: ^Parser, token: Token, f: ^Function) -> bool {
             append(&words, token)
         }
 
-        #reverse for word, index in words {
-            t := p.tstack->pop()
-            address := get_local_address(f)
-            append(&scope.entities, Entity{
-                address = address,
-                pos = word.pos,
-                name = word.text,
-                variant = Entity_Binding{kind = t, index = index},
-            })
-        }
-
+        bind_words(p, f, words[:])
         emit(f, token, Let_Bind{len(words)})
 
     case .In:
@@ -1116,15 +1131,15 @@ parse_token :: proc(p: ^Parser, token: Token, f: ^Function) -> bool {
 
     case .End:
         if p.curr_scope.kind == .Let {
-            bindsCount := 0
+            binds_count := 0
 
             for e in p.curr_scope.entities {
                 if _, ok := e.variant.(Entity_Binding); ok {
-                    bindsCount += 1
+                    binds_count += 1
                 }
             }
 
-            emit(f, token, Let_Unbind{bindsCount})
+            emit(f, token, Let_Unbind{binds_count})
         }
 
         pop_scope(p)
@@ -1150,14 +1165,7 @@ parse_token :: proc(p: ^Parser, token: Token, f: ^Function) -> bool {
         p.curr_scope.validation_at_end = .Stack_Match_Between
         refresh_stack_snapshot(p)
         p.tstack->reset()
-        b := emit(f, token, Else{})
-        #partial switch &v in p.curr_scope.start_op.variant {
-            case If: v.jump_ip = b.address
-            case : p->fatalf(
-                token.pos,
-                "COMPILER ERROR: Bytecode in 'if' scope is not of type 'If'",
-            )
-        }
+        b := emit(f, token, Else{p.curr_scope.start_op.address})
         p.curr_scope.start_op = b
 
     case .Fi:
@@ -1165,28 +1173,12 @@ parse_token :: proc(p: ^Parser, token: Token, f: ^Function) -> bool {
         close_if_statements: for {
             switch {
             case p.curr_scope.kind == .If:
-                b := emit(f, token, Fi{})
-                #partial switch &v in p.curr_scope.start_op.variant {
-                    case If: v.jump_ip = b.address
-                    case : p->fatalf(
-                        token.pos,
-                        "COMPILER ERROR: Bytecode in 'if' scope is not of type 'If'",
-                    )
-                }
-
+                b := emit(f, token, Fi{p.curr_scope.start_op.address})
                 should_error = false
                 pop_scope(p)
                 p.tstack->reset()
             case p.curr_scope.kind == .If_Else:
-                b := emit(f, token, Fi{})
-                #partial switch &v in p.curr_scope.start_op.variant {
-                    case Else: v.jump_ip = b.address
-                    case : p->fatalf(
-                        token.pos,
-                        "COMPILER ERROR: Bytecode in 'if' scope is not of type 'If'",
-                    )
-                }
-
+                b := emit(f, token, Fi{p.curr_scope.start_op.address})
                 should_error = false
                 create_stack_snapshot(p)
                 pop_scope(p)
@@ -1198,12 +1190,120 @@ parse_token :: proc(p: ^Parser, token: Token, f: ^Function) -> bool {
                 }
                 break close_if_statements
             }
-
-            // gen_if_statement(f, .fi)
         }
 
-    case .Return:
+    case .For:
+        scope := push_scope(p, token, .Invalid)
+        words := make([dynamic]Token, context.temp_allocator)
+        defer delete(words)
+        append(&words, expect(p, .Word))
+        if allow(p, .Word) { append(&words, p.prev_token) }
+        expect(p, .In)
+
+        // "for" support multiple types of loop, and in order to figure out what type of
+        // loop we're going to be parsing here, we need to know more about the context.
+        // Usually the first parameter in the loop will tell us exactly what to do.
+        // The first parameter should ALWAYS push a value to the stack, and we're inferring
+        // the desired loop with that value pushed into the stack.
+        // TODO: Create a mechanism of safety to make sure the parse_token below is actually
+        // pushing something to the stack.
+        parse_token(p, next(p), f) // Hopefully, something was pushed...
+
+        // T tells us what to do
+        T := p.tstack->peek()
+
+        if T == .Int {
+            // This is the regular range for loop
+            if len(words) != 1 {
+                p->fatalf(token.pos, "only one word can be bound in this range 'for' loop")
+            }
+
+            // We're doing implicit binding here, that means we take the necessary words
+            // out of the stack, but then, this operation also emits a value into the stack
+            // (the previously bound value), so we re-add it as part of the emit.
+            bind_words(p, f, words[:])
+            scope.start_op = emit(f, token, For_Range{})
+            p.tstack->push(T)
+            scope.kind = .For_Range
+            parse_token(p, next(p), f)
+            parse_token(p, next(p), f)
+            Y := p.tstack->pop()
+            if Y != .Bool {
+                p->fatalf(token.pos, "Non-boolean condition in 'for' range statement")
+            }
+            emit(f, expect(p, .Do), Do{
+                address = scope.start_op.address,
+                use_self = false,
+            })
+            create_stack_snapshot(p)
+            p.tstack->save()
+        } else if T == .String {
+            // This is a string iteration. We are looking into the string's characters.
+            unimplemented()
+        } else {
+            p->fatalf(token.pos, "we don't know what to do here, yet!")
+        }
+
+    case .Do:
+        t := p.tstack->pop()
+        if t != .Bool { p->fatalf(token.pos, "Non-boolean condition in 'while' statement") }
+
+        scope := push_scope(p, token, .Do)
+        scope.validation_at_end = .Stack_Is_Unchanged
+        scope.start_op = emit(f, token, Do{ use_self = true })
+        create_stack_snapshot(p)
+        p.tstack->save()
+
+    case .Loop:
+        #partial switch p.curr_scope.kind {
+            case .Do: {
+                T := p.tstack->pop()
+                if T != .Bool {
+                    p->fatalf(token.pos, "Non-boolean condition in 'loop' statement")
+                }
+
+                b := emit(f, token, Loop{
+                    address = p.curr_scope.start_op.address,
+                    bindings = 0,
+                })
+                pop_scope(p)
+                p.tstack->reset()
+            }
+            case .For_Range: {
+                T := p.tstack->pop()
+                if T != .Int {
+                    p->fatalf(token.pos, "Int expected in 'loop' statement")
+                }
+                b := emit(f, token, Loop{
+                    address = p.curr_scope.start_op.address,
+                    bindings = 1,
+                })
+                pop_scope(p)
+                p.tstack->reset()
+            }
+            case : p->fatalf(token.pos, "'loop' unattached to a 'for' or 'do' scope")
+        }
+
+    case .Leave:
         emit(f, token, Return{})
+
+    case .Get:
+        p.tstack->pop()
+        emit(f, token, Get{})
+        p.tstack->push(.Int)
+    case .Get_Byte:
+        p.tstack->pop()
+        p.tstack->pop()
+        emit(f, token, Get_Byte{})
+        p->tstack->push(.Byte)
+    case .Set:
+        p.tstack->pop()
+        p.tstack->pop()
+        emit(f, token, Set{})
+    case .Set_Byte:
+        p.tstack->pop()
+        p.tstack->pop()
+        emit(f, token, Set_Byte{})
 
     case .Brace_Left:
         unimplemented()
@@ -1235,8 +1335,9 @@ parse_token :: proc(p: ^Parser, token: Token, f: ^Function) -> bool {
         p.tstack->push(.Bool)
 
     case .Cstring_Literal:
-        emit(f, token, Push_Cstring{add_to_string_table(token.text)})
+        emit(f, token, Push_Cstring{add_to_string_table(token.text), len(token.text)})
         p.tstack->push(.String)
+        p.tstack->push(.Int)
 
     case .Float_Literal:
         fmt.assertf(false, "unimplemented for now")
@@ -1253,9 +1354,8 @@ parse_token :: proc(p: ^Parser, token: Token, f: ^Function) -> bool {
         unimplemented()
 
     case .String_Literal:
-        emit(f, token, Push_String{add_to_string_table(token.text), len(token.text)})
+        emit(f, token, Push_String{add_to_string_table(token.text)})
         p.tstack->push(.String)
-        p.tstack->push(.Int)
 
     case .Uint_Literal:
         emit(f, token, Push_Int{strconv.atoi(token.text)})
@@ -1302,4 +1402,28 @@ parse_token :: proc(p: ^Parser, token: Token, f: ^Function) -> bool {
     }
 
     return true
+}
+
+bind_words :: proc(p: ^Parser, f: ^Function, t: []Token) {
+    check_scope := p.curr_scope
+    new_binds_count := len(t)
+
+    for check_scope != nil {
+        for &e in check_scope.entities {
+            #partial switch &v in e.variant {
+                case Entity_Binding: v.index += new_binds_count
+            }
+        }
+        check_scope = check_scope.parent
+    }
+
+    #reverse for word, index in t {
+        T := p.tstack->pop()
+        append(&p.curr_scope.entities, Entity{
+            address = get_local_address(f),
+            pos = word.pos,
+            name = word.text,
+            variant = Entity_Binding{kind = T, index = index},
+        })
+    }
 }

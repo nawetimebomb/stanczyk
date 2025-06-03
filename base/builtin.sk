@@ -73,4 +73,3 @@ builtin fn / (float float --- float) ---
 builtin fn + (string string --- string) ---
 
 // Other functions
-builtin fn len (string --- int) ---

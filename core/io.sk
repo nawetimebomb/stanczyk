@@ -30,10 +30,14 @@
 // C.write (fd, char*, size_t)
 foreign fn write as C.write (int string int) ---
 
-fn sprintln (string int)
-  let s1 l1 in
-    1 s1 l1 C.write
-    1 "\n" C.write
+const STDIN  0 ;
+const STDOUT 1 ;
+const STDERR 2 ;
+
+fn sprintln (string)
+  let s1 in
+    STDOUT s1 s1 len C.write
+    STDOUT "\n"c C.write
   end
 ;
 

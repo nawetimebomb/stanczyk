@@ -20,6 +20,9 @@ Bytecode_Variant :: union {
     Push_Var_Local,
     Push_Var_Local_Pointer,
 
+    Get, Get_Byte,
+    Set, Set_Byte,
+
     Add,
     Divide,
     Modulo,
@@ -36,6 +39,9 @@ Bytecode_Variant :: union {
     If,
     Else,
     Fi,
+    Do,
+    For_Range,
+    Loop,
 
     Assembly,
     Call_Function,
@@ -53,13 +59,18 @@ Push_Bool :: struct { val: bool }
 Push_Bound :: struct { val: int }
 Push_Bound_Pointer :: struct { val: int }
 Push_Byte :: struct { val: byte }
-Push_Cstring :: struct { val: int }
+Push_Cstring :: struct { val: int, length: int }
 Push_Int :: struct { val: int }
-Push_String :: struct { val: int, length: int }
+Push_String :: struct { val: int }
 Push_Var_Global :: struct { val: int }
 Push_Var_Global_Pointer :: struct { val: int }
 Push_Var_Local :: struct { val: int }
 Push_Var_Local_Pointer :: struct { val: int }
+
+Get :: struct {}
+Get_Byte :: struct {}
+Set :: struct {}
+Set_Byte :: struct {}
 
 // BEGIN ARITHMETIC OPs
 
@@ -79,9 +90,12 @@ Less_Equal :: struct {}
 Not_Equal :: struct {}
 
 // BEGIN FLOW CONTROL OPs
-If :: struct { jump_ip: uint }
-Else :: struct { jump_ip: uint }
-Fi :: struct {}
+If :: struct {}
+Else :: struct { address: uint }
+Fi :: struct { address: uint }
+Do :: struct { use_self: bool, address: uint }
+For_Range :: struct {}
+Loop :: struct { address: uint, bindings: int }
 
 // BEGIN INTRINSIC OPs
 
@@ -108,6 +122,11 @@ bytecode_to_string :: proc(b: Bytecode) -> string {
     case Push_Var_Local: return "local variable value"
     case Push_Var_Local_Pointer: return "local variable pointer"
 
+    case Get: return "get"
+    case Get_Byte: return "get-byte"
+    case Set: return "set"
+    case Set_Byte: return "set-byte"
+
     case Add: return "+"
     case Divide: return "/"
     case Modulo: return "%"
@@ -124,6 +143,9 @@ bytecode_to_string :: proc(b: Bytecode) -> string {
     case If: return "if"
     case Else: return "else"
     case Fi: return "fi"
+    case Do: return "do"
+    case For_Range: return "for (range)"
+    case Loop: return "loop"
 
     case Assembly: return "assembly code block"
     case Call_Function: return "call function"

@@ -177,19 +177,39 @@ gen_function :: proc(f: Function) {
         case Push_Cstring:
             writecode("    mov rax, str_{0}", v.val)
             writecode("    push rax")
+            writecode("    mov rax, {}", v.length)
+            writecode("    push rax")
         case Push_Int:
             writecode("    mov rax, {}", v.val)
             writecode("    push rax")
         case Push_String:
             writecode("    mov rax, str_{0}", v.val)
             writecode("    push rax")
-            writecode("    mov rax, {}", v.length)
-            writecode("    push rax")
         case Push_Var_Global:
         case Push_Var_Global_Pointer:
         case Push_Var_Local:
         case Push_Var_Local_Pointer:
 
+        case Get:
+            writecode("    pop rax")
+            writecode("    xor rbx, rbx")
+            writecode("    mov rbx, [rax]")
+            writecode("    push rbx")
+        case Get_Byte:
+            writecode("    pop rbx")
+            writecode("    pop rax")
+            writecode("    add rbx, rax")
+            writecode("    xor rcx, rcx")
+            writecode("    mov cl, [rbx]")
+            writecode("    push rcx")
+        case Set:
+            writecode("    pop rax")
+            writecode("    pop rbx")
+            writecode("    mov [rax], rbx")
+        case Set_Byte:
+            writecode("    pop rax")
+            writecode("    pop rbx")
+            writecode("    mov [rax], bl")
         case Add:
             writecode("    pop rbx")
             writecode("    pop rax")
@@ -270,12 +290,49 @@ gen_function :: proc(f: Function) {
         case If:
             writecode("    pop rax")
             writecode("    test rax, rax")
-            writecode("    jz .target{}", v.jump_ip)
+            writecode("    jz .end{}", code_ip)
         case Else:
-            writecode("    jmp .target{}", v.jump_ip)
-            writecode(".target{}:", code_ip)
+            writecode("    jmp .end{}", code_ip)
+            writecode(".end{}:", v.address)
         case Fi:
-            writecode(".target{}:", code_ip)
+            writecode(".end{}:", v.address)
+
+        case Do:
+            jump_address_on_false := v.use_self ? code_ip : v.address
+            writecode(".start{}:", code_ip)
+            writecode("    pop rax")
+            writecode("    test rax, rax")
+            writecode("    jz .end{}", jump_address_on_false)
+        case For_Range:
+            writecode("    mov rax, [ret_stack_ptr]")
+            writecode("    sub rax, 8")
+            writecode("    mov [ret_stack_ptr], rax")
+            writecode("    pop rbx")
+            writecode("    mov [rax+0], rbx")
+            writecode(".start{}:", code_ip)
+            writecode("    mov rax, [ret_stack_ptr]")
+            writecode("    add rax, 0")
+            writecode("    push QWORD [rax]")
+            bindsCount += 1
+
+        case Loop:
+            if v.bindings > 0 {
+                for x := v.bindings - 1; x >= 0; x -= 1 {
+                    writecode("    mov rax, [ret_stack_ptr]")
+                    writecode("    pop rbx")
+                    writecode("    mov [rax+{}], rbx", x * 8)
+                }
+            }
+
+            writecode("    jmp .start{}", v.address)
+            writecode(".end{}:", v.address)
+
+            if v.bindings > 0 {
+                writecode("    mov rax, [ret_stack_ptr]")
+                writecode("    add rax, {}", v.bindings * 8)
+                writecode("    mov [ret_stack_ptr], rax")
+                bindsCount -= v.bindings
+            }
 
         case Assembly:
         case Call_Function:

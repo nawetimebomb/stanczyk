@@ -83,7 +83,8 @@ Type_Stack_Value :: [dynamic]Type_Kind
 
 Type_Stack :: struct {
     clear: proc(t: ^Type_Stack),
-    pop: proc(t: ^Type_Stack) -> (k: Type_Kind),
+    peek: proc(t: ^Type_Stack) -> (k: Type_Kind),
+    pop: proc(t: ^Type_Stack, loc := #caller_location) -> (k: Type_Kind),
     push: proc(t: ^Type_Stack, k: Type_Kind),
     reset: proc(t: ^Type_Stack),
     save: proc(t: ^Type_Stack),
@@ -96,8 +97,12 @@ init_type_stack :: proc(t: ^Type_Stack) {
         clear(&t.v)
     }
 
-    ts_pop :: proc(t: ^Type_Stack) -> (k: Type_Kind) {
-        assert(len(t.v) > 0)
+    ts_peek :: proc(t: ^Type_Stack) -> (k: Type_Kind) {
+        return t.v[len(t.v) - 1]
+    }
+
+    ts_pop :: proc(t: ^Type_Stack, loc := #caller_location) -> (k: Type_Kind) {
+        fmt.assertf(len(t.v) > 0, "stack is empty, missing data in {}", loc)
         return pop(&t.v)
     }
 
@@ -108,14 +113,14 @@ init_type_stack :: proc(t: ^Type_Stack) {
     ts_reset :: proc(t: ^Type_Stack) {
         delete(t.v)
         t.v = slice.clone_to_dynamic(t.saved)
-        delete(t.saved)
     }
 
     ts_save :: proc(t: ^Type_Stack) {
-        t.saved = slice.clone(t.v[:])
+        t.saved = slice.clone(t.v[:], context.temp_allocator)
     }
 
     t.clear = ts_clear
+    t.peek = ts_peek
     t.pop = ts_pop
     t.push = ts_push
     t.reset = ts_reset

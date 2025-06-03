@@ -38,7 +38,7 @@
   '("//")
   '("alias" "if" "if*" "case" "---" "then" "else" "elif" "fi" ";"
     "for" "do" "times" "return" "let" "in" "end" "defer"
-    "var" "const" "fn" "set" "get" "using" "as"
+    "var" "const" "fn" "set" "get" "using" "as" "loop"
     "foreign" "builtin" "namespace")
   '(("len"    . font-lock-builtin-face)
     ("float"  . font-lock-type-face)

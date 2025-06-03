@@ -122,6 +122,10 @@ fn take (x --- x) let x in x end ;
 //   - Last stack data dupped and swap the previous two (<arg2> <arg1> <arg2>)
 fn tuck (x y --- y x y) let x y in y x y end ;
 
+fn len (string --- int)
+  let s in 0 0 dup s get-byte != do 1 + dup s get-byte 0 != loop end
+;
+
 // Helper function for Logical And operator (&&).
 // Calling:
 //   - <bool1> <bool2> and
