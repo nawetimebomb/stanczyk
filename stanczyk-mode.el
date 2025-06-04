@@ -2,7 +2,7 @@
 
 ;; Version: 0.0.1
 ;; Author: nawetimebomb
-;; Keywords: files, porth
+;; Keywords: files, stanczyk
 ;; Package-Requires: ((emacs "24.3"))
 ;; Homepage: https://github.com/nawetimebomb/stanczyk
 
@@ -25,48 +25,39 @@
 
 ;;; Code:
 
-(require 'generic-x)
+(defconst stanczyk-mode-syntax-table
+  (with-syntax-table (copy-syntax-table)
+    ;; C/C++ style comments
+	(modify-syntax-entry ?/ ". 124b")
+	(modify-syntax-entry ?\n "> b")
+    ;; Chars are the same as strings
+    (modify-syntax-entry ?' "\"")
+    (syntax-table))
+  "Syntax table for `stanczyk-mode'.")
 
-(defun insert-stanczyk ()
-  (interactive)
-  (insert "Stańczyk"))
+(eval-and-compile
+  (defconst stanczyk-keywords
+    '("if" "else" "fi" "do" "for" "loop" "fn" "const" "var"
+      "let" "in" "end" "as" "using" "foreign" "builtin"
+      "get" "get-byte" "set" "set-byte" "---" "__asm")))
 
-(setenv "STANCZYK_DIR" "/home/nawe/repos/stanczyk/")
+(eval-and-compile
+  (defconst stanczyk-types
+    '("int" "float" "bool" "string" "any" "byte")))
 
-(define-generic-mode
-    'stanczyk-mode
-  '("//")
-  '("alias" "if" "if*" "case" "---" "then" "else" "elif" "fi" ";"
-    "for" "do" "times" "return" "let" "in" "end" "defer"
-    "var" "const" "fn" "set" "get" "using" "as" "loop"
-    "foreign" "builtin" "namespace")
-  '(("len"    . font-lock-builtin-face)
-    ("float"  . font-lock-type-face)
-    ("uint"   . font-lock-type-face)
-    ("bool"   . font-lock-type-face)
-    ("int"    . font-lock-type-face)
-    ("string" . font-lock-type-face)
-    ("quote"  . font-lock-type-face)
-    ("f64"    . font-lock-type-face)
-    ("f32"    . font-lock-type-face)
-    ("s64"    . font-lock-type-face)
-    ("s32"    . font-lock-type-face)
-    ("s16"    . font-lock-type-face)
-    ("s8"     . font-lock-type-face)
-    ("u64"    . font-lock-type-face)
-    ("u32"    . font-lock-type-face)
-    ("u16"    . font-lock-type-face)
-    ("u8"     . font-lock-type-face))
-  '("\\.sk$")
-  nil
-  "Stanczyk mode")
+(defconst stanczyk-highlights
+  `((,(regexp-opt stanczyk-keywords 'symbols) . font-lock-keyword-face)
+    (,(regexp-opt stanczyk-types 'symbols)    . font-lock-type-face)))
 
-(defun nemacs-run-skc-on-file ()
-  (interactive)
-  (async-shell-command
-   (concat "STANCZYK_DIR=/home/nawe/repos/stanczyk/ skc run " (buffer-name)) nil nil))
+;;;###autoload
+(define-derived-mode stanczyk-mode prog-mode "Stańczyk"
+  "Major Mode for editing Stanczyk source code."
+  :syntax-table stanczyk-mode-syntax-table
+  (setq font-lock-defaults '(stanczyk-highlights))
+  (setq-local comment-start "// "))
 
-(global-set-key (kbd "<f9>") 'nemacs-run-skc-on-file)
+;;;###autoload
+(add-to-list 'auto-mode-alist '("\\.sk\\'" . stanczyk-mode))
 
 (provide 'stanczyk-mode)
 

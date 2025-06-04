@@ -409,6 +409,7 @@ gen_ascii :: proc(s: string) -> string {
         if is_escaped {
             switch c {
             case 'n': strings.write_int(&result, 10)
+            case 't': strings.write_int(&result, 9)
             }
             is_escaped = false
             strings.write_byte(&result, ',')

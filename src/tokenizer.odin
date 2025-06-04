@@ -59,12 +59,9 @@ Token_Kind :: enum u8 {
     Type_Literal,
     Uint_Literal,
 
-    Equal,
-    Greater_Equal,
-    Greater_Than,
-    Less_Equal,
-    Less_Than,
-    Not_Equal,
+    Plus, Minus, Star, Slash, Percent,
+    Equal, Greater_Equal, Greater_Than,
+    Less_Equal, Less_Than, Not_Equal,
 }
 
 Token :: struct {
@@ -122,12 +119,9 @@ token_string_table := [Token_Kind]string{
         .Type_Literal = "literal type name. Example: int",
         .Uint_Literal = "literal unsigned integer. Example: 1337u",
 
-        .Equal = "=",
-        .Greater_Equal = ">=",
-        .Greater_Than = ">",
-        .Less_Equal = "<=",
-        .Less_Than = "<",
-        .Not_Equal = "!=",
+        .Plus = "+", .Minus = "-", .Star = "*", .Slash = "/", .Percent = "%",
+        .Equal = "=", .Greater_Equal = ">=", .Greater_Than = ">",
+        .Less_Equal = "<=", .Less_Than = "<", .Not_Equal = "!=",
 }
 
 tokenizer_init :: proc(t: ^Tokenizer, source: Source_File) {
@@ -281,7 +275,8 @@ get_next_token :: proc(t: ^Tokenizer) -> (token: Token, err: Error) {
                 r: byte
                 switch c {
                 case '\\': r = '\\'
-                case 'n': r = '\n'
+                case 'n':  r = '\n'
+                case 't':  r = '\t'
                 case : r = c
                 }
                 strings.write_byte(&result, r)
@@ -368,6 +363,11 @@ string_to_token_kind :: proc(str: string) -> (kind: Token_Kind) {
     case "false": kind = .Bool_Literal
     case "true": kind = .Bool_Literal
 
+    case "+": kind = .Plus
+    case "-": kind = .Minus
+    case "*": kind = .Star
+    case "/": kind = .Slash
+    case "%": kind = .Percent
     case "=": kind = .Equal
     case ">=": kind = .Greater_Equal
     case ">": kind = .Greater_Than
