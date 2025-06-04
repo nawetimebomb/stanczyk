@@ -33,7 +33,10 @@ Entity_Function :: struct {
     is_polymorphic: bool,
 }
 
-Entity_Variable :: struct {}
+Entity_Variable :: struct {
+    offset: int,
+    size:   int,
+}
 
 Entity_Variant :: union {
     Entity_Binding,
@@ -62,12 +65,12 @@ Function :: struct {
     entity: ^Entity,
     parent: ^Function,
 
-    called:   bool,
-    local_ip: uint,
+    called:    bool,
+    local_ip:  uint,
+    local_mem: uint,
 
-    code:     Code,
-    indent:   int,
-    stack:    Stack,
+    code:      Code,
+    stack:     Stack,
 }
 
 Scope_Kind :: enum {
@@ -517,7 +520,7 @@ find_entity :: proc(p: ^Parser, token: Token) -> Entity {
 }
 
 push_function :: proc(p: ^Parser, entity: ^Entity) -> ^Scope {
-    // TODO: This only support global functions, which I think it's fine, but if sometime
+    // TODO: This only support global functions, which I think it's fine, but if at some point
     // we want to support functions inside another function scope, we need to allow it here.
     for &f in functions {
         if f.entity.token == entity.token {
@@ -853,7 +856,6 @@ declare_func :: proc(p: ^Parser, kind: enum { Default, Builtin, Foreign } = .Def
     ef := Entity_Function{
         inputs = make(Arity),
         outputs = make(Arity),
-        //is_inline = start_token.kind == .Inline_Fn,
     }
 
     if is_foreign {
@@ -924,6 +926,11 @@ declare_func :: proc(p: ^Parser, kind: enum { Default, Builtin, Foreign } = .Def
             local_ip = 0,
         })
     }
+}
+
+declare_var :: proc(p: ^Parser) {
+    name_token := expect(p, .Word)
+    name := name_token.text
 }
 
 call_foreign_func :: proc(p: ^Parser, f: ^Function, t: Token, e: Entity) {
@@ -1111,8 +1118,7 @@ parse_token :: proc(p: ^Parser, token: Token, f: ^Function) -> bool {
         bind_words(p, f, words[:])
         emit(f, token, Let_Bind{len(words)})
 
-    case .In:
-        unimplemented()
+    case .In: unimplemented()
 
     case .End:
         if p.curr_scope.kind == .Let {
@@ -1294,8 +1300,7 @@ parse_token :: proc(p: ^Parser, token: Token, f: ^Function) -> bool {
             case : p->fatalf(token.pos, "'loop' unattached to a 'for' or 'do' scope")
         }
 
-    case .Leave:
-        emit(f, token, Return{})
+    case .Leave: emit(f, token, Return{})
 
     case .Get:
         A := f.stack->pop()
@@ -1332,26 +1337,13 @@ parse_token :: proc(p: ^Parser, token: Token, f: ^Function) -> bool {
         assert(false) // Add validation
         emit(f, token, Set_Byte{})
 
-    case .Brace_Left:
-        unimplemented()
-
-    case .Brace_Right:
-        unimplemented()
-
-    case .Bracket_Left:
-        unimplemented()
-
-    case .Bracket_Right:
-        unimplemented()
-
-    case .Paren_Left:
-        unimplemented()
-
-    case .Paren_Right:
-        unimplemented()
-
-    case .Binary_Literal:
-        unimplemented()
+    case .Brace_Left: unimplemented()
+    case .Brace_Right: unimplemented()
+    case .Bracket_Left: unimplemented()
+    case .Bracket_Right: unimplemented()
+    case .Paren_Left: unimplemented()
+    case .Paren_Right: unimplemented()
+    case .Binary_Literal: unimplemented()
 
     case .Character_Literal:
         b := emit(f, token, Push_Byte{token.text[0]})
@@ -1369,15 +1361,13 @@ parse_token :: proc(p: ^Parser, token: Token, f: ^Function) -> bool {
     case .Float_Literal:
         fmt.assertf(false, "unimplemented for now")
 
-    case .Hex_Literal:
-        unimplemented()
+    case .Hex_Literal: unimplemented()
 
     case .Integer_Literal:
         b := emit(f, token, Push_Int{strconv.atoi(token.text)})
         f.stack->push(.Int)
 
-    case .Octal_Literal:
-        unimplemented()
+    case .Octal_Literal: unimplemented()
 
     case .String_Literal:
         b := emit(f, token, Push_String{add_to_string_table(token.text)})

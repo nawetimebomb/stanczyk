@@ -30,6 +30,8 @@
 // C.write (fd, char*, size_t)
 foreign fn write as C.write (int string int) ---
 
+foreign fn read as C.read (int pointer int) ---
+
 const STDIN  0 ;
 const STDOUT 1 ;
 const STDERR 2 ;
