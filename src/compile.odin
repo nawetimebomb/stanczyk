@@ -93,7 +93,7 @@ Scope :: struct {
     start_op: ^Bytecode,
 
     entities:      Entities,
-    stack_copies:  [dynamic][dynamic]Type_Kind,
+    stack_copies:  [dynamic][]Type_Kind,
 
     validation_at_end: enum {
         Skip,
@@ -435,12 +435,8 @@ find_entity :: proc(p: ^Parser, token: Token) -> Entity {
             test := other.variant.(Entity_Function)
 
             if len(p.curr_function.stack.v) >= len(test.inputs) {
-                stack_copy := make([dynamic]Type_Kind)
+                stack_copy := slice.clone(p.curr_function.stack.v[:])
                 defer delete(stack_copy)
-                for v in p.curr_function.stack.v {
-                    append(&stack_copy, v.kind)
-                }
-
                 slice.reverse(stack_copy[:])
                 sim_test_stack := stack_copy[:len(test.inputs)]
                 func_test_stack := make([dynamic]Type_Kind, context.temp_allocator)
@@ -555,11 +551,6 @@ push_scope :: proc(p: ^Parser, t: Token, k: Scope_Kind) -> ^Scope {
 pop_scope :: proc(p: ^Parser) {
     assert(p.curr_scope != nil)
     assert(p.curr_function != nil)
-    real_stack_copy := make([dynamic]Type_Kind)
-    defer delete(real_stack_copy)
-    for x in p.curr_function.stack.v {
-        append(&real_stack_copy, x.kind)
-    }
 
     switch p.curr_scope.validation_at_end {
     case .Skip:
@@ -570,11 +561,11 @@ pop_scope :: proc(p: ^Parser) {
         stack_copies := &p.curr_scope.stack_copies
         assert(len(stack_copies) > 0)
 
-        if len(stack_copies) != 1 || !slice.equal(stack_copies[0][:], real_stack_copy[:]) {
+        if len(stack_copies) != 1 || !slice.equal(stack_copies[0], p.curr_function.stack.v[:]) {
             p->fatalf(
                 p.curr_scope.token,
                 "stack changes not allowed on this scope block\n\tBefore: {}\n\tAfter: {}",
-                stack_copies[0], real_stack_copy,
+                stack_copies[0], p.curr_function.stack.v,
             )
         }
 
@@ -583,7 +574,7 @@ pop_scope :: proc(p: ^Parser) {
         stack_copies := &p.curr_scope.stack_copies
 
         for x in 0..<len(stack_copies) - 1 {
-            if !slice.equal(stack_copies[x][:], stack_copies[x + 1][:]) {
+            if !slice.equal(stack_copies[x], stack_copies[x + 1]) {
                 p->fatalf(
                     p.curr_scope.token,
                     "different stack effects between scopes not allowed",
@@ -638,9 +629,7 @@ delete_scope :: proc(s: ^Scope) {
 }
 
 create_stack_snapshot :: proc(f: ^Function, s: ^Scope) {
-    scopy := make([dynamic]Type_Kind)
-    for x in f.stack.v { append(&scopy, x.kind) }
-    append(&s.stack_copies, scopy)
+    append(&s.stack_copies, slice.clone(f.stack.v[:]))
 }
 
 refresh_stack_snapshot :: proc(f: ^Function, s: ^Scope) {
@@ -943,7 +932,7 @@ call_foreign_func :: proc(p: ^Parser, f: ^Function, t: Token, e: Entity) {
     #reverse for input in ef.inputs {
         A := f.stack->pop()
 
-        if input.kind != A.kind {
+        if input.kind != A {
             p->fatalf(
                 t.pos,
                 "input mismatch in function {}\n\tExpected: {},\tHave: {}",
@@ -959,7 +948,7 @@ call_foreign_func :: proc(p: ^Parser, f: ^Function, t: Token, e: Entity) {
     })
 
     for output in ef.outputs {
-        f.stack->push({ b.address, output.kind })
+        f.stack->push(output.kind)
     }
 }
 
@@ -982,22 +971,22 @@ call_function :: proc(p: ^Parser, entity: Entity, loc := #caller_location) {
             v, ok := parapoly_table[input.name]
 
             if !ok {
-                parapoly_table[input.name] = A.kind
-                v = A.kind
+                parapoly_table[input.name] = A
+                v = A
             }
 
-            if A.kind != v {
+            if A != v {
                 p->fatalf(
                     token.pos,
                     "parapoly of name '{}' means '{}' in this declaration, got '{}'",
-                    input.name, type_readable_table[v], type_readable_table[A.kind],
+                    input.name, type_readable_table[v], type_readable_table[A],
                 )
             }
-        case input.kind != A.kind && input.kind != .Any:
+        case input.kind != A && input.kind != .Any:
             p->fatalf(
                 token.pos,
                 "input mismatch in function {}\n\tExpected: {},\tHave: {}",
-                token.text, input, A.kind,
+                token.text, input, A,
             )
         }
     }
@@ -1024,9 +1013,9 @@ call_function :: proc(p: ^Parser, entity: Entity, loc := #caller_location) {
                 )
             }
 
-            f.stack->push({ b.address, v })
+            f.stack->push(v)
         } else {
-            f.stack->push({ b.address, output.kind })
+            f.stack->push(output.kind)
         }
     }
 }
@@ -1038,7 +1027,7 @@ parse_function :: proc(p: ^Parser, e: ^Entity) {
     stack_create(f)
 
     for param in ef.inputs {
-        f.stack->push({ address = 0, kind = param.kind })
+        f.stack->push(param.kind)
     }
 
     body_loop: for {
@@ -1077,7 +1066,7 @@ parse_token :: proc(p: ^Parser, token: Token, f: ^Function) -> bool {
     case .Word:
         if token.text == "println" || token.text == "print" {
             A := f.stack->pop()
-            emit(f, token, Print{A.kind})
+            emit(f, token, Print{A})
             return true
         }
         result := find_entity(p, token)
@@ -1085,7 +1074,7 @@ parse_token :: proc(p: ^Parser, token: Token, f: ^Function) -> bool {
         switch v in result.variant {
         case Entity_Binding:
             b := emit(f, token, Push_Bound{v.index})
-            f.stack->push({ address = b.address, kind = v.kind })
+            f.stack->push(v.kind)
         case Entity_Constant:
             b: ^Bytecode
             #partial switch v.kind {
@@ -1098,7 +1087,7 @@ parse_token :: proc(p: ^Parser, token: Token, f: ^Function) -> bool {
                 )
             }
 
-            f.stack->push({ address = b.address, kind = v.kind })
+            f.stack->push(v.kind)
         case Entity_Function:
             switch {
             case result.is_builtin: call_builtin_func(p, f, token, result)
@@ -1145,7 +1134,7 @@ parse_token :: proc(p: ^Parser, token: Token, f: ^Function) -> bool {
     case .If:
         A := f.stack->pop()
 
-        if A.kind != .Bool {
+        if A != .Bool {
             p->fatalf(token.pos, "Non-boolean condition in 'if' statement")
         }
 
@@ -1211,7 +1200,7 @@ parse_token :: proc(p: ^Parser, token: Token, f: ^Function) -> bool {
         // T tells us what to do
         A := f.stack->peek()
 
-        if A.kind == .Int {
+        if A == .Int {
             // This is the regular range for loop
             if len(words) != 1 {
                 p->fatalf(
@@ -1232,7 +1221,7 @@ parse_token :: proc(p: ^Parser, token: Token, f: ^Function) -> bool {
 
             B := f.stack->pop()
 
-            if B.kind != .Bool {
+            if B != .Bool {
                 p->fatalf(
                     token.pos,
                     "Non-boolean condition in 'for' range statement",
@@ -1244,7 +1233,7 @@ parse_token :: proc(p: ^Parser, token: Token, f: ^Function) -> bool {
             })
             create_stack_snapshot(f, scope)
             f.stack->save()
-        } else if A.kind == .String {
+        } else if A == .String {
             // This is a string iteration. We are looking into the string's characters.
             unimplemented()
         } else {
@@ -1260,7 +1249,7 @@ parse_token :: proc(p: ^Parser, token: Token, f: ^Function) -> bool {
         stack_expect(
             token.pos,
             "Non-boolean condition in 'do' statement",
-            A.kind == .Bool,
+            A == .Bool,
         )
 
         scope := push_scope(p, token, .Do)
@@ -1277,7 +1266,7 @@ parse_token :: proc(p: ^Parser, token: Token, f: ^Function) -> bool {
                 stack_expect(
                     token.pos,
                     "Non-boolean condition in 'loop' statement",
-                    A.kind == .Bool,
+                    A == .Bool,
                 )
 
                 b := emit(f, token, Loop{
@@ -1293,7 +1282,7 @@ parse_token :: proc(p: ^Parser, token: Token, f: ^Function) -> bool {
                 stack_expect(
                     token.pos,
                     "(int) expected in range for loop",
-                    A.kind == .Int,
+                    A == .Int,
                 )
 
                 b := emit(f, token, Loop{
@@ -1301,7 +1290,6 @@ parse_token :: proc(p: ^Parser, token: Token, f: ^Function) -> bool {
                     bindings = 1,
                 })
                 pop_scope(p)
-                f.stack->pop()
             }
             case : p->fatalf(token.pos, "'loop' unattached to a 'for' or 'do' scope")
         }
@@ -1314,10 +1302,10 @@ parse_token :: proc(p: ^Parser, token: Token, f: ^Function) -> bool {
         stack_expect(
             token.pos,
             stack_prettyprint("unsupported operation in 'byte'.\n\tExpected: (pointer)\n\tGot: {}", A),
-            A.kind != .Pointer,
+            A != .Pointer,
         )
         b := emit(f, token, Get{})
-        f.stack->push({ address = b.address, kind = .Int })
+        f.stack->push(.Int)
     case .Get_Byte:
         B := f.stack->pop()
         A := f.stack->pop()
@@ -1325,17 +1313,17 @@ parse_token :: proc(p: ^Parser, token: Token, f: ^Function) -> bool {
         // stack_expect(
         //     token.pos,
         //     stack_prettyprint("unsupported operation in 'get-byte'.\n\tExpected: (string int)\n\tGot: {}", A, B),
-        //     A.kind == .String, B.kind == .Int,
+        //     A == .String, B == .Int,
         // )
         b := emit(f, token, Get_Byte{})
-        f.stack->push({ address = b.address, kind = .Byte })
+        f.stack->push(.Byte)
     case .Set:
         B := f.stack->pop()
         A := f.stack->pop()
         stack_expect(
             token.pos,
-            fmt.tprintf("assignment can only be done to pointers, got {}", B.kind),
-            B.kind == .Pointer,
+            fmt.tprintf("assignment can only be done to pointers, got {}", B),
+            B == .Pointer,
         )
         emit(f, token, Set{})
     case .Set_Byte:
@@ -1367,16 +1355,16 @@ parse_token :: proc(p: ^Parser, token: Token, f: ^Function) -> bool {
 
     case .Character_Literal:
         b := emit(f, token, Push_Byte{token.text[0]})
-        f.stack->push({ b.address, .Byte })
+        f.stack->push(.Byte)
 
     case .Bool_Literal:
         b := emit(f, token, Push_Bool{token.text == "true" ? true : false})
-        f.stack->push({ b.address, .Bool })
+        f.stack->push(.Bool)
 
     case .Cstring_Literal:
         b := emit(f, token, Push_Cstring{add_to_string_table(token.text), len(token.text)})
-        f.stack->push({ b.address, .String })
-        f.stack->push({ b.address, .Int })
+        f.stack->push(.String)
+        f.stack->push(.Int)
 
     case .Float_Literal:
         fmt.assertf(false, "unimplemented for now")
@@ -1386,86 +1374,32 @@ parse_token :: proc(p: ^Parser, token: Token, f: ^Function) -> bool {
 
     case .Integer_Literal:
         b := emit(f, token, Push_Int{strconv.atoi(token.text)})
-        f.stack->push({ b.address, .Int })
+        f.stack->push(.Int)
 
     case .Octal_Literal:
         unimplemented()
 
     case .String_Literal:
         b := emit(f, token, Push_String{add_to_string_table(token.text)})
-        f.stack->push({ b.address, .String })
+        f.stack->push(.Int)
 
     case .Uint_Literal:
         b := emit(f, token, Push_Int{strconv.atoi(token.text)})
-        f.stack->push({ b.address, .Uint })
+        f.stack->push(.Int)
 
     case .Type_Literal: unimplemented()
 
-    case .Plus:    parse_binary_op(f, token, .add)
-    case .Minus:   parse_binary_op(f, token, .sub)
-    case .Star:    parse_binary_op(f, token, .mul)
-    case .Slash:   parse_binary_op(f, token, .div)
-    case .Percent: parse_binary_op(f, token, .mod)
-    case .Equal:
-        B := f.stack->pop()
-        A := f.stack->pop()
-        stack_expect(
-            token.pos,
-            stack_prettyprint("unsupported types in '=' operation.\n\tExpected: both (int) or both (bool) or one (int) and one (byte)\n\tGot: {}", A, B),
-            A.kind != .String, B.kind != .String,
-        )
-        b := emit(f, token, Equal{})
-        f.stack->push({ b.address, .Bool })
-    case .Greater_Equal:
-        B := f.stack->pop()
-        A := f.stack->pop()
-        stack_expect(
-            token.pos,
-            stack_prettyprint("unsupported types in '>=' operation.\n\tExpected: both (int)\n\tGot: {}", A, B),
-            A.kind == B.kind, A.kind == .Int,
-        )
-        b := emit(f, token, Greater_Equal{})
-        f.stack->push({ b.address, .Bool })
-    case .Greater_Than:
-        B := f.stack->pop()
-        A := f.stack->pop()
-        stack_expect(
-            token.pos,
-            stack_prettyprint("unsupported types in '>' operation.\n\tExpected: both (int)\n\tGot: {}", A, B),
-            A.kind == B.kind, A.kind == .Int,
-        )
-        b := emit(f, token, Greater{})
-        f.stack->push({ b.address, .Bool })
-    case .Less_Equal:
-        B := f.stack->pop()
-        A := f.stack->pop()
-        stack_expect(
-            token.pos,
-            stack_prettyprint("unsupported types in '<=' operation.\n\tExpected: both (int)\n\tGot: {}", A, B),
-            A.kind == B.kind, A.kind == .Int,
-        )
-        b := emit(f, token, Less_Equal{})
-        f.stack->push({ b.address, .Bool })
-    case .Less_Than:
-        B := f.stack->pop()
-        A := f.stack->pop()
-        stack_expect(
-            token.pos,
-            stack_prettyprint("unsupported types in '<' operation.\n\tExpected: both (int)\n\tGot: {}", A, B),
-            A.kind == B.kind, A.kind == .Int,
-        )
-        b := emit(f, token, Less{})
-        f.stack->push({ b.address, .Bool })
-    case .Not_Equal:
-        B := f.stack->pop()
-        A := f.stack->pop()
-        stack_expect(
-            token.pos,
-            stack_prettyprint("unsupported types in '!=' operation.\n\tExpected: both (int) or both (bool) or one (int) and one (byte)\n\tGot: {}", A, B),
-            A.kind != .String, B.kind != .String,
-        )
-        b := emit(f, token, Not_Equal{})
-        f.stack->push({ b.address, .Bool })
+    case .Plus:          parse_binary_op(f, token, .add)
+    case .Minus:         parse_binary_op(f, token, .sub)
+    case .Star:          parse_binary_op(f, token, .mul)
+    case .Slash:         parse_binary_op(f, token, .div)
+    case .Percent:       parse_binary_op(f, token, .mod)
+    case .Equal:         parse_binary_op(f, token, .eq)
+    case .Greater_Equal: parse_binary_op(f, token, .ge)
+    case .Greater_Than:  parse_binary_op(f, token, .gt)
+    case .Less_Equal:    parse_binary_op(f, token, .le)
+    case .Less_Than:     parse_binary_op(f, token, .lt)
+    case .Not_Equal:     parse_binary_op(f, token, .ne)
     }
 
     return true
@@ -1490,40 +1424,51 @@ bind_words :: proc(p: ^Parser, f: ^Function, t: []Token) {
             address = get_local_address(f),
             pos = word.pos,
             name = word.text,
-            variant = Entity_Binding{kind = A.kind, index = index},
+            variant = Entity_Binding{kind = A, index = index},
         })
     }
 }
 
 parse_binary_op :: proc(f: ^Function, t: Token, op: enum {
-    add, sub, mul, div, mod,
+    add, sub, mul, div, mod, eq, ge, gt, le, lt, ne,
 }) {
+    B := f.stack->pop()
+    A := f.stack->pop()
+
     // TODO: Add validations!
     switch op {
     case .add:
-        B := f.stack->pop()
-        A := f.stack->pop()
-        b := emit(f, t, Add{})
-        f.stack->push({ b.address, .Int })
+        emit(f, t, Add{})
+        f.stack->push(.Int)
     case .sub:
-        B := f.stack->pop()
-        A := f.stack->pop()
-        b := emit(f, t, Substract{})
-        f.stack->push({ b.address, .Int })
+        emit(f, t, Substract{})
+        f.stack->push(.Int)
     case .mul:
-        B := f.stack->pop()
-        A := f.stack->pop()
-        b := emit(f, t, Multiply{})
-        f.stack->push({ b.address, .Int })
+        emit(f, t, Multiply{})
+        f.stack->push(.Int)
     case .div:
-        B := f.stack->pop()
-        A := f.stack->pop()
-        b := emit(f, t, Divide{})
-        f.stack->push({ b.address, .Int })
+        emit(f, t, Divide{})
+        f.stack->push(.Int)
     case .mod:
-        B := f.stack->pop()
-        A := f.stack->pop()
-        b := emit(f, t, Modulo{})
-        f.stack->push({ b.address, .Int })
+        emit(f, t, Modulo{})
+        f.stack->push(.Int)
+    case .eq:
+        emit(f, t, Equal{})
+        f.stack->push(.Bool)
+    case .ge:
+        emit(f, t, Greater_Equal{})
+        f.stack->push(.Bool)
+    case .gt:
+        emit(f, t, Greater{})
+        f.stack->push(.Bool)
+    case .le:
+        emit(f, t, Less_Equal{})
+        f.stack->push(.Bool)
+    case .lt:
+        emit(f, t, Less{})
+        f.stack->push(.Bool)
+    case .ne:
+        emit(f, t, Not_Equal{})
+        f.stack->push(.Bool)
     }
 }

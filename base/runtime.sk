@@ -124,7 +124,7 @@ fn tuck (x y --- y x y) let x y in y x y end ;
 
 fn len (string --- int) let s in 0 0 dup s get-byte != do 1 + dup s get-byte 0 != loop end ;
 
-// fn len (int --- int) 0 swap for x in take 0 > do 1 + x 10 / loop ;
+fn len (int --- int) 0 swap for x in take 0 > do 1 + x 10 / loop ;
 
 fn ? (bool x x --- x) rot if drop else nip fi ;
 
