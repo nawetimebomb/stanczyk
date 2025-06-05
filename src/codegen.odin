@@ -1,471 +1,468 @@
-#+private file
 package main
 
-// import "core:fmt"
-// import "core:os"
-// import "core:strconv"
-// import "core:strings"
-
-// Generator :: struct {
-//     includes:        strings.Builder,
-//     defines:         strings.Builder,
-//     typedefs:        strings.Builder,
-//     structs:         strings.Builder,
-//     builtinglobals:  strings.Builder,
-//     builtinprocdefs: strings.Builder,
-//     builtinprocs:    strings.Builder,
-
-//     userdefs:     strings.Builder,
-//     userfuncs:    strings.Builder,
-
-//     global_ip:   uint,
-
-//     main_func_address: uint,
-// }
-
-// gen := Generator{}
-
-// init_generator :: proc() {
-//     gen.includes = strings.builder_make()
-//     gen.defines = strings.builder_make()
-//     gen.typedefs = strings.builder_make()
-//     gen.structs = strings.builder_make()
-//     gen.builtinglobals = strings.builder_make()
-//     gen.builtinprocdefs = strings.builder_make()
-//     gen.builtinprocs = strings.builder_make()
-//     gen.userdefs = strings.builder_make()
-//     gen.userfuncs = strings.builder_make()
-// }
-
-// write :: proc{write_to_builder, write_to_function}
-// writef :: proc{writef_to_builder, writef_to_function}
-// writeln :: proc{writeln_to_builder, writeln_to_function}
-// writefln :: proc{writefln_to_builder, writefln_to_function}
-
-// write_to_builder :: proc(s: ^strings.Builder, args: ..any) {
-//     fmt.sbprint(s, args = args)
-// }
-
-// write_to_function :: proc(f: ^Function, args: ..any) {
-//     fmt.sbprint(&f.code, args = args)
-// }
-
-// writef_to_builder :: proc(s: ^strings.Builder, format: string, args: ..any) {
-//     fmt.sbprintf(s, format, args = args)
-// }
-
-// writef_to_function :: proc(f: ^Function, format: string, args: ..any) {
-//     fmt.sbprintf(&f.code, format, args = args)
-// }
-
-// writeln_to_builder :: proc(s: ^strings.Builder, args: ..any) {
-//     write(s, args = args)
-//     write(s, "\n")
-// }
-
-// writeln_to_function :: proc(f: ^Function, args: ..any) {
-//     write(f, args = args)
-//     write(f, "\n")
-//     write_indent(f)
-// }
-
-// writefln_to_builder :: proc(s: ^strings.Builder, format: string, args: ..any) {
-//     writef(s, format, args = args)
-//     write(s, "\n")
-// }
-
-// writefln_to_function :: proc(f: ^Function, format: string, args: ..any) {
-//     writef(f, format, args = args)
-//     write(f, "\n")
-//     write_indent(f)
-// }
-
-// write_indent :: proc(f: ^Function) {
-//     if f.indent > 0 {
-//         indent_str := "\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t"
-//         write(f, indent_str[:clamp(f.indent, 0, len(indent_str) - 1)])
-//     }
-// }
-
-// reindent :: proc(f: ^Function) {
-//     for f.code.buf[len(f.code.buf) - 1] == '\t' { pop(&f.code.buf) }
-//     write_indent(f)
-// }
-
-// indent_forward :: proc(f: ^Function, should_write := true) {
-//     f.indent += 1
-//     if should_write {
-//         reindent(f)
-//     }
-// }
-
-// indent_backward :: proc(f: ^Function, should_write := true) {
-//     f.indent = max(f.indent - 1, 0)
-//     if should_write {
-//         reindent(f)
-//     }
-// }
-
-// gen_global_address :: proc() -> (address: uint) {
-//     address = gen.global_ip
-//     gen.global_ip += 1
-//     return
-// }
-
-// gen_local_address :: proc(f: ^Function) -> (address: uint) {
-//     address = f.local_ip
-//     f.local_ip += 1
-//     return
-// }
-
-// gen_compilation_unit :: proc() {
-//     result := strings.builder_make()
-//     writeln(&result, string(gen.includes.buf[:]))
-//     delete(gen.includes.buf)
-//     writeln(&result, string(gen.typedefs.buf[:]))
-//     delete(gen.typedefs.buf)
-//     writeln(&result, string(gen.defines.buf[:]))
-//     delete(gen.defines.buf)
-//     writeln(&result, string(gen.structs.buf[:]))
-//     delete(gen.structs.buf)
-//     writeln(&result, string(gen.builtinglobals.buf[:]))
-//     delete(gen.builtinglobals.buf)
-//     writeln(&result, string(gen.builtinprocdefs.buf[:]))
-//     delete(gen.builtinprocdefs.buf)
-//     writeln(&result, string(gen.builtinprocs.buf[:]))
-//     delete(gen.builtinprocs.buf)
-//     writeln(&result, string(gen.userdefs.buf[:]))
-//     delete(gen.userdefs.buf)
-//     writeln(&result, string(gen.userfuncs.buf[:]))
-//     delete(gen.userfuncs.buf)
-//     writefln(&result, `int main(int ___argc, char** ___argv) {{
-// 	g_main_argc = ___argc;
-// 	g_main_argv = ___argv;
-// 	skfuncip{}();
-// 	return 0;
-// }`, gen.main_func_address)
-
-//     os.write_entire_file(fmt.tprintf("{}.c", output_filename), result.buf[:])
-
-//     delete(result.buf)
-// }
-
-// gen_bootstrap :: proc() {
-//     c_includes := []string{"assert.h", "stdint.h", "stdio.h", "stdlib.h", "string.h"}
-//     for inc in c_includes { writefln(&gen.includes, "#include <{}>", inc) }
-
-//     writeln(&gen.typedefs, `#if defined(__x86_64__) || defined(_M_AMD64) || defined(__aarch64__) || defined(__arm64__) || defined(_M_ARM64) || (defined(__riscv_xlen) && __riscv_xlen == 64) || defined(__s390x__) || (defined(__powerpc64__) && defined(__LITTLE_ENDIAN__)) || defined(__loongarch64)
-// 	typedef int64_t skint;
-// 	typedef uint64_t skuint;
-// 	typedef double skfloat;
-// #else
-// 	typedef int32_t skint;
-// 	typedef uint32_t skuint;
-// 	typedef float skfloat;
-// #endif
-
-// typedef int8_t skbool;
-// typedef uint8_t skbyte;
-// typedef unsigned char* skbyteptr;
-// typedef void* voidptr;
-// typedef struct skstring skstring;
-// typedef struct skquote skquote;
-// typedef struct skstack skstack;
-// typedef union skvalue skvalue;
-// typedef enum sktype sktype;`)
-
-//     writeln(&gen.defines, `#define SKSTACK_SIZE 128
-// #define SK_INLINE static inline
-// #define SK_PROGRAM static
-// #define SK_LOCAL static
-// #define SKFALSE (skbool) 0
-// #define SKTRUE (skbool) 1
-// #define __STRLIT(s,l) ((skstring){.data=(skbyteptr)("" s),.len=l,.literal=SKTRUE})`)
-
-//     writeln(&gen.structs, `struct skstring {
-// 	skbyteptr data;
-// 	skint len;
-// 	skbool literal;
-// };
-
-// enum sktype {
-// 	skbool_t, skfloat_t, skint_t, skstring_t, skuint_t,
-// };
-
-// union skvalue {
-// 	skbool skbool;
-// 	skbyte skbyte;
-// 	skfloat skfloat;
-// 	skint skint;
-// 	skstring skstring;
-//     skuint skuint;
-// };
-
-// struct skstack {
-// 	skint top;
-// 	skvalue values[SKSTACK_SIZE];
-// };`)
-
-//     writeln(&gen.builtinglobals, `SK_PROGRAM skstack g_stack;
-// int g_main_argc = ((int)(0));
-// voidptr g_main_argv = ((voidptr)0);`)
-
-//     writeln(&gen.builtinprocdefs, `SK_PROGRAM void _push(skvalue v);
-// SK_PROGRAM skvalue _pop();
-// SK_PROGRAM skbool _string_eq(skstring a, skstring b);
-// SK_PROGRAM skstring _string_plus(skstring a, skstring b);
-// SK_PROGRAM void _write_to_fd(int fd, skbyteptr buf, int buf_len);
-// SK_PROGRAM void print(sktype t);
-// SK_PROGRAM void println(sktype t);`)
-
-//     writeln(&gen.builtinprocs, `SK_PROGRAM void _push(skvalue v) {
-// 	assert(g_stack.top < SKSTACK_SIZE);
-// 	g_stack.values[++g_stack.top] = v;
-// }
-
-// SK_PROGRAM skvalue _pop() {
-// 	assert(g_stack.top > -1);
-// 	skvalue v = g_stack.values[g_stack.top];
-// 	g_stack.top--;
-// 	return v;
-// }
-
-// SK_PROGRAM skbool _string_eq(skstring s1, skstring s2) {
-// 	if (s1.len != s2.len) {
-// 		return SKFALSE;
-// 	}
-// 	// Unsafe
-// 	return memcmp(s1.data, s2.data, s1.len) == 0 ? SKTRUE : SKFALSE;
-// }
-
-// SK_PROGRAM skstring _string_plus(skstring s1, skstring s2) {
-// 	int rlen = s1.len + s2.len; // result len
-// 	skbyteptr rstr = (skbyteptr)malloc(sizeof(skbyte) * rlen); // result str
-// 	{ // Unsafe block
-// 		memcpy(rstr, s1.data, s1.len);
-// 		memcpy(rstr + s1.len, s2.data, s2.len);
-// 		rstr[rlen] = 0;
-// 	}
-// 	return (skstring){.data=rstr,.len=rlen};
-// }
-
-// SK_PROGRAM void _write_to_fd(int fd, skbyteptr buf, int buf_len) {
-// 	skbyteptr ptr = buf;
-// 	size_t remaining_bytes = ((size_t)(buf_len));
-// 	size_t x = ((size_t)(0));
-// 	voidptr stream = ((voidptr)(stdout));
-// 	if (fd == 2) stream = ((voidptr)(stderr));
-// 	{ // Unsafe block
-// 		for (;;) {
-// 			if (!(remaining_bytes > 0)) break;
-// 			x = ((size_t)(fwrite(ptr, 1, remaining_bytes, stream)));
-// 			ptr += x;
-// 			remaining_bytes -= x;
-// 		}
-// 	}
-// }
-
-// SK_PROGRAM void print(sktype t) {
-// 	skvalue a = _pop();
-// 	switch (t) {
-// 		case skbool_t: printf("%s", a.skbool == SKTRUE ? "true" : "false"); break;
-// 		case skfloat_t: printf("%g", a.skfloat); break;
-// 		case skint_t: printf("%li", a.skint); break;
-// 		case skuint_t: printf("%lu", a.skuint); break;
-// 		case skstring_t: _write_to_fd(0, a.skstring.data, a.skstring.len); break;
-// 		default: assert(SKFALSE);
-// 	}
-// }
-
-// SK_PROGRAM void println(sktype t) {
-//     print(t);
-// 	skbyte lf = ((skbyte)('\n'));
-// 	_write_to_fd(0, &lf, 1);
-// }`)
-// }
-
-// gen_program :: proc() {
-//     writeln(&gen.userfuncs, "// CODE STARTS HERE\n")
-//     for &f in functions {
-//         if f.called {
-//             pos := f.entity.pos
-//             userdefs := &gen.userdefs
-
-//             writefln(
-//                 userdefs, "// {} ({}:{}:{})",
-//                 f.entity.name, pos.filename, pos.line, pos.column,
-//             )
-//             writefln(userdefs, "SK_PROGRAM void skfuncip{}();", f.entity.address)
-
-//             writeln(&gen.userfuncs, strings.to_string(f.code))
-//         }
-//         delete(f.code.buf)
-//     }
-//     writeln(&gen.userfuncs, "// CODE ENDS HERE")
-// }
-
-// gen_function :: proc(f: ^Function, part: enum { Head, Tail }) {
-//     c := &f.code
-//     pos := f.entity.pos
-
-//     switch part {
-//     case .Head:
-//         writefln(
-//             f, "// {} ({}:{}:{})",
-//             f.entity.name, pos.filename, pos.line, pos.column,
-//         )
-//         writefln(f, "SK_PROGRAM void skfuncip{}() {{", f.entity.address)
-//         indent_forward(f)
-//         writeln(f, "skvalue a, b, c;")
-//     case .Tail:
-//         indent_backward(f)
-//         writeln(f, "}")
-//     }
-// }
-
-// gen_push_bool :: proc(f: ^Function, v: string) {
-//     writefln(f, "a.skbool = {}; _push(a);", v)
-// }
-
-// gen_push_float :: proc(f: ^Function, v: f64) {
-//     writefln(f, "a.skfloat = {}; _push(a);", v)
-// }
-
-// gen_push_int :: proc(f: ^Function, v: int) {
-//     writefln(f, "a.skint = {}; _push(a);", v)
-// }
-
-// gen_push_uint :: proc(f: ^Function, v: u64) {
-//     writefln(f, "a.skuint = {}u; _push(a);", v)
-// }
-
-// gen_push_string :: proc(f: ^Function, v: string) {
-//     parse_string :: proc(v: string) -> string {
-//         nv := strings.builder_make()
-//         defer delete(nv.buf)
-
-//         for r in v {
-//             strings.write_escaped_rune(&nv, r, '\\')
-//         }
-
-//         result := strings.clone(strings.to_string(nv))
-//         return result
-//     }
-//     parsed := parse_string(v)
-//     writefln(f, "a.skstring = __STRLIT(\"{}\", {}); _push(a);", parsed, len(v))
-//     delete(parsed)
-// }
-
-// gen_push_binding :: proc(f: ^Function, address: uint) {
-//     writefln(f, "_push(sklocalip{});", address)
-// }
-
-// gen_literal_c :: proc(f: ^Function, format: string, args: ..any) {
-//     writefln(f, format, ..args)
-// }
-
-// gen_function_call :: proc(f: ^Function, address: uint) {
-//     writefln(f, "skfuncip{}();", address)
-// }
-
-// gen_basic_arithmetic :: proc(f: ^Function, lhs, rhs, res: Type_Kind, op: string) {
-//     writeln(f, "b = _pop(); a = _pop();")
-
-//     switch op {
-//     case "+":
-//         if lhs == .String && rhs == .String {
-//             writeln(f, "a.skstring = _string_plus(a.skstring, b.skstring);")
-//             writeln(f, "_push(a);")
-//         } else {
-//             writefln(
-//                 f, "a.{0} = a.{1} + b.{2}; _push(a);",
-//                 type_to_cname(res), type_to_cname(lhs), type_to_cname(rhs),
-//             )
-//         }
-//     case :
-//         writefln(
-//             f, "a.{0} = a.{1} {2} b.{3}; _push(a);",
-//             type_to_cname(res), type_to_cname(lhs), op, type_to_cname(rhs),
-//         )
-//     }
-// }
-
-// gen_string_length :: proc(f: ^Function) {
-//     writeln(f, "a = _pop();")
-//     writeln(f, "a.skint = a.skstring.len; _push(a);")
-// }
-
-// gen_equal :: proc(f: ^Function, t: Type_Kind) {
-//     writeln(f, "b = _pop(); a = _pop();")
-//     write(f, "a.skbool = ")
-
-//     if t == .String {
-//         write(f, "_string_eq(a.skstring, b.skstring); ")
-//     } else {
-//         writef(f, "a.{0} == b.{0}; ", type_to_cname(t))
-//     }
-//     writefln(f, "_push(a);")
-// }
-
-// gen_greater_equal :: proc(f: ^Function, t: Type_Kind) {
-//     writeln(f, "b = _pop(); a = _pop();")
-//     writefln(f, "a.skbool = a.{0} >= b.{0}; _push(a);", type_to_cname(t))
-// }
-
-// gen_greater_than :: proc(f: ^Function, t: Type_Kind) {
-//     writeln(f, "b = _pop(); a = _pop();")
-//     writefln(f, "a.skbool = a.{0} > b.{0}; _push(a);", type_to_cname(t))
-// }
-
-// gen_less_equal :: proc(f: ^Function, t: Type_Kind) {
-//     writeln(f, "b = _pop(); a = _pop();")
-//     writefln(f, "a.skbool = a.{0} <= b.{0}; _push(a);", type_to_cname(t))
-// }
-
-// gen_less_than :: proc(f: ^Function, t: Type_Kind) {
-//     writeln(f, "b = _pop(); a = _pop();")
-//     writefln(f, "a.skbool = a.{0} < b.{0}; _push(a);", type_to_cname(t))
-// }
-
-// gen_not_equal :: proc(f: ^Function, t: Type_Kind) {
-//     writeln(f, "b = _pop(); a = _pop();")
-//     write(f, "a.skbool = ")
-
-//     if t == .String {
-//         write(f, "!_string_eq(a.skstring, b.skstring); ")
-//     } else {
-//         writef(f, "a.{0} != b.{0}; ", type_to_cname(t))
-//     }
-//     writefln(f, "_push(a);")
-// }
-
-// gen_binding :: proc(f: ^Function, address: uint) {
-//     writefln(f, "skvalue sklocalip{} = _pop();", address)
-// }
-
-// gen_code_block :: proc(f: ^Function, part: enum { start, end }) {
-//     switch part {
-//     case .start:
-//         writeln(f, "{")
-//         indent_forward(f)
-//     case .end:
-//         indent_backward(f)
-//         writeln(f, "}")
-//     }
-// }
-
-// gen_if_statement :: proc(f: ^Function, part: enum { s_if, s_else, fi }) {
-//     switch part {
-//     case .s_if:
-//         writeln(f, "a = _pop();")
-//         writeln(f, "if (a.skbool) {")
-//         indent_forward(f)
-//     case .s_else:
-//         indent_backward(f)
-//         writeln(f, "} else {")
-//         indent_forward(f)
-//     case .fi:
-//         indent_backward(f)
-//         writeln(f, "}")
-//     }
-// }
+import "core:fmt"
+import "core:os"
+import "core:strings"
+
+Generator :: struct {
+    prepend: strings.Builder,
+
+    code: strings.Builder,
+    data: strings.Builder,
+
+    global_ip: uint,
+    main_func_address: uint,
+}
+
+gen: Generator
+
+init_generator :: proc() {
+    gen.prepend = strings.builder_make()
+    gen.code = strings.builder_make()
+    gen.data = strings.builder_make()
+}
+
+get_global_address :: proc() -> (address: uint) {
+    address = gen.global_ip
+    gen.global_ip += 1
+    return
+}
+
+get_local_address :: proc(f: ^Function) -> (address: uint) {
+    address = f.local_ip
+    f.local_ip += 1
+    return
+}
+
+write :: proc(s: ^strings.Builder, format: string, args: ..any) {
+    fmt.sbprintf(s, format, ..args)
+}
+
+writeln :: proc(s: ^strings.Builder, format: string, args: ..any) {
+    write(s, format, ..args)
+    write(s, "\n")
+}
+
+writemeta :: proc(format: string, args: ..any) {
+    writeln(&gen.prepend, format, ..args)
+}
+
+writecode :: proc(format: string, args: ..any) {
+    writeln(&gen.code, format, ..args)
+}
+
+writedata :: proc(format: string, args: ..any) {
+    writeln(&gen.data, format, ..args)
+}
+
+gen_program :: proc() {
+    gen_bootstrap()
+
+    for f in functions {
+        if f.called {
+            gen_function(f)
+        }
+    }
+
+    gen_compilation_unit()
+}
+
+gen_bootstrap :: proc() {
+    // PREPEND BEGINS HERE
+    writemeta("format ELF64")
+    writemeta("public _start")
+
+    for fname in C_functions {
+        writemeta("extrn {}", fname)
+    }
+    // PREPEND ENDS HERE
+
+    // CODE BEGINS HERE
+    writecode("section '.text' executable")
+    writecode("print_number:")
+    writecode("    mov r9, -3689348814741910323")
+    writecode("    sub rsp, 40")
+    writecode("    mov BYTE [rsp+31], 10")
+    writecode("    lea rcx, [rsp+30]")
+    writecode(".convert_loop:")
+    writecode("    mov rax, rdi")
+    writecode("    lea r8, [rsp+32]")
+    writecode("    mul r9")
+    writecode("    mov rax, rdi")
+    writecode("    sub r8, rcx")
+    writecode("    shr rdx, 3")
+    writecode("    lea rsi, [rdx+rdx*4]")
+    writecode("    add rsi, rsi")
+    writecode("    sub rax, rsi")
+    writecode("    add eax, 48")
+    writecode("    mov BYTE [rcx], al")
+    writecode("    mov rax, rdi")
+    writecode("    mov rdi, rdx")
+    writecode("    mov rdx, rcx")
+    writecode("    sub rcx, 1")
+    writecode("    cmp rax, 9")
+    writecode("    ja  .convert_loop")
+    writecode("")
+    writecode("    lea rax, [rsp+32]")
+    writecode("    mov edi, 1")
+    writecode("    sub rdx, rax")
+    writecode("    xor eax, eax")
+    writecode("    lea rsi, [rsp+32+rdx]")
+    writecode("    mov rdx, r8")
+    writecode("    mov rax, 1")
+    writecode("    syscall")
+    writecode("    add rsp, 40")
+    writecode("    ret")
+    writecode("_start:")
+    writecode("    mov [args_ptr], rsp")
+    writecode("    mov rax, ret_stack_ptr_end")
+    writecode("    mov [ret_stack_ptr], rax")
+    writecode("    mov rax, rsp")
+    writecode("    mov rsp, [ret_stack_ptr]")
+    writecode("    call fn{}", gen.main_func_address)
+    writecode("    mov [ret_stack_ptr], rsp")
+    writecode("    mov rsp, rax")
+    writecode("    xor rdi, rdi")
+    writecode("    mov rax, 60")
+    writecode("    syscall")
+    writecode(";; user program definitions starts here")
+    // CODE ENDS HERE
+
+    // DATA BEGINS HERE
+    writedata("section '.data' writeable")
+    writedata("args_ptr: rq 1")
+    writedata("ret_stack_ptr: rq 1")
+    writedata("ret_stack: rb 65535")
+    writedata("ret_stack_ptr_end:")
+    // TODO: Calculate static memory needed
+    writedata("stanczyk_static: rb {}", 1)
+    writedata(`FMT_INT: db 37,100,10,0`)
+    for key, value in strings_table {
+        writedata("str_{}: db {} ; {}", value, gen_ascii(key), escaped(key))
+    }
+    // DATA ENDS HERE
+}
+
+gen_function :: proc(f: Function) {
+    name := f.entity.name
+    pos := f.entity.pos
+    function_ip := f.entity.address
+    binds_count := 0
+    writecode("fn{}:", function_ip)
+    writecode(";; start fn {} ({}:{}:{})", name, pos.filename, pos.line, pos.column)
+    writecode("    sub rsp, {}", f.local_mem)
+    writecode("    mov [ret_stack_ptr], rsp")
+    writecode("    mov rsp, rax")
+
+    for c in f.code {
+        code_ip := c.address
+        writecode(
+            ".ip{}: ;; {} ({}:{}:{})", code_ip,
+            bytecode_to_string(c), c.filename, c.line, c.column,
+        )
+
+        switch v in c.variant {
+        case Push_Bool:
+            writecode("    mov rax, {}", v.val ? 1 : 0)
+            writecode("    push rax")
+        case Push_Bound:
+            writecode("    mov rax, [ret_stack_ptr]")
+            writecode("    add rax, {}", v.val * 8)
+            writecode("    push QWORD [rax]")
+        case Push_Bound_Pointer:
+            writecode("    mov rax, [ret_stack_ptr]")
+            writecode("    add rax, {}", v.val * 8)
+            writecode("    push rax")
+        case Push_Byte:
+            writecode("    mov rax, {}", int(v.val))
+            writecode("    push rax")
+        case Push_Cstring:
+            writecode("    mov rax, str_{0}", v.val)
+            writecode("    push rax")
+            writecode("    mov rax, {}", v.length)
+            writecode("    push rax")
+        case Push_Int:
+            writecode("    mov rax, {}", v.val)
+            writecode("    push rax")
+        case Push_String:
+            writecode("    mov rax, str_{0}", v.val)
+            writecode("    push rax")
+        case Push_Var_Global:
+        case Push_Var_Global_Pointer:
+        case Push_Var_Local:
+        case Push_Var_Local_Pointer:
+            offset := v.val + uint(binds_count * 8)
+            writecode("    mov rax, [ret_stack_ptr]")
+            writecode("    add rax, {}", offset)
+            writecode("    push rax")
+
+        case Get:
+            writecode("    pop rax")
+            writecode("    xor rbx, rbx")
+            writecode("    mov rbx, [rax]")
+            writecode("    push rbx")
+        case Get_Byte:
+            writecode("    pop rbx")
+            writecode("    pop rax")
+            writecode("    add rbx, rax")
+            writecode("    xor rcx, rcx")
+            writecode("    mov cl, [rbx]")
+            writecode("    push rcx")
+        case Set:
+            writecode("    pop rax")
+            writecode("    pop rbx")
+            writecode("    mov [rax], rbx")
+        case Set_Byte:
+            writecode("    pop rax")
+            writecode("    pop rbx")
+            writecode("    mov [rax], bl")
+        case Add:
+            writecode("    pop rbx")
+            writecode("    pop rax")
+            writecode("    add rax, rbx")
+            writecode("    push rax")
+        case Divide:
+            writecode("    xor rdx, rdx")
+            writecode("    pop rbx")
+            writecode("    pop rax")
+            writecode("    div rbx")
+            writecode("    push rax")
+        case Modulo:
+            writecode("    xor rdx, rdx")
+            writecode("    pop rbx")
+            writecode("    pop rax")
+            writecode("    div rbx")
+            writecode("    push rdx")
+        case Multiply:
+            writecode("    pop rbx")
+            writecode("    pop rax")
+            writecode("    mul rbx")
+            writecode("    push rax")
+        case Substract:
+            writecode("    pop rbx")
+            writecode("    pop rax")
+            writecode("    sub rax, rbx")
+            writecode("    push rax")
+
+        case Equal:
+            writecode("    xor rcx, rcx")
+            writecode("    mov rdx, 1")
+            writecode("    pop rbx")
+            writecode("    pop rax")
+            writecode("    cmp rax, rbx")
+            writecode("    cmove rcx, rdx")
+            writecode("    push rcx")
+        case Greater:
+            writecode("    xor rcx, rcx")
+            writecode("    mov rdx, 1")
+            writecode("    pop rbx")
+            writecode("    pop rax")
+            writecode("    cmp rax, rbx")
+            writecode("    cmovg rcx, rdx")
+            writecode("    push rcx")
+        case Greater_Equal:
+            writecode("    xor rcx, rcx")
+            writecode("    mov rdx, 1")
+            writecode("    pop rbx")
+            writecode("    pop rax")
+            writecode("    cmp rax, rbx")
+            writecode("    cmovge rcx, rdx")
+            writecode("    push rcx")
+        case Less:
+            writecode("    xor rcx, rcx")
+            writecode("    mov rdx, 1")
+            writecode("    pop rbx")
+            writecode("    pop rax")
+            writecode("    cmp rax, rbx")
+            writecode("    cmovl rcx, rdx")
+            writecode("    push rcx")
+        case Less_Equal:
+            writecode("    xor rcx, rcx")
+            writecode("    mov rdx, 1")
+            writecode("    pop rbx")
+            writecode("    pop rax")
+            writecode("    cmp rax, rbx")
+            writecode("    cmovle rcx, rdx")
+            writecode("    push rcx")
+        case Not_Equal:
+            writecode("    xor rcx, rcx")
+            writecode("    mov rdx, 1")
+            writecode("    pop rbx")
+            writecode("    pop rax")
+            writecode("    cmp rax, rbx")
+            writecode("    cmovne rcx, rdx")
+            writecode("    push rcx")
+
+        case If:
+            writecode("    pop rax")
+            writecode("    test rax, rax")
+            writecode("    jz .end{}", code_ip)
+        case Else:
+            writecode("    jmp .end{}", code_ip)
+            writecode(".end{}:", v.address)
+        case Fi:
+            writecode(".end{}:", v.address)
+
+        case Do:
+            jump_address_on_false := v.use_self ? code_ip : v.address
+            writecode(".start{}:", code_ip)
+            writecode("    pop rax")
+            writecode("    test rax, rax")
+            writecode("    jz .end{}", jump_address_on_false)
+        case For_Range:
+            writecode("    mov rax, [ret_stack_ptr]")
+            writecode("    sub rax, 8")
+            writecode("    mov [ret_stack_ptr], rax")
+            writecode("    pop rbx")
+            writecode("    mov [rax+0], rbx")
+            writecode(".start{}:", code_ip)
+            writecode("    mov rax, [ret_stack_ptr]")
+            writecode("    add rax, 0")
+            writecode("    push QWORD [rax]")
+            binds_count += 1
+
+        case Loop:
+            if v.bindings > 0 {
+                for x := v.bindings - 1; x >= 0; x -= 1 {
+                    writecode("    mov rax, [ret_stack_ptr]")
+                    writecode("    pop rbx")
+                    writecode("    mov [rax+{}], rbx", x * 8)
+                }
+            }
+
+            writecode("    jmp .start{}", v.address)
+            writecode(".end{}:", v.address)
+
+            if v.bindings > 0 {
+                writecode("    mov rax, [ret_stack_ptr]")
+                writecode("    add rax, {}", v.bindings * 8)
+                writecode("    mov [ret_stack_ptr], rax")
+                binds_count -= v.bindings
+            }
+
+        case Assembly:
+        case Call_Function:
+            writecode("   mov rax, rsp")
+            writecode("   mov rsp, [ret_stack_ptr]")
+            writecode("   call fn{} ; {}", v.address, v.name)
+            writecode("   mov [ret_stack_ptr], rsp")
+            writecode("   mov rsp, rax")
+        case Call_C_Function:
+            // TODO: Add registries for floating point args and returns
+            input_regs := []string{"rdi", "rsi", "rdx", "rcx", "r8", "r9"}
+            output_regs := []string{"rax", "rdx"}
+
+            sliced_inputs := input_regs[:v.inputs]
+
+            for x := v.inputs - 1; x >= 0; x -= 1 {
+                writecode("    pop {}", sliced_inputs[x])
+            }
+
+            for x := 0; x < v.outputs; x += 1 {
+                writecode("    push {}", output_regs[x])
+            }
+
+            writecode("    call {}", v.name)
+        case Let_Bind:
+            new_binds := v.val
+            writecode("    mov rax, [ret_stack_ptr]")
+            writecode("    sub rax, {}", new_binds * 8)
+            writecode("    mov [ret_stack_ptr], rax")
+            for x := new_binds - 1; x >= 0; x -= 1 {
+                writecode("    pop rbx")
+                writecode("    mov [rax+{}], rbx", x * 8)
+            }
+            binds_count += new_binds
+        case Let_Unbind:
+            unbinds := v.val
+            writecode("    mov rax, [ret_stack_ptr]")
+            writecode("    add rax, {}", unbinds * 8)
+            writecode("    mov [ret_stack_ptr], rax")
+            binds_count -= unbinds
+        case Let_Rebind:
+        case Print:
+            if v.type == .Bool || v.type == .Uint || v.type == .Int || v.type == .Byte {
+                writecode("    pop rdi")
+                writecode("    call print_number")
+            } else {
+                writecode("    pop rdi")
+                writecode("    call printf")
+            }
+        case Return:
+            // TODO: free up local static memory and bindings
+            if binds_count > 0 {
+                writecode("    mov rax, [ret_stack_ptr]")
+                writecode("    add rax, {}", binds_count * 8)
+                writecode("    mov [ret_stack_ptr], rax")
+            }
+            writecode("    mov rax, rsp")
+            writecode("    mov rsp, [ret_stack_ptr]")
+            writecode("    add rsp, {}", f.local_mem)
+            writecode("    ret")
+        }
+    }
+
+    writecode(";; end fn {} ({}:{}:{})", name, pos.filename, pos.line, pos.column)
+}
+
+gen_ascii :: proc(s: string) -> string {
+    result := strings.builder_make(context.temp_allocator)
+    is_escaped := false
+
+    for x := 0; x < len(s); x += 1 {
+        c := s[x]
+        if c == '\\' { is_escaped = true; continue }
+        if is_escaped {
+            switch c {
+            case 'n': strings.write_int(&result, 10)
+            case 't': strings.write_int(&result, 9)
+            }
+            is_escaped = false
+            strings.write_byte(&result, ',')
+            continue
+        }
+
+        strings.write_int(&result, int(c))
+
+        strings.write_byte(&result, ',')
+    }
+
+    // for r in s {
+    //     strings.write_int(&result, int(r))
+    //     strings.write_string(&result, ",")
+    // }
+
+    // strings.write_byte(&result, '"')
+    // strings.write_string(&result, s)
+    // strings.write_byte(&result, '"')
+
+    strings.write_string(&result, "0")
+
+    return strings.to_string(result)
+}
+
+escaped :: proc(s: string) -> string {
+    // used for comments, not important
+    result := strings.builder_make(context.temp_allocator)
+    for r in s {
+        strings.write_escaped_rune(&result, r, '\\')
+    }
+    return strings.to_string(result)
+}
+
+gen_compilation_unit :: proc() {
+    // Temporary, since it's only used in this scope
+    result := strings.builder_make(context.temp_allocator)
+    defer strings.builder_destroy(&result)
+
+    writeln(&result, string(gen.prepend.buf[:]))
+    strings.builder_destroy(&gen.prepend)
+
+    writeln(&result, string(gen.code.buf[:]))
+    strings.builder_destroy(&gen.code)
+
+    writeln(&result, string(gen.data.buf[:]))
+    strings.builder_destroy(&gen.data)
+
+    os.write_entire_file(fmt.tprintf("{}.asm", output_filename), result.buf[:])
+}

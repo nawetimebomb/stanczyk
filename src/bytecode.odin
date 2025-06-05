@@ -62,10 +62,10 @@ Push_Byte :: struct { val: byte }
 Push_Cstring :: struct { val: int, length: int }
 Push_Int :: struct { val: int }
 Push_String :: struct { val: int }
-Push_Var_Global :: struct { val: int }
-Push_Var_Global_Pointer :: struct { val: int }
-Push_Var_Local :: struct { val: int }
-Push_Var_Local_Pointer :: struct { val: int }
+Push_Var_Global :: struct { val: uint }
+Push_Var_Global_Pointer :: struct { val: uint }
+Push_Var_Local :: struct { val: uint }
+Push_Var_Local_Pointer :: struct { val: uint }
 
 Get :: struct {}
 Get_Byte :: struct {}

@@ -33,6 +33,7 @@ Token_Kind :: enum u8 {
 
     As,
     Const,
+    Var,
     Fn,
     Foreign,
     Dash_Dash_Dash,
@@ -87,6 +88,7 @@ token_string_table := [Token_Kind]string{
         .Paren_Right = ")",
 
         .Const = "const",
+        .Var = "var",
         .Fn = "fn",
         .Foreign = "foreign",
         .Dash_Dash_Dash = "---",
@@ -336,6 +338,7 @@ string_to_token_kind :: proc(str: string) -> (kind: Token_Kind) {
     case "]": kind = .Bracket_Right
 
     case "const": kind = .Const
+    case "var": kind = .Var
     case "fn": kind = .Fn
     case "foreign": kind = .Foreign
     case "---": kind = .Dash_Dash_Dash
@@ -378,6 +381,7 @@ string_to_token_kind :: proc(str: string) -> (kind: Token_Kind) {
     case "bool": kind = .Type_Literal
     case "float": kind = .Type_Literal
     case "int": kind = .Type_Literal
+    case "ptr": kind = .Type_Literal
     case "quote": kind = .Type_Literal
     case "string": kind = .Type_Literal
     case "uint": kind = .Type_Literal

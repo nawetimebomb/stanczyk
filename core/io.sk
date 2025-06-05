@@ -33,7 +33,7 @@
 foreign fn write as C.write (int string int) ---
 
 // C.read (fd, char*, size_t)
-foreign fn read as C.read (int pointer int) ---
+foreign fn read as C.read (int ptr int) ---
 
 const STDIN  0 ;
 const STDOUT 1 ;

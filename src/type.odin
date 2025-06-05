@@ -43,7 +43,7 @@ type_string_to_kind :: proc(s: string) -> Type_Kind {
     case "byte": return .Byte
     case "float": return .Float
     case "int": return .Int
-    case "pointer": return .Pointer
+    case "ptr": return .Pointer
     case "string": return .String
     case "uint": return .Uint
     }

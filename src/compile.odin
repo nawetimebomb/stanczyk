@@ -34,8 +34,9 @@ Entity_Function :: struct {
 }
 
 Entity_Variable :: struct {
-    offset: int,
-    size:   int,
+    kind:   Type_Kind,
+    offset: uint,
+    size:   uint,
 }
 
 Entity_Variant :: union {
@@ -116,6 +117,14 @@ Checker :: struct {
     errors: [dynamic]string,
 }
 
+gscope: ^Scope
+checker: ^Checker
+
+functions        := make([dynamic]Function)
+C_functions      := make([dynamic]string)
+strings_table    := map[string]int{}
+global_mem_count := uint(0)
+
 // Compilation error are not fatal, but will skip function parsing/compilation
 // and save the error to the Checker. Errors added to the checker will be reported
 // at the end of compilation.
@@ -158,13 +167,7 @@ stack_error :: proc(pos: Position, format: string, args: ..any) {
     // TODO: Fail when stack doesn't match, when stack is missing, and report position of the error and who called it.
 }
 
-gscope: ^Scope
-checker: ^Checker
-
-functions     := make([dynamic]Function)
-strings_table := map[string]int{}
-
-add_to_string_table :: proc(v: string) -> int {
+push_string :: proc(v: string) -> int {
     id, ok := strings_table[v]
     if !ok {
         id = len(strings_table)
@@ -190,7 +193,7 @@ add_global_string_constant :: proc(name: string, value: string) {
         name = name,
         variant = Entity_Constant{
             kind = .String,
-            value = add_to_string_table(value),
+            value = push_string(value),
         },
     })
 }
@@ -255,6 +258,7 @@ compile :: proc() {
             #partial switch token.kind {
                 case .Using: parse_using()
                 case .Const: declare_const()
+                case .Var: declare_var()
                 case .Foreign: {
                     if allow(.Fn) {
                         declare_func(.Foreign)
@@ -272,8 +276,11 @@ compile :: proc() {
 
                         #partial switch token.kind {
                             case .Const: scope_level += 1
+                            case .Var: scope_level += 1
                             case .Fn: scope_level += 1
-                            case .EOF: parsing_error(token.pos, "unexpected end of file")
+                            case .EOF: parsing_error(
+                                token.pos, "unexpected end of file",
+                            )
                             case .Semicolon: {
                                 scope_level -= 1
                                 if scope_level == 0 { break body_loop }
@@ -373,6 +380,7 @@ deinit_everything :: proc() {
     }
 
     delete(strings_table)
+    delete(C_functions)
 }
 
 find_entity :: proc(token: Token) -> Entity {
@@ -612,42 +620,6 @@ refresh_stack_snapshot :: proc(f: ^Function, s: ^Scope) {
     create_stack_snapshot(f, s)
 }
 
-parse_function_head :: proc(ef: ^Entity_Function) {
-    if allow(.Paren_Left) {
-        if !allow(.Paren_Right) {
-            arity := &ef.inputs
-            outputs := false
-
-            arity_loop: for {
-                token := next()
-
-                #partial switch token.kind {
-                    case .Paren_Right: break arity_loop
-                    case .Dash_Dash_Dash: arity = &ef.outputs; outputs = true
-                    case .Word: {
-                        ef.is_parapoly = true
-                        append(arity, Type{.Parapoly, token.text})
-                    }
-                    case .Type_Literal: {
-                        t := type_string_to_kind(token.text)
-                        if t == .Any {
-                            ef.has_any_input = true
-
-                            if outputs {
-                                parsing_error(token.pos, "functions can't have 'Any' as outputs")
-                            }
-                        }
-                        append(arity, Type{t, token.text})
-                    }
-                    case: parsing_error(
-                        token.pos, "unexpected token %s", token_to_string(token),
-                    )
-                }
-            }
-        }
-    }
-}
-
 declare_const :: proc() {
     name_token := expect(.Word)
     name := name_token.text
@@ -863,6 +835,8 @@ declare_func :: proc(kind: enum { Default, Builtin, Foreign } = .Default) {
             name_token = expect(.Word)
             name = name_token.text
         }
+
+        append(&C_functions, foreign_name)
     }
 
     parse_function_head(&ef)
@@ -927,9 +901,83 @@ declare_func :: proc(kind: enum { Default, Builtin, Foreign } = .Default) {
     }
 }
 
+parse_function_head :: proc(ef: ^Entity_Function) {
+    if allow(.Paren_Left) {
+        if !allow(.Paren_Right) {
+            arity := &ef.inputs
+            outputs := false
+
+            arity_loop: for {
+                token := next()
+
+                #partial switch token.kind {
+                    case .Paren_Right: break arity_loop
+                    case .Dash_Dash_Dash: {
+                        arity = &ef.outputs
+                        outputs = true
+                    }
+                    case .Word: {
+                        ef.is_parapoly = true
+                        append(arity, Type{.Parapoly, token.text})
+                    }
+                    case .Type_Literal: {
+                        t := type_string_to_kind(token.text)
+                        if t == .Any {
+                            ef.has_any_input = true
+
+                            if outputs {
+                                parsing_error(
+                                    token.pos,
+                                    "functions can't have 'Any' as outputs",
+                                )
+                            }
+                        }
+                        append(arity, Type{t, token.text})
+                    }
+                    case: parsing_error(
+                        token.pos, "unexpected token %s", token_to_string(token),
+                    )
+                }
+            }
+        }
+    }
+}
+
 declare_var :: proc() {
     name_token := expect(.Word)
     name := name_token.text
+    is_global := checker.curr_scope == gscope
+    entities := &checker.curr_scope.entities
+    ev := Entity_Variable{}
+    address: uint
+
+    type := expect(.Type_Literal)
+
+    #partial switch type_string_to_kind(type.text) {
+        case .Int: ev.size = 8
+        case .String: ev.size = 8 // TODO: This shouldn't really be allowed, replace with []char instead.
+        case : unimplemented()
+    }
+
+    if is_global {
+        address = get_global_address()
+        ev.offset = global_mem_count
+        global_mem_count += ev.size
+    } else {
+        f := checker.curr_function
+        address = get_local_address(f)
+        ev.offset = f.local_mem
+        f.local_mem += ev.size
+    }
+
+    expect(.Semicolon)
+
+    append(entities, Entity{
+        address = address,
+        pos = name_token.pos,
+        name = name,
+        variant = ev,
+    })
 }
 
 parse_using :: proc() {
@@ -1106,41 +1154,9 @@ parse_token :: proc(token: Token, f: ^Function) -> bool {
         return false
 
     case .Const: declare_const()
+    case .Var: declare_var()
 
-    case .Word:
-        if token.text == "println" || token.text == "print" {
-            A := f.stack->pop()
-            emit(f, token, Print{A})
-            return true
-        }
-        result := find_entity(token)
-
-        switch v in result.variant {
-        case Entity_Binding:
-            b := emit(f, token, Push_Bound{v.index})
-            f.stack->push(v.kind)
-        case Entity_Constant:
-            b: ^Bytecode
-            #partial switch v.kind {
-                case .Bool: b = emit(f, token, Push_Bool{v.value.(bool)})
-                case .Int:  b = emit(f, token, Push_Int{v.value.(int)})
-                case .String: b = emit(
-                    f, token, Push_String{
-                        add_to_string_table(v.value.(string)),
-                    },
-                )
-            }
-
-            f.stack->push(v.kind)
-        case Entity_Function:
-            switch {
-            case result.is_builtin: call_builtin_func(f, token, result)
-            case result.is_foreign: call_foreign_func(f, token, result)
-            case: call_function(result)
-            }
-        case Entity_Variable: // TODO: Handle
-        }
-
+    case .Word: parse_word(f, token)
     case .As:
     case .Let:
         scope := push_scope(token, .Let)
@@ -1293,7 +1309,7 @@ parse_token :: proc(token: Token, f: ^Function) -> bool {
         f.stack->push(.Bool)
     case .Cstring_Literal:
         emit(f, token, Push_Cstring{
-            add_to_string_table(token.text), len(token.text),
+            push_string(token.text), len(token.text),
         })
         f.stack->push(.String)
         f.stack->push(.Int)
@@ -1304,7 +1320,7 @@ parse_token :: proc(token: Token, f: ^Function) -> bool {
         f.stack->push(.Int)
     case .Octal_Literal: unimplemented()
     case .String_Literal:
-        emit(f, token, Push_String{add_to_string_table(token.text)})
+        emit(f, token, Push_String{push_string(token.text)})
         f.stack->push(.String)
     case .Uint_Literal:
         emit(f, token, Push_Int{strconv.atoi(token.text)})
@@ -1353,6 +1369,41 @@ bind_words :: proc(f: ^Function, t: []Token) {
             name = word.text,
             variant = Entity_Binding{kind = A, index = index},
         })
+    }
+}
+
+parse_word :: proc(f: ^Function, t: Token) {
+    if t.text == "println" || t.text == "print" {
+        A := f.stack->pop()
+        emit(f, t, Print{A})
+        return
+    }
+    result := find_entity(t)
+
+    switch v in result.variant {
+    case Entity_Binding:
+        b := emit(f, t, Push_Bound{v.index})
+        f.stack->push(v.kind)
+    case Entity_Constant:
+        #partial switch v.kind {
+            case .Bool:   emit(f, t, Push_Bool{v.value.(bool)})
+            case .Int:    emit(f, t, Push_Int{v.value.(int)})
+            case .String: emit(f, t, Push_String{push_string(v.value.(string))})
+        }
+        f.stack->push(v.kind)
+    case Entity_Function:
+        switch {
+        case result.is_builtin: call_builtin_func(f, t, result)
+        case result.is_foreign: call_foreign_func(f, t, result)
+        case: call_function(result)
+        }
+    case Entity_Variable:
+        if result.is_global {
+            emit(f, t, Push_Var_Global_Pointer{v.offset})
+        } else {
+            emit(f, t, Push_Var_Local_Pointer{v.offset})
+        }
+        f.stack->push(.Pointer)
     }
 }
 
@@ -1407,7 +1458,7 @@ parse_memory_op :: proc(f: ^Function, t: Token, op: enum {
     case .get:
         A := f.stack->pop()
         emit(f, t, Get{})
-        f.stack->push(.Int)
+        f.stack->push(.String)
     case .get_byte:
         B := f.stack->pop()
         A := f.stack->pop()
@@ -1416,9 +1467,16 @@ parse_memory_op :: proc(f: ^Function, t: Token, op: enum {
     case .set:
         B := f.stack->pop()
         A := f.stack->pop()
+        if B != .Pointer {
+            parsing_error(
+                t.pos,
+                "second parameter of 'set' should be a mutable pointer",
+            )
+        }
         emit(f, t, Set{})
     case .set_byte:
-        assert(false) // Add validation
+        B := f.stack->pop()
+        A := f.stack->pop()
         emit(f, t, Set_Byte{})
     }
 }
