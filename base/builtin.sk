@@ -37,14 +37,14 @@
 // The following constants are added in `parse.odin`'s `init_everything` procedure.
 
 // Operating System - True when the program is compiled on the specific Operating System.
-builtin const OS_DARWIN  bool OS_DARWIN  ;
-builtin const OS_LINUX   bool OS_LINUX   ;
-builtin const OS_WINDOWS bool OS_WINDOWS ;
+const OS_DARWIN  OS_DARWIN  ;
+const OS_LINUX   OS_LINUX   ;
+const OS_WINDOWS OS_WINDOWS ;
 
 /// Stańczyk Internals - Constants about Stańczyk Compiler configurations.
 
 // `true` if the `-debug` switch is passed.
-builtin const SK_DEBUG bool SK_DEBUG ;
+const SK_DEBUG SK_DEBUG ;
 
 // A `string` containing the version of the Stańczyk compiler.
-builtin const SK_VERSION string SK_VERSION ;
+const SK_VERSION SK_VERSION ;

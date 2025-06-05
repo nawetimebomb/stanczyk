@@ -29,23 +29,13 @@
 
 // The Stańczyk IO Library
 
-// C.write (fd, char*, size_t)
-foreign fn write as C.write (int string int) ---
-
-// C.read (fd, char*, size_t)
-foreign fn read as C.read (int pointer int) ---
-
-const STDIN  0 ;
-const STDOUT 1 ;
-const STDERR 2 ;
-
-fn sprintln (string)
-  let s1 in
-    STDOUT s1 s1 len C.write
-    STDOUT "\n"c C.write
+fn str= (string string --- bool)
+  over len swap dup len
+  let s1 l1 s2 l2 in
+    l1 l2 = dup if
+      for x in l1 0 >= do
+        s1 x get-byte s2 x get-byte != if false nip leave fi
+      x 1 - loop
+    fi
   end
-;
-
-fn sprintln (bool)
-  if "true" else "false" fi sprintln
 ;

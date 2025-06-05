@@ -34,7 +34,6 @@ Token_Kind :: enum u8 {
     As,
     Const,
     Fn,
-    Builtin,
     Foreign,
     Dash_Dash_Dash,
     Semicolon,
@@ -89,7 +88,6 @@ token_string_table := [Token_Kind]string{
 
         .Const = "const",
         .Fn = "fn",
-        .Builtin = "builtin",
         .Foreign = "foreign",
         .Dash_Dash_Dash = "---",
         .Semicolon = ";",
@@ -194,7 +192,8 @@ get_next_token :: proc(t: ^Tokenizer) -> (token: Token, err: Error) {
                 return true
             case last_part == 'u' && maybe_int:
                 if strings.starts_with(first_part, "-") {
-                    global_fatalf(
+                    parsing_error(
+                        token.pos,
                         "unsigned integer with a sign ({}) found at {}:{}:{}",
                         token.text, token.filename, token.line, token.column,
                     )
@@ -296,7 +295,8 @@ get_next_token :: proc(t: ^Tokenizer) -> (token: Token, err: Error) {
         }
 
         if token.kind == .Character_Literal && len(token.text) > 1 {
-            global_fatalf(
+            parsing_error(
+                token.pos,
                 "character literal cannot have length {} found at {}:{}:{}",
                 len(token.text), token.filename, token.line, token.column,
             )
@@ -337,7 +337,6 @@ string_to_token_kind :: proc(str: string) -> (kind: Token_Kind) {
 
     case "const": kind = .Const
     case "fn": kind = .Fn
-    case "builtin": kind = .Builtin
     case "foreign": kind = .Foreign
     case "---": kind = .Dash_Dash_Dash
 
