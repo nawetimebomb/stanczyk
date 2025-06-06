@@ -7,17 +7,17 @@ import "core:slice"
 import "core:strconv"
 import "core:strings"
 
-Constant_Value :: union { bool, f64, int, string }
+Constant_Value :: union { bool, int, string }
 
-Arity :: distinct [dynamic]Type
+Arity :: distinct [dynamic]^Type
 
 Entity_Binding :: struct {
-    kind:  Type_Kind,
+    type:  ^Type,
     index: int,
 }
 
 Entity_Constant :: struct {
-    kind:  Type_Kind,
+    type:  ^Type,
     value: Constant_Value,
 }
 
@@ -34,9 +34,9 @@ Entity_Function :: struct {
 }
 
 Entity_Variable :: struct {
-    kind:   Type_Kind,
     offset: uint,
     size:   uint,
+    type:   ^Type,
 }
 
 Entity_Variant :: union {
@@ -48,6 +48,7 @@ Entity_Variant :: union {
 
 Entity :: struct {
     using pos: Position,
+
     address:   uint,
     name:      string,
     is_global: bool,
@@ -97,7 +98,7 @@ Scope :: struct {
     start_op: ^Bytecode,
 
     entities:     Entities,
-    stack_copies: [dynamic][]Type_Kind,
+    stack_copies: [dynamic][]^Type,
 
     validation_at_end: enum {
         Skip,
@@ -113,6 +114,8 @@ Checker :: struct {
     prev_token: Token,
     curr_token: Token,
     tokenizer:  Tokenizer,
+
+    basic_types: [Type_Basic_Kind]^Type,
 
     errors: [dynamic]string,
 }
@@ -181,7 +184,7 @@ add_global_bool_constant :: proc(name: string, value: bool) {
         is_global = true,
         name = name,
         variant = Entity_Constant{
-            kind = .Bool,
+            type = checker.basic_types[.Bool],
             value = value,
         },
     })
@@ -192,7 +195,7 @@ add_global_string_constant :: proc(name: string, value: string) {
         is_global = true,
         name = name,
         variant = Entity_Constant{
-            kind = .String,
+            type = checker.basic_types[.String],
             value = push_string(value),
         },
     })
@@ -367,6 +370,13 @@ init_everything :: proc() {
     add_global_bool_constant("SK_DEBUG", debug_switch_enabled)
 
     add_global_string_constant("SK_VERSION", COMPILER_VERSION)
+
+    checker.basic_types = {
+            .Bool   = new_clone(Type{size = 1, variant = Type_Basic{.Bool}}, context.temp_allocator),
+            .Byte   = new_clone(Type{size = 1, variant = Type_Basic{.Byte}}, context.temp_allocator),
+            .Int    = new_clone(Type{size = 8, variant = Type_Basic{.Int}}, context.temp_allocator),
+            .String = new_clone(Type{size = 8, variant = Type_Basic{.String}}, context.temp_allocator),
+    }
 }
 
 deinit_everything :: proc() {
@@ -422,11 +432,11 @@ find_entity :: proc(token: Token) -> Entity {
                 defer delete(stack_copy)
                 slice.reverse(stack_copy[:])
                 sim_test_stack := stack_copy[:len(test.inputs)]
-                func_test_stack := make([dynamic]Type_Kind, context.temp_allocator)
+                func_test_stack := make([dynamic]^Type, context.temp_allocator)
                 defer delete(func_test_stack)
 
                 for input in test.inputs {
-                    append(&func_test_stack, input.kind)
+                    append(&func_test_stack, input)
                 }
 
                 if slice.equal(sim_test_stack, func_test_stack[:]) {
@@ -464,18 +474,18 @@ find_entity :: proc(token: Token) -> Entity {
                     fmt.sbprintf(&builder, "\t{0} (", e.name)
                     for input, index in ef.inputs {
                         if len(ef.outputs) == 0 && index == len(ef.inputs) - 1 {
-                            fmt.sbprintf(&builder, "{})", type_readable_table[input.kind])
+                            fmt.sbprintf(&builder, "{})", type_to_string(input))
                         } else {
-                            fmt.sbprintf(&builder, "{} ", type_readable_table[input.kind])
+                            fmt.sbprintf(&builder, "{} ", type_to_string(input))
                         }
                     }
                     if len(ef.outputs) > 0 {
                         fmt.sbprint(&builder, "--- ")
                         for output, index in ef.outputs {
                             if index == len(ef.outputs) - 1 {
-                                fmt.sbprintf(&builder, "{})", type_readable_table[output.kind])
+                                fmt.sbprintf(&builder, "{})", type_to_string(output))
                             } else {
-                                fmt.sbprintf(&builder, "{} ", type_readable_table[output.kind])
+                                fmt.sbprintf(&builder, "{} ", type_to_string(output))
                             }
                         }
                     }
@@ -538,30 +548,37 @@ pop_scope :: proc() {
     switch checker.curr_scope.validation_at_end {
     case .Skip:
         // Do nothing
-
     case .Stack_Is_Unchanged:
         // The stack hasn't changed in length and types. It only supports one stack copy
         stack_copies := &checker.curr_scope.stack_copies
         assert(len(stack_copies) > 0)
 
-        if len(stack_copies) != 1 || !slice.equal(stack_copies[0], checker.curr_function.stack.v[:]) {
-            parsing_error(
-                checker.curr_scope.token,
-                "stack changes not allowed on this scope block\n\tBefore: {}\n\tAfter: {}",
-                stack_copies[0], checker.curr_function.stack.v,
-            )
+        if len(stack_copies) != 1 {
+            for A, index in checker.curr_function.stack.v {
+                B := stack_copies[0][index]
+                if !types_equal(A, B) {
+                    parsing_error(
+                        checker.curr_scope.token,
+                        "stack changes not allowed on this scope block\n\tBefore: {}\n\tAfter: {}",
+                        stack_copies[0], checker.curr_function.stack.v,
+                    )
+                }
+            }
         }
-
     case .Stack_Match_Between:
         // The stack has to have the same result between its branching values
         stack_copies := &checker.curr_scope.stack_copies
 
-        for x in 0..<len(stack_copies) - 1 {
-            if !slice.equal(stack_copies[x], stack_copies[x + 1]) {
-                parsing_error(
-                    checker.curr_scope.token,
-                    "different stack effects between scopes not allowed",
-                )
+        for i in 0..<len(stack_copies) - 1 {
+            for _, j in stack_copies[i] {
+                A, B := stack_copies[i][j], stack_copies[i + 1][j]
+
+                if !types_equal(A, B) {
+                    parsing_error(
+                        checker.curr_scope.token,
+                        "different stack effects between scopes not allowed",
+                    )
+                }
             }
         }
     }
@@ -626,12 +643,12 @@ declare_const :: proc() {
     f := checker.curr_function
     ec := Entity_Constant{}
     entities := &checker.curr_scope.entities
-    inferred_type: Type_Kind
+    inferred_type: ^Type
     temp_value_stack := make([dynamic]Constant_Value, context.temp_allocator)
     defer delete(temp_value_stack)
 
     if allow(.Type_Literal) {
-        ec.kind = type_string_to_kind(checker.prev_token.text)
+        ec.type = type_string_to_Type(checker.prev_token.text)
     }
 
     body_loop: for {
@@ -670,113 +687,75 @@ declare_const :: proc() {
                     v2 := pop(&temp_value_stack)
                     v1 := pop(&temp_value_stack)
                     switch token.text {
-                    case "+":
-                        #partial switch inferred_type {
-                            case .Float: append(&temp_value_stack, v1.(f64) + v2.(f64))
-                            case .Int: append(&temp_value_stack, v1.(int) + v2.(int))
-                            case .Uint: append(&temp_value_stack, v1.(int) + v2.(int))
-                        }
-                    case "/":
-                        #partial switch inferred_type {
-                            case .Float: append(&temp_value_stack, v1.(f64) / v2.(f64))
-                            case .Int: append(&temp_value_stack, v1.(int) / v2.(int))
-                            case .Uint: append(&temp_value_stack, v1.(int) / v2.(int))
-                        }
-                    case "%":
-                        #partial switch inferred_type {
-                            case .Float: parsing_error(
-                                token.pos, "Opertor '%' only allowed with integers",
-                            )
-                            case .Int: append(&temp_value_stack, v1.(int) % v2.(int))
-                            case .Uint: append(&temp_value_stack, v1.(int) % v2.(int))
-                        }
-                    case "*":
-                        #partial switch inferred_type {
-                            case .Float: append(&temp_value_stack, v1.(f64) * v2.(f64))
-                            case .Int: append(&temp_value_stack, v1.(int) * v2.(int))
-                            case .Uint: append(&temp_value_stack, v1.(int) * v2.(int))
-                        }
-                    case "-":
-                        #partial switch inferred_type {
-                            case .Float: append(&temp_value_stack, v1.(f64) - v2.(f64))
-                            case .Int: append(&temp_value_stack, v1.(int) - v2.(int))
-                            case .Uint: append(&temp_value_stack, v1.(int) - v2.(int))
-                        }
+                    case "+": append(&temp_value_stack, v1.(int) + v2.(int))
+                    case "/": append(&temp_value_stack, v1.(int) / v2.(int))
+                    case "%": append(&temp_value_stack, v1.(int) % v2.(int))
+                    case "*": append(&temp_value_stack, v1.(int) * v2.(int))
+                    case "-": append(&temp_value_stack, v1.(int) - v2.(int))
                     }
-                case:
+                case :
                     entity := find_entity(token)
+                    v, ok := entity.variant.(Entity_Constant)
 
-                    #partial switch v in entity.variant {
-                        case Entity_Constant: {
-                            if inferred_type != .Invalid && inferred_type != v.kind {
-                                compilation_error(
-                                    f,  "word '{}' of type '{}' cannot be used in expected type of {}",
-                                    entity.name, v.kind, inferred_type,
-                                )
-                            }
+                    if !ok {
+                        parsing_error(
+                            token.pos,
+                            "'{}' is not a compile-time known constant",
+                        )
+                    }
 
-                            inferred_type = v.kind
+                    if inferred_type != nil && inferred_type != v.type {
+                        compilation_error(
+                            f,  "word '{}' of type '{}' cannot be used in expected type of {}",
+                            entity.name, type_to_string(v.type), inferred_type,
+                        )
+                    }
 
-                            #partial switch v.kind {
-                                case .Float, .Int, .Uint: append(&temp_value_stack, v.value)
-                                case: {
-                                    ec.value = v.value
-                                    expect(.Semicolon)
-                                    break body_loop
-                                }
-                            }
-                        }
-                        case: parsing_error(token.pos, "'{}' is not a compile-time known constant")
+                    inferred_type = v.type
+
+                    if types_equal(v.type, checker.basic_types[.Int]) {
+                        append(&temp_value_stack, v.value)
+                    } else {
+                        ec.value = v.value
+                        expect(.Semicolon)
+                        break body_loop
                     }
                 }
             }
             case .Bool_Literal: {
                 ec.value = token.text == "true" ? true : false
-                inferred_type = .Bool
+                inferred_type = checker.basic_types[.Bool]
                 expect(.Semicolon)
                 break body_loop
             }
             case .Cstring_Literal: unimplemented()
-            case .Float_Literal: {
-                append(&temp_value_stack, strconv.atof(token.text))
-                if inferred_type == .Invalid {
-                    inferred_type = .Float
-                } else if inferred_type != .Float {
-                    parsing_error(token.pos, "expected type {} in constant", inferred_type)
-                }
-            }
             case .Integer_Literal: {
                 append(&temp_value_stack, strconv.atoi(token.text))
-                if inferred_type == .Invalid {
-                    inferred_type = .Int
-                } else if inferred_type != .Int {
-                    parsing_error(token.pos, "can't mix type of values in constant")
+                if inferred_type == nil {
+                    inferred_type = checker.basic_types[.Int]
+                } else if inferred_type != checker.basic_types[.Int] {
+                    parsing_error(
+                        token.pos,
+                        "can't mix type of values in constant",
+                    )
                 }
             }
             case .String_Literal: {
                 ec.value = token.text
-                inferred_type = .String
+                inferred_type = checker.basic_types[.String]
                 expect(.Semicolon)
                 break body_loop
-            }
-            case .Uint_Literal: {
-                append(&temp_value_stack, strconv.atoi(token.text))
-                if inferred_type == .Invalid {
-                    inferred_type = .Uint
-                } else if inferred_type != .Uint {
-                    parsing_error(token.pos, "can't mix type of values in constant")
-                }
             }
         }
     }
 
-    if ec.kind == .Invalid {
-        ec.kind = inferred_type
-    } else if ec.kind != inferred_type {
+    if ec.type == nil {
+        ec.type = inferred_type
+    } else if !types_equal(ec.type, inferred_type) {
         parsing_error(
             name_token,
             "type declaration of {} doesn't match value type of {} in constant '{}'",
-            ec.kind, inferred_type, name,
+            type_to_string(ec.type), type_to_string(inferred_type), name,
         )
     }
 
@@ -918,11 +897,12 @@ parse_function_head :: proc(ef: ^Entity_Function) {
                     }
                     case .Word: {
                         ef.is_parapoly = true
-                        append(arity, Type{.Parapoly, token.text})
+                        append(arity, type_string_to_Type(token.text))
                     }
                     case .Type_Literal: {
-                        t := type_string_to_kind(token.text)
-                        if t == .Any {
+                        T := type_string_to_Type(token.text)
+
+                        if type_is_any(T) {
                             ef.has_any_input = true
 
                             if outputs {
@@ -932,7 +912,7 @@ parse_function_head :: proc(ef: ^Entity_Function) {
                                 )
                             }
                         }
-                        append(arity, Type{t, token.text})
+                        append(arity, T)
                     }
                     case: parsing_error(
                         token.pos, "unexpected token %s", token_to_string(token),
@@ -951,13 +931,8 @@ declare_var :: proc() {
     ev := Entity_Variable{}
     address: uint
 
-    type := expect(.Type_Literal)
-
-    #partial switch type_string_to_kind(type.text) {
-        case .Int: ev.size = 8
-        case .String: ev.size = 8 // TODO: This shouldn't really be allowed, replace with []char instead.
-        case : unimplemented()
-    }
+    type_lit_token := expect(.Type_Literal)
+    ev.type = checker.basic_types[type_string_to_basic(type_lit_token.text)]
 
     if is_global {
         address = get_global_address()
@@ -1016,10 +991,10 @@ call_foreign_func :: proc(f: ^Function, t: Token, e: Entity) {
     #reverse for input in ef.inputs {
         A := f.stack->pop()
 
-        if input.kind != A {
+        if !types_equal(input, A) {
             compilation_error(
                 f, "input mismatch in function {}\n\tExpected: {},\tHave: {}",
-                t.text, input, A,
+                t.text, type_to_string(input), type_to_string(A),
             )
         }
     }
@@ -1031,7 +1006,7 @@ call_foreign_func :: proc(f: ^Function, t: Token, e: Entity) {
     })
 
     for output in ef.outputs {
-        f.stack->push(output.kind)
+        f.stack->push(output)
     }
 }
 
@@ -1043,14 +1018,14 @@ call_function :: proc(entity: Entity, loc := #caller_location) {
     f := checker.curr_function
     ef := entity.variant.(Entity_Function)
     token := checker.prev_token
-    parapoly_table := make(map[string]Type_Kind, context.temp_allocator)
+    parapoly_table := make(map[string]^Type, context.temp_allocator)
     defer delete(parapoly_table)
 
     #reverse for input in ef.inputs {
         A := f.stack->pop()
 
         switch {
-        case input.kind == .Parapoly:
+        case type_is_polymorphic(input):
             v, ok := parapoly_table[input.name]
 
             if !ok {
@@ -1062,10 +1037,10 @@ call_function :: proc(entity: Entity, loc := #caller_location) {
                 compilation_error(
                     checker.curr_function,
                     "parapoly of name '{}' means '{}' in this declaration, got '{}'",
-                    input.name, type_readable_table[v], type_readable_table[A],
+                    input.name, type_to_string(v), type_to_string(A),
                 )
             }
-        case input.kind != A && input.kind != .Any:
+        case !types_equal(input, A) && !type_is_any(input):
             compilation_error(
                 checker.curr_function,
                 "input mismatch in function {}\n\tExpected: {},\tHave: {}",
@@ -1085,7 +1060,7 @@ call_function :: proc(entity: Entity, loc := #caller_location) {
     })
 
     for output in ef.outputs {
-        if output.kind == .Parapoly {
+        if type_is_polymorphic(output) {
             v, ok := parapoly_table[output.name]
 
             if !ok {
@@ -1098,7 +1073,7 @@ call_function :: proc(entity: Entity, loc := #caller_location) {
 
             f.stack->push(v)
         } else {
-            f.stack->push(output.kind)
+            f.stack->push(output)
         }
     }
 }
@@ -1109,8 +1084,8 @@ parse_function :: proc(e: ^Entity) {
     f := checker.curr_function
     stack_create(f)
 
-    for param in ef.inputs {
-        f.stack->push(param.kind)
+    for T in ef.inputs {
+        f.stack->push(T)
     }
 
     body_loop: for {
@@ -1128,14 +1103,14 @@ parse_function :: proc(e: ^Entity) {
     }
 
     // TODO: Improve error message
-    stack_expect(
-        e.pos,
-        fmt.tprintf(
-            "mismatched outputs in function {}.\n\tExpected: {}\n\tGot: {}",
-            e.name, ef.outputs, f.stack.v,
-        ),
-        stack_match_arity(f.stack.v[:], ef.outputs),
-    )
+    // stack_expect(
+    //     e.pos,
+    //     fmt.tprintf(
+    //         "mismatched outputs in function {}.\n\tExpected: {}\n\tGot: {}",
+    //         e.name, ef.outputs, f.stack.v,
+    //     ),
+    //     stack_match_arity(f.stack.v[:], ef.outputs),
+    // )
 
     pop_function()
 }
@@ -1154,7 +1129,7 @@ parse_token :: proc(token: Token, f: ^Function) -> bool {
         return false
 
     case .Const: declare_const()
-    case .Var: declare_var()
+    case .Var:   declare_var()
 
     case .Word: parse_word(f, token)
     case .As:
@@ -1193,7 +1168,7 @@ parse_token :: proc(token: Token, f: ^Function) -> bool {
     case .If:
         A := f.stack->pop()
 
-        if A != .Bool {
+        if !types_equal(A, checker.basic_types[.Bool]) {
             compilation_error(f, "Non-boolean condition in 'if' statement")
         }
 
@@ -1244,7 +1219,7 @@ parse_token :: proc(token: Token, f: ^Function) -> bool {
         stack_expect(
             token.pos,
             "Non-boolean condition in 'do' statement",
-            A == .Bool,
+            types_equal(A, checker.basic_types[.Bool]),
         )
 
         scope := push_scope(token, .Do)
@@ -1261,7 +1236,7 @@ parse_token :: proc(token: Token, f: ^Function) -> bool {
                 stack_expect(
                     token.pos,
                     "Non-boolean condition in 'loop' statement",
-                    A == .Bool,
+                    types_equal(A, checker.basic_types[.Bool]),
                 )
 
                 emit(f, token, Loop{
@@ -1277,7 +1252,7 @@ parse_token :: proc(token: Token, f: ^Function) -> bool {
                 stack_expect(
                     token.pos,
                     "(int) expected in range for loop",
-                    A == .Int,
+                    types_equal(A, checker.basic_types[.Int]),
                 )
 
                 emit(f, token, Loop{
@@ -1303,28 +1278,28 @@ parse_token :: proc(token: Token, f: ^Function) -> bool {
 
     case .Character_Literal:
         emit(f, token, Push_Byte{token.text[0]})
-        f.stack->push(.Byte)
+        f.stack->push(checker.basic_types[.Byte])
     case .Bool_Literal:
         emit(f, token, Push_Bool{token.text == "true" ? true : false})
-        f.stack->push(.Bool)
+        f.stack->push(checker.basic_types[.Bool])
     case .Cstring_Literal:
         emit(f, token, Push_Cstring{
             push_string(token.text), len(token.text),
         })
-        f.stack->push(.String)
-        f.stack->push(.Int)
+        f.stack->push(checker.basic_types[.String])
+        f.stack->push(checker.basic_types[.Int])
     case .Float_Literal: fmt.assertf(false, "unimplemented for now")
     case .Hex_Literal: unimplemented()
     case .Integer_Literal:
         emit(f, token, Push_Int{strconv.atoi(token.text)})
-        f.stack->push(.Int)
+        f.stack->push(checker.basic_types[.Int])
     case .Octal_Literal: unimplemented()
     case .String_Literal:
         emit(f, token, Push_String{push_string(token.text)})
-        f.stack->push(.String)
+        f.stack->push(checker.basic_types[.String])
     case .Uint_Literal:
         emit(f, token, Push_Int{strconv.atoi(token.text)})
-        f.stack->push(.Int)
+        f.stack->push(checker.basic_types[.Int])
     case .Type_Literal: unimplemented()
 
     case .Get:      parse_memory_op(f, token, .get)
@@ -1367,15 +1342,15 @@ bind_words :: proc(f: ^Function, t: []Token) {
             address = get_local_address(f),
             pos = word.pos,
             name = word.text,
-            variant = Entity_Binding{kind = A, index = index},
+            variant = Entity_Binding{index = index, type = A},
         })
     }
 }
 
 parse_word :: proc(f: ^Function, t: Token) {
     if t.text == "println" || t.text == "print" {
-        A := f.stack->pop()
-        emit(f, t, Print{A})
+        f.stack->pop()
+        emit(f, t, Print{})
         return
     }
     result := find_entity(t)
@@ -1383,14 +1358,17 @@ parse_word :: proc(f: ^Function, t: Token) {
     switch v in result.variant {
     case Entity_Binding:
         b := emit(f, t, Push_Bound{v.index})
-        f.stack->push(v.kind)
+        f.stack->push(v.type)
     case Entity_Constant:
-        #partial switch v.kind {
-            case .Bool:   emit(f, t, Push_Bool{v.value.(bool)})
-            case .Int:    emit(f, t, Push_Int{v.value.(int)})
-            case .String: emit(f, t, Push_String{push_string(v.value.(string))})
+        switch {
+        case type_is_basic(v.type, .Bool):
+            emit(f, t, Push_Bool{v.value.(bool)})
+        case type_is_basic(v.type, .Int):
+            emit(f, t, Push_Int{v.value.(int)})
+        case type_is_basic(v.type, .String):
+            emit(f, t, Push_String{push_string(v.value.(string))})
         }
-        f.stack->push(v.kind)
+        f.stack->push(v.type)
     case Entity_Function:
         switch {
         case result.is_builtin: call_builtin_func(f, t, result)
@@ -1403,7 +1381,7 @@ parse_word :: proc(f: ^Function, t: Token) {
         } else {
             emit(f, t, Push_Var_Local_Pointer{v.offset})
         }
-        f.stack->push(.Pointer)
+        f.stack->push(v.type)
     }
 }
 
@@ -1417,37 +1395,41 @@ parse_binary_op :: proc(f: ^Function, t: Token, op: enum {
     switch op {
     case .add:
         emit(f, t, Add{})
-        f.stack->push(.Int)
+        switch {
+        case type_is_pointer(A): f.stack->push(A)
+        case type_is_pointer(B): f.stack->push(B)
+        case : f.stack->push(checker.basic_types[.Int])
+        }
     case .sub:
         emit(f, t, Substract{})
-        f.stack->push(.Int)
+        f.stack->push(checker.basic_types[.Int])
     case .mul:
         emit(f, t, Multiply{})
-        f.stack->push(.Int)
+        f.stack->push(checker.basic_types[.Int])
     case .div:
         emit(f, t, Divide{})
-        f.stack->push(.Int)
+        f.stack->push(checker.basic_types[.Int])
     case .mod:
         emit(f, t, Modulo{})
-        f.stack->push(.Int)
+        f.stack->push(checker.basic_types[.Int])
     case .eq:
         emit(f, t, Equal{})
-        f.stack->push(.Bool)
+        f.stack->push(checker.basic_types[.Bool])
     case .ge:
         emit(f, t, Greater_Equal{})
-        f.stack->push(.Bool)
+        f.stack->push(checker.basic_types[.Bool])
     case .gt:
         emit(f, t, Greater{})
-        f.stack->push(.Bool)
+        f.stack->push(checker.basic_types[.Bool])
     case .le:
         emit(f, t, Less_Equal{})
-        f.stack->push(.Bool)
+        f.stack->push(checker.basic_types[.Bool])
     case .lt:
         emit(f, t, Less{})
-        f.stack->push(.Bool)
+        f.stack->push(checker.basic_types[.Bool])
     case .ne:
         emit(f, t, Not_Equal{})
-        f.stack->push(.Bool)
+        f.stack->push(checker.basic_types[.Bool])
     }
 }
 
@@ -1458,21 +1440,16 @@ parse_memory_op :: proc(f: ^Function, t: Token, op: enum {
     case .get:
         A := f.stack->pop()
         emit(f, t, Get{})
-        f.stack->push(.String)
+        f.stack->push(checker.basic_types[.String])
     case .get_byte:
         B := f.stack->pop()
         A := f.stack->pop()
         emit(f, t, Get_Byte{})
-        f.stack->push(.Byte)
+        f.stack->push(checker.basic_types[.Byte])
     case .set:
         B := f.stack->pop()
         A := f.stack->pop()
-        if B != .Pointer {
-            parsing_error(
-                t.pos,
-                "second parameter of 'set' should be a mutable pointer",
-            )
-        }
+        // Add validation for pointers
         emit(f, t, Set{})
     case .set_byte:
         B := f.stack->pop()
@@ -1511,7 +1488,7 @@ parse_for_op :: proc(f: ^Function, t: Token) {
     // A tells us what to do
     A := f.stack->peek()
 
-    if A == .Int {
+    if type_is_basic(A, .Int) {
         // This is the regular range for loop
         if len(words) != 1 {
             compilation_error(
@@ -1531,7 +1508,7 @@ parse_for_op :: proc(f: ^Function, t: Token) {
 
         B := f.stack->pop()
 
-        if B != .Bool {
+        if !type_is_basic(B, .Bool) {
             compilation_error(f, "Non-boolean condition in 'for' range statement")
         }
 
@@ -1542,7 +1519,7 @@ parse_for_op :: proc(f: ^Function, t: Token) {
 
         create_stack_snapshot(f, scope)
         f.stack->save()
-    } else if A == .String {
+    } else if type_is_basic(A, .String) {
         // This is a string iteration. We are looking into the string's characters.
         unimplemented()
     } else {

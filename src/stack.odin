@@ -7,14 +7,14 @@ import "core:strings"
 
 Stack :: struct {
     free:  proc(s: ^Stack),
-    peek:  proc(s: ^Stack) -> (v: Type_Kind),
-    pop:   proc(s: ^Stack, loc := #caller_location) -> (v: Type_Kind),
-    push:  proc(s: ^Stack, v: Type_Kind),
+    peek:  proc(s: ^Stack) -> (v: ^Type),
+    pop:   proc(s: ^Stack, loc := #caller_location) -> (v: ^Type),
+    push:  proc(s: ^Stack, v: ^Type),
     reset: proc(s: ^Stack),
     save:  proc(s: ^Stack, loc := #caller_location),
 
-    v: [dynamic]Type_Kind,
-    snapshot: []Type_Kind,
+    v: [dynamic]^Type,
+    snapshot: []^Type,
 }
 
 stack_create :: proc(f: ^Function) {
@@ -22,16 +22,16 @@ stack_create :: proc(f: ^Function) {
         delete(s.v)
     }
 
-    stack_peek :: proc(s: ^Stack) -> (v: Type_Kind) {
+    stack_peek :: proc(s: ^Stack) -> (v: ^Type) {
         return s.v[len(s.v) - 1]
     }
 
-    stack_pop :: proc(s: ^Stack, loc := #caller_location) -> (v: Type_Kind) {
+    stack_pop :: proc(s: ^Stack, loc := #caller_location) -> (v: ^Type) {
         fmt.assertf(len(s.v) > 0, "called from {}", loc)
         return pop(&s.v)
     }
 
-    stack_push :: proc(s: ^Stack, v: Type_Kind) {
+    stack_push :: proc(s: ^Stack, v: ^Type) {
         append(&s.v, v)
     }
 
@@ -53,7 +53,7 @@ stack_create :: proc(f: ^Function) {
         reset = stack_reset,
         save  = stack_save,
 
-        v = make([dynamic]Type_Kind, 0, 2),
+        v = make([dynamic]^Type, 0, 2),
     }
 }
 
@@ -68,29 +68,29 @@ stack_expect :: proc(pos: Position, message: string, tests: ..bool) {
     }
 }
 
-stack_match_arity :: proc(s: []Type_Kind, a: Arity) -> bool {
-    if len(s) != len(a) { return false }
-    for sx, index in s {
-        ax := a[index]
-        if sx != ax.kind { return false }
-    }
-    return true
-}
+// stack_match_arity :: proc(s: []^Type, a: Arity) -> bool {
+//     if len(s) != len(a) { return false }
+//     for sx, index in s {
+//         ax := a[index]
+//         if sx != ax.kind { return false }
+//     }
+//     return true
+// }
 
-stack_prettyprint :: proc(message: string, values: ..Type_Kind) -> string {
+stack_prettyprint :: proc(message: string, values: ..^Type) -> string {
     ppbuilder := strings.builder_make(context.temp_allocator)
 
     for v, index in values {
         if index == 0 {
             strings.write_string(&ppbuilder, "(")
-            strings.write_string(&ppbuilder, type_readable_table[v])
+            strings.write_string(&ppbuilder, type_to_string(v))
         } else if index == len(values) - 1 {
             strings.write_string(&ppbuilder, " ")
-            strings.write_string(&ppbuilder, type_readable_table[v])
+            strings.write_string(&ppbuilder, type_to_string(v))
             strings.write_string(&ppbuilder, ")")
         } else {
             strings.write_string(&ppbuilder, " ")
-            strings.write_string(&ppbuilder, type_readable_table[v])
+            strings.write_string(&ppbuilder, type_to_string(v))
         }
     }
 

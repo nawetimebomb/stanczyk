@@ -381,13 +381,8 @@ gen_function :: proc(f: Function) {
             binds_count -= unbinds
         case Let_Rebind:
         case Print:
-            if v.type == .Bool || v.type == .Uint || v.type == .Int || v.type == .Byte {
-                writecode("    pop rdi")
-                writecode("    call print_number")
-            } else {
-                writecode("    pop rdi")
-                writecode("    call printf")
-            }
+            writecode("    pop rdi")
+            writecode("    call print_number")
         case Return:
             // TODO: free up local static memory and bindings
             if binds_count > 0 {

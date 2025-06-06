@@ -105,7 +105,7 @@ Call_C_Function :: struct { name: string, inputs: int, outputs: int }
 Let_Bind :: struct { val: int }
 Let_Unbind :: struct { val: int }
 Let_Rebind :: struct { val: int }
-Print :: struct { type: Type_Kind }
+Print :: struct {}
 Return :: struct {}
 
 bytecode_to_string :: proc(b: Bytecode) -> string {
