@@ -10,7 +10,10 @@ Generator :: struct {
     code: strings.Builder,
     data: strings.Builder,
 
-    global_ip: uint,
+    global_ip:        uint,
+    global_mem_count: uint,
+    global_code:      Code,
+
     main_func_address: uint,
 }
 
@@ -58,9 +61,9 @@ writedata :: proc(format: string, args: ..any) {
 gen_program :: proc() {
     gen_bootstrap()
 
-    for f in functions {
+    for &f in functions {
         if f.called {
-            gen_function(f)
+            gen_function(&f)
         }
     }
 
@@ -71,49 +74,25 @@ gen_bootstrap :: proc() {
     // PREPEND BEGINS HERE
     writemeta("format ELF64")
     writemeta("public _start")
+    writemeta("extrn exit")
 
     for fname in C_functions {
+        if fname == "exit" { continue }
         writemeta("extrn {}", fname)
     }
     // PREPEND ENDS HERE
 
     // CODE BEGINS HERE
     writecode("section '.text' executable")
-    writecode("print_number:")
-    writecode("    mov r9, -3689348814741910323")
-    writecode("    sub rsp, 40")
-    writecode("    lea rcx, [rsp+30]")
-    writecode(".convert_loop:")
-    writecode("    mov rax, rdi")
-    writecode("    lea r8, [rsp+32]")
-    writecode("    mul r9")
-    writecode("    mov rax, rdi")
-    writecode("    sub r8, rcx")
-    writecode("    shr rdx, 3")
-    writecode("    lea rsi, [rdx+rdx*4]")
-    writecode("    add rsi, rsi")
-    writecode("    sub rax, rsi")
-    writecode("    add eax, 48")
-    writecode("    mov BYTE [rcx], al")
-    writecode("    mov rax, rdi")
-    writecode("    mov rdi, rdx")
-    writecode("    mov rdx, rcx")
-    writecode("    sub rcx, 1")
-    writecode("    cmp rax, 9")
-    writecode("    ja  .convert_loop")
-    writecode("    lea rax, [rsp+32]")
-    writecode("    mov edi, 1")
-    writecode("    sub rdx, rax")
-    writecode("    xor eax, eax")
-    writecode("    lea rsi, [rsp+32+rdx]")
-    writecode("    mov rdx, r8")
-    writecode("    mov rax, 1")
-    writecode("    syscall")
-    writecode("    add rsp, 40")
-    writecode("    ret")
     writecode("_start:")
     writecode("    mov [args_ptr], rsp")
     writecode("    mov rax, ret_stack_ptr_end")
+    writecode(";; global code starts here")
+
+    for c in gen.global_code { gen_op(c) }
+
+    writecode(";; global code ends here")
+    writecode(".stanczyk_user_program:")
     writecode("    mov [ret_stack_ptr], rax")
     writecode("    mov rax, rsp")
     writecode("    mov rsp, [ret_stack_ptr]")
@@ -121,8 +100,7 @@ gen_bootstrap :: proc() {
     writecode("    mov [ret_stack_ptr], rsp")
     writecode("    mov rsp, rax")
     writecode("    xor rdi, rdi")
-    writecode("    mov rax, 60")
-    writecode("    syscall")
+    writecode("    call exit")
     writecode(";; user program definitions starts here")
     // CODE ENDS HERE
 
@@ -132,8 +110,7 @@ gen_bootstrap :: proc() {
     writedata("ret_stack_ptr: rq 1")
     writedata("ret_stack: rb 65535")
     writedata("ret_stack_ptr_end:")
-    // TODO: Calculate static memory needed
-    writedata("stanczyk_static: rb {}", 1)
+    writedata("stanczyk_static: rb {}", gen.global_mem_count)
     writedata("EMPTY_STRING: db 0")
     writedata("FMT_INT: db 37,100,10,0")
     for key, value in strings_table {
@@ -142,339 +119,340 @@ gen_bootstrap :: proc() {
     // DATA ENDS HERE
 }
 
-gen_function :: proc(f: Function) {
+gen_function :: proc(f: ^Function) {
     name := f.entity.name
     pos := f.entity.pos
     function_ip := f.entity.address
-    binds_count := 0
+    f.binds_count = 0
     writecode("fn{}:", function_ip)
     writecode(";; start fn {} ({}:{}:{})", name, pos.filename, pos.line, pos.column)
     writecode("    sub rsp, {}", f.local_mem)
     writecode("    mov [ret_stack_ptr], rsp")
     writecode("    mov rsp, rax")
 
-    for c in f.code {
-        code_ip := c.address
-        writecode(
-            ".ip{}: ;; {} ({}:{}:{})", code_ip,
-            bytecode_to_string(c), c.filename, c.line, c.column,
-        )
+    for c in f.code { gen_op(c, f) }
 
-        switch v in c.variant {
-        case Push_Bool:
-            writecode("    mov rax, {}", v.val ? 1 : 0)
-            writecode("    push rax")
-        case Push_Bound:
-            if v.use_pointer {
-                writecode("    mov rax, [ret_stack_ptr]")
-                writecode("    add rax, {}", v.val * 8)
-                writecode("    push rax")
-            } else {
-                writecode("    mov rax, [ret_stack_ptr]")
-                writecode("    add rax, {}", v.val * 8)
-                writecode("    push QWORD [rax]")
-            }
+    writecode(";; end fn {} ({}:{}:{})", name, pos.filename, pos.line, pos.column)
+}
 
-        case Push_Byte:
-            writecode("    mov rax, {}", int(v.val))
-            writecode("    push rax")
-        case Push_Cstring:
-            writecode("    mov rax, str_{0}", v.val)
-            writecode("    push rax")
-            writecode("    mov rax, {}", v.length)
-            writecode("    push rax")
-        case Push_Int:
-            writecode("    mov rax, {}", v.val)
-            writecode("    push rax")
-        case Push_String:
-            writecode("    mov rax, str_{0}", v.val)
-            writecode("    push rax")
-        case Push_Var_Global:
-            if v.use_pointer {
-                writecode("    mov rax, stanczyk_static")
-                writecode("    add rax, {}", v.val)
-                writecode("    push rax")
-            } else {
-                writecode("    mov rax, stanczyk_static")
-                writecode("    add rax, {}", v.val)
-                writecode("    push QWORD [rax]")
-            }
-        case Push_Var_Local:
-            offset := v.val + uint(binds_count * 8)
+gen_op :: proc(c: Bytecode, f: ^Function = nil) {
+    code_ip := c.address
+    writecode(
+        ".ip{}: ;; {} ({}:{}:{})", code_ip,
+        bytecode_to_string(c), c.filename, c.line, c.column,
+    )
 
-            if v.use_pointer {
-                writecode("    mov rax, [ret_stack_ptr]")
-                writecode("    add rax, {}", offset)
-                writecode("    push rax")
-            } else {
-                writecode("    mov rax, [ret_stack_ptr]")
-                writecode("    add rax, {}", offset)
-                writecode("    push QWORD [rax]")
-            }
-        case Declare_Var_Global:
-            writecode("    mov rax, stanczyk_static")
-            writecode("    add rax, {}", v.offset)
-            switch v.kind {
-            case .Bool:   writecode("    mov QWORD [rax], 0")
-            case .Byte:   writecode("    mov QWORD [rax], 0")
-            case .Int:    writecode("    mov QWORD [rax], 0")
-            case .String: writecode("    mov QWORD [rax], EMPTY_STRING")
-            }
-        case Declare_Var_Local:
+    switch v in c.variant {
+    case Push_Bool:
+        writecode("    mov rax, {}", v.val ? 1 : 0)
+        writecode("    push rax")
+    case Push_Bound:
+        if v.use_pointer {
             writecode("    mov rax, [ret_stack_ptr]")
-            writecode("    add rax, {}", v.offset)
-            switch v.kind {
-            case .Bool:   writecode("    mov QWORD [rax], 0")
-            case .Byte:   writecode("    mov QWORD [rax], 0")
-            case .Int:    writecode("    mov QWORD [rax], 0")
-            case .String: writecode("    mov QWORD [rax], EMPTY_STRING")
-            }
-
-        case Get:
-            writecode("    pop rax")
-            writecode("    xor rbx, rbx")
-            writecode("    mov rbx, [rax]")
-            writecode("    push rbx")
-        case Get_Byte:
-            writecode("    pop rbx")
-            writecode("    pop rax")
-            writecode("    add rax, rbx")
-            writecode("    xor rbx, rbx")
-            writecode("    mov bl, [rax]")
-            writecode("    push rbx")
-        case Set:
-            writecode("    pop rax")
-            writecode("    pop rbx")
-            writecode("    mov [rax], rbx")
-        case Set_Byte:
-            writecode("    pop rbx")
-            writecode("    pop rax")
-            writecode("    add rax, rbx")
-            writecode("    pop rcx")
-            writecode("    mov [rax], cl")
-        case Add:
-            writecode("    pop rbx")
-            writecode("    pop rax")
-            writecode("    add rax, rbx")
+            writecode("    add rax, {}", v.val * 8)
             writecode("    push rax")
-        case Divide:
-            writecode("    xor rdx, rdx")
-            writecode("    pop rbx")
-            writecode("    pop rax")
-            writecode("    div rbx")
-            writecode("    push rax")
-        case Modulo:
-            writecode("    xor rdx, rdx")
-            writecode("    pop rbx")
-            writecode("    pop rax")
-            writecode("    div rbx")
-            writecode("    push rdx")
-        case Multiply:
-            writecode("    pop rbx")
-            writecode("    pop rax")
-            writecode("    mul rbx")
-            writecode("    push rax")
-        case Substract:
-            writecode("    pop rbx")
-            writecode("    pop rax")
-            writecode("    sub rax, rbx")
-            writecode("    push rax")
-
-        case Equal:
-            writecode("    xor rcx, rcx")
-            writecode("    mov rdx, 1")
-            writecode("    pop rbx")
-            writecode("    pop rax")
-            writecode("    cmp rax, rbx")
-            writecode("    cmove rcx, rdx")
-            writecode("    push rcx")
-        case Greater:
-            writecode("    xor rcx, rcx")
-            writecode("    mov rdx, 1")
-            writecode("    pop rbx")
-            writecode("    pop rax")
-            writecode("    cmp rax, rbx")
-            writecode("    cmovg rcx, rdx")
-            writecode("    push rcx")
-        case Greater_Equal:
-            writecode("    xor rcx, rcx")
-            writecode("    mov rdx, 1")
-            writecode("    pop rbx")
-            writecode("    pop rax")
-            writecode("    cmp rax, rbx")
-            writecode("    cmovge rcx, rdx")
-            writecode("    push rcx")
-        case Less:
-            writecode("    xor rcx, rcx")
-            writecode("    mov rdx, 1")
-            writecode("    pop rbx")
-            writecode("    pop rax")
-            writecode("    cmp rax, rbx")
-            writecode("    cmovl rcx, rdx")
-            writecode("    push rcx")
-        case Less_Equal:
-            writecode("    xor rcx, rcx")
-            writecode("    mov rdx, 1")
-            writecode("    pop rbx")
-            writecode("    pop rax")
-            writecode("    cmp rax, rbx")
-            writecode("    cmovle rcx, rdx")
-            writecode("    push rcx")
-        case Not_Equal:
-            writecode("    xor rcx, rcx")
-            writecode("    mov rdx, 1")
-            writecode("    pop rbx")
-            writecode("    pop rax")
-            writecode("    cmp rax, rbx")
-            writecode("    cmovne rcx, rdx")
-            writecode("    push rcx")
-
-        case If:
-            writecode("    pop rax")
-            writecode("    test rax, rax")
-            writecode("    jz .end{}", code_ip)
-        case Else:
-            writecode("    jmp .end{}", code_ip)
-            writecode(".end{}:", v.address)
-        case Fi:
-            writecode(".end{}:", v.address)
-
-        case Do:
-            jump_address_on_false := v.use_self ? code_ip : v.address
-            writecode(".start{}:", code_ip)
-            writecode("    pop rax")
-            writecode("    test rax, rax")
-            writecode("    jz .end{}", jump_address_on_false)
-        case For_Range:
+        } else {
             writecode("    mov rax, [ret_stack_ptr]")
-            writecode("    sub rax, 8")
-            writecode("    mov [ret_stack_ptr], rax")
-            writecode("    pop rbx")
-            writecode("    mov [rax+0], rbx")
-            writecode(".start{}:", code_ip)
-            writecode("    mov rax, [ret_stack_ptr]")
-            writecode("    add rax, 0")
+            writecode("    add rax, {}", v.val * 8)
             writecode("    push QWORD [rax]")
-            binds_count += 1
+        }
 
-        case Loop:
-            if v.bindings > 0 {
-                for x := v.bindings - 1; x >= 0; x -= 1 {
-                    writecode("    mov rax, [ret_stack_ptr]")
-                    writecode("    pop rbx")
-                    writecode("    mov [rax+{}], rbx", x * 8)
-                }
-            }
-
-            writecode("    jmp .start{}", v.address)
-            writecode(".end{}:", v.address)
-
-            if v.bindings > 0 {
-                writecode("    mov rax, [ret_stack_ptr]")
-                writecode("    add rax, {}", v.bindings * 8)
-                writecode("    mov [ret_stack_ptr], rax")
-                binds_count -= v.bindings
-            }
-
-        case Drop:
-            writecode("    pop rax")
-        case Dup:
-            writecode("    pop rax")
+    case Push_Byte:
+        writecode("    mov rax, {}", int(v.val))
+        writecode("    push rax")
+    case Push_Cstring:
+        writecode("    mov rax, str_{0}", v.val)
+        writecode("    push rax")
+        writecode("    mov rax, {}", v.length)
+        writecode("    push rax")
+    case Push_Int:
+        writecode("    mov rax, {}", v.val)
+        writecode("    push rax")
+    case Push_String:
+        writecode("    mov rax, str_{0}", v.val)
+        writecode("    push rax")
+    case Push_Var_Global:
+        if v.use_pointer {
+            writecode("    mov rax, stanczyk_static")
+            writecode("    add rax, {}", v.val)
             writecode("    push rax")
-            writecode("    push rax")
-        case Nip:
-            writecode("    pop rbx")
-            writecode("    pop rax")
-            writecode("    push rbx")
-        case Over:
-            writecode("    pop rbx")
-            writecode("    pop rax")
-            writecode("    push rax")
-            writecode("    push rbx")
-            writecode("    push rax")
-        case Rotate:
-            writecode("    pop rcx")
-            writecode("    pop rbx")
-            writecode("    pop rax")
-            writecode("    push rbx")
-            writecode("    push rcx")
-            writecode("    push rax")
-        case Rotate_Neg:
-            writecode("    pop rcx")
-            writecode("    pop rbx")
-            writecode("    pop rax")
-            writecode("    push rcx")
-            writecode("    push rax")
-            writecode("    push rbx")
-        case Swap:
-            writecode("    pop rbx")
-            writecode("    pop rax")
-            writecode("    push rbx")
-            writecode("    push rax")
-        case Tuck:
-            writecode("    pop rbx")
-            writecode("    pop rax")
-            writecode("    push rbx")
-            writecode("    push rax")
-            writecode("    push rbx")
+        } else {
+            writecode("    mov rax, stanczyk_static")
+            writecode("    add rax, {}", v.val)
+            writecode("    push QWORD [rax]")
+        }
+    case Push_Var_Local:
+        offset := v.val + uint(f.binds_count * 8)
 
-        case Assembly:
-        case Call_Function:
-            writecode("    mov rax, rsp")
-            writecode("    mov rsp, [ret_stack_ptr]")
-            writecode("    call fn{} ; {}", v.address, v.name)
-            writecode("    mov [ret_stack_ptr], rsp")
-            writecode("    mov rsp, rax")
-        case Call_C_Function:
-            // TODO: Add registries for floating point args and returns
-            input_regs := []string{"rdi", "rsi", "rdx", "rcx", "r8", "r9"}
-            output_regs := []string{"rax", "rdx"}
-
-            sliced_inputs := input_regs[:v.inputs]
-
-            for x := v.inputs - 1; x >= 0; x -= 1 {
-                writecode("    pop {}", sliced_inputs[x])
-            }
-
-            writecode("    call {}", v.name)
-
-            for x := 0; x < v.outputs; x += 1 {
-                writecode("    push {}", output_regs[x])
-            }
-        case Let_Bind:
-            new_binds := v.val
+        if v.use_pointer {
             writecode("    mov rax, [ret_stack_ptr]")
-            writecode("    sub rax, {}", new_binds * 8)
-            writecode("    mov [ret_stack_ptr], rax")
-            for x := new_binds - 1; x >= 0; x -= 1 {
+            writecode("    add rax, {}", offset)
+            writecode("    push rax")
+        } else {
+            writecode("    mov rax, [ret_stack_ptr]")
+            writecode("    add rax, {}", offset)
+            writecode("    push QWORD [rax]")
+        }
+    case Declare_Var_Global:
+        writecode("    mov rax, stanczyk_static")
+        writecode("    add rax, {}", v.offset)
+        switch v.kind {
+        case .Bool:   writecode("    mov QWORD [rax], 0")
+        case .Byte:   writecode("    mov QWORD [rax], 0")
+        case .Int:    writecode("    mov QWORD [rax], 0")
+        case .String: writecode("    mov QWORD [rax], EMPTY_STRING")
+        }
+    case Declare_Var_Local:
+        writecode("    mov rax, [ret_stack_ptr]")
+        writecode("    add rax, {}", v.offset)
+        switch v.kind {
+        case .Bool:   writecode("    mov QWORD [rax], 0")
+        case .Byte:   writecode("    mov QWORD [rax], 0")
+        case .Int:    writecode("    mov QWORD [rax], 0")
+        case .String: writecode("    mov QWORD [rax], EMPTY_STRING")
+        }
+
+    case Get:
+        writecode("    pop rax")
+        writecode("    xor rbx, rbx")
+        writecode("    mov rbx, [rax]")
+        writecode("    push rbx")
+    case Get_Byte:
+        writecode("    pop rbx")
+        writecode("    pop rax")
+        writecode("    add rax, rbx")
+        writecode("    xor rbx, rbx")
+        writecode("    mov bl, [rax]")
+        writecode("    push rbx")
+    case Set:
+        writecode("    pop rax")
+        writecode("    pop rbx")
+        writecode("    mov [rax], rbx")
+    case Set_Byte:
+        writecode("    pop rbx")
+        writecode("    pop rax")
+        writecode("    add rax, rbx")
+        writecode("    pop rcx")
+        writecode("    mov [rax], cl")
+    case Add:
+        writecode("    pop rbx")
+        writecode("    pop rax")
+        writecode("    add rax, rbx")
+        writecode("    push rax")
+    case Divide:
+        writecode("    xor rdx, rdx")
+        writecode("    pop rbx")
+        writecode("    pop rax")
+        writecode("    div rbx")
+        writecode("    push rax")
+    case Modulo:
+        writecode("    xor rdx, rdx")
+        writecode("    pop rbx")
+        writecode("    pop rax")
+        writecode("    div rbx")
+        writecode("    push rdx")
+    case Multiply:
+        writecode("    pop rbx")
+        writecode("    pop rax")
+        writecode("    mul rbx")
+        writecode("    push rax")
+    case Substract:
+        writecode("    pop rbx")
+        writecode("    pop rax")
+        writecode("    sub rax, rbx")
+        writecode("    push rax")
+
+    case Equal:
+        writecode("    xor rcx, rcx")
+        writecode("    mov rdx, 1")
+        writecode("    pop rbx")
+        writecode("    pop rax")
+        writecode("    cmp rax, rbx")
+        writecode("    cmove rcx, rdx")
+        writecode("    push rcx")
+    case Greater:
+        writecode("    xor rcx, rcx")
+        writecode("    mov rdx, 1")
+        writecode("    pop rbx")
+        writecode("    pop rax")
+        writecode("    cmp rax, rbx")
+        writecode("    cmovg rcx, rdx")
+        writecode("    push rcx")
+    case Greater_Equal:
+        writecode("    xor rcx, rcx")
+        writecode("    mov rdx, 1")
+        writecode("    pop rbx")
+        writecode("    pop rax")
+        writecode("    cmp rax, rbx")
+        writecode("    cmovge rcx, rdx")
+        writecode("    push rcx")
+    case Less:
+        writecode("    xor rcx, rcx")
+        writecode("    mov rdx, 1")
+        writecode("    pop rbx")
+        writecode("    pop rax")
+        writecode("    cmp rax, rbx")
+        writecode("    cmovl rcx, rdx")
+        writecode("    push rcx")
+    case Less_Equal:
+        writecode("    xor rcx, rcx")
+        writecode("    mov rdx, 1")
+        writecode("    pop rbx")
+        writecode("    pop rax")
+        writecode("    cmp rax, rbx")
+        writecode("    cmovle rcx, rdx")
+        writecode("    push rcx")
+    case Not_Equal:
+        writecode("    xor rcx, rcx")
+        writecode("    mov rdx, 1")
+        writecode("    pop rbx")
+        writecode("    pop rax")
+        writecode("    cmp rax, rbx")
+        writecode("    cmovne rcx, rdx")
+        writecode("    push rcx")
+
+    case If:
+        writecode("    pop rax")
+        writecode("    test rax, rax")
+        writecode("    jz .end{}", code_ip)
+    case Else:
+        writecode("    jmp .end{}", code_ip)
+        writecode(".end{}:", v.address)
+    case Fi:
+        writecode(".end{}:", v.address)
+
+    case Do:
+        jump_address_on_false := v.use_self ? code_ip : v.address
+        writecode(".start{}:", code_ip)
+        writecode("    pop rax")
+        writecode("    test rax, rax")
+        writecode("    jz .end{}", jump_address_on_false)
+    case For_Range:
+        writecode("    mov rax, [ret_stack_ptr]")
+        writecode("    sub rax, 8")
+        writecode("    mov [ret_stack_ptr], rax")
+        writecode("    pop rbx")
+        writecode("    mov [rax+0], rbx")
+        writecode(".start{}:", code_ip)
+        writecode("    mov rax, [ret_stack_ptr]")
+        writecode("    add rax, 0")
+        writecode("    push QWORD [rax]")
+        f.binds_count += 1
+
+    case Loop:
+        if v.bindings > 0 {
+            for x := v.bindings - 1; x >= 0; x -= 1 {
+                writecode("    mov rax, [ret_stack_ptr]")
                 writecode("    pop rbx")
                 writecode("    mov [rax+{}], rbx", x * 8)
             }
-            binds_count += new_binds
-        case Let_Unbind:
-            unbinds := v.val
-            writecode("    mov rax, [ret_stack_ptr]")
-            writecode("    add rax, {}", unbinds * 8)
-            writecode("    mov [ret_stack_ptr], rax")
-            binds_count -= unbinds
-        case Print:
-            writecode("    pop rdi")
-            writecode("    call print_number")
-        case Return:
-            // TODO: free up local static memory and bindings
-            if binds_count > 0 {
-                writecode("    mov rax, [ret_stack_ptr]")
-                writecode("    add rax, {}", binds_count * 8)
-                writecode("    mov [ret_stack_ptr], rax")
-            }
-            writecode("    mov rax, rsp")
-            writecode("    mov rsp, [ret_stack_ptr]")
-            writecode("    add rsp, {}", f.local_mem)
-            writecode("    ret")
         }
-    }
 
-    writecode(";; end fn {} ({}:{}:{})", name, pos.filename, pos.line, pos.column)
+        writecode("    jmp .start{}", v.address)
+        writecode(".end{}:", v.address)
+
+        if v.bindings > 0 {
+            writecode("    mov rax, [ret_stack_ptr]")
+            writecode("    add rax, {}", v.bindings * 8)
+            writecode("    mov [ret_stack_ptr], rax")
+            f.binds_count -= v.bindings
+        }
+
+    case Drop:
+        writecode("    pop rax")
+    case Dup:
+        writecode("    pop rax")
+        writecode("    push rax")
+        writecode("    push rax")
+    case Nip:
+        writecode("    pop rbx")
+        writecode("    pop rax")
+        writecode("    push rbx")
+    case Over:
+        writecode("    pop rbx")
+        writecode("    pop rax")
+        writecode("    push rax")
+        writecode("    push rbx")
+        writecode("    push rax")
+    case Rotate:
+        writecode("    pop rcx")
+        writecode("    pop rbx")
+        writecode("    pop rax")
+        writecode("    push rbx")
+        writecode("    push rcx")
+        writecode("    push rax")
+    case Rotate_Neg:
+        writecode("    pop rcx")
+        writecode("    pop rbx")
+        writecode("    pop rax")
+        writecode("    push rcx")
+        writecode("    push rax")
+        writecode("    push rbx")
+    case Swap:
+        writecode("    pop rbx")
+        writecode("    pop rax")
+        writecode("    push rbx")
+        writecode("    push rax")
+    case Tuck:
+        writecode("    pop rbx")
+        writecode("    pop rax")
+        writecode("    push rbx")
+        writecode("    push rax")
+        writecode("    push rbx")
+
+    case Assembly:
+    case Call_Function:
+        writecode("    mov rax, rsp")
+        writecode("    mov rsp, [ret_stack_ptr]")
+        writecode("    call fn{} ; {}", v.address, v.name)
+        writecode("    mov [ret_stack_ptr], rsp")
+        writecode("    mov rsp, rax")
+    case Call_C_Function:
+        // TODO: Add registries for floating point args and returns
+        input_regs := []string{"rdi", "rsi", "rdx", "rcx", "r8", "r9"}
+        output_regs := []string{"rax", "rdx"}
+
+        sliced_inputs := input_regs[:v.inputs]
+
+        for x := v.inputs - 1; x >= 0; x -= 1 {
+            writecode("    pop {}", sliced_inputs[x])
+        }
+
+        writecode("    call {}", v.name)
+
+        for x := 0; x < v.outputs; x += 1 {
+            writecode("    push {}", output_regs[x])
+        }
+    case Let_Bind:
+        new_binds := v.val
+        writecode("    mov rax, [ret_stack_ptr]")
+        writecode("    sub rax, {}", new_binds * 8)
+        writecode("    mov [ret_stack_ptr], rax")
+        for x := new_binds - 1; x >= 0; x -= 1 {
+            writecode("    pop rbx")
+            writecode("    mov [rax+{}], rbx", x * 8)
+        }
+        f.binds_count += new_binds
+    case Let_Unbind:
+        unbinds := v.val
+        writecode("    mov rax, [ret_stack_ptr]")
+        writecode("    add rax, {}", unbinds * 8)
+        writecode("    mov [ret_stack_ptr], rax")
+        f.binds_count -= unbinds
+    case Print:
+        writecode("    pop rdi")
+        writecode("    call print_number")
+    case Return:
+        if f.binds_count > 0 {
+            writecode("    mov rax, [ret_stack_ptr]")
+            writecode("    add rax, {}", f.binds_count * 8)
+            writecode("    mov [ret_stack_ptr], rax")
+        }
+        writecode("    mov rax, rsp")
+        writecode("    mov rsp, [ret_stack_ptr]")
+        writecode("    add rsp, {}", f.local_mem)
+        writecode("    ret")
+    }
 }
 
 gen_ascii :: proc(s: string) -> string {

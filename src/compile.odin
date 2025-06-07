@@ -67,10 +67,11 @@ Function :: struct {
     entity: ^Entity,
     parent: ^Function,
 
-    called:    bool,
-    errored:   bool,
-    local_ip:  uint,
-    local_mem: uint,
+    binds_count: int,
+    called:      bool,
+    errored:     bool,
+    local_ip:    uint,
+    local_mem:   uint,
 
     code:      Code,
     stack:     Stack,
@@ -124,7 +125,6 @@ checker: ^Checker
 functions        := make([dynamic]Function)
 C_functions      := make([dynamic]string)
 strings_table    := map[string]int{}
-global_mem_count := uint(0)
 
 // Compilation error are not fatal, but will skip function parsing/compilation
 // and save the error to the Checker. Errors added to the checker will be reported
@@ -205,6 +205,14 @@ allow :: proc(kind: Token_Kind) -> bool {
         return true
     }
     return false
+}
+
+emit_global :: proc(token: Token, v: Bytecode_Variant) {
+    append(&gen.global_code, Bytecode{
+        address = get_global_address(),
+        pos = token.pos,
+        variant = v,
+    })
 }
 
 emit :: proc(f: ^Function, token: Token, v: Bytecode_Variant) -> ^Bytecode {
@@ -389,6 +397,7 @@ deinit_everything :: proc() {
         delete(f.code)
     }
 
+    delete(gen.global_code)
     delete(strings_table)
     delete(C_functions)
 }
@@ -941,17 +950,16 @@ declare_var :: proc() {
     ev.type = checker.basic_types[type_string_to_basic(type_lit_token.text)]
     ev.size = ev.type.size
 
-    // Should also look into setting a default value
+    // TODO: Should also look into setting a default value
 
     if is_global {
         address = get_global_address()
-        ev.offset = global_mem_count
-        global_mem_count += ev.size
-        // TODO: It should emit to a global collection of operations
-        // emit(f, name_token, Declare_Var_Global{
-        //     offset = ev.offset,
-        //     kind = type_string_to_basic(type_lit_token.text),
-        // })
+        ev.offset = gen.global_mem_count
+        gen.global_mem_count += ev.size
+        emit_global(name_token, Declare_Var_Global{
+            offset = ev.offset,
+            kind = type_string_to_basic(type_lit_token.text),
+        })
     } else {
         f := checker.curr_function
         address = get_local_address(f)
@@ -1032,15 +1040,7 @@ call_builtin_func :: proc(f: ^Function, t: Token, e: Entity) {
     ef := e.variant.(Entity_Function)
 
     switch e.name {
-    case "print":
-        A := f.stack->pop()
-        if !type_is_basic(A, .Int) {
-            compilation_error(
-                f, "internal print function expects an (int). Got: {}",
-                type_to_string(A),
-            )
-        }
-        emit(f, t, Print{})
+        // Handle builtin functions here
     }
 }
 
