@@ -82,7 +82,6 @@ gen_bootstrap :: proc() {
     writecode("print_number:")
     writecode("    mov r9, -3689348814741910323")
     writecode("    sub rsp, 40")
-    writecode("    mov BYTE [rsp+31], 10")
     writecode("    lea rcx, [rsp+30]")
     writecode(".convert_loop:")
     writecode("    mov rax, rdi")
@@ -102,7 +101,6 @@ gen_bootstrap :: proc() {
     writecode("    sub rcx, 1")
     writecode("    cmp rax, 9")
     writecode("    ja  .convert_loop")
-    writecode("")
     writecode("    lea rax, [rsp+32]")
     writecode("    mov edi, 1")
     writecode("    sub rdx, rax")
@@ -166,13 +164,16 @@ gen_function :: proc(f: Function) {
             writecode("    mov rax, {}", v.val ? 1 : 0)
             writecode("    push rax")
         case Push_Bound:
-            writecode("    mov rax, [ret_stack_ptr]")
-            writecode("    add rax, {}", v.val * 8)
-            writecode("    push QWORD [rax]")
-        case Push_Bound_Pointer:
-            writecode("    mov rax, [ret_stack_ptr]")
-            writecode("    add rax, {}", v.val * 8)
-            writecode("    push rax")
+            if v.use_pointer {
+                writecode("    mov rax, [ret_stack_ptr]")
+                writecode("    add rax, {}", v.val * 8)
+                writecode("    push rax")
+            } else {
+                writecode("    mov rax, [ret_stack_ptr]")
+                writecode("    add rax, {}", v.val * 8)
+                writecode("    push QWORD [rax]")
+            }
+
         case Push_Byte:
             writecode("    mov rax, {}", int(v.val))
             writecode("    push rax")
@@ -188,14 +189,38 @@ gen_function :: proc(f: Function) {
             writecode("    mov rax, str_{0}", v.val)
             writecode("    push rax")
         case Push_Var_Global:
-        case Push_Var_Global_Pointer:
         case Push_Var_Local:
-        case Push_Var_Local_Pointer:
             offset := v.val + uint(binds_count * 8)
+
+            if v.use_pointer {
+                writecode("    mov rax, [ret_stack_ptr]")
+                writecode("    add rax, {}", offset)
+                writecode("    push rax")
+            } else {
+                writecode("    mov rax, [ret_stack_ptr]")
+                writecode("    add rax, {}", offset)
+                writecode("    push QWORD [rax]")
+            }
+        case Push_Pointer:
+            writedata("temp_fn{}ip{}: rb {}", function_ip, code_ip, v.size)
+
+            writecode("    mov rax, temp_fn{}ip{}", function_ip, code_ip)
+            writecode("    push rax")
+        case Pop_Pointer:
+            writecode("    mov rbx, temp_fn{}ip{}", function_ip, v.address)
             writecode("    mov rax, [ret_stack_ptr]")
-            writecode("    add rax, {}", offset)
+            writecode("    add rax, {}", v.offset)
+            writecode("    mov [rax], rbx")
             writecode("    push rax")
 
+            // Clean up the buffer
+            writecode("    mov rcx, {}", v.size)
+            writecode("    lea rdx, [temp_fn{}ip{}]", function_ip, v.address)
+            writecode("    xor rax, rax")
+            writecode("@clear_loop:")
+            writecode("    mov [rdx+rcx*4], rax")
+            writecode("    dec rcx")
+            writecode("    jnz @clear_loop")
         case Get:
             writecode("    pop rax")
             writecode("    xor rbx, rbx")
@@ -204,18 +229,20 @@ gen_function :: proc(f: Function) {
         case Get_Byte:
             writecode("    pop rbx")
             writecode("    pop rax")
-            writecode("    add rbx, rax")
-            writecode("    xor rcx, rcx")
-            writecode("    mov cl, [rbx]")
-            writecode("    push rcx")
+            writecode("    add rax, rbx")
+            writecode("    xor rbx, rbx")
+            writecode("    mov bl, [rax]")
+            writecode("    push rbx")
         case Set:
             writecode("    pop rax")
             writecode("    pop rbx")
             writecode("    mov [rax], rbx")
         case Set_Byte:
-            writecode("    pop rax")
             writecode("    pop rbx")
-            writecode("    mov [rax], bl")
+            writecode("    pop rax")
+            writecode("    add rax, rbx")
+            writecode("    pop rcx")
+            writecode("    mov [rax], cl")
         case Add:
             writecode("    pop rbx")
             writecode("    pop rax")
@@ -340,13 +367,55 @@ gen_function :: proc(f: Function) {
                 binds_count -= v.bindings
             }
 
+        case Drop:
+            writecode("    pop rax")
+        case Dup:
+            writecode("    pop rax")
+            writecode("    push rax")
+            writecode("    push rax")
+        case Nip:
+            writecode("    pop rbx")
+            writecode("    pop rax")
+            writecode("    push rbx")
+        case Over:
+            writecode("    pop rbx")
+            writecode("    pop rax")
+            writecode("    push rax")
+            writecode("    push rbx")
+            writecode("    push rax")
+        case Rotate:
+            writecode("    pop rcx")
+            writecode("    pop rbx")
+            writecode("    pop rax")
+            writecode("    push rbx")
+            writecode("    push rcx")
+            writecode("    push rax")
+        case Rotate_Neg:
+            writecode("    pop rcx")
+            writecode("    pop rbx")
+            writecode("    pop rax")
+            writecode("    push rcx")
+            writecode("    push rax")
+            writecode("    push rbx")
+        case Swap:
+            writecode("    pop rbx")
+            writecode("    pop rax")
+            writecode("    push rbx")
+            writecode("    push rax")
+        case Tuck:
+            writecode("    pop rbx")
+            writecode("    pop rax")
+            writecode("    push rbx")
+            writecode("    push rax")
+            writecode("    push rbx")
+
         case Assembly:
         case Call_Function:
-            writecode("   mov rax, rsp")
-            writecode("   mov rsp, [ret_stack_ptr]")
-            writecode("   call fn{} ; {}", v.address, v.name)
-            writecode("   mov [ret_stack_ptr], rsp")
-            writecode("   mov rsp, rax")
+            writecode("    mov rax, rsp")
+            writecode("    mov rsp, [ret_stack_ptr]")
+            writecode("    call fn{} ; {}", v.address, v.name)
+            writecode("    mov [ret_stack_ptr], rsp")
+            writecode("    mov rsp, rax")
         case Call_C_Function:
             // TODO: Add registries for floating point args and returns
             input_regs := []string{"rdi", "rsi", "rdx", "rcx", "r8", "r9"}
@@ -358,11 +427,11 @@ gen_function :: proc(f: Function) {
                 writecode("    pop {}", sliced_inputs[x])
             }
 
+            writecode("    call {}", v.name)
+
             for x := 0; x < v.outputs; x += 1 {
                 writecode("    push {}", output_regs[x])
             }
-
-            writecode("    call {}", v.name)
         case Let_Bind:
             new_binds := v.val
             writecode("    mov rax, [ret_stack_ptr]")
@@ -379,7 +448,6 @@ gen_function :: proc(f: Function) {
             writecode("    add rax, {}", unbinds * 8)
             writecode("    mov [ret_stack_ptr], rax")
             binds_count -= unbinds
-        case Let_Rebind:
         case Print:
             writecode("    pop rdi")
             writecode("    call print_number")

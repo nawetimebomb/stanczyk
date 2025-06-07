@@ -81,7 +81,11 @@ stack_prettyprint :: proc(message: string, values: ..^Type) -> string {
     ppbuilder := strings.builder_make(context.temp_allocator)
 
     for v, index in values {
-        if index == 0 {
+        if len(values) == 1 {
+            strings.write_string(&ppbuilder, "(")
+            strings.write_string(&ppbuilder, type_to_string(v))
+            strings.write_string(&ppbuilder, ")")
+        } else if index == 0 {
             strings.write_string(&ppbuilder, "(")
             strings.write_string(&ppbuilder, type_to_string(v))
         } else if index == len(values) - 1 {

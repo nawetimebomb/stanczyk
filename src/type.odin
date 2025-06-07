@@ -3,13 +3,8 @@ package main
 import "core:fmt"
 import "core:reflect"
 
-// Type :: struct {
-//     kind: Type_Basic_Kind,
-//     name: string,
-// }
-
 Type :: struct {
-    size: int,
+    size: uint,
     name: string,
     variant: Type_Variant,
 }
@@ -37,16 +32,50 @@ Type_Basic :: struct {
 Type_Nil :: struct {}
 
 Type_Pointer :: struct {
+    kind: Type_Pointer_Kind,
+    address: uint,
+    offset: uint,
+    size: uint,
     type: ^Type,
 }
 
 Type_Polymorphic :: struct {}
+
+Type_Pointer_Kind :: enum u8 {
+    Local,
+    Global,
+}
 
 Type_Basic_Kind :: enum u8 {
     Bool,
     Byte,
     Int,
     String,
+}
+
+type_create_pointer :: proc{
+    type_create_global_pointer,
+    type_create_local_pointer,
+}
+
+type_create_global_pointer :: proc(t: ^Type) -> ^Type {
+    return new_clone(Type{
+        size = 8,
+        variant = Type_Pointer{ kind = .Global, type = t },
+    }, context.temp_allocator)
+}
+
+type_create_local_pointer :: proc(t: ^Type, address, offset, size: uint) -> ^Type {
+    return new_clone(Type{
+        size = 8,
+        variant = Type_Pointer{
+            kind = .Local,
+            type = t,
+            offset = offset,
+            address = address,
+            size = size,
+        },
+    }, context.temp_allocator)
 }
 
 types_equal :: proc(a, b: ^Type) -> bool {
@@ -117,21 +146,21 @@ type_string_to_Type :: proc(s: string) -> ^Type {
 }
 
 type_to_string :: proc(t: ^Type) -> string {
+    switch v in t.variant {
+    case Type_Any: return "any"
+    case Type_Array: return fmt.tprintf("[]{}", type_to_string(v.type))
+    case Type_Basic:
+        switch v.kind {
+        case .Bool: return "bool"
+        case .Byte: return "byte"
+        case .Int: return "int"
+        case .String: return "string"
+        }
+    case Type_Nil: return "nil"
+    case Type_Polymorphic: return "polymorphic"
+    case Type_Pointer: return fmt.tprintf("{}*", type_to_string(v.type))
+    }
+
+    assert(false)
     return ""
 }
-
-// type_string_to_kind :: proc(s: string) -> Type_Basic_Kind {
-//     switch s {
-//     case "any": return .Any
-//     case "bool": return .Bool
-//     case "byte": return .Byte
-//     case "float": return .Float
-//     case "int": return .Int
-//     case "ptr": return .Pointer
-//     case "string": return .String
-//     case "uint": return .Uint
-//     }
-
-//     assert(false)
-//     return .Invalid
-// }

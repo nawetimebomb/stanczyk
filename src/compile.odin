@@ -80,11 +80,9 @@ Scope_Kind :: enum u8 {
     Invalid,
     Function,
     Global,
-    If,
-    If_Else,
-    Let,
-    Do,
-    For_Range,
+    If, If_Else,
+    Let, Let_Mutable,
+    Do, For_Range,
 }
 
 Entities :: distinct [dynamic]Entity
@@ -262,13 +260,15 @@ compile :: proc() {
                 case .Using: parse_using()
                 case .Const: declare_const()
                 case .Var: declare_var()
+                case .Builtin: {
+                    expect(.Fn)
+                    declare_func(.Builtin)
+                    expect(.Dash_Dash_Dash)
+                }
                 case .Foreign: {
-                    if allow(.Fn) {
-                        declare_func(.Foreign)
-                        expect(.Dash_Dash_Dash)
-                    } else {
-                        unimplemented()
-                    }
+                    expect(.Fn)
+                    declare_func(.Foreign)
+                    expect(.Dash_Dash_Dash)
                 }
                 case .Fn: {
                     declare_func()
@@ -308,7 +308,7 @@ compile :: proc() {
 
             #partial switch token.kind {
                 case .EOF: break parsing_loop
-                case .Foreign: {
+                case .Builtin, .Foreign: {
                     skip_to_end: for {
                         if next().kind == .Dash_Dash_Dash {
                             break skip_to_end
@@ -393,7 +393,7 @@ deinit_everything :: proc() {
     delete(C_functions)
 }
 
-find_entity :: proc(token: Token) -> Entity {
+find_entity :: proc(f: ^Function, token: Token) -> Entity {
     possible_matches := make(Entities, context.temp_allocator)
     name := token.text
     test_scope := checker.curr_scope
@@ -427,8 +427,8 @@ find_entity :: proc(token: Token) -> Entity {
         for other in possible_matches {
             test := other.variant.(Entity_Function)
 
-            if len(checker.curr_function.stack.v) >= len(test.inputs) {
-                stack_copy := slice.clone(checker.curr_function.stack.v[:])
+            if len(f.stack.v) >= len(test.inputs) {
+                stack_copy := slice.clone(f.stack.v[:])
                 defer delete(stack_copy)
                 slice.reverse(stack_copy[:])
                 sim_test_stack := stack_copy[:len(test.inputs)]
@@ -442,7 +442,7 @@ find_entity :: proc(token: Token) -> Entity {
                 if slice.equal(sim_test_stack, func_test_stack[:]) {
                     append(&matches, Match_Stats{
                         entity = other,
-                        exact_number_inputs = len(checker.curr_function.stack.v) == len(test.inputs),
+                        exact_number_inputs = len(f.stack.v) == len(test.inputs),
                     })
                 }
             }
@@ -501,7 +501,7 @@ find_entity :: proc(token: Token) -> Entity {
             token.pos,
             "unable to find matching function of name '{}' with stack {}{}",
             token.text,
-            checker.curr_function.stack.v,
+            stack_prettyprint("{}", ..f.stack.v[:]),
             report_posible_matches(possible_matches[:]),
         )
     }
@@ -694,7 +694,7 @@ declare_const :: proc() {
                     case "-": append(&temp_value_stack, v1.(int) - v2.(int))
                     }
                 case :
-                    entity := find_entity(token)
+                    entity := find_entity(f, token)
                     v, ok := entity.variant.(Entity_Constant)
 
                     if !ok {
@@ -899,6 +899,12 @@ parse_function_head :: proc(ef: ^Entity_Function) {
                         ef.is_parapoly = true
                         append(arity, type_string_to_Type(token.text))
                     }
+                    case .Hat: {
+                        type_token := expect(.Type_Literal)
+                        T := type_string_to_Type(type_token.text)
+
+                        append(arity, type_create_pointer(T))
+                    }
                     case .Type_Literal: {
                         T := type_string_to_Type(token.text)
 
@@ -933,6 +939,10 @@ declare_var :: proc() {
 
     type_lit_token := expect(.Type_Literal)
     ev.type = checker.basic_types[type_string_to_basic(type_lit_token.text)]
+    // ev.type = type_create_pointer(
+    //     checker.basic_types[type_string_to_basic(type_lit_token.text)],
+    // )
+    ev.size = ev.type.size
 
     if is_global {
         address = get_global_address()
@@ -987,16 +997,19 @@ parse_using :: proc() {
 
 call_foreign_func :: proc(f: ^Function, t: Token, e: Entity) {
     ef := e.variant.(Entity_Function)
+    pointers := make([dynamic]^Type, context.temp_allocator)
 
     #reverse for input in ef.inputs {
         A := f.stack->pop()
 
-        if !types_equal(input, A) {
+        if !types_equal(input, A) && !type_is_any(input) {
             compilation_error(
                 f, "input mismatch in function {}\n\tExpected: {},\tHave: {}",
                 t.text, type_to_string(input), type_to_string(A),
             )
         }
+
+        if type_is_pointer(A) { append(&pointers, A) }
     }
 
     b := emit(f, t, Call_C_Function{
@@ -1008,10 +1021,34 @@ call_foreign_func :: proc(f: ^Function, t: Token, e: Entity) {
     for output in ef.outputs {
         f.stack->push(output)
     }
+
+    for p in pointers {
+        v := p.variant.(Type_Pointer)
+
+        if v.kind == .Local {
+            emit(f, t, Pop_Pointer{
+                address = v.address,
+                offset = v.offset,
+                size = v.size,
+            })
+        }
+    }
 }
 
 call_builtin_func :: proc(f: ^Function, t: Token, e: Entity) {
     ef := e.variant.(Entity_Function)
+
+    switch e.name {
+    case "print":
+        A := f.stack->pop()
+        if !type_is_basic(A, .Int) {
+            compilation_error(
+                f, "internal print function expects an (int). Got: {}",
+                type_to_string(A),
+            )
+        }
+        emit(f, t, Print{})
+    }
 }
 
 call_function :: proc(entity: Entity, loc := #caller_location) {
@@ -1102,22 +1139,20 @@ parse_function :: proc(e: ^Entity) {
         }
     }
 
-    // TODO: Improve error message
-    // stack_expect(
-    //     e.pos,
-    //     fmt.tprintf(
-    //         "mismatched outputs in function {}.\n\tExpected: {}\n\tGot: {}",
-    //         e.name, ef.outputs, f.stack.v,
-    //     ),
-    //     stack_match_arity(f.stack.v[:], ef.outputs),
-    // )
+    if len(f.stack.v) != len(ef.outputs) {
+        parsing_error(
+            e.token,
+            "stack does not match function output.\n\tExpected: {}\n\tGot: {}",
+            len(ef.outputs), len(f.stack.v),
+        )
+    }
 
     pop_function()
 }
 
 parse_token :: proc(token: Token, f: ^Function) -> bool {
     switch token.kind {
-    case .EOF, .Invalid, .Fn, .Using, .Dash_Dash_Dash, .Foreign:
+    case .EOF, .Invalid, .Fn, .Using, .Dash_Dash_Dash, .Foreign, .Builtin:
         parsing_error(
             token.pos,
             "invalid token in function body {}",
@@ -1127,6 +1162,25 @@ parse_token :: proc(token: Token, f: ^Function) -> bool {
     case .Semicolon:
         emit(f, token, Return{})
         return false
+
+    case .Hat:
+
+    case .Ampersand:
+        t := expect(.Word)
+        parse_word(f, t)
+        A := f.stack->pop()
+        op := &f.code[len(f.code)-1]
+        offset: uint
+        kind: Type_Pointer_Kind
+        #partial switch v in op.variant {
+            case Push_Var_Local: offset = v.val; kind = .Local
+            case Push_Var_Global: offset = v.val; kind = .Global
+            case: parsing_error(
+                t.pos, "cannot take the pointer address of '{}'", t.text,
+            )
+        }
+        op.variant = Push_Pointer{A.size}
+        f.stack->push(type_create_pointer(A, op.address, offset, A.size))
 
     case .Const: declare_const()
     case .Var:   declare_var()
@@ -1302,6 +1356,60 @@ parse_token :: proc(token: Token, f: ^Function) -> bool {
         f.stack->push(checker.basic_types[.Int])
     case .Type_Literal: unimplemented()
 
+    case .Drop:
+        f.stack->pop()
+        emit(f, token, Drop{})
+    case .Dup:
+        A := f.stack->pop()
+        emit(f, token, Dup{})
+        f.stack->push(A)
+        f.stack->push(A)
+    case .Nip:
+        B := f.stack->pop()
+        A := f.stack->pop()
+        emit(f, token, Nip{})
+        f.stack->push(B)
+    case .Over:
+        B := f.stack->pop()
+        A := f.stack->pop()
+        emit(f, token, Over{})
+        f.stack->push(A)
+        f.stack->push(B)
+        f.stack->push(A)
+    case .Rot:
+        C := f.stack->pop()
+        B := f.stack->pop()
+        A := f.stack->pop()
+        emit(f, token, Rotate{})
+        f.stack->push(B)
+        f.stack->push(C)
+        f.stack->push(A)
+    case .Rot_Neg:
+        C := f.stack->pop()
+        B := f.stack->pop()
+        A := f.stack->pop()
+        emit(f, token, Rotate_Neg{})
+        f.stack->push(C)
+        f.stack->push(A)
+        f.stack->push(B)
+    case .Swap:
+        B := f.stack->pop()
+        A := f.stack->pop()
+        emit(f, token, Swap{})
+        f.stack->push(B)
+        f.stack->push(A)
+    case .Take:
+        // Does nothing, this is just a word that takes the last value of the stack
+        // just make sure the stack is not empty.
+        if len(f.stack.v) == 0 { assert(false) }
+    case .Tuck:
+        B := f.stack->pop()
+        A := f.stack->pop()
+        emit(f, token, Tuck{})
+        f.stack->push(B)
+        f.stack->push(A)
+        f.stack->push(B)
+
     case .Get:      parse_memory_op(f, token, .get)
     case .Get_Byte: parse_memory_op(f, token, .get_byte)
     case .Set:      parse_memory_op(f, token, .set)
@@ -1348,16 +1456,11 @@ bind_words :: proc(f: ^Function, t: []Token) {
 }
 
 parse_word :: proc(f: ^Function, t: Token) {
-    if t.text == "println" || t.text == "print" {
-        f.stack->pop()
-        emit(f, t, Print{})
-        return
-    }
-    result := find_entity(t)
+    result := find_entity(f, t)
 
     switch v in result.variant {
     case Entity_Binding:
-        b := emit(f, t, Push_Bound{v.index})
+        b := emit(f, t, Push_Bound{v.index, false})
         f.stack->push(v.type)
     case Entity_Constant:
         switch {
@@ -1377,9 +1480,9 @@ parse_word :: proc(f: ^Function, t: Token) {
         }
     case Entity_Variable:
         if result.is_global {
-            emit(f, t, Push_Var_Global_Pointer{v.offset})
+            emit(f, t, Push_Var_Global{v.offset, false})
         } else {
-            emit(f, t, Push_Var_Local_Pointer{v.offset})
+            emit(f, t, Push_Var_Local{v.offset, false})
         }
         f.stack->push(v.type)
     }
@@ -1395,11 +1498,7 @@ parse_binary_op :: proc(f: ^Function, t: Token, op: enum {
     switch op {
     case .add:
         emit(f, t, Add{})
-        switch {
-        case type_is_pointer(A): f.stack->push(A)
-        case type_is_pointer(B): f.stack->push(B)
-        case : f.stack->push(checker.basic_types[.Int])
-        }
+        f.stack->push(A)
     case .sub:
         emit(f, t, Substract{})
         f.stack->push(checker.basic_types[.Int])
@@ -1440,7 +1539,11 @@ parse_memory_op :: proc(f: ^Function, t: Token, op: enum {
     case .get:
         A := f.stack->pop()
         emit(f, t, Get{})
-        f.stack->push(checker.basic_types[.String])
+        // v, ok := A.variant.(Type_Pointer)
+        // if !ok {
+        //     compilation_error(f, "get was used without a pointer")
+        // }
+        f.stack->push(A)
     case .get_byte:
         B := f.stack->pop()
         A := f.stack->pop()
@@ -1449,9 +1552,30 @@ parse_memory_op :: proc(f: ^Function, t: Token, op: enum {
     case .set:
         B := f.stack->pop()
         A := f.stack->pop()
+
+        last_op := &f.code[len(f.code) - 1]
+
+        #partial switch &v in last_op.variant {
+            case Push_Bound: {
+                if checker.curr_scope.kind != .Let_Mutable {
+                    compilation_error(
+                        f,
+                        "can't rebind value of binding in 'let' scope. Maybe you wanted to use 'let*'?",
+                    )
+                }
+            }
+            case Push_Var_Global: v.use_pointer = true
+            case Push_Var_Local: v.use_pointer = true
+            case: compilation_error(
+                f,
+                "last value before 'set' is not a variable",
+            )
+        }
+
         // Add validation for pointers
         emit(f, t, Set{})
     case .set_byte:
+        C := f.stack->pop()
         B := f.stack->pop()
         A := f.stack->pop()
         emit(f, t, Set_Byte{})

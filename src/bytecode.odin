@@ -10,15 +10,14 @@ Bytecode :: struct {
 Bytecode_Variant :: union {
     Push_Bool,
     Push_Bound,
-    Push_Bound_Pointer,
     Push_Byte,
     Push_Cstring,
     Push_Int,
     Push_String,
     Push_Var_Global,
-    Push_Var_Global_Pointer,
     Push_Var_Local,
-    Push_Var_Local_Pointer,
+    Push_Pointer,
+    Pop_Pointer,
 
     Get, Get_Byte,
     Set, Set_Byte,
@@ -28,7 +27,6 @@ Bytecode_Variant :: union {
     Modulo,
     Multiply,
     Substract,
-
     Equal,
     Greater,
     Greater_Equal,
@@ -43,45 +41,55 @@ Bytecode_Variant :: union {
     For_Range,
     Loop,
 
+    Drop,
+    Dup,
+    Nip,
+    Over,
+    Rotate,
+    Rotate_Neg,
+    Swap,
+    Tuck,
+
     Assembly,
     Call_Function,
     Call_C_Function,
     Let_Bind,
     Let_Unbind,
-    Let_Rebind,
     Print,
     Return,
 }
 
-// BEGIN PUSH OPs
+// BEGIN VALUE
 
 Push_Bool :: struct { val: bool }
-Push_Bound :: struct { val: int }
-Push_Bound_Pointer :: struct { val: int }
+Push_Bound :: struct { val: int, use_pointer: bool }
 Push_Byte :: struct { val: byte }
 Push_Cstring :: struct { val: int, length: int }
 Push_Int :: struct { val: int }
 Push_String :: struct { val: int }
-Push_Var_Global :: struct { val: uint }
-Push_Var_Global_Pointer :: struct { val: uint }
-Push_Var_Local :: struct { val: uint }
-Push_Var_Local_Pointer :: struct { val: uint }
+Push_Var_Global :: struct { val: uint, use_pointer: bool }
+Push_Var_Local :: struct { val: uint, use_pointer: bool }
+Push_Pointer :: struct { size: uint }
+Pop_Pointer :: struct { offset: uint, address: uint, size: uint }
+
+// END VALUE
+
+// BEGIN MEMORY
 
 Get :: struct {}
 Get_Byte :: struct {}
 Set :: struct {}
 Set_Byte :: struct {}
 
-// BEGIN ARITHMETIC OPs
+// END MEMORY
+
+// BEGIN BINARY
 
 Add :: struct {}
 Divide :: struct {}
 Modulo :: struct {}
 Multiply :: struct {}
 Substract :: struct {}
-
-// BEGIN COMPARISON OPs
-
 Equal :: struct {}
 Greater :: struct {}
 Greater_Equal :: struct {}
@@ -89,7 +97,10 @@ Less :: struct {}
 Less_Equal :: struct {}
 Not_Equal :: struct {}
 
-// BEGIN FLOW CONTROL OPs
+// END BINARY
+
+// BEGIN FLOW CONTROL
+
 If :: struct {}
 Else :: struct { address: uint }
 Fi :: struct { address: uint }
@@ -97,30 +108,45 @@ Do :: struct { use_self: bool, address: uint }
 For_Range :: struct {}
 Loop :: struct { address: uint, bindings: int }
 
-// BEGIN INTRINSIC OPs
+// END FLOW CONTROL
+
+// BEGIN STACK
+
+Drop :: struct {}
+Dup :: struct {}
+Nip :: struct {}
+Over :: struct {}
+Rotate :: struct {}
+Rotate_Neg :: struct {}
+Swap :: struct {}
+Tuck :: struct {}
+
+// END STUCK
+
+// BEGIN INTRINSICS
 
 Assembly :: struct { code: string }
 Call_Function :: struct { address: uint, name: string }
 Call_C_Function :: struct { name: string, inputs: int, outputs: int }
 Let_Bind :: struct { val: int }
 Let_Unbind :: struct { val: int }
-Let_Rebind :: struct { val: int }
 Print :: struct {}
 Return :: struct {}
+
+// END INTRINSICS
 
 bytecode_to_string :: proc(b: Bytecode) -> string {
     switch v in b.variant {
     case Push_Bool: return "boolean literal"
     case Push_Bound: return "bound value"
-    case Push_Bound_Pointer: return "bound pointer"
     case Push_Byte: return "byte literal"
     case Push_Cstring: return "cstring literal"
     case Push_Int: return "int literal"
     case Push_String: return "string literal"
     case Push_Var_Global: return "global variable value"
-    case Push_Var_Global_Pointer: return "global variable pointer"
     case Push_Var_Local: return "local variable value"
-    case Push_Var_Local_Pointer: return "local variable pointer"
+    case Push_Pointer: return "push temp pointer"
+    case Pop_Pointer: return "pop temp pointer"
 
     case Get: return "get"
     case Get_Byte: return "get-byte"
@@ -147,14 +173,22 @@ bytecode_to_string :: proc(b: Bytecode) -> string {
     case For_Range: return "for (range)"
     case Loop: return "loop"
 
+    case Drop: return "drop"
+    case Dup: return "dup"
+    case Nip: return "nip"
+    case Over: return "over"
+    case Rotate: return "rot"
+    case Rotate_Neg: return "-rot"
+    case Swap: return "swap"
+    case Tuck: return "tuck"
+
     case Assembly: return "assembly code block"
     case Call_Function: return "call function"
     case Call_C_Function: return "call C function"
     case Let_Bind: return "let binding scope starts"
     case Let_Unbind: return "let binding scope ends"
-    case Let_Rebind: return "let binding rebound"
     case Print: return "print"
-    case Return: return "return (implicitly ;)"
+    case Return: return "return or implicit ';'"
     }
 
     assert(false)

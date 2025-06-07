@@ -35,9 +35,12 @@ Token_Kind :: enum u8 {
     Const,
     Var,
     Fn,
+    Builtin,
     Foreign,
     Dash_Dash_Dash,
     Semicolon,
+    Ampersand,
+    Hat,
 
     Let, In, End,
     Case, Else, Fi, If,
@@ -47,21 +50,17 @@ Token_Kind :: enum u8 {
     Set, Set_Byte,
     Get, Get_Byte,
 
-    Binary_Literal,
-    Character_Literal,
-    Cstring_Literal,
-    Bool_Literal,
-    Float_Literal,
-    Hex_Literal,
-    Integer_Literal,
-    Octal_Literal,
-    String_Literal,
-    Type_Literal,
-    Uint_Literal,
+    Binary_Literal, Character_Literal, Cstring_Literal,
+    Bool_Literal, Float_Literal, Hex_Literal,
+    Integer_Literal, Octal_Literal, String_Literal,
+    Type_Literal, Uint_Literal,
 
     Plus, Minus, Star, Slash, Percent,
     Equal, Greater_Equal, Greater_Than,
     Less_Equal, Less_Than, Not_Equal,
+
+    Drop, Dup, Nip, Over, Rot,
+    Rot_Neg, Swap, Take, Tuck,
 }
 
 Token :: struct {
@@ -90,9 +89,12 @@ token_string_table := [Token_Kind]string{
         .Const = "const",
         .Var = "var",
         .Fn = "fn",
+        .Builtin = "builtin",
         .Foreign = "foreign",
         .Dash_Dash_Dash = "---",
         .Semicolon = ";",
+        .Ampersand = "&",
+        .Hat = "^",
 
         .As = "as",
         .Let = "let",
@@ -122,6 +124,10 @@ token_string_table := [Token_Kind]string{
         .Plus = "+", .Minus = "-", .Star = "*", .Slash = "/", .Percent = "%",
         .Equal = "=", .Greater_Equal = ">=", .Greater_Than = ">",
         .Less_Equal = "<=", .Less_Than = "<", .Not_Equal = "!=",
+
+        .Drop = "drop", .Dup = "dup", .Nip = "nip", .Over = "over",
+        .Rot = "rot", .Rot_Neg = "-rot", .Swap = "swap",
+        .Take = "take", .Tuck = "tuck",
 }
 
 tokenizer_init :: proc(t: ^Tokenizer, source: Source_File) {
@@ -259,6 +265,14 @@ get_next_token :: proc(t: ^Tokenizer) -> (token: Token, err: Error) {
         token.kind = .Semicolon
         advance(t)
         return
+    case '&':
+        token.kind = .Ampersand
+        advance(t)
+        return
+    case '^':
+        token.kind = .Hat
+        advance(t)
+        return
     case '\'', '"':
         delimiter := t.data[t.offset]
         result := strings.builder_make(context.temp_allocator)
@@ -340,6 +354,7 @@ string_to_token_kind :: proc(str: string) -> (kind: Token_Kind) {
     case "const": kind = .Const
     case "var": kind = .Var
     case "fn": kind = .Fn
+    case "builtin": kind = .Builtin
     case "foreign": kind = .Foreign
     case "---": kind = .Dash_Dash_Dash
 
@@ -376,6 +391,16 @@ string_to_token_kind :: proc(str: string) -> (kind: Token_Kind) {
     case "<=": kind = .Less_Equal
     case "<": kind = .Less_Than
     case "!=": kind = .Not_Equal
+
+    case "drop": kind = .Drop
+    case "dup": kind = .Dup
+    case "nip": kind = .Nip
+    case "over": kind = .Over
+    case "rot": kind = .Rot
+    case "-rot": kind = .Rot_Neg
+    case "swap": kind = .Swap
+    case "take": kind = .Take
+    case "tuck": kind = .Tuck
 
     case "any": kind = .Type_Literal
     case "bool": kind = .Type_Literal

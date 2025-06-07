@@ -35,17 +35,35 @@ foreign fn write as C.write (int string int) ---
 // C.read (fd, char*, size_t)
 foreign fn read as C.read (int ptr int) ---
 
+// C.sprintf (buf, format, int)
+foreign fn sprintf as C.sprintf (^string string any --- int) ---
+
 const STDIN  0 ;
 const STDOUT 1 ;
 const STDERR 2 ;
 
-fn sprintln (string)
-  let s1 in
-    STDOUT s1 s1 len C.write
-    STDOUT "\n"c C.write
-  end
+fn print (int)
+  var buf string ;
+  &buf "%li" rot C.sprintf drop
+  buf print
 ;
 
-fn sprintln (bool)
-  if "true" else "false" fi sprintln
+fn print (string)
+  STDOUT swap dup len C.write
+;
+
+fn print (bool)
+  if "true" else "false" fi print
+;
+
+fn println (string)
+  print "\n" print
+;
+
+fn println (int)
+  print "\n" print
+;
+
+fn println (bool)
+  print "\n" print
 ;
