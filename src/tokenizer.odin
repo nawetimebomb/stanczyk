@@ -404,6 +404,7 @@ string_to_token_kind :: proc(str: string) -> (kind: Token_Kind) {
 
     case "any": kind = .Type_Literal
     case "bool": kind = .Type_Literal
+    case "byte": kind = .Type_Literal
     case "float": kind = .Type_Literal
     case "int": kind = .Type_Literal
     case "ptr": kind = .Type_Literal

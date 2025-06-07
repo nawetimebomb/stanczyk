@@ -16,8 +16,8 @@ Bytecode_Variant :: union {
     Push_String,
     Push_Var_Global,
     Push_Var_Local,
-    Push_Pointer,
-    Pop_Pointer,
+    Declare_Var_Global,
+    Declare_Var_Local,
 
     Get, Get_Byte,
     Set, Set_Byte,
@@ -69,8 +69,8 @@ Push_Int :: struct { val: int }
 Push_String :: struct { val: int }
 Push_Var_Global :: struct { val: uint, use_pointer: bool }
 Push_Var_Local :: struct { val: uint, use_pointer: bool }
-Push_Pointer :: struct { size: uint }
-Pop_Pointer :: struct { offset: uint, address: uint, size: uint }
+Declare_Var_Global :: struct { offset: uint, kind: Type_Basic_Kind }
+Declare_Var_Local :: struct { offset: uint, kind: Type_Basic_Kind }
 
 // END VALUE
 
@@ -145,8 +145,8 @@ bytecode_to_string :: proc(b: Bytecode) -> string {
     case Push_String: return "string literal"
     case Push_Var_Global: return "global variable value"
     case Push_Var_Local: return "local variable value"
-    case Push_Pointer: return "push temp pointer"
-    case Pop_Pointer: return "pop temp pointer"
+    case Declare_Var_Global: return "declare global variable"
+    case Declare_Var_Local: return "declare local variable"
 
     case Get: return "get"
     case Get_Byte: return "get-byte"

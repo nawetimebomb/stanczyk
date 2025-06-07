@@ -42,28 +42,26 @@ const STDIN  0 ;
 const STDOUT 1 ;
 const STDERR 2 ;
 
+fn print (bool) if "true" else "false" fi print ;
+
+fn print (byte)
+  var char string ;
+  &char "%c" rot C.sprintf drop
+  char print
+;
+
 fn print (int)
   var buf string ;
   &buf "%li" rot C.sprintf drop
   buf print
 ;
 
-fn print (string)
-  STDOUT swap dup len C.write
-;
+fn print (string) STDOUT swap dup len C.write ;
 
-fn print (bool)
-  if "true" else "false" fi print
-;
+fn println (bool) print "\n" print ;
 
-fn println (string)
-  print "\n" print
-;
+fn println (byte) print "\n" print ;
 
-fn println (int)
-  print "\n" print
-;
+fn println (int) print "\n" print ;
 
-fn println (bool)
-  print "\n" print
-;
+fn println (string) print "\n" print ;

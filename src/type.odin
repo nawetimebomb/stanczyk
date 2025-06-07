@@ -32,19 +32,10 @@ Type_Basic :: struct {
 Type_Nil :: struct {}
 
 Type_Pointer :: struct {
-    kind: Type_Pointer_Kind,
-    address: uint,
-    offset: uint,
-    size: uint,
     type: ^Type,
 }
 
 Type_Polymorphic :: struct {}
-
-Type_Pointer_Kind :: enum u8 {
-    Local,
-    Global,
-}
 
 Type_Basic_Kind :: enum u8 {
     Bool,
@@ -53,28 +44,10 @@ Type_Basic_Kind :: enum u8 {
     String,
 }
 
-type_create_pointer :: proc{
-    type_create_global_pointer,
-    type_create_local_pointer,
-}
-
-type_create_global_pointer :: proc(t: ^Type) -> ^Type {
+type_create_pointer :: proc(t: ^Type) -> ^Type {
     return new_clone(Type{
         size = 8,
-        variant = Type_Pointer{ kind = .Global, type = t },
-    }, context.temp_allocator)
-}
-
-type_create_local_pointer :: proc(t: ^Type, address, offset, size: uint) -> ^Type {
-    return new_clone(Type{
-        size = 8,
-        variant = Type_Pointer{
-            kind = .Local,
-            type = t,
-            offset = offset,
-            address = address,
-            size = size,
-        },
+        variant = Type_Pointer{ type = t },
     }, context.temp_allocator)
 }
 

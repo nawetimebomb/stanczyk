@@ -939,20 +939,28 @@ declare_var :: proc() {
 
     type_lit_token := expect(.Type_Literal)
     ev.type = checker.basic_types[type_string_to_basic(type_lit_token.text)]
-    // ev.type = type_create_pointer(
-    //     checker.basic_types[type_string_to_basic(type_lit_token.text)],
-    // )
     ev.size = ev.type.size
+
+    // Should also look into setting a default value
 
     if is_global {
         address = get_global_address()
         ev.offset = global_mem_count
         global_mem_count += ev.size
+        // TODO: It should emit to a global collection of operations
+        // emit(f, name_token, Declare_Var_Global{
+        //     offset = ev.offset,
+        //     kind = type_string_to_basic(type_lit_token.text),
+        // })
     } else {
         f := checker.curr_function
         address = get_local_address(f)
         ev.offset = f.local_mem
         f.local_mem += ev.size
+        emit(f, name_token, Declare_Var_Local{
+            offset = ev.offset,
+            kind = type_string_to_basic(type_lit_token.text),
+        })
     }
 
     expect(.Semicolon)
@@ -997,7 +1005,6 @@ parse_using :: proc() {
 
 call_foreign_func :: proc(f: ^Function, t: Token, e: Entity) {
     ef := e.variant.(Entity_Function)
-    pointers := make([dynamic]^Type, context.temp_allocator)
 
     #reverse for input in ef.inputs {
         A := f.stack->pop()
@@ -1008,8 +1015,6 @@ call_foreign_func :: proc(f: ^Function, t: Token, e: Entity) {
                 t.text, type_to_string(input), type_to_string(A),
             )
         }
-
-        if type_is_pointer(A) { append(&pointers, A) }
     }
 
     b := emit(f, t, Call_C_Function{
@@ -1020,18 +1025,6 @@ call_foreign_func :: proc(f: ^Function, t: Token, e: Entity) {
 
     for output in ef.outputs {
         f.stack->push(output)
-    }
-
-    for p in pointers {
-        v := p.variant.(Type_Pointer)
-
-        if v.kind == .Local {
-            emit(f, t, Pop_Pointer{
-                address = v.address,
-                offset = v.offset,
-                size = v.size,
-            })
-        }
     }
 }
 
@@ -1169,18 +1162,7 @@ parse_token :: proc(token: Token, f: ^Function) -> bool {
         t := expect(.Word)
         parse_word(f, t)
         A := f.stack->pop()
-        op := &f.code[len(f.code)-1]
-        offset: uint
-        kind: Type_Pointer_Kind
-        #partial switch v in op.variant {
-            case Push_Var_Local: offset = v.val; kind = .Local
-            case Push_Var_Global: offset = v.val; kind = .Global
-            case: parsing_error(
-                t.pos, "cannot take the pointer address of '{}'", t.text,
-            )
-        }
-        op.variant = Push_Pointer{A.size}
-        f.stack->push(type_create_pointer(A, op.address, offset, A.size))
+        f.stack->push(type_create_pointer(A))
 
     case .Const: declare_const()
     case .Var:   declare_var()
@@ -1539,10 +1521,6 @@ parse_memory_op :: proc(f: ^Function, t: Token, op: enum {
     case .get:
         A := f.stack->pop()
         emit(f, t, Get{})
-        // v, ok := A.variant.(Type_Pointer)
-        // if !ok {
-        //     compilation_error(f, "get was used without a pointer")
-        // }
         f.stack->push(A)
     case .get_byte:
         B := f.stack->pop()

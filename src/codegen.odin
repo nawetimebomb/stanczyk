@@ -134,7 +134,8 @@ gen_bootstrap :: proc() {
     writedata("ret_stack_ptr_end:")
     // TODO: Calculate static memory needed
     writedata("stanczyk_static: rb {}", 1)
-    writedata(`FMT_INT: db 37,100,10,0`)
+    writedata("EMPTY_STRING: db 0")
+    writedata("FMT_INT: db 37,100,10,0")
     for key, value in strings_table {
         writedata("str_{}: db {} ; {}", value, gen_ascii(key), escaped(key))
     }
@@ -189,6 +190,15 @@ gen_function :: proc(f: Function) {
             writecode("    mov rax, str_{0}", v.val)
             writecode("    push rax")
         case Push_Var_Global:
+            if v.use_pointer {
+                writecode("    mov rax, stanczyk_static")
+                writecode("    add rax, {}", v.val)
+                writecode("    push rax")
+            } else {
+                writecode("    mov rax, stanczyk_static")
+                writecode("    add rax, {}", v.val)
+                writecode("    push QWORD [rax]")
+            }
         case Push_Var_Local:
             offset := v.val + uint(binds_count * 8)
 
@@ -201,26 +211,25 @@ gen_function :: proc(f: Function) {
                 writecode("    add rax, {}", offset)
                 writecode("    push QWORD [rax]")
             }
-        case Push_Pointer:
-            writedata("temp_fn{}ip{}: rb {}", function_ip, code_ip, v.size)
-
-            writecode("    mov rax, temp_fn{}ip{}", function_ip, code_ip)
-            writecode("    push rax")
-        case Pop_Pointer:
-            writecode("    mov rbx, temp_fn{}ip{}", function_ip, v.address)
+        case Declare_Var_Global:
+            writecode("    mov rax, stanczyk_static")
+            writecode("    add rax, {}", v.offset)
+            switch v.kind {
+            case .Bool:   writecode("    mov QWORD [rax], 0")
+            case .Byte:   writecode("    mov QWORD [rax], 0")
+            case .Int:    writecode("    mov QWORD [rax], 0")
+            case .String: writecode("    mov QWORD [rax], EMPTY_STRING")
+            }
+        case Declare_Var_Local:
             writecode("    mov rax, [ret_stack_ptr]")
             writecode("    add rax, {}", v.offset)
-            writecode("    mov [rax], rbx")
-            writecode("    push rax")
+            switch v.kind {
+            case .Bool:   writecode("    mov QWORD [rax], 0")
+            case .Byte:   writecode("    mov QWORD [rax], 0")
+            case .Int:    writecode("    mov QWORD [rax], 0")
+            case .String: writecode("    mov QWORD [rax], EMPTY_STRING")
+            }
 
-            // Clean up the buffer
-            writecode("    mov rcx, {}", v.size)
-            writecode("    lea rdx, [temp_fn{}ip{}]", function_ip, v.address)
-            writecode("    xor rax, rax")
-            writecode("@clear_loop:")
-            writecode("    mov [rdx+rcx*4], rax")
-            writecode("    dec rcx")
-            writecode("    jnz @clear_loop")
         case Get:
             writecode("    pop rax")
             writecode("    xor rbx, rbx")
