@@ -33,7 +33,7 @@
 foreign fn write as C.write (int string int) ---
 
 // C.read (fd, char*, size_t)
-foreign fn read as C.read (int ptr int) ---
+foreign fn read as C.read (int ^string int --- int) ---
 
 // C.sprintf (buf, format, int)
 foreign fn sprintf as C.sprintf (^string string any --- int) ---
@@ -58,10 +58,10 @@ fn print (int)
 
 fn print (string) STDOUT swap dup len C.write ;
 
-fn println (bool) print "\n" print ;
+fn println (bool) print STDOUT "\n" 1 C.write ;
 
-fn println (byte) print "\n" print ;
+fn println (byte) print STDOUT "\n" 1 C.write ;
 
-fn println (int) print "\n" print ;
+fn println (int) print STDOUT "\n" 1 C.write ;
 
-fn println (string) print "\n" print ;
+fn println (string) print STDOUT "\n" 1 C.write ;

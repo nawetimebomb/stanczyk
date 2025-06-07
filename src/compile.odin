@@ -823,8 +823,6 @@ declare_func :: proc(kind: enum { Default, Builtin, Foreign } = .Default) {
             name_token = expect(.Word)
             name = name_token.text
         }
-
-        append(&C_functions, foreign_name)
     }
 
     parse_function_head(&ef)
@@ -1023,6 +1021,12 @@ call_foreign_func :: proc(f: ^Function, t: Token, e: Entity) {
                 t.text, type_to_string(input), type_to_string(A),
             )
         }
+    }
+
+    // Adding the C function to the called callection so it can be
+    // added to the generated code.
+    if !slice.contains(C_functions[:], e.foreign_name) {
+        append(&C_functions, e.foreign_name)
     }
 
     b := emit(f, t, Call_C_Function{
