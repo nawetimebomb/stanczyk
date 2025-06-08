@@ -1,7 +1,37 @@
-fn fibonacci (int --- int)
-  if dup 2 < then take else dup 1 - fibonacci swap 2 - fibonacci + fi
+using core.io ;
+
+fn fibonacci-recursive (int --- int)
+  dup 2 < if take else dup 1 - fibonacci swap 2 - fibonacci + fi
+;
+
+fn fibonacci-loop (int --- int)
+  var n0 int ;
+  var n1 int ;
+  var n2 int ;
+
+  let nth in
+    0 n0 set
+    1 n1 set
+    n0 n1 + n2 set
+
+    for x in 2 nth <= do
+      n0 n1 + n2 set
+      n1 n0 set
+      n2 n1 set
+    x 1 + loop
+  end
+
+  n2
 ;
 
 // This program runs a recursive function to find the Nth number on the
 // Fibonacci sequence. Usage: <number> fibonacci println
-fn main "The 7th number in the Fibonacci sequence is " print 7 fibonacci println ;
+fn main
+  const FIB_NTH 7 ;
+
+  "Using recursive:" println
+  "The 7th number in the Fibonacci sequence is " print FIB_NTH fibonacci-recursive println
+  "" println
+  "Using loop:" println
+  "The 7th number in the Fibonacci sequence is " print FIB_NTH fibonacci-loop println
+;

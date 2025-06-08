@@ -327,21 +327,26 @@ gen_op :: proc(c: Bytecode, f: ^Function = nil) {
         writecode("    pop rax")
         writecode("    test rax, rax")
         writecode("    jz .end{}", jump_address_on_false)
-    case For_Range:
+    case For_In_Range:
         writecode("    mov rax, [ret_stack_ptr]")
-        writecode("    sub rax, 8")
+        writecode("    sub rax, 16")
         writecode("    mov [ret_stack_ptr], rax")
+        writecode("    pop rbx")
+        writecode("    mov [rax+8], rbx")
         writecode("    pop rbx")
         writecode("    mov [rax+0], rbx")
         writecode(".start{}:", code_ip)
         writecode("    mov rax, [ret_stack_ptr]")
         writecode("    add rax, 0")
         writecode("    push QWORD [rax]")
-        f.binds_count += 1
+        writecode("    mov rax, [ret_stack_ptr]")
+        writecode("    add rax, 8")
+        writecode("    push QWORD [rax]")
+        f.binds_count += 2
 
     case Loop:
-        if v.bindings > 0 {
-            for x := v.bindings - 1; x >= 0; x -= 1 {
+        if v.rebinds > 0 {
+            for x := 0; x < v.rebinds; x += 1 {
                 writecode("    mov rax, [ret_stack_ptr]")
                 writecode("    pop rbx")
                 writecode("    mov [rax+{}], rbx", x * 8)
@@ -351,11 +356,11 @@ gen_op :: proc(c: Bytecode, f: ^Function = nil) {
         writecode("    jmp .start{}", v.address)
         writecode(".end{}:", v.address)
 
-        if v.bindings > 0 {
+        if v.unbinds > 0 {
             writecode("    mov rax, [ret_stack_ptr]")
-            writecode("    add rax, {}", v.bindings * 8)
+            writecode("    add rax, {}", v.unbinds * 8)
             writecode("    mov [ret_stack_ptr], rax")
-            f.binds_count -= v.bindings
+            f.binds_count -= v.unbinds
         }
 
     case Drop:

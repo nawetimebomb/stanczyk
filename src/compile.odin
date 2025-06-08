@@ -1,5 +1,6 @@
 package main
 
+import "base:runtime"
 import "core:fmt"
 import "core:os"
 import "core:path/filepath"
@@ -14,6 +15,7 @@ Arity :: distinct [dynamic]^Type
 Entity_Binding :: struct {
     type:  ^Type,
     index: int,
+    internal: bool,
 }
 
 Entity_Constant :: struct {
@@ -83,7 +85,8 @@ Scope_Kind :: enum u8 {
     Global,
     If, If_Else,
     Let, Let_Mutable,
-    Do, For_Range,
+    Do,
+    For_In_Range, For_In_Array, For_In_String,
 }
 
 Entities :: distinct [dynamic]Entity
@@ -1281,12 +1284,11 @@ parse_token :: proc(token: Token, f: ^Function) -> bool {
 
                 emit(f, token, Loop{
                     address = checker.curr_scope.start_op.address,
-                    bindings = 0,
                 })
                 pop_scope()
                 f.stack->reset()
             }
-            case .For_Range: {
+            case .For_In_Range: {
                 A := f.stack->pop()
 
                 stack_expect(
@@ -1297,7 +1299,8 @@ parse_token :: proc(token: Token, f: ^Function) -> bool {
 
                 emit(f, token, Loop{
                     address = checker.curr_scope.start_op.address,
-                    bindings = 1,
+                    rebinds = 1,
+                    unbinds = 2,
                 })
                 pop_scope()
             }
@@ -1436,7 +1439,11 @@ bind_words :: proc(f: ^Function, t: []Token) {
             address = get_local_address(f),
             pos = word.pos,
             name = word.text,
-            variant = Entity_Binding{index = index, type = A},
+            variant = Entity_Binding{
+                index = index,
+                type = A,
+                internal = strings.starts_with(word.text, "__stanczyk__internal__"),
+            },
         })
     }
 }
@@ -1576,59 +1583,106 @@ parse_for_op :: proc(f: ^Function, t: Token) {
 
     expect(.In)
 
-    // "for" support multiple types of looand in order to figure out what type of
-    // loop we're going to be parsing here, we need to know more about the context.
-    // Usually the first parameter in the loop will tell us exactly what to do.
-    // The first parameter should ALWAYS push a value to the stack, and we're
-    // inferring the desired loop with that value pushed into the stack.
-    // pushing something to the stack.
-    prev_stack_len := len(f.stack.v)
-    parse_token(next(), f)
+    // We need to figure out here what type of loop the user wants to use.
+    // The conditions are the following:
+    //   - One bound word and comparison after "in": regular range loop
+    //   - One or two bound words (char, index) and a string after "in":
+    //     loop on string chars
+    //   - One or two bound words (element, index) and an array after "in":
+    //     loop over array elements.
+    // To figure out this, we run an incursion through the code by creating a copy
+    // of the current state and then reset the state but knowing exactly what's
+    // going to happen. We can also catch issues this way.
+    old_checker := new_clone(Checker{})
+    runtime.mem_copy(old_checker, checker, size_of(Checker))
 
-    if prev_stack_len > len(f.stack.v) {
-        parsing_error(
-            t.pos, "missing value in stack in statement 'for <bind> in'",
-        )
+    old_function := new_clone(Function{})
+    runtime.mem_copy(old_function, f, size_of(Function))
+
+    temp_tokens_list := make([dynamic]Token)
+
+    temp_incursion: for {
+        token := next()
+
+        #partial switch token.kind {
+            case .Do: break temp_incursion
+            case .Loop: {
+                parsing_error(
+                    token.pos,
+                    "expecting 'do' before 'loop' in 'for' statement",
+                )
+            }
+            case: append(&temp_tokens_list, token)
+        }
     }
 
-    // A tells us what to do
-    A := f.stack->peek()
+    test_token := temp_tokens_list[len(temp_tokens_list) - 1]
 
-    if type_is_basic(A, .Int) {
-        // This is the regular range for loop
+    #partial switch test_token.kind {
+        case .Greater_Equal, .Greater_Than, .Less_Equal, .Less_Than: {
+            // One of these comparison symbols is required
+            scope.kind = .For_In_Range
+        }
+        case: {
+            parsing_error(
+                t.pos,
+                "unsupported operation '{}' in 'for' loop",
+                test_token.text,
+            )
+        }
+    }
+
+    // Restore state, we were able to figure out exactly what to do here.
+    runtime.mem_copy(checker, old_checker, size_of(Checker))
+    runtime.mem_copy(checker.curr_function, old_function, size_of(Function))
+    free(old_checker)
+    free(old_function)
+    delete(temp_tokens_list)
+
+    parse_until_body: for {
+        token := next()
+        if token.kind == .Do do break parse_until_body
+        parse_token(token, f)
+    }
+
+    switch {
+    case scope.kind == .For_In_Range:
         if len(words) != 1 {
             compilation_error(
                 f, "'for' loop of type range can only have one word bound",
             )
         }
 
-        // We're doing implicit binding here, that means we take the necessary words
-        // out of the stack, but then, this operation also emits a value into the
-        // stack (the previously bound value), so we re-add it as part of the emit.
-        bind_words(f, words[:])
-        scope.start_op = emit(f, t, For_Range{})
-        f.stack->push(A)
-        scope.kind = .For_Range
-        parse_token(next(), f)
-        parse_token(next(), f)
+        // Create an internal binding for the limit
+        append(&words, Token{
+            pos = t.pos,
+            kind = .Word,
+            text = "__stanczyk__internal__for_range_limit",
+        })
 
-        B := f.stack->pop()
-
-        if !type_is_basic(B, .Bool) {
-            compilation_error(f, "Non-boolean condition in 'for' range statement")
+        // Prepare the stack and bind the necessary before continuing
+        A := f.stack->pop()
+        if !type_is_basic(A, .Bool) {
+            parsing_error(
+                t.pos,
+                "Non-boolean condition in 'for' range statement",
+            )
         }
-
-        emit(f, expect(.Do), Do{
+        comparison_op := pop(&f.code)
+        // Pushing 2 ints before we bind them, just for the binding mechanism
+        // to know that the For_In_Range operation does 2 implicit bindings.
+        f.stack->push(checker.basic_types[.Int])
+        f.stack->push(checker.basic_types[.Int])
+        bind_words(f, words[:])
+        scope.start_op = emit(f, t, For_In_Range{})
+        emit(f, t, comparison_op.variant)
+        emit(f, checker.prev_token, Do{
             address = scope.start_op.address,
             use_self = false,
         })
-
         create_stack_snapshot(f, scope)
         f.stack->save()
-    } else if type_is_basic(A, .String) {
-        // This is a string iteration. We are looking into the string's characters.
-        unimplemented()
-    } else {
-        unimplemented()
+    case scope.kind == .For_In_String: unimplemented()
+    case scope.kind == .For_In_Array: unimplemented()
     }
 }

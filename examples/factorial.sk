@@ -1,9 +1,25 @@
-fn factorial (int --- int)
+using core.io ;
+
+fn factorial-recursive (int --- int)
   let n in
-    if n 2 < then 1 else n 1 - factorial n * fi
+    n 2 < if 1 else n 1 - factorial n * fi
   end
+;
+
+fn factorial-loop (int --- int)
+  dup 1 -
+  for x in take 0 > do
+    x *
+  x 1 - loop
 ;
 
 // This program runs a recursive function to find the factorial
 // of a number. Usage: <number> factorial println
-fn main "Factorial of 5 is " print 5 factorial println ;
+fn main
+  const NUMBER int 5 ;
+  "Using recursive:" println
+  "Factorial of " print NUMBER print " is: " print NUMBER factorial-recursive println
+  "" println
+  "Using loop:" println
+  "Factorial of " print NUMBER print " is: " print NUMBER factorial-loop println
+;

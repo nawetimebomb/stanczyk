@@ -38,7 +38,7 @@ Bytecode_Variant :: union {
     Else,
     Fi,
     Do,
-    For_Range,
+    For_In_Range,
     Loop,
 
     Drop,
@@ -105,8 +105,8 @@ If :: struct {}
 Else :: struct { address: uint }
 Fi :: struct { address: uint }
 Do :: struct { use_self: bool, address: uint }
-For_Range :: struct {}
-Loop :: struct { address: uint, bindings: int }
+For_In_Range :: struct {}
+Loop :: struct { address: uint, rebinds: int, unbinds: int }
 
 // END FLOW CONTROL
 
@@ -170,7 +170,7 @@ bytecode_to_string :: proc(b: Bytecode) -> string {
     case Else: return "else"
     case Fi: return "fi"
     case Do: return "do"
-    case For_Range: return "for (range)"
+    case For_In_Range: return "for (range)"
     case Loop: return "loop"
 
     case Drop: return "drop"
