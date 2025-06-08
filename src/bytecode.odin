@@ -69,8 +69,8 @@ Push_Int :: struct { val: int }
 Push_String :: struct { val: int }
 Push_Var_Global :: struct { val: uint, use_pointer: bool }
 Push_Var_Local :: struct { val: uint, use_pointer: bool }
-Declare_Var_Global :: struct { offset: uint, kind: Type_Basic_Kind }
-Declare_Var_Local :: struct { offset: uint, kind: Type_Basic_Kind }
+Declare_Var_Global :: struct { offset: uint, kind: Type_Basic_Kind, set: bool }
+Declare_Var_Local :: struct { offset: uint, kind: Type_Basic_Kind, set: bool }
 
 // END VALUE
 

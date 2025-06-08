@@ -196,22 +196,33 @@ gen_op :: proc(c: Bytecode, f: ^Function = nil) {
     case Declare_Var_Global:
         writecode("    mov rax, stanczyk_static")
         writecode("    add rax, {}", v.offset)
-        switch v.kind {
-        case .Bool:   writecode("    mov QWORD [rax], 0")
-        case .Byte:   writecode("    mov QWORD [rax], 0")
-        case .Int:    writecode("    mov QWORD [rax], 0")
-        case .String: writecode("    mov QWORD [rax], EMPTY_STRING")
+
+        if v.set {
+            writecode("    pop rbx")
+            writecode("    mov QWORD [rax], rbx")
+        } else {
+            switch v.kind {
+            case .Bool:   writecode("    mov QWORD [rax], 0")
+            case .Byte:   writecode("    mov QWORD [rax], 0")
+            case .Int:    writecode("    mov QWORD [rax], 0")
+            case .String: writecode("    mov QWORD [rax], EMPTY_STRING")
+            }
         }
     case Declare_Var_Local:
         writecode("    mov rax, [ret_stack_ptr]")
         writecode("    add rax, {}", v.offset)
-        switch v.kind {
-        case .Bool:   writecode("    mov QWORD [rax], 0")
-        case .Byte:   writecode("    mov QWORD [rax], 0")
-        case .Int:    writecode("    mov QWORD [rax], 0")
-        case .String: writecode("    mov QWORD [rax], EMPTY_STRING")
-        }
 
+        if v.set {
+            writecode("    pop rbx")
+            writecode("    mov QWORD [rax], rbx")
+        } else {
+            switch v.kind {
+            case .Bool:   writecode("    mov QWORD [rax], 0")
+            case .Byte:   writecode("    mov QWORD [rax], 0")
+            case .Int:    writecode("    mov QWORD [rax], 0")
+            case .String: writecode("    mov QWORD [rax], EMPTY_STRING")
+            }
+        }
     case Get:
         writecode("    pop rax")
         writecode("    xor rbx, rbx")

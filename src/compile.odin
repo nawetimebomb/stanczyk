@@ -8,8 +8,6 @@ import "core:slice"
 import "core:strconv"
 import "core:strings"
 
-Constant_Value :: union { bool, int, string }
-
 Arity :: distinct [dynamic]^Type
 
 Entity_Binding :: struct {
@@ -20,7 +18,7 @@ Entity_Binding :: struct {
 
 Entity_Constant :: struct {
     type:  ^Type,
-    value: Constant_Value,
+    value: Bytecode_Variant,
 }
 
 Entity_Function :: struct {
@@ -171,6 +169,14 @@ stack_error :: proc(pos: Position, format: string, args: ..any) {
     // TODO: Fail when stack doesn't match, when stack is missing, and report position of the error and who called it.
 }
 
+unexpected_end_of_file :: proc() {
+    parsing_error(checker.prev_token.pos, "unexpected end of file")
+}
+
+compiler_bug :: proc() {
+    parsing_error(checker.prev_token.pos, "COMPILER BUG: This is an error on the compiler, not on the Stańczyk code")
+}
+
 push_string :: proc(v: string) -> int {
     id, ok := strings_table[v]
     if !ok {
@@ -186,7 +192,7 @@ add_global_bool_constant :: proc(name: string, value: bool) {
         name = name,
         variant = Entity_Constant{
             type = checker.basic_types[.Bool],
-            value = value,
+            value = Push_Bool{value},
         },
     })
 }
@@ -197,7 +203,7 @@ add_global_string_constant :: proc(name: string, value: string) {
         name = name,
         variant = Entity_Constant{
             type = checker.basic_types[.String],
-            value = push_string(value),
+            value = Push_String{push_string(value)},
         },
     })
 }
@@ -292,9 +298,7 @@ compile :: proc() {
                             case .Const: scope_level += 1
                             case .Var: scope_level += 1
                             case .Fn: scope_level += 1
-                            case .EOF: parsing_error(
-                                token.pos, "unexpected end of file",
-                            )
+                            case .EOF: unexpected_end_of_file()
                             case .Semicolon: {
                                 scope_level -= 1
                                 if scope_level == 0 { break body_loop }
@@ -428,6 +432,12 @@ find_entity :: proc(f: ^Function, token: Token) -> Entity {
     case 1: // Just one definition found, return
         return possible_matches[0]
     case :
+        // Technically we should handle this error by only allowing certain
+        // types of entities to be return. In this case, when f = nil, we
+        // don't want stack manipulation to happen, because we're just looking
+        // for constants or variables.
+        assert(f != nil)
+
         // Multiple entities found, need to figure out which one it is.
         // The good thing is that now we know this is a function, because
         // other types of values are not polymorphic.
@@ -655,131 +665,124 @@ declare_const :: proc() {
     f := checker.curr_function
     ec := Entity_Constant{}
     entities := &checker.curr_scope.entities
-    inferred_type: ^Type
-    temp_value_stack := make([dynamic]Constant_Value, context.temp_allocator)
-    defer delete(temp_value_stack)
 
     if allow(.Type_Literal) {
         ec.type = type_string_to_Type(checker.prev_token.text)
     }
 
-    body_loop: for {
-        token := next()
-        #partial switch token.kind {
-            case .EOF: parsing_error(token.pos, "unexpected end of file")
-            case .Semicolon: break body_loop
+    inferred_type: ^Type
+    temp_stack := make([dynamic]int, context.temp_allocator)
+    defer delete(temp_stack)
+
+    decl_body: for {
+        t := next()
+
+        #partial switch t.kind {
+            case .EOF: unexpected_end_of_file()
+            case .Semicolon: break decl_body
             case .Word: {
-                // Check if this constant is a compiler-defined constant (because the name is the same as the value)
-                if token.text == name {
-                    if len(temp_value_stack) > 0 {
-                        // This can't be true, the compiler-defined constant should be the only value.
-                        parsing_error(token.pos, "unexpected values in supposed compiler-defined constant {}", name)
+                if name == t.text {
+                    if len(temp_stack) > 0 {
+                        parsing_error(t, "unexpected values in supposed compiler-defined constant {}", name)
                     }
 
-                    found := false
+                    // Check if the compiler-defined constant exists
                     for e in gscope.entities {
                         if e.name == name {
-                            found = true
-                            break
+                            expect(.Semicolon)
+                            return
                         }
                     }
-                    if !found {
-                        parsing_error(token.pos, "constant {} is not actually compiler-defined", name)
-                    }
 
-                    expect(.Semicolon)
-                    return
-                }
-
-                // This is some dirty stuff but we have to manage basic operations internally
-                // Because +, -, /, *, % are not internal functionality, we need to do this
-                // within the compiler.
-                switch token.text {
-                case "+", "-", "%", "/", "*":
-                    v2 := pop(&temp_value_stack)
-                    v1 := pop(&temp_value_stack)
-                    switch token.text {
-                    case "+": append(&temp_value_stack, v1.(int) + v2.(int))
-                    case "/": append(&temp_value_stack, v1.(int) / v2.(int))
-                    case "%": append(&temp_value_stack, v1.(int) % v2.(int))
-                    case "*": append(&temp_value_stack, v1.(int) * v2.(int))
-                    case "-": append(&temp_value_stack, v1.(int) - v2.(int))
-                    }
-                case :
-                    entity := find_entity(f, token)
+                    parsing_error(t, "constant {} is not actually compiler-defined", name)
+                } else {
+                    entity := find_entity(f, t)
                     v, ok := entity.variant.(Entity_Constant)
 
                     if !ok {
-                        parsing_error(
-                            token.pos,
-                            "'{}' is not a compile-time known constant",
-                        )
+                        parsing_error(entity.pos, "'{}' is not a compile-time known constant", entity.name)
                     }
 
                     if inferred_type != nil && inferred_type != v.type {
-                        compilation_error(
-                            f,  "word '{}' of type '{}' cannot be used in expected type of {}",
-                            entity.name, type_to_string(v.type), inferred_type,
+                        parsing_error(
+                            t,
+                            "type mismatch in constant {}.\n\tExpected: {}\n\tGot: {}",
+                            name, type_to_string(inferred_type), type_to_string(v.type),
                         )
                     }
 
                     inferred_type = v.type
 
-                    if types_equal(v.type, checker.basic_types[.Int]) {
-                        append(&temp_value_stack, v.value)
-                    } else {
+                    switch {
+                    case types_equal(v.type, checker.basic_types[.Int]):
+                        value := v.value.(Push_Int).val
+                        append(&temp_stack, value)
+                    case :
                         ec.value = v.value
                         expect(.Semicolon)
-                        break body_loop
+                        break decl_body
                     }
                 }
             }
             case .Bool_Literal: {
-                ec.value = token.text == "true" ? true : false
+                ec.value = Push_Bool{t.text == "true"}
                 inferred_type = checker.basic_types[.Bool]
                 expect(.Semicolon)
-                break body_loop
+                break decl_body
             }
-            case .Cstring_Literal: unimplemented()
             case .Integer_Literal: {
-                append(&temp_value_stack, strconv.atoi(token.text))
-                if inferred_type == nil {
-                    inferred_type = checker.basic_types[.Int]
-                } else if inferred_type != checker.basic_types[.Int] {
-                    parsing_error(
-                        token.pos,
-                        "can't mix type of values in constant",
-                    )
+                append(&temp_stack, strconv.atoi(t.text))
+                int_type := checker.basic_types[.Int]
+                if inferred_type != nil && !types_equal(inferred_type, int_type) {
+                    parsing_error(t.pos, "constant values in {} can only be of one type.\n\tExpected: {}\n\tGot: {}", name, type_to_string(inferred_type), type_to_string(int_type))
                 }
+                inferred_type = int_type
             }
             case .String_Literal: {
-                ec.value = token.text
+                ec.value = Push_String{push_string(t.text)}
                 inferred_type = checker.basic_types[.String]
                 expect(.Semicolon)
-                break body_loop
+                break decl_body
+            }
+            case .Plus: {
+                v2 := pop(&temp_stack)
+                v1 := pop(&temp_stack)
+                append(&temp_stack, v1 + v2)
+            }
+            case .Minus: {
+                v2 := pop(&temp_stack)
+                v1 := pop(&temp_stack)
+                append(&temp_stack, v1 - v2)
+            }
+            case .Star: {
+                v2 := pop(&temp_stack)
+                v1 := pop(&temp_stack)
+                append(&temp_stack, v1 * v2)
+            }
+            case .Slash: {
+                v2 := pop(&temp_stack)
+                v1 := pop(&temp_stack)
+                append(&temp_stack, v1 / v2)
+            }
+            case .Percent: {
+                v2 := pop(&temp_stack)
+                v1 := pop(&temp_stack)
+                append(&temp_stack, v1 % v2)
             }
         }
     }
 
-    if ec.type == nil {
-        ec.type = inferred_type
-    } else if !types_equal(ec.type, inferred_type) {
-        parsing_error(
-            name_token,
-            "type declaration of {} doesn't match value type of {} in constant '{}'",
-            type_to_string(ec.type), type_to_string(inferred_type), name,
-        )
+    if ec.type != nil && !types_equal(ec.type, inferred_type) {
+        parsing_error(name_token, "type '{}' does not match with value of type '{}' in constant '{}'", type_to_string(ec.type), type_to_string(inferred_type), name)
     }
 
-    if len(temp_value_stack) > 0 {
-        if len(temp_value_stack) != 1 {
-            parsing_error(
-                name_token,
-                "values in constant don't compile to a single value",
-            )
-        }
+    ec.type = inferred_type
 
-        ec.value = pop(&temp_value_stack)
+    if len(temp_stack) > 0 {
+        if len(temp_stack) != 1 {
+            compiler_bug()
+        }
+        ec.value = Push_Int{pop(&temp_stack)}
     }
 
     if name == "main" {
@@ -803,6 +806,174 @@ declare_const :: proc() {
         pos = name_token.pos,
         token = name_token,
         variant = ec,
+    })
+}
+
+declare_var :: proc() {
+    _emit :: proc(t: Token, v: Bytecode_Variant) {
+        // We want this function to emit to global code if it's a global variable
+        // and emit to current function if it's a local scope variable.
+        f := checker.curr_function
+        if f == nil { emit_global(t, v) } else { emit(f, t, v) }
+    }
+
+    name_token := expect(.Word)
+    name := name_token.text
+    is_global := checker.curr_scope == gscope
+    entities := &checker.curr_scope.entities
+    ev := Entity_Variable{}
+    address: uint
+    default_value_type: Type_Basic_Kind
+
+    // TODO: Allow arrays
+    if allow(.Type_Literal) {
+        type_lit_token := checker.prev_token
+        default_value_type = type_string_to_basic(type_lit_token.text)
+        ev.type = checker.basic_types[default_value_type]
+        ev.size = ev.type.size
+    }
+
+    inferred_type: ^Type
+    temp_stack := make([dynamic]^Type, context.temp_allocator)
+    defer delete(temp_stack)
+
+    decl_body: for {
+        t := next()
+
+        #partial switch t.kind {
+            case .EOF: unexpected_end_of_file()
+            case .Semicolon: break decl_body
+            case .Word: {
+                entity := find_entity(checker.curr_function, t)
+
+                switch v in entity.variant {
+                case Entity_Binding:
+                    _emit(t, Push_Bound{v.index, false})
+                    append(&temp_stack, v.type)
+                    if inferred_type != nil && !types_equal(inferred_type, v.type) {
+                        parsing_error(
+                            t, "type mismatch in variable {}.\n\tExpected: {}\n\tGot: {}",
+                            name, type_to_string(inferred_type), type_to_string(v.type),
+                        )
+                    }
+                    inferred_type = v.type
+                case Entity_Constant:
+                    _emit(t, v.value)
+                    append(&temp_stack, v.type)
+                    if inferred_type != nil && !types_equal(inferred_type, v.type) {
+                        parsing_error(
+                            t, "type mismatch in variable {}.\n\tExpected: {}\n\tGot: {}",
+                            name, type_to_string(inferred_type), type_to_string(v.type),
+                        )
+                    }
+                    inferred_type = v.type
+                case Entity_Function:
+                    unimplemented()
+                case Entity_Variable:
+                    if entity.is_global {
+                        _emit(t, Push_Var_Global{v.offset, false})
+                    } else {
+                        _emit(t, Push_Var_Local{v.offset, false})
+                    }
+                    if inferred_type != nil && !types_equal(inferred_type, v.type) {
+                        parsing_error(
+                            t, "type mismatch in variable {}.\n\tExpected: {}\n\tGot: {}",
+                            name, type_to_string(inferred_type), type_to_string(v.type),
+                        )
+                    }
+                    inferred_type = v.type
+                }
+            }
+            case .Bool_Literal: {
+                _emit(t, Push_Bool{t.text == "true"})
+                inferred_type = checker.basic_types[.Bool]
+                expect(.Semicolon)
+                break decl_body
+            }
+            case .Integer_Literal: {
+                _emit(t, Push_Int{strconv.atoi(t.text)})
+                int_type := checker.basic_types[.Int]
+                append(&temp_stack, int_type)
+                if inferred_type != nil && !types_equal(inferred_type, int_type) {
+                    parsing_error(t.pos, "values in variable {} can only be of one type.\n\tExpected: {}\n\tGot: {}", name, type_to_string(inferred_type), type_to_string(int_type))
+                }
+                inferred_type = int_type
+            }
+            case .String_Literal: {
+                _emit(t, Push_String{push_string(t.text)})
+                inferred_type = checker.basic_types[.String]
+                expect(.Semicolon)
+                break decl_body
+            }
+            case .Plus: {
+                v2 := pop(&temp_stack)
+                v1 := pop(&temp_stack)
+                append(&temp_stack, v1)
+                _emit(t, Add{})
+            }
+            case .Minus: {
+                v2 := pop(&temp_stack)
+                v1 := pop(&temp_stack)
+                append(&temp_stack, v1)
+                _emit(t, Substract{})
+            }
+            case .Star: {
+                v2 := pop(&temp_stack)
+                v1 := pop(&temp_stack)
+                append(&temp_stack, v1)
+                _emit(t, Multiply{})
+            }
+            case .Slash: {
+                v2 := pop(&temp_stack)
+                v1 := pop(&temp_stack)
+                append(&temp_stack, v1)
+                _emit(t, Divide{})
+            }
+            case .Percent: {
+                v2 := pop(&temp_stack)
+                v1 := pop(&temp_stack)
+                append(&temp_stack, v1)
+                _emit(t, Modulo{})
+            }
+        }
+    }
+
+    if ev.type != nil && inferred_type != nil && !types_equal(ev.type, inferred_type) {
+        parsing_error(name_token, "type '{}' does not match with value of type '{}' in variable '{}'", type_to_string(ev.type), type_to_string(inferred_type), name)
+    }
+
+    if ev.type == nil {
+        ev.type = inferred_type
+    }
+
+    if len(temp_stack) > 1 { compiler_bug() }
+
+    if is_global {
+        address = get_global_address()
+        ev.offset = gen.global_mem_count
+        gen.global_mem_count += ev.size
+        emit_global(name_token, Declare_Var_Global{
+            offset = ev.offset,
+            kind = ev.type.variant.(Type_Basic).kind,
+            set = inferred_type != nil,
+        })
+    } else {
+        f := checker.curr_function
+        address = get_local_address(f)
+        ev.offset = f.local_mem
+        f.local_mem += ev.size
+        emit(f, name_token, Declare_Var_Local{
+            offset = ev.offset,
+            kind = ev.type.variant.(Type_Basic).kind,
+            set = inferred_type != nil,
+        })
+    }
+
+    append(entities, Entity{
+        address = address,
+        pos = name_token.pos,
+        name = name,
+        variant = ev,
     })
 }
 
@@ -937,49 +1108,6 @@ parse_function_head :: proc(ef: ^Entity_Function) {
             }
         }
     }
-}
-
-declare_var :: proc() {
-    name_token := expect(.Word)
-    name := name_token.text
-    is_global := checker.curr_scope == gscope
-    entities := &checker.curr_scope.entities
-    ev := Entity_Variable{}
-    address: uint
-
-    type_lit_token := expect(.Type_Literal)
-    ev.type = checker.basic_types[type_string_to_basic(type_lit_token.text)]
-    ev.size = ev.type.size
-
-    // TODO: Should also look into setting a default value
-
-    if is_global {
-        address = get_global_address()
-        ev.offset = gen.global_mem_count
-        gen.global_mem_count += ev.size
-        emit_global(name_token, Declare_Var_Global{
-            offset = ev.offset,
-            kind = type_string_to_basic(type_lit_token.text),
-        })
-    } else {
-        f := checker.curr_function
-        address = get_local_address(f)
-        ev.offset = f.local_mem
-        f.local_mem += ev.size
-        emit(f, name_token, Declare_Var_Local{
-            offset = ev.offset,
-            kind = type_string_to_basic(type_lit_token.text),
-        })
-    }
-
-    expect(.Semicolon)
-
-    append(entities, Entity{
-        address = address,
-        pos = name_token.pos,
-        name = name,
-        variant = ev,
-    })
 }
 
 parse_using :: proc() {
@@ -1453,17 +1581,10 @@ parse_word :: proc(f: ^Function, t: Token) {
 
     switch v in result.variant {
     case Entity_Binding:
-        b := emit(f, t, Push_Bound{v.index, false})
+        emit(f, t, Push_Bound{v.index, false})
         f.stack->push(v.type)
     case Entity_Constant:
-        switch {
-        case type_is_basic(v.type, .Bool):
-            emit(f, t, Push_Bool{v.value.(bool)})
-        case type_is_basic(v.type, .Int):
-            emit(f, t, Push_Int{v.value.(int)})
-        case type_is_basic(v.type, .String):
-            emit(f, t, Push_String{push_string(v.value.(string))})
-        }
+        emit(f, t, v.value)
         f.stack->push(v.type)
     case Entity_Function:
         switch {
