@@ -19,8 +19,7 @@ Bytecode_Variant :: union {
     Declare_Var_Global,
     Declare_Var_Local,
 
-    Get, Get_Byte,
-    Set, Set_Byte,
+    Get_Byte, Set, Set_Byte,
 
     Add,
     Divide,
@@ -76,7 +75,6 @@ Declare_Var_Local :: struct { offset: uint, kind: Type_Basic_Kind, set: bool }
 
 // BEGIN MEMORY
 
-Get :: struct {}
 Get_Byte :: struct {}
 Set :: struct {}
 Set_Byte :: struct {}
@@ -144,7 +142,6 @@ bytecode_to_string :: proc(b: Bytecode) -> string {
     case Declare_Var_Global: return "declare global variable"
     case Declare_Var_Local: return "declare local variable"
 
-    case Get: return "get"
     case Get_Byte: return "get-byte"
     case Set: return "set"
     case Set_Byte: return "set-byte"

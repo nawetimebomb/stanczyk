@@ -1524,7 +1524,6 @@ parse_token :: proc(token: Token, f: ^Function) -> bool {
         f.stack->push(A)
         f.stack->push(B)
 
-    case .Get:      parse_memory_op(f, token, .get)
     case .Get_Byte: parse_memory_op(f, token, .get_byte)
     case .Set:      parse_memory_op(f, token, .set)
     case .Set_Byte: parse_memory_op(f, token, .set_byte)
@@ -1638,13 +1637,9 @@ parse_comparison_op :: proc(f: ^Function, t: Token, op: Comparison_Kind, autoinc
 }
 
 parse_memory_op :: proc(f: ^Function, t: Token, op: enum {
-    get, get_byte, set, set_byte,
+    get_byte, set, set_byte,
 }) {
     switch op {
-    case .get:
-        A := f.stack->pop()
-        emit(f, t, Get{})
-        f.stack->push(A)
     case .get_byte:
         B := f.stack->pop()
         A := f.stack->pop()
@@ -1652,26 +1647,62 @@ parse_memory_op :: proc(f: ^Function, t: Token, op: enum {
         f.stack->push(checker.basic_types[.Byte])
     case .set:
         B := f.stack->pop()
-        A := f.stack->pop()
 
         last_op := &f.code[len(f.code) - 1]
 
         #partial switch &v in last_op.variant {
             case Push_Bound: {
                 if checker.curr_scope.kind != .Let_Mutable {
-                    compilation_error(
-                        f,
-                        "can't rebind value of binding in 'let' scope. Maybe you wanted to use 'let*'?",
+                    parsing_error(
+                        t, "can't rebind value of binding in 'let' scope. Maybe you wanted to use 'let*'?",
                     )
                 }
+                v.use_pointer = true
             }
             case Push_Var_Global: v.use_pointer = true
             case Push_Var_Local: v.use_pointer = true
-            case: compilation_error(
-                f,
-                "last value before 'set' is not a variable",
-            )
+            case: {
+                index := len(f.code) - 2
+                max_lookup_address := max(0, index - 10)
+                found := false
+
+                for !found && index > max_lookup_address {
+                    test_op := f.code[index]
+
+                    #partial switch v in test_op.variant {
+                        case Push_Bound: {
+                            if checker.curr_scope.kind != .Let_Mutable {
+                                parsing_error(
+                                    t, "can't rebind value of binding in 'let' scope. Maybe you wanted to use 'let*'?",
+                                )
+                            }
+                            emit(f, t, Push_Bound{val = v.val, use_pointer = true})
+                            f.stack->push(checker.basic_types[.Int])
+                            found = true
+                            break
+                        }
+                        case Push_Var_Global: {
+                            emit(f, t, Push_Var_Global{val = v.val, use_pointer = true})
+                            f.stack->push(checker.basic_types[.Int])
+                            found = true
+                            break
+                        }
+                        case Push_Var_Local: {
+                            emit(f, t, Push_Var_Local{val = v.val, use_pointer = true})
+                            f.stack->push(checker.basic_types[.Int])
+                            found = true
+                            break
+                        }
+                    }
+
+                    index -= 1
+                }
+
+                if !found { compilation_error(f, "no variable found while trying to do 'set'") }
+            }
         }
+
+        A := f.stack->pop()
 
         // Add validation for pointers
         emit(f, t, Set{})

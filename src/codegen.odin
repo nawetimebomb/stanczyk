@@ -223,11 +223,6 @@ gen_op :: proc(c: Bytecode, f: ^Function = nil) {
             case .String: writecode("    mov QWORD [rax], EMPTY_STRING")
             }
         }
-    case Get:
-        writecode("    pop rax")
-        writecode("    xor rbx, rbx")
-        writecode("    mov rbx, [rax]")
-        writecode("    push rbx")
     case Get_Byte:
         writecode("    pop rbx")
         writecode("    pop rax")
