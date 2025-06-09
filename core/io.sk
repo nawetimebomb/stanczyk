@@ -36,7 +36,7 @@ foreign fn write as C.write (int string int) ---
 foreign fn read as C.read (int ^string int --- int) ---
 
 // C.sprintf (buf, format, int)
-foreign fn sprintf as C.sprintf (^string string any --- int) ---
+foreign fn sprintf as C.sprintf (^string string any) ---
 
 const STDIN  0 ;
 const STDOUT 1 ;
@@ -45,14 +45,14 @@ const STDERR 2 ;
 fn print (bool) if "true" else "false" fi print ;
 
 fn print (byte)
-  var char string ;
-  &char "%c" rot C.sprintf drop
-  char print
+  var buf string ;
+  &buf "%c" rot C.sprintf
+  buf print
 ;
 
 fn print (int)
   var buf string ;
-  &buf "%li" rot C.sprintf drop
+  &buf "%li" rot C.sprintf
   buf print
 ;
 

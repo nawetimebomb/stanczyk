@@ -1391,6 +1391,11 @@ parse_token :: proc(token: Token, f: ^Function) -> bool {
     case .Loop:
         scope := checker.curr_scope
         #partial switch scope.kind {
+            case .For_In_String: {
+                emit(f, token, Loop_String{
+                    address = scope.start_op.address,
+                })
+            }
             case .For: {
                 A := f.stack->pop()
 
@@ -1403,8 +1408,7 @@ parse_token :: proc(token: Token, f: ^Function) -> bool {
                 emit(f, token, Loop{
                     address = scope.start_op.address,
                 })
-                pop_scope()
-                f.stack->reset()
+
             }
             case .For_In_Range: {
                 if scope.autoincrement {
@@ -1419,12 +1423,14 @@ parse_token :: proc(token: Token, f: ^Function) -> bool {
                 }
 
                 emit(f, token, Let_Unbind{2})
-                pop_scope()
             }
             case : compilation_error(
                 f, "'loop' unattached to a 'for' or 'do' statement",
             )
         }
+
+        pop_scope()
+        f.stack->reset()
 
     case .Leave: emit(f, token, Return{})
 
@@ -1518,6 +1524,7 @@ parse_token :: proc(token: Token, f: ^Function) -> bool {
 
     case .Get_Byte: parse_memory_op(f, token, .get_byte)
     case .Set:      parse_memory_op(f, token, .set)
+    case .Set_Star: parse_memory_op(f, token, .set_star)
     case .Set_Byte: parse_memory_op(f, token, .set_byte)
 
     case .Plus:          parse_binary_op(f, token, .add)
@@ -1629,7 +1636,7 @@ parse_comparison_op :: proc(f: ^Function, t: Token, op: Comparison_Kind, autoinc
     f.stack->push(checker.basic_types[.Bool])
 }
 
-parse_memory_op :: proc(f: ^Function, t: Token, op: enum { get_byte, set, set_byte, }) {
+parse_memory_op :: proc(f: ^Function, t: Token, op: enum { get_byte, set, set_byte, set_star }) {
     switch op {
     case .get_byte:
         B := f.stack->pop()
@@ -1638,6 +1645,7 @@ parse_memory_op :: proc(f: ^Function, t: Token, op: enum { get_byte, set, set_by
         f.stack->push(checker.basic_types[.Byte])
     case .set:
         B := f.stack->pop()
+        A := f.stack->pop()
 
         last_op := &f.code[len(f.code) - 1]
 
@@ -1652,50 +1660,50 @@ parse_memory_op :: proc(f: ^Function, t: Token, op: enum { get_byte, set, set_by
             }
             case Push_Var_Global: v.use_pointer = true
             case Push_Var_Local: v.use_pointer = true
-            case: {
-                index := len(f.code) - 2
-                max_lookup_address := max(0, index - 10)
-                found := false
-
-                for !found && index > max_lookup_address {
-                    test_op := f.code[index]
-
-                    #partial switch v in test_op.variant {
-                        case Push_Bound: {
-                            if !v.mutable {
-                                parsing_error(
-                                    t, "can't rebind value of binding in 'let' scope. Maybe you wanted to use 'let*'?",
-                                )
-                            }
-                            emit(f, t, Push_Bound{val = v.val, use_pointer = true})
-                            f.stack->push(checker.basic_types[.Int])
-                            found = true
-                            break
-                        }
-                        case Push_Var_Global: {
-                            emit(f, t, Push_Var_Global{val = v.val, use_pointer = true})
-                            f.stack->push(checker.basic_types[.Int])
-                            found = true
-                            break
-                        }
-                        case Push_Var_Local: {
-                            emit(f, t, Push_Var_Local{val = v.val, use_pointer = true})
-                            f.stack->push(checker.basic_types[.Int])
-                            found = true
-                            break
-                        }
-                    }
-
-                    index -= 1
-                }
-
-                if !found { compilation_error(f, "no variable found while trying to do 'set'") }
-            }
+            case: parsing_error(t, "no variable found while trying to do 'set'")
         }
 
-        A := f.stack->pop()
-
         // Add validation for pointers
+        emit(f, t, Set{})
+    case .set_star:
+        B := f.stack->pop()
+        found := false
+        index := len(f.code) - 1
+        max_lookup_index := max(0, index - 10)
+
+        for !found && index > max_lookup_index {
+            test_op := &f.code[index]
+
+            #partial switch &v in test_op.variant {
+                case Push_Bound: {
+                    if !v.mutable {
+                        parsing_error(
+                            t, "can't rebind value of binding in 'let' scope. Maybe you wanted to use 'let*'?",
+                        )
+                    }
+                    emit(f, t, Push_Bound{val = v.val, use_pointer = true})
+                    found = true
+                    break
+                }
+                case Push_Var_Global: {
+                    emit(f, t, Push_Var_Global{val = v.val, use_pointer = true})
+                    found = true
+                    break
+                }
+                case Push_Var_Local: {
+                    emit(f, t, Push_Var_Local{val = v.val, use_pointer = true})
+                    found = true
+                    break
+                }
+            }
+
+            index -= 1
+        }
+
+        if !found {
+            parsing_error(t, "no variable found while trying to do 'set*'")
+        }
+
         emit(f, t, Set{})
     case .set_byte:
         C := f.stack->pop()
@@ -1715,7 +1723,6 @@ parse_for_op :: proc(f: ^Function, t: Token, kind: enum { For, For_Star }) {
     //   - Stack has an string (which behaves similar to array)
     scope := push_scope(t, .Invalid)
     words := make([dynamic]Token, context.temp_allocator)
-    default_words := []string{"__stanczyk__internal__for_lhs__", "__stanczyk__internal__for_rhs__"}
     defer delete(words)
 
     // Check this stack type to figure out what to do...
@@ -1726,6 +1733,7 @@ parse_for_op :: proc(f: ^Function, t: Token, kind: enum { For, For_Star }) {
         // This can be a regular range 'for' loop with autoincrement or a
         // range loop with manual increment.
         prev_op := pop(&f.code)
+        default_words := []string{"__stanczyk__internal__for_lhs__", "__stanczyk__internal__for_rhs__"}
 
         #partial switch v in prev_op.variant {
             case Comparison: {
@@ -1740,7 +1748,7 @@ parse_for_op :: proc(f: ^Function, t: Token, kind: enum { For, For_Star }) {
                     }
                 }
 
-                if len(words) < 2 {
+                if len(words) < len(default_words) {
                     default_words_to_add := default_words[len(words):]
                     for w in default_words_to_add { t2 := t; t2.text = w; append(&words, t2) }
                 }
@@ -1772,8 +1780,26 @@ parse_for_op :: proc(f: ^Function, t: Token, kind: enum { For, For_Star }) {
                 f.stack->save()
             }
         }
-    case type_is_basic(T, .String): unimplemented()
-        // This is iterating over the string
+    case type_is_basic(T, .String):
+        default_words := []string{"__stanczyk__internal__for_char__", "__stanczyk__internal__for_inx__", "__stanczyk__internal__for_str__"}
+        append(&words, expect(.Word))
+        if allow(.Word) { append(&words, checker.prev_token) }
+        expect(.In)
+
+        if len(words) < len(default_words) {
+            default_words_to_add := default_words[len(words):]
+            for w in default_words_to_add { t2 := t; t2.text = w; append(&words, t2) }
+        }
+
+        f.stack->push(checker.basic_types[.Byte]) // character
+        f.stack->push(checker.basic_types[.Int])  // index
+        f.stack->push(checker.basic_types[.String]) // the original string
+        bind_words(f, words[:])
+        scope.kind = .For_In_String
+        scope.validation_at_end = .Stack_Is_Unchanged
+        scope.start_op = emit(f, t, For_In_String{})
+        create_stack_snapshot(f, scope)
+        f.stack->save()
     case : unimplemented()
         //case type_is_array(): not implemented
     }

@@ -305,9 +305,9 @@ gen_op :: proc(c: Bytecode, f: ^Function = nil) {
         writecode("    sub rax, 16")
         writecode("    mov [ret_stack_ptr], rax")
         writecode("    pop rbx")
-        writecode("    mov [rax+8], rbx")
+        writecode("    mov [rax+8], rbx") // limit
         writecode("    pop rbx")
-        writecode("    mov [rax+0], rbx")
+        writecode("    mov [rax+0], rbx") // index
         writecode(".start{}:", code_ip)
         writecode("    mov rax, [ret_stack_ptr]")
         writecode("    add rax, 0")
@@ -317,11 +317,41 @@ gen_op :: proc(c: Bytecode, f: ^Function = nil) {
         writecode("    push QWORD [rax]")
         f.binds_count += 2
 
+    case For_In_String:
+        writecode("    mov rax, [ret_stack_ptr]")
+        writecode("    sub rax, 24")
+        writecode("    mov [ret_stack_ptr], rax")
+        writecode("    pop rbx")
+        writecode("    xor rcx, rcx")
+        writecode("    mov cl, [rbx]")
+        writecode("    mov [rax+16], rbx") // the original string
+        writecode("    mov QWORD [rax+8], 0") // index
+        writecode("    mov [rax+0], rcx") // character
+        writecode(".start{}:", code_ip)
+        writecode("    mov rbx, [ret_stack_ptr]")
+        writecode("    mov rax, [rbx+0]")
+        writecode("    test rax, rax")
+        writecode("    jz .end{}", code_ip)
+
+    case Loop_String:
+        writecode("    mov rax, [ret_stack_ptr]")
+        // updating the index
+        writecode("    mov rbx, [rax+8]")
+        writecode("    add rbx, 1")
+        writecode("    mov [rax+8], rbx")
+        // updating the character
+        writecode("    xor rdx, rdx")
+        writecode("    mov rcx, [rax+16]")
+        writecode("    add rcx, rbx")
+        writecode("    mov dl, [rcx]")
+        writecode("    mov [rax+0], rdx")
+        writecode("    jmp .start{}", v.address)
+        writecode(".end{}:", v.address)
+
     case Loop_Autoincrement:
         writecode("    mov rax, [ret_stack_ptr]")
-        writecode("    mov rbx, [rax]")
+        writecode("    mov rbx, [rax+0]")
         writecode("    {} rbx, 1", v.direction == 1 ? "add" : "sub")
-        writecode("    mov rax, [ret_stack_ptr]")
         writecode("    mov [rax+0], rbx")
         writecode("    jmp .start{}", v.address)
         writecode(".end{}:", v.address)

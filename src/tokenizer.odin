@@ -47,7 +47,8 @@ Token_Kind :: enum u8 {
     For, For_Star, Loop,
     Leave,
 
-    Get_Byte, Set, Set_Byte,
+    Get_Byte,
+    Set, Set_Star, Set_Byte,
 
     Binary_Literal, Character_Literal, Cstring_Literal,
     Bool_Literal, Float_Literal, Hex_Literal,
@@ -108,7 +109,8 @@ token_string_table := [Token_Kind]string{
         .Loop = "loop",
         .Leave = "leave",
 
-        .Get_Byte = "get-byte", .Set = "set", .Set_Byte = "set-byte",
+        .Get_Byte = "get-byte",
+        .Set = "set", .Set_Star = "set*", .Set_Byte = "set-byte",
 
         .Binary_Literal = "literal binary. Example 0b10 or 2b",
         .Bool_Literal = "literal boolean. Example: false or true",
@@ -377,6 +379,7 @@ string_to_token_kind :: proc(str: string) -> (kind: Token_Kind) {
 
     case "get-byte": kind = .Get_Byte
     case "set": kind = .Set
+    case "set*": kind = .Set_Star
     case "set-byte": kind = .Set_Byte
 
     case "false": kind = .Bool_Literal
