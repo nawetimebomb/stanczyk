@@ -44,7 +44,7 @@ Token_Kind :: enum u8 {
 
     Let, In, End,
     Case, Else, Fi, If,
-    For, Loop,
+    For, For_Star, Loop,
     Leave,
 
     Get_Byte, Set, Set_Byte,
@@ -104,7 +104,8 @@ token_string_table := [Token_Kind]string{
 
         .Case = "case", .Else = "else",
         .Fi = "fi", .If = "if",
-        .For = "for", .Loop = "loop",
+        .For = "for", .For_Star = "for*",
+        .Loop = "loop",
         .Leave = "leave",
 
         .Get_Byte = "get-byte", .Set = "set", .Set_Byte = "set-byte",
@@ -370,6 +371,7 @@ string_to_token_kind :: proc(str: string) -> (kind: Token_Kind) {
     case "fi": kind = .Fi
 
     case "for": kind = .For
+    case "for*": kind = .For_Star
     case "loop": kind = .Loop
     case "leave": kind = .Leave
 

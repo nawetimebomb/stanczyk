@@ -327,14 +327,6 @@ gen_op :: proc(c: Bytecode, f: ^Function = nil) {
         writecode(".end{}:", v.address)
 
     case Loop:
-        if v.rebinds > 0 {
-            for x := 0; x < v.rebinds; x += 1 {
-                writecode("    mov rax, [ret_stack_ptr]")
-                writecode("    pop rbx")
-                writecode("    mov [rax+{}], rbx", x * 8)
-            }
-        }
-
         writecode("    jmp .start{}", v.address)
         writecode(".end{}:", v.address)
 

@@ -14,6 +14,7 @@ Entity_Binding :: struct {
     type:  ^Type,
     index: int,
     internal: bool,
+    mutable: bool,
 }
 
 Entity_Constant :: struct {
@@ -81,8 +82,7 @@ Scope_Kind :: enum u8 {
     Invalid,
     Function,
     Global,
-    If, If_Else,
-    Let, Let_Mutable,
+    If, If_Else, Let,
     For, For_In_Range, For_In_Array, For_In_String,
 }
 
@@ -848,7 +848,7 @@ declare_var :: proc() {
 
                 switch v in entity.variant {
                 case Entity_Binding:
-                    _emit(t, Push_Bound{v.index, false})
+                    _emit(t, Push_Bound{val = v.index, mutable = v.mutable})
                     append(&temp_stack, v.type)
                     if inferred_type != nil && !types_equal(inferred_type, v.type) {
                         parsing_error(
@@ -1386,7 +1386,8 @@ parse_token :: proc(token: Token, f: ^Function) -> bool {
             }
         }
 
-    case .For: parse_for_operation(f, token)
+    case .For: parse_for_op(f, token, .For)
+    case .For_Star: parse_for_op(f, token, .For_Star)
     case .Loop:
         scope := checker.curr_scope
         #partial switch scope.kind {
@@ -1412,17 +1413,8 @@ parse_token :: proc(token: Token, f: ^Function) -> bool {
                         direction = scope.autoincrement_value,
                     })
                 } else {
-                    A := f.stack->pop()
-
-                    stack_expect(
-                        token.pos,
-                        "(int) expected in range for loop",
-                        types_equal(A, checker.basic_types[.Int]),
-                    )
-
                     emit(f, token, Loop{
                         address = scope.start_op.address,
-                        rebinds = 1,
                     })
                 }
 
@@ -1549,7 +1541,7 @@ parse_token :: proc(token: Token, f: ^Function) -> bool {
     return true
 }
 
-bind_words :: proc(f: ^Function, t: []Token) {
+bind_words :: proc(f: ^Function, t: []Token, mutable := false) {
     check_scope := checker.curr_scope
     new_binds_count := len(t)
 
@@ -1572,6 +1564,7 @@ bind_words :: proc(f: ^Function, t: []Token) {
                 index = index,
                 type = A,
                 internal = strings.starts_with(word.text, "__stanczyk__internal__"),
+                mutable = mutable,
             },
         })
     }
@@ -1582,7 +1575,7 @@ parse_word :: proc(f: ^Function, t: Token) {
 
     switch v in result.variant {
     case Entity_Binding:
-        emit(f, t, Push_Bound{v.index, false})
+        emit(f, t, Push_Bound{val = v.index, mutable = v.mutable})
         f.stack->push(v.type)
     case Entity_Constant:
         emit(f, t, v.value)
@@ -1632,13 +1625,11 @@ parse_binary_op :: proc(f: ^Function, t: Token, op: enum {
 parse_comparison_op :: proc(f: ^Function, t: Token, op: Comparison_Kind, autoincrement := false) {
     B := f.stack->pop()
     A := f.stack->pop()
-    emit(f, t, Comparison{op, autoincrement})
+    emit(f, t, Comparison{op, autoincrement, A})
     f.stack->push(checker.basic_types[.Bool])
 }
 
-parse_memory_op :: proc(f: ^Function, t: Token, op: enum {
-    get_byte, set, set_byte,
-}) {
+parse_memory_op :: proc(f: ^Function, t: Token, op: enum { get_byte, set, set_byte, }) {
     switch op {
     case .get_byte:
         B := f.stack->pop()
@@ -1652,7 +1643,7 @@ parse_memory_op :: proc(f: ^Function, t: Token, op: enum {
 
         #partial switch &v in last_op.variant {
             case Push_Bound: {
-                if checker.curr_scope.kind != .Let_Mutable {
+                if !v.mutable {
                     parsing_error(
                         t, "can't rebind value of binding in 'let' scope. Maybe you wanted to use 'let*'?",
                     )
@@ -1671,7 +1662,7 @@ parse_memory_op :: proc(f: ^Function, t: Token, op: enum {
 
                     #partial switch v in test_op.variant {
                         case Push_Bound: {
-                            if checker.curr_scope.kind != .Let_Mutable {
+                            if !v.mutable {
                                 parsing_error(
                                     t, "can't rebind value of binding in 'let' scope. Maybe you wanted to use 'let*'?",
                                 )
@@ -1714,7 +1705,7 @@ parse_memory_op :: proc(f: ^Function, t: Token, op: enum {
     }
 }
 
-parse_for_operation :: proc(f: ^Function, t: Token) {
+parse_for_op :: proc(f: ^Function, t: Token, kind: enum { For, For_Star }) {
     // We need to figure out here what type of loop the user wants to use.
     // The conditions are the following:
     //   - Stack has a boolean and last operation was a sequence comparison
@@ -1724,6 +1715,7 @@ parse_for_operation :: proc(f: ^Function, t: Token) {
     //   - Stack has an string (which behaves similar to array)
     scope := push_scope(t, .Invalid)
     words := make([dynamic]Token, context.temp_allocator)
+    default_words := []string{"__stanczyk__internal__for_lhs__", "__stanczyk__internal__for_rhs__"}
     defer delete(words)
 
     // Check this stack type to figure out what to do...
@@ -1736,23 +1728,26 @@ parse_for_operation :: proc(f: ^Function, t: Token) {
         prev_op := pop(&f.code)
 
         #partial switch v in prev_op.variant {
-            case Comparison:
-            switch v.kind {
-            case .ge, .gt, .le, .lt:
-                // Only one word is expected to be bound here
-                if allow(.Word) {
-                    append(&words, checker.prev_token)
-                    expect(.In)
+            case Comparison: {
+                if kind == .For {
+                    internal_words: for {
+                        t2 := next()
+                        #partial switch t2.kind {
+                            case .Word: append(&words, t2)
+                            case .In: break internal_words
+                            case: parsing_error(t2, "unexpected token '{}' in 'for' loop", token_to_string(t2))
+                        }
+                    }
                 }
-                // make sure add internal tracker for limit
-                append(&words, Token{
-                    pos = t.pos,
-                    kind = .Word,
-                    text = "__stanczyk__internal__for_range_limit",
-                })
-                f.stack->push(checker.basic_types[.Int])
-                f.stack->push(checker.basic_types[.Int])
-                bind_words(f, words[:])
+
+                if len(words) < 2 {
+                    default_words_to_add := default_words[len(words):]
+                    for w in default_words_to_add { t2 := t; t2.text = w; append(&words, t2) }
+                }
+
+                f.stack->push(v.operands)
+                f.stack->push(v.operands)
+                bind_words(f, words[:], true)
 
                 scope.autoincrement = v.autoincrement
                 scope.autoincrement_value = v.kind == .gt || v.kind == .ge ? -1 : 1
@@ -1764,14 +1759,6 @@ parse_for_operation :: proc(f: ^Function, t: Token) {
                     address = scope.start_op.address,
                     use_self = false,
                 })
-                create_stack_snapshot(f, scope)
-                f.stack->save()
-            case .eq, .ne:
-                // No words expected to be bound here
-                scope.kind = .For
-                scope.validation_at_end = .Stack_Is_Unchanged
-                emit(f, t, prev_op.variant)
-                scope.start_op = emit(f, t, Do{ use_self = true })
                 create_stack_snapshot(f, scope)
                 f.stack->save()
             }
@@ -1788,6 +1775,6 @@ parse_for_operation :: proc(f: ^Function, t: Token) {
     case type_is_basic(T, .String): unimplemented()
         // This is iterating over the string
     case : unimplemented()
-    //case type_is_array(): not implemented
+        //case type_is_array(): not implemented
     }
 }

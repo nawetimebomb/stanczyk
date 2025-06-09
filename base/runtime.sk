@@ -62,9 +62,9 @@ fn 2drop (any any) drop drop ;
 //   - The 2 given arguments, twice
 fn 2dup (x y --- x y x y) over over ;
 
-fn len (string --- int) let s in 0 0 dup s get-byte != for 1 + dup s get-byte 0 != loop end ;
+fn len (string --- int) let s in 0 0 s get-byte 0 != for c in 1 + dup s get-byte c set loop end ;
 
-fn len (int --- int) 0 swap 0 > for x in 1 + x 10 / loop ;
+fn len (int --- int) 0 swap 0 > for x in 1 + x 10 / set loop ;
 
 fn ? (bool x x --- x) rot if drop else nip fi ;
 

@@ -61,7 +61,7 @@ Comparison_Kind :: enum {
 // BEGIN VALUE
 
 Push_Bool :: struct { val: bool }
-Push_Bound :: struct { val: int, use_pointer: bool }
+Push_Bound :: struct { val: int, use_pointer: bool, mutable: bool }
 Push_Byte :: struct { val: byte }
 Push_Cstring :: struct { val: int, length: int }
 Push_Int :: struct { val: int }
@@ -88,7 +88,7 @@ Divide :: struct {}
 Modulo :: struct {}
 Multiply :: struct {}
 Substract :: struct {}
-Comparison :: struct { kind: Comparison_Kind, autoincrement: bool }
+Comparison :: struct { kind: Comparison_Kind, autoincrement: bool, operands: ^Type }
 
 // END BINARY
 
@@ -99,7 +99,7 @@ Else :: struct { address: uint }
 Fi :: struct { address: uint }
 Do :: struct { use_self: bool, address: uint }
 For_In_Range :: struct {}
-Loop :: struct { address: uint, rebinds: int }
+Loop :: struct { address: uint }
 Loop_Autoincrement :: struct { address: uint, direction: int }
 
 // END FLOW CONTROL

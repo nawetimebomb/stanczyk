@@ -66,4 +66,7 @@ fn println (int) print STDOUT "\n" 1 C.write ;
 
 fn println (string) print STDOUT "\n" 1 C.write ;
 
+// TODO: Improve this by actually supporting a buffer and not a string
+fn read (int string) let fd buf in fd &buf 1024 C.read 0 buf rot 1 - set-byte end ;
+
 fn write (string int) swap dup len C.write ;
