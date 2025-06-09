@@ -7,19 +7,16 @@ fn factorial-recursive (int --- int)
 ;
 
 fn factorial-loop (int --- int)
-  dup 1 -
-  for x in take 0 > do
-    x *
-  x 1 - loop
+  dup 1 - 0 ..> for x in x * loop
 ;
 
-// This program runs a recursive function to find the factorial
-// of a number.
+// This program runs recursive and loop-based functions to find the factorial of a number.
 // Usage:
 //   - <number> factorial-recursive println
 //   - <number> factorial-loop println
 fn main
   const NUMBER int 5 ;
+
   "Using recursive:" println
   "Factorial of " print NUMBER print " is: " print NUMBER factorial-recursive println
   "" println

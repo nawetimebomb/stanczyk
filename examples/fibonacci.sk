@@ -10,18 +10,17 @@ fn fibonacci-loop (int --- int)
   var n2 n0 n1 + ;
 
   let nth in
-    for x in 3 nth <= do
+    3 nth ..<= for x in
       n1 n0 set
       n2 n1 set
       n0 n1 + n2 set
-    x 1 + loop
+    loop
   end
 
   n2
 ;
 
-// This program runs a recursive function to find the Nth number on the
-// Fibonacci sequence.
+// This program runs recursive and loop-based functions to find the Nth number on the Fibonacci sequence.
 // Usage:
 //   - <number> fibonacci-recursive println
 //   - <number> fibonacci-loop println
