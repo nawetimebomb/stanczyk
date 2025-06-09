@@ -294,13 +294,15 @@ gen_op :: proc(c: Bytecode, f: ^Function = nil) {
     case Fi:
         writecode(".end{}:", v.address)
 
-    case Do:
-        jump_address_on_false := v.use_self ? code_ip : v.address
+    case For_Infinite_Start:
         writecode(".start{}:", code_ip)
         writecode("    pop rax")
         writecode("    test rax, rax")
-        writecode("    jz .end{}", jump_address_on_false)
-    case For_In_Range:
+        writecode("    jz .end{}", code_ip)
+    case For_Infinite_End:
+        writecode("    jmp .start{}", v.address)
+        writecode(".end{}:", v.address)
+    case For_Range_Start:
         writecode("    mov rax, [ret_stack_ptr]")
         writecode("    sub rax, 16")
         writecode("    mov [ret_stack_ptr], rax")
@@ -309,15 +311,38 @@ gen_op :: proc(c: Bytecode, f: ^Function = nil) {
         writecode("    pop rbx")
         writecode("    mov [rax+0], rbx") // index
         writecode(".start{}:", code_ip)
-        writecode("    mov rax, [ret_stack_ptr]")
-        writecode("    add rax, 0")
-        writecode("    push QWORD [rax]")
-        writecode("    mov rax, [ret_stack_ptr]")
-        writecode("    add rax, 8")
-        writecode("    push QWORD [rax]")
+        writecode("    mov r8, [ret_stack_ptr]")
+        writecode("    xor rcx, rcx")
+        writecode("    mov rdx, 1")
+        writecode("    mov rbx, [rax+0]")
+        writecode("    mov rax, [rax+8]")
+        writecode("    cmp rax, rbx")
+        switch v.kind {
+        case .eq: writecode("    cmove rcx, rdx")
+        case .ge: writecode("    cmovge rcx, rdx")
+        case .gt: writecode("    cmovg rcx, rdx")
+        case .le: writecode("    cmovle rcx, rdx")
+        case .lt: writecode("    cmovl rcx, rdx")
+        case .ne: writecode("    cmovne rcx, rdx")
+        }
+        writecode("    test rcx, rcx")
+        writecode("    jz .end{}", code_ip)
         f.binds_count += 2
+    case For_Range_End:
+        if v.autoincrement != .off {
+            writecode("    mov rax, [ret_stack_ptr]")
+            writecode("    mov rbx, [rax+0]")
+            writecode("    {} rbx, 1", v.autoincrement == .up ? "add" : "sub")
+            writecode("    mov [rax+0], rbx")
+        }
 
-    case For_In_String:
+        writecode("    jmp .start{}", v.address)
+        writecode(".end{}:", v.address)
+        writecode("    mov rax, [ret_stack_ptr]")
+        writecode("    add rax, 16")
+        writecode("    mov [ret_stack_ptr], rax")
+        f.binds_count -= 2
+    case For_String_Start:
         writecode("    mov rax, [ret_stack_ptr]")
         writecode("    sub rax, 24")
         writecode("    mov [ret_stack_ptr], rax")
@@ -332,8 +357,8 @@ gen_op :: proc(c: Bytecode, f: ^Function = nil) {
         writecode("    mov rax, [rbx+0]")
         writecode("    test rax, rax")
         writecode("    jz .end{}", code_ip)
-
-    case Loop_String:
+        f.binds_count += 3
+    case For_String_End:
         writecode("    mov rax, [ret_stack_ptr]")
         // updating the index
         writecode("    mov rbx, [rax+8]")
@@ -347,18 +372,10 @@ gen_op :: proc(c: Bytecode, f: ^Function = nil) {
         writecode("    mov [rax+0], rdx")
         writecode("    jmp .start{}", v.address)
         writecode(".end{}:", v.address)
-
-    case Loop_Autoincrement:
         writecode("    mov rax, [ret_stack_ptr]")
-        writecode("    mov rbx, [rax+0]")
-        writecode("    {} rbx, 1", v.direction == 1 ? "add" : "sub")
-        writecode("    mov [rax+0], rbx")
-        writecode("    jmp .start{}", v.address)
-        writecode(".end{}:", v.address)
-
-    case Loop:
-        writecode("    jmp .start{}", v.address)
-        writecode(".end{}:", v.address)
+        writecode("    add rax, 24")
+        writecode("    mov [ret_stack_ptr], rax")
+        f.binds_count -= 3
 
     case Drop:
         writecode("    pop rax")
@@ -478,15 +495,6 @@ gen_ascii :: proc(s: string) -> string {
 
         strings.write_byte(&result, ',')
     }
-
-    // for r in s {
-    //     strings.write_int(&result, int(r))
-    //     strings.write_string(&result, ",")
-    // }
-
-    // strings.write_byte(&result, '"')
-    // strings.write_string(&result, s)
-    // strings.write_byte(&result, '"')
 
     strings.write_string(&result, "0")
 

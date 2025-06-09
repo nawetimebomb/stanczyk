@@ -31,12 +31,13 @@ Bytecode_Variant :: union {
     If,
     Else,
     Fi,
-    Do,
-    For_In_Range,
-    For_In_String,
-    Loop,
-    Loop_String,
-    Loop_Autoincrement,
+
+    For_Infinite_Start,
+    For_Infinite_End,
+    For_Range_Start,
+    For_Range_End,
+    For_String_Start,
+    For_String_End,
 
     Drop,
     Dup,
@@ -99,12 +100,14 @@ Comparison :: struct { kind: Comparison_Kind, autoincrement: bool, operands: ^Ty
 If :: struct {}
 Else :: struct { address: uint }
 Fi :: struct { address: uint }
-Do :: struct { use_self: bool, address: uint }
-For_In_Range :: struct {}
-For_In_String :: struct {}
-Loop :: struct { address: uint }
-Loop_String :: struct { address: uint }
-Loop_Autoincrement :: struct { address: uint, direction: int }
+
+For_Infinite_Start :: struct {}
+For_Infinite_End   :: struct { address: uint }
+For_Range_Start :: struct { kind: Comparison_Kind }
+For_Range_End   :: struct { address: uint, autoincrement: enum { off, up, down } }
+
+For_String_Start :: struct {}
+For_String_End :: struct { address: uint }
 
 // END FLOW CONTROL
 
@@ -169,12 +172,12 @@ bytecode_to_string :: proc(b: Bytecode) -> string {
     case If: return "if"
     case Else: return "else"
     case Fi: return "fi"
-    case Do: return "do"
-    case For_In_Range: return "for (range)"
-    case For_In_String: return "for (string)"
-    case Loop: return "loop"
-    case Loop_String: return "loop (string)"
-    case Loop_Autoincrement: return "loop (autoincrement)"
+    case For_Infinite_Start: return "start of for loop (infinite)"
+    case For_Infinite_End: return "end of for loop (infinite)"
+    case For_Range_Start: return "start of for loop (range)"
+    case For_Range_End: return "end of for loop (range)"
+    case For_String_Start: return "start of for loop (string)"
+    case For_String_End: return "end of for loop (string)"
 
     case Drop: return "drop"
     case Dup: return "dup"

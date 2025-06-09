@@ -83,7 +83,7 @@ Scope_Kind :: enum u8 {
     Function,
     Global,
     If, If_Else, Let,
-    For, For_In_Range, For_In_Array, For_In_String,
+    Loop,
 }
 
 Entities :: distinct [dynamic]Entity
@@ -1322,21 +1322,6 @@ parse_token :: proc(token: Token, f: ^Function) -> bool {
 
     case .In: unimplemented()
 
-    case .End:
-        if checker.curr_scope.kind == .Let {
-            binds_count := 0
-
-            for e in checker.curr_scope.entities {
-                if _, ok := e.variant.(Entity_Binding); ok {
-                    binds_count += 1
-                }
-            }
-
-            emit(f, token, Let_Unbind{binds_count})
-        }
-
-        pop_scope()
-
     case .Case: unimplemented()
 
     case .If:
@@ -1388,16 +1373,35 @@ parse_token :: proc(token: Token, f: ^Function) -> bool {
 
     case .For: parse_for_op(f, token, .For)
     case .For_Star: parse_for_op(f, token, .For_Star)
+    case .End:
+        scope := checker.curr_scope
+
+        if scope.kind != .Let {
+            parsing_error(token, "'end' unattached to 'let'")
+        }
+
+        binds_count := 0
+        for e in checker.curr_scope.entities {
+            if _, ok := e.variant.(Entity_Binding); ok {
+                binds_count += 1
+            }
+        }
+        emit(f, token, Let_Unbind{binds_count})
+        pop_scope()
     case .Loop:
         scope := checker.curr_scope
-        #partial switch scope.kind {
-            case .For_In_String: {
-                emit(f, token, Loop_String{
+
+        if scope.kind != .Loop {
+            parsing_error(token, "'loop' unattached to 'let'")
+        }
+
+        #partial switch v in scope.start_op.variant {
+            case For_String_Start: {
+                emit(f, token, For_String_End{
                     address = scope.start_op.address,
                 })
-                emit(f, token, Let_Unbind{3})
             }
-            case .For: {
+            case For_Infinite_Start: {
                 A := f.stack->pop()
 
                 stack_expect(
@@ -1406,30 +1410,18 @@ parse_token :: proc(token: Token, f: ^Function) -> bool {
                     types_equal(A, checker.basic_types[.Bool]),
                 )
 
-                emit(f, token, Loop{
+                emit(f, token, For_Infinite_End{
                     address = scope.start_op.address,
                 })
-
             }
-            case .For_In_Range: {
-                if scope.autoincrement {
-                    emit(f, token, Loop_Autoincrement{
-                        address = scope.start_op.address,
-                        direction = scope.autoincrement_value,
-                    })
-                } else {
-                    emit(f, token, Loop{
-                        address = scope.start_op.address,
-                    })
-                }
-
-                emit(f, token, Let_Unbind{2})
+            case For_Range_Start: {
+                b := emit(f, token, For_Range_End{
+                    address = scope.start_op.address,
+                    autoincrement = !scope.autoincrement ? .off : scope.autoincrement_value == 1 ? .up : .down,
+                })
             }
-            case : compilation_error(
-                f, "'loop' unattached to a 'for' or 'do' statement",
-            )
+            case: compiler_bug()
         }
-
         pop_scope()
         f.stack->reset()
 
@@ -1722,7 +1714,8 @@ parse_for_op :: proc(f: ^Function, t: Token, kind: enum { For, For_Star }) {
     //   - Stack has a boolean and last operation is equal or not equal
     //   - Stack has an array
     //   - Stack has an string (which behaves similar to array)
-    scope := push_scope(t, .Invalid)
+    scope := push_scope(t, .Loop)
+    scope.validation_at_end = .Stack_Is_Unchanged
     words := make([dynamic]Token, context.temp_allocator)
     defer delete(words)
 
@@ -1760,23 +1753,14 @@ parse_for_op :: proc(f: ^Function, t: Token, kind: enum { For, For_Star }) {
 
                 scope.autoincrement = v.autoincrement
                 scope.autoincrement_value = v.kind == .gt || v.kind == .ge ? -1 : 1
-                scope.kind = .For_In_Range
-                scope.validation_at_end = .Stack_Is_Unchanged
-                scope.start_op = emit(f, t, For_In_Range{})
-                emit(f, t, prev_op.variant)
-                emit(f, checker.prev_token, Do{
-                    address = scope.start_op.address,
-                    use_self = false,
-                })
+                scope.start_op = emit(f, t, For_Range_Start{v.kind})
                 create_stack_snapshot(f, scope)
                 f.stack->save()
             }
             case: {
                 // No words expected to be bound here
-                scope.kind = .For
-                scope.validation_at_end = .Stack_Is_Unchanged
                 emit(f, t, prev_op.variant)
-                scope.start_op = emit(f, t, Do{ use_self = true })
+                scope.start_op = emit(f, t, For_Infinite_Start{})
                 create_stack_snapshot(f, scope)
                 f.stack->save()
             }
@@ -1796,9 +1780,7 @@ parse_for_op :: proc(f: ^Function, t: Token, kind: enum { For, For_Star }) {
         f.stack->push(checker.basic_types[.Int])  // index
         f.stack->push(checker.basic_types[.String]) // the original string
         bind_words(f, words[:])
-        scope.kind = .For_In_String
-        scope.validation_at_end = .Stack_Is_Unchanged
-        scope.start_op = emit(f, t, For_In_String{})
+        scope.start_op = emit(f, t, For_String_Start{})
         create_stack_snapshot(f, scope)
         f.stack->save()
     case : unimplemented()
