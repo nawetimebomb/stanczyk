@@ -83,8 +83,7 @@ Scope_Kind :: enum u8 {
     Global,
     If, If_Else,
     Let, Let_Mutable,
-    Do,
-    For_In_Range, For_In_Array, For_In_String,
+    For, For_In_Range, For_In_Array, For_In_String,
 }
 
 Entities :: distinct [dynamic]Entity
@@ -94,6 +93,8 @@ Scope :: struct {
     token:  Token,
     parent: ^Scope,
     level:  int,
+    autoincrement: bool,
+    autoincrement_value: int,
 
     start_op: ^Bytecode,
 
@@ -823,13 +824,12 @@ declare_var :: proc() {
     entities := &checker.curr_scope.entities
     ev := Entity_Variable{}
     address: uint
-    default_value_type: Type_Basic_Kind
 
     // TODO: Allow arrays
     if allow(.Type_Literal) {
         type_lit_token := checker.prev_token
-        default_value_type = type_string_to_basic(type_lit_token.text)
-        ev.type = checker.basic_types[default_value_type]
+        value_type := type_string_to_basic(type_lit_token.text)
+        ev.type = checker.basic_types[value_type]
         ev.size = ev.type.size
     }
 
@@ -875,6 +875,8 @@ declare_var :: proc() {
                     } else {
                         _emit(t, Push_Var_Local{v.offset, false})
                     }
+                    append(&temp_stack, v.type)
+
                     if inferred_type != nil && !types_equal(inferred_type, v.type) {
                         parsing_error(
                             t, "type mismatch in variable {}.\n\tExpected: {}\n\tGot: {}",
@@ -944,6 +946,7 @@ declare_var :: proc() {
 
     if ev.type == nil {
         ev.type = inferred_type
+        ev.size = ev.type.size
     }
 
     if len(temp_stack) > 1 { compiler_bug() }
@@ -1383,25 +1386,11 @@ parse_token :: proc(token: Token, f: ^Function) -> bool {
             }
         }
 
-    case .For: parse_for_op(f, token)
-    case .Do:
-        A := f.stack->pop()
-
-        stack_expect(
-            token.pos,
-            "Non-boolean condition in 'do' statement",
-            types_equal(A, checker.basic_types[.Bool]),
-        )
-
-        scope := push_scope(token, .Do)
-        scope.validation_at_end = .Stack_Is_Unchanged
-        scope.start_op = emit(f, token, Do{ use_self = true })
-        create_stack_snapshot(f, scope)
-        f.stack->save()
-
+    case .For: parse_for_operation(f, token)
     case .Loop:
-        #partial switch checker.curr_scope.kind {
-            case .Do: {
+        scope := checker.curr_scope
+        #partial switch scope.kind {
+            case .For: {
                 A := f.stack->pop()
 
                 stack_expect(
@@ -1411,25 +1400,33 @@ parse_token :: proc(token: Token, f: ^Function) -> bool {
                 )
 
                 emit(f, token, Loop{
-                    address = checker.curr_scope.start_op.address,
+                    address = scope.start_op.address,
                 })
                 pop_scope()
                 f.stack->reset()
             }
             case .For_In_Range: {
-                A := f.stack->pop()
+                if scope.autoincrement {
+                    emit(f, token, Loop_Autoincrement{
+                        address = scope.start_op.address,
+                        direction = scope.autoincrement_value,
+                    })
+                } else {
+                    A := f.stack->pop()
 
-                stack_expect(
-                    token.pos,
-                    "(int) expected in range for loop",
-                    types_equal(A, checker.basic_types[.Int]),
-                )
+                    stack_expect(
+                        token.pos,
+                        "(int) expected in range for loop",
+                        types_equal(A, checker.basic_types[.Int]),
+                    )
 
-                emit(f, token, Loop{
-                    address = checker.curr_scope.start_op.address,
-                    rebinds = 1,
-                    unbinds = 2,
-                })
+                    emit(f, token, Loop{
+                        address = scope.start_op.address,
+                        rebinds = 1,
+                    })
+                }
+
+                emit(f, token, Let_Unbind{2})
                 pop_scope()
             }
             case : compilation_error(
@@ -1537,12 +1534,17 @@ parse_token :: proc(token: Token, f: ^Function) -> bool {
     case .Star:          parse_binary_op(f, token, .mul)
     case .Slash:         parse_binary_op(f, token, .div)
     case .Percent:       parse_binary_op(f, token, .mod)
-    case .Equal:         parse_binary_op(f, token, .eq)
-    case .Greater_Equal: parse_binary_op(f, token, .ge)
-    case .Greater_Than:  parse_binary_op(f, token, .gt)
-    case .Less_Equal:    parse_binary_op(f, token, .le)
-    case .Less_Than:     parse_binary_op(f, token, .lt)
-    case .Not_Equal:     parse_binary_op(f, token, .ne)
+
+    case .Equal:              parse_comparison_op(f, token, .eq)
+    case .Greater_Equal:      parse_comparison_op(f, token, .ge)
+    case .Greater_Equal_Auto: parse_comparison_op(f, token, .ge, true)
+    case .Greater_Than:       parse_comparison_op(f, token, .gt)
+    case .Greater_Than_Auto:  parse_comparison_op(f, token, .gt, true)
+    case .Less_Equal:         parse_comparison_op(f, token, .le)
+    case .Less_Equal_Auto:    parse_comparison_op(f, token, .le, true)
+    case .Less_Than:          parse_comparison_op(f, token, .lt)
+    case .Less_Than_Auto:     parse_comparison_op(f, token, .lt, true)
+    case .Not_Equal:          parse_comparison_op(f, token, .ne)
     }
 
     return true
@@ -1603,7 +1605,7 @@ parse_word :: proc(f: ^Function, t: Token) {
 }
 
 parse_binary_op :: proc(f: ^Function, t: Token, op: enum {
-    add, sub, mul, div, mod, eq, ge, gt, le, lt, ne,
+    add, sub, mul, div, mod,
 }) {
     B := f.stack->pop()
     A := f.stack->pop()
@@ -1625,25 +1627,14 @@ parse_binary_op :: proc(f: ^Function, t: Token, op: enum {
     case .mod:
         emit(f, t, Modulo{})
         f.stack->push(checker.basic_types[.Int])
-    case .eq:
-        emit(f, t, Equal{})
-        f.stack->push(checker.basic_types[.Bool])
-    case .ge:
-        emit(f, t, Greater_Equal{})
-        f.stack->push(checker.basic_types[.Bool])
-    case .gt:
-        emit(f, t, Greater{})
-        f.stack->push(checker.basic_types[.Bool])
-    case .le:
-        emit(f, t, Less_Equal{})
-        f.stack->push(checker.basic_types[.Bool])
-    case .lt:
-        emit(f, t, Less{})
-        f.stack->push(checker.basic_types[.Bool])
-    case .ne:
-        emit(f, t, Not_Equal{})
-        f.stack->push(checker.basic_types[.Bool])
     }
+}
+
+parse_comparison_op :: proc(f: ^Function, t: Token, op: Comparison_Kind, autoincrement := false) {
+    B := f.stack->pop()
+    A := f.stack->pop()
+    emit(f, t, Comparison{op, autoincrement})
+    f.stack->push(checker.basic_types[.Bool])
 }
 
 parse_memory_op :: proc(f: ^Function, t: Token, op: enum {
@@ -1692,118 +1683,80 @@ parse_memory_op :: proc(f: ^Function, t: Token, op: enum {
     }
 }
 
-parse_for_op :: proc(f: ^Function, t: Token) {
+parse_for_operation :: proc(f: ^Function, t: Token) {
+    // We need to figure out here what type of loop the user wants to use.
+    // The conditions are the following:
+    //   - Stack has a boolean and last operation was a sequence comparison
+    //     (..> or ..<, including equals)
+    //   - Stack has a boolean and last operation is equal or not equal
+    //   - Stack has an array
+    //   - Stack has an string (which behaves similar to array)
     scope := push_scope(t, .Invalid)
     words := make([dynamic]Token, context.temp_allocator)
     defer delete(words)
-    append(&words, expect(.Word))
 
-    if allow(.Word) {
-        append(&words, checker.prev_token)
-    }
-
-    expect(.In)
-
-    // We need to figure out here what type of loop the user wants to use.
-    // The conditions are the following:
-    //   - One bound word and comparison after "in": regular range loop
-    //   - One or two bound words (char, index) and a string after "in":
-    //     loop on string chars
-    //   - One or two bound words (element, index) and an array after "in":
-    //     loop over array elements.
-    // To figure out this, we run an incursion through the code by creating a copy
-    // of the current state and then reset the state but knowing exactly what's
-    // going to happen. We can also catch issues this way.
-    old_checker := new_clone(Checker{})
-    runtime.mem_copy(old_checker, checker, size_of(Checker))
-
-    old_function := new_clone(Function{})
-    runtime.mem_copy(old_function, f, size_of(Function))
-
-    temp_tokens_list := make([dynamic]Token)
-
-    temp_incursion: for {
-        token := next()
-
-        #partial switch token.kind {
-            case .Do: break temp_incursion
-            case .Loop: {
-                parsing_error(
-                    token.pos,
-                    "expecting 'do' before 'loop' in 'for' statement",
-                )
-            }
-            case: append(&temp_tokens_list, token)
-        }
-    }
-
-    test_token := temp_tokens_list[len(temp_tokens_list) - 1]
-
-    #partial switch test_token.kind {
-        case .Greater_Equal, .Greater_Than, .Less_Equal, .Less_Than: {
-            // One of these comparison symbols is required
-            scope.kind = .For_In_Range
-        }
-        case: {
-            parsing_error(
-                t.pos,
-                "unsupported operation '{}' in 'for' loop",
-                test_token.text,
-            )
-        }
-    }
-
-    // Restore state, we were able to figure out exactly what to do here.
-    runtime.mem_copy(checker, old_checker, size_of(Checker))
-    runtime.mem_copy(checker.curr_function, old_function, size_of(Function))
-    free(old_checker)
-    free(old_function)
-    delete(temp_tokens_list)
-
-    parse_until_body: for {
-        token := next()
-        if token.kind == .Do do break parse_until_body
-        parse_token(token, f)
-    }
+    // Check this stack type to figure out what to do...
+    T := f.stack->pop()
 
     switch {
-    case scope.kind == .For_In_Range:
-        if len(words) != 1 {
-            compilation_error(
-                f, "'for' loop of type range can only have one word bound",
-            )
-        }
+    case type_is_basic(T, .Bool):
+        // This can be a regular range 'for' loop with autoincrement or a
+        // range loop with manual increment.
+        prev_op := pop(&f.code)
 
-        // Create an internal binding for the limit
-        append(&words, Token{
-            pos = t.pos,
-            kind = .Word,
-            text = "__stanczyk__internal__for_range_limit",
-        })
+        #partial switch v in prev_op.variant {
+            case Comparison:
+            switch v.kind {
+            case .ge, .gt, .le, .lt:
+                // Only one word is expected to be bound here
+                if allow(.Word) {
+                    append(&words, checker.prev_token)
+                    expect(.In)
+                }
+                // make sure add internal tracker for limit
+                append(&words, Token{
+                    pos = t.pos,
+                    kind = .Word,
+                    text = "__stanczyk__internal__for_range_limit",
+                })
+                f.stack->push(checker.basic_types[.Int])
+                f.stack->push(checker.basic_types[.Int])
+                bind_words(f, words[:])
 
-        // Prepare the stack and bind the necessary before continuing
-        A := f.stack->pop()
-        if !type_is_basic(A, .Bool) {
-            parsing_error(
-                t.pos,
-                "Non-boolean condition in 'for' range statement",
-            )
+                scope.autoincrement = v.autoincrement
+                scope.autoincrement_value = v.kind == .gt || v.kind == .ge ? -1 : 1
+                scope.kind = .For_In_Range
+                scope.validation_at_end = .Stack_Is_Unchanged
+                scope.start_op = emit(f, t, For_In_Range{})
+                emit(f, t, prev_op.variant)
+                emit(f, checker.prev_token, Do{
+                    address = scope.start_op.address,
+                    use_self = false,
+                })
+                create_stack_snapshot(f, scope)
+                f.stack->save()
+            case .eq, .ne:
+                // No words expected to be bound here
+                scope.kind = .For
+                scope.validation_at_end = .Stack_Is_Unchanged
+                emit(f, t, prev_op.variant)
+                scope.start_op = emit(f, t, Do{ use_self = true })
+                create_stack_snapshot(f, scope)
+                f.stack->save()
+            }
+            case: {
+                // No words expected to be bound here
+                scope.kind = .For
+                scope.validation_at_end = .Stack_Is_Unchanged
+                emit(f, t, prev_op.variant)
+                scope.start_op = emit(f, t, Do{ use_self = true })
+                create_stack_snapshot(f, scope)
+                f.stack->save()
+            }
         }
-        comparison_op := pop(&f.code)
-        // Pushing 2 ints before we bind them, just for the binding mechanism
-        // to know that the For_In_Range operation does 2 implicit bindings.
-        f.stack->push(checker.basic_types[.Int])
-        f.stack->push(checker.basic_types[.Int])
-        bind_words(f, words[:])
-        scope.start_op = emit(f, t, For_In_Range{})
-        emit(f, t, comparison_op.variant)
-        emit(f, checker.prev_token, Do{
-            address = scope.start_op.address,
-            use_self = false,
-        })
-        create_stack_snapshot(f, scope)
-        f.stack->save()
-    case scope.kind == .For_In_String: unimplemented()
-    case scope.kind == .For_In_Array: unimplemented()
+    case type_is_basic(T, .String): unimplemented()
+        // This is iterating over the string
+    case : unimplemented()
+    //case type_is_array(): not implemented
     }
 }

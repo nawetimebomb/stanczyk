@@ -273,53 +273,20 @@ gen_op :: proc(c: Bytecode, f: ^Function = nil) {
         writecode("    sub rax, rbx")
         writecode("    push rax")
 
-    case Equal:
+    case Comparison:
         writecode("    xor rcx, rcx")
         writecode("    mov rdx, 1")
         writecode("    pop rbx")
         writecode("    pop rax")
         writecode("    cmp rax, rbx")
-        writecode("    cmove rcx, rdx")
-        writecode("    push rcx")
-    case Greater:
-        writecode("    xor rcx, rcx")
-        writecode("    mov rdx, 1")
-        writecode("    pop rbx")
-        writecode("    pop rax")
-        writecode("    cmp rax, rbx")
-        writecode("    cmovg rcx, rdx")
-        writecode("    push rcx")
-    case Greater_Equal:
-        writecode("    xor rcx, rcx")
-        writecode("    mov rdx, 1")
-        writecode("    pop rbx")
-        writecode("    pop rax")
-        writecode("    cmp rax, rbx")
-        writecode("    cmovge rcx, rdx")
-        writecode("    push rcx")
-    case Less:
-        writecode("    xor rcx, rcx")
-        writecode("    mov rdx, 1")
-        writecode("    pop rbx")
-        writecode("    pop rax")
-        writecode("    cmp rax, rbx")
-        writecode("    cmovl rcx, rdx")
-        writecode("    push rcx")
-    case Less_Equal:
-        writecode("    xor rcx, rcx")
-        writecode("    mov rdx, 1")
-        writecode("    pop rbx")
-        writecode("    pop rax")
-        writecode("    cmp rax, rbx")
-        writecode("    cmovle rcx, rdx")
-        writecode("    push rcx")
-    case Not_Equal:
-        writecode("    xor rcx, rcx")
-        writecode("    mov rdx, 1")
-        writecode("    pop rbx")
-        writecode("    pop rax")
-        writecode("    cmp rax, rbx")
-        writecode("    cmovne rcx, rdx")
+        switch v.kind {
+        case .eq: writecode("    cmove rcx, rdx")
+        case .ge: writecode("    cmovge rcx, rdx")
+        case .gt: writecode("    cmovg rcx, rdx")
+        case .le: writecode("    cmovle rcx, rdx")
+        case .lt: writecode("    cmovl rcx, rdx")
+        case .ne: writecode("    cmovne rcx, rdx")
+        }
         writecode("    push rcx")
 
     case If:
@@ -355,6 +322,15 @@ gen_op :: proc(c: Bytecode, f: ^Function = nil) {
         writecode("    push QWORD [rax]")
         f.binds_count += 2
 
+    case Loop_Autoincrement:
+        writecode("    mov rax, [ret_stack_ptr]")
+        writecode("    mov rbx, [rax]")
+        writecode("    {} rbx, 1", v.direction == 1 ? "add" : "sub")
+        writecode("    mov rax, [ret_stack_ptr]")
+        writecode("    mov [rax+0], rbx")
+        writecode("    jmp .start{}", v.address)
+        writecode(".end{}:", v.address)
+
     case Loop:
         if v.rebinds > 0 {
             for x := 0; x < v.rebinds; x += 1 {
@@ -366,13 +342,6 @@ gen_op :: proc(c: Bytecode, f: ^Function = nil) {
 
         writecode("    jmp .start{}", v.address)
         writecode(".end{}:", v.address)
-
-        if v.unbinds > 0 {
-            writecode("    mov rax, [ret_stack_ptr]")
-            writecode("    add rax, {}", v.unbinds * 8)
-            writecode("    mov [ret_stack_ptr], rax")
-            f.binds_count -= v.unbinds
-        }
 
     case Drop:
         writecode("    pop rax")

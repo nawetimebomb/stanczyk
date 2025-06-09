@@ -65,3 +65,5 @@ fn println (byte) print STDOUT "\n" 1 C.write ;
 fn println (int) print STDOUT "\n" 1 C.write ;
 
 fn println (string) print STDOUT "\n" 1 C.write ;
+
+fn write (string int) swap dup len C.write ;

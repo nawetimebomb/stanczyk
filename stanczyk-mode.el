@@ -39,7 +39,7 @@
   (defconst stanczyk-keywords
     '("if" "else" "fi" "do" "for" "loop" "fn" "const" "var"
       "let" "in" "end" "as" "using" "foreign" "builtin"
-      "get" "get-byte" "set" "set-byte" "---" "__asm")))
+      "get" "get-byte" "set" "set-byte" "---" "..")))
 
 (eval-and-compile
   (defconst stanczyk-types

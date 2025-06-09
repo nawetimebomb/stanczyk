@@ -2,7 +2,7 @@ using core.io ;
 
 fn factorial-recursive (int --- int)
   let n in
-    n 2 < if 1 else n 1 - factorial n * fi
+    n 2 < if 1 else n 1 - factorial-recursive n * fi
   end
 ;
 
@@ -14,7 +14,10 @@ fn factorial-loop (int --- int)
 ;
 
 // This program runs a recursive function to find the factorial
-// of a number. Usage: <number> factorial println
+// of a number.
+// Usage:
+//   - <number> factorial-recursive println
+//   - <number> factorial-loop println
 fn main
   const NUMBER int 5 ;
   "Using recursive:" println

@@ -44,7 +44,7 @@ Token_Kind :: enum u8 {
 
     Let, In, End,
     Case, Else, Fi, If,
-    For, Do, Loop,
+    For, Loop,
     Leave,
 
     Set, Set_Byte,
@@ -58,6 +58,8 @@ Token_Kind :: enum u8 {
     Plus, Minus, Star, Slash, Percent,
     Equal, Greater_Equal, Greater_Than,
     Less_Equal, Less_Than, Not_Equal,
+    Greater_Than_Auto, Greater_Equal_Auto,
+    Less_Than_Auto, Less_Equal_Auto,
 
     Drop, Dup, Nip, Over, Rot,
     Rot_Neg, Swap, Take, Tuck,
@@ -103,7 +105,7 @@ token_string_table := [Token_Kind]string{
 
         .Case = "case", .Else = "else",
         .Fi = "fi", .If = "if",
-        .For = "for", .Do = "do", .Loop = "loop",
+        .For = "for", .Loop = "loop",
         .Leave = "leave",
 
         .Get = "get", .Get_Byte = "get-byte",
@@ -124,6 +126,8 @@ token_string_table := [Token_Kind]string{
         .Plus = "+", .Minus = "-", .Star = "*", .Slash = "/", .Percent = "%",
         .Equal = "=", .Greater_Equal = ">=", .Greater_Than = ">",
         .Less_Equal = "<=", .Less_Than = "<", .Not_Equal = "!=",
+        .Greater_Than_Auto = "..>", .Greater_Equal_Auto = "..>=",
+        .Less_Than_Auto = "..<", .Less_Equal_Auto = "..<=",
 
         .Drop = "drop", .Dup = "dup", .Nip = "nip", .Over = "over",
         .Rot = "rot", .Rot_Neg = "-rot", .Swap = "swap",
@@ -368,7 +372,6 @@ string_to_token_kind :: proc(str: string) -> (kind: Token_Kind) {
     case "fi": kind = .Fi
 
     case "for": kind = .For
-    case "do": kind = .Do
     case "loop": kind = .Loop
     case "leave": kind = .Leave
 
@@ -387,9 +390,13 @@ string_to_token_kind :: proc(str: string) -> (kind: Token_Kind) {
     case "%": kind = .Percent
     case "=": kind = .Equal
     case ">=": kind = .Greater_Equal
+    case "..>=": kind = .Greater_Equal_Auto
     case ">": kind = .Greater_Than
+    case "..>": kind = .Greater_Than_Auto
     case "<=": kind = .Less_Equal
+    case "..<=": kind = .Less_Equal_Auto
     case "<": kind = .Less_Than
+    case "..<": kind = .Less_Than_Auto
     case "!=": kind = .Not_Equal
 
     case "drop": kind = .Drop

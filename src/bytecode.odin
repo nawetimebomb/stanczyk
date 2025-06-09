@@ -27,12 +27,7 @@ Bytecode_Variant :: union {
     Modulo,
     Multiply,
     Substract,
-    Equal,
-    Greater,
-    Greater_Equal,
-    Less,
-    Less_Equal,
-    Not_Equal,
+    Comparison,
 
     If,
     Else,
@@ -40,6 +35,7 @@ Bytecode_Variant :: union {
     Do,
     For_In_Range,
     Loop,
+    Loop_Autoincrement,
 
     Drop,
     Dup,
@@ -57,6 +53,10 @@ Bytecode_Variant :: union {
     Let_Unbind,
     Print,
     Return,
+}
+
+Comparison_Kind :: enum {
+    eq, ge, gt, le, lt, ne,
 }
 
 // BEGIN VALUE
@@ -90,12 +90,7 @@ Divide :: struct {}
 Modulo :: struct {}
 Multiply :: struct {}
 Substract :: struct {}
-Equal :: struct {}
-Greater :: struct {}
-Greater_Equal :: struct {}
-Less :: struct {}
-Less_Equal :: struct {}
-Not_Equal :: struct {}
+Comparison :: struct { kind: Comparison_Kind, autoincrement: bool }
 
 // END BINARY
 
@@ -106,7 +101,8 @@ Else :: struct { address: uint }
 Fi :: struct { address: uint }
 Do :: struct { use_self: bool, address: uint }
 For_In_Range :: struct {}
-Loop :: struct { address: uint, rebinds: int, unbinds: int }
+Loop :: struct { address: uint, rebinds: int }
+Loop_Autoincrement :: struct { address: uint, direction: int }
 
 // END FLOW CONTROL
 
@@ -159,12 +155,15 @@ bytecode_to_string :: proc(b: Bytecode) -> string {
     case Multiply: return "*"
     case Substract: return "-"
 
-    case Equal: return "="
-    case Greater: return ">"
-    case Greater_Equal: return ">="
-    case Less: return "<"
-    case Less_Equal: return "<="
-    case Not_Equal: return "!="
+    case Comparison:
+        switch v.kind {
+        case .eq: return "="
+        case .ge: return ">="
+        case .gt: return ">"
+        case .le: return "<="
+        case .lt: return "<"
+        case .ne: return "!="
+        }
 
     case If: return "if"
     case Else: return "else"
@@ -172,6 +171,7 @@ bytecode_to_string :: proc(b: Bytecode) -> string {
     case Do: return "do"
     case For_In_Range: return "for (range)"
     case Loop: return "loop"
+    case Loop_Autoincrement: return "loop (autoincrement)"
 
     case Drop: return "drop"
     case Dup: return "dup"

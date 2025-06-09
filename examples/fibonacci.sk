@@ -1,23 +1,19 @@
 using core.io ;
 
 fn fibonacci-recursive (int --- int)
-  dup 2 < if take else dup 1 - fibonacci swap 2 - fibonacci + fi
+  dup 2 < if take else dup 1 - fibonacci-recursive swap 2 - fibonacci-recursive + fi
 ;
 
 fn fibonacci-loop (int --- int)
-  var n0 int ;
-  var n1 int ;
-  var n2 int ;
+  var n0 0 ;
+  var n1 1 ;
+  var n2 n0 n1 + ;
 
   let nth in
-    0 n0 set
-    1 n1 set
-    n0 n1 + n2 set
-
-    for x in 2 nth <= do
-      n0 n1 + n2 set
+    for x in 3 nth <= do
       n1 n0 set
       n2 n1 set
+      n0 n1 + n2 set
     x 1 + loop
   end
 
@@ -25,7 +21,10 @@ fn fibonacci-loop (int --- int)
 ;
 
 // This program runs a recursive function to find the Nth number on the
-// Fibonacci sequence. Usage: <number> fibonacci println
+// Fibonacci sequence.
+// Usage:
+//   - <number> fibonacci-recursive println
+//   - <number> fibonacci-loop println
 fn main
   const FIB_NTH 7 ;
 

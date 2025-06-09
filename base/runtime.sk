@@ -62,17 +62,15 @@ fn 2drop (any any) drop drop ;
 //   - The 2 given arguments, twice
 fn 2dup (x y --- x y x y) over over ;
 
-fn len (string --- int) let s in 0 0 dup s get-byte != do 1 + dup s get-byte 0 != loop end ;
+fn len (string --- int) let s in 0 0 dup s get-byte != for 1 + dup s get-byte 0 != loop end ;
 
-fn len (int --- int) 0 swap for x in take 0 > do 1 + x 10 / loop ;
+fn len (int --- int) 0 swap 0 > for x in 1 + x 10 / loop ;
 
 fn ? (bool x x --- x) rot if drop else nip fi ;
 
 fn max (int int --- int) let x y in x y > x y ? end ;
 
 fn min (int int --- int) let x y in x y < x y ? end ;
-
-
 
 // Helper function for Logical And operator (&&).
 // Calling:
