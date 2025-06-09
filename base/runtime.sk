@@ -64,7 +64,9 @@ fn 2dup (x y --- x y x y) over over ;
 
 fn 2dup* (x y --- x x y y) over swap dup ;
 
-fn len (string --- int) let s in 0 0 s get-byte 0 != for c in 1 + dup s get-byte c set loop end ;
+fn len (string --- int) 0 swap for c in 1 + loop ;
+
+// fn len (string --- int) let s in 0 0 s get-byte 0 != for c in 1 + dup s get-byte c set loop end ;
 
 fn len (int --- int) 0 swap 0 > for x in 1 + x 10 / set* loop ;
 

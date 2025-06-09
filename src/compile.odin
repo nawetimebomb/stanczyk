@@ -1395,6 +1395,7 @@ parse_token :: proc(token: Token, f: ^Function) -> bool {
                 emit(f, token, Loop_String{
                     address = scope.start_op.address,
                 })
+                emit(f, token, Let_Unbind{3})
             }
             case .For: {
                 A := f.stack->pop()
