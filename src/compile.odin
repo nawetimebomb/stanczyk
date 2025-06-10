@@ -1417,7 +1417,7 @@ parse_token :: proc(token: Token, f: ^Function) -> bool {
             case For_Range_Start: {
                 b := emit(f, token, For_Range_End{
                     address = scope.start_op.address,
-                    autoincrement = !scope.autoincrement ? .off : scope.autoincrement_value == 1 ? .up : .down,
+                    autoincrement = !scope.autoincrement ? .off : scope.autoincrement_value == 1 ? .down : .up,
                 })
             }
             case: compiler_bug()
