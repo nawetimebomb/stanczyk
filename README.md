@@ -13,7 +13,7 @@
 
 **NOTE: This is a work in progress, things can change without any notice. Use with discretion.**
 
-[Stańczyk] is a general-purpose stack-based programming language insired in Forth that prefer words over symbols and strive on trying to be easy to read by anyone. It uses Reverse Polish Notation, which also inspired the name of this language (plus my admiration to Jan Matejko's art), because it makes it easier to parse for the compiler and for the Human eye without the need of extra parenthesis. The language compiles to C and it is trying to be compatible with all the major platforms. The backend compiler supported for now is `gcc`, although it is planned to support multiple backends. At the moment of this writing, the compiler is written in Odin.
+[Stańczyk] is a general-purpose stack-based programming language insired in Forth that prefer words over symbols and strive on trying to be easy to read by anyone. It uses Reverse Polish Notation, which also inspired the name of this language (plus my admiration to Jan Matejko's art), because it makes it easier to parse for the compiler and for the Human eye without the need of extra parenthesis. The language compiles to Assembly and it is trying to be compatible with all the major platforms. The backend compiler supported for now is `fasm`, although it is planned to support multiple backends. At the moment of this writing, the compiler is written in Odin.
 
 Website: https://stanczyk-lang.org
 
