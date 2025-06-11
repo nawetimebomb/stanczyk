@@ -145,7 +145,7 @@ Make sure '{0}' is set and points to the directory where The {1} Compiler is ins
         )
     }
 
-    // load_file("builtin.sk", true, fmt.tprintf("{}/base", compiler_dir))
+    load_file("builtin.sk", true, fmt.tprintf("{}/base", compiler_dir))
     load_file("runtime.sk", true, fmt.tprintf("{}/base", compiler_dir))
 
     bootstrap_files_count := len(source_files)
@@ -213,7 +213,7 @@ Make sure '{0}' is set and points to the directory where The {1} Compiler is ins
 
     compile()
 
-    libc.system(fmt.ctprintf("fasm2 {0}.asm -n", output_filename))
+    libc.system(fmt.ctprintf("{0}/fasm2 {1}.asm -n", compiler_dir, output_filename))
     libc.system(fmt.ctprintf("ld {0}.o -lc -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o {0}", output_filename))
 
     when !ODIN_DEBUG {

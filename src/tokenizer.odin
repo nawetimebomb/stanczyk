@@ -330,11 +330,36 @@ get_next_token :: proc(t: ^Tokenizer) -> (token: Token, err: Error) {
             return
         }
 
+        comment_scope_count := 0
+
+        if strings.starts_with(token.text, "/*") {
+            comment_scope_count += 1
+
+            // skips until the end of this comment block
+            comment_block_loop: for {
+                token, _ := get_next_token(t)
+                switch {
+                case strings.starts_with(token.text, "/*"): comment_scope_count += 1
+                case strings.ends_with(token.text, "*/"): comment_scope_count -= 1
+                }
+
+                if token.kind == .EOF {
+                    unexpected_end_of_file()
+                }
+
+                if comment_scope_count == 0 {
+                    break comment_block_loop
+                }
+            }
+
+            return get_next_token(t)
+        }
+
         if strings.starts_with(token.text, "//") {
             // skips this token because it's a comment, loop through the line,
             // then return the next immediate token
-            loop: for t.offset < len(t.data) {
-                if t.data[t.offset] == '\n' { break loop }
+            comment_line_loop: for t.offset < len(t.data) {
+                if t.data[t.offset] == '\n' { break comment_line_loop }
                 advance(t)
             }
             return get_next_token(t)

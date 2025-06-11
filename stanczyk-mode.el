@@ -28,8 +28,10 @@
 (defconst stanczyk-mode-syntax-table
   (with-syntax-table (copy-syntax-table)
     ;; C/C++ style comments
-	(modify-syntax-entry ?/ ". 124b")
-	(modify-syntax-entry ?\n "> b")
+    (modify-syntax-entry ?/ ". 124b")
+    (modify-syntax-entry ?* ". 23n")
+    (modify-syntax-entry ?\n "> b")
+    (modify-syntax-entry ?\^m "> b")
     ;; Chars are the same as strings
     (modify-syntax-entry ?' "\"")
     (syntax-table))
@@ -54,7 +56,11 @@
   "Major Mode for editing Stanczyk source code."
   :syntax-table stanczyk-mode-syntax-table
   (setq font-lock-defaults '(stanczyk-highlights))
-  (setq-local comment-start "// "))
+  (setq-local require-final-newline mode-require-final-newline)
+  (setq-local parse-sexp-ignore-comments t)
+  (setq-local comment-start-skip "\\(//+\\|/\\*+\\)\\s *")
+  (setq-local comment-start "//")
+  (setq-local comment-end ""))
 
 ;;;###autoload
 (add-to-list 'auto-mode-alist '("\\.sk\\'" . stanczyk-mode))

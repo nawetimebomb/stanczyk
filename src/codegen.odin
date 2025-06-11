@@ -158,7 +158,8 @@ gen_op :: proc(c: Bytecode, f: ^Function = nil) {
         }
 
     case Push_Byte:
-        writecode("    mov rax, {}", int(v.val))
+        writecode("    xor rax, rax")
+        writecode("    mov al, {}", int(v.val))
         writecode("    push rax")
     case Push_Cstring:
         writecode("    mov rax, str_{0}", v.val)

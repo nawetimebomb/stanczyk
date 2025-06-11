@@ -1,35 +1,37 @@
-// ;;  The Stańczyk Programming Language  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-// ;                                                                      ;
-// ;            ¿«fº"└└-.`└└*∞▄_              ╓▄∞╙╙└└└╙╙*▄▄               ;
-// ;         J^. ,▄▄▄▄▄▄_      └▀████▄ç    JA▀            └▀v             ;
-// ;       ,┘ ▄████████████▄¿     ▀██████▄▀└      ╓▄██████▄¿ "▄_          ;
-// ;      ,─╓██▀└└└╙▀█████████      ▀████╘      ▄████████████_`██▄        ;
-// ;     ;"▄█└      ,██████████-     ▐█▀      ▄███████▀▀J█████▄▐▀██▄      ;
-// ;     ▌█▀      _▄█▀▀█████████      █      ▄██████▌▄▀╙     ▀█▐▄,▀██▄    ;
-// ;    ▐▄▀     A└-▀▌  █████████      ║     J███████▀         ▐▌▌╙█µ▀█▄   ;
-// ;  A╙└▀█∩   [    █  █████████      ▌     ███████H          J██ç ▀▄╙█_  ;
-// ; █    ▐▌    ▀▄▄▀  J█████████      H    ████████          █    █  ▀▄▌  ;
-// ;  ▀▄▄█▀.          █████████▌           ████████          █ç__▄▀ ╓▀└╙%_;
-// ;                 ▐█████████      ▐    J████████▌          .└╙   █¿  ,▌;
-// ;                 █████████▀╙╙█▌└▐█╙└██▀▀████████                 ╙▀▀▀ ;
-// ;                ▐██▀┘Å▀▄A └▓█╓▐█▄▄██▄J▀@└▐▄Å▌▀██▌                     ;
-// ;                █▄▌▄█M╨╙└└-           .└└▀**▀█▄,▌                     ;
-// ;                ²▀█▄▄L_                  _J▄▄▄█▀└                     ;
-// ;                     └╙▀▀▀▀▀MMMR████▀▀▀▀▀▀▀└                          ;
-// ;                                                                      ;
-// ;                                                                      ;
-// ; ███████╗████████╗ █████╗ ███╗   ██╗ ██████╗███████╗██╗   ██╗██╗  ██╗ ;
-// ; ██╔════╝╚══██╔══╝██╔══██╗████╗  ██║██╔════╝╚══███╔╝╚██╗ ██╔╝██║ ██╔╝ ;
-// ; ███████╗   ██║   ███████║██╔██╗ ██║██║       ███╔╝  ╚████╔╝ █████╔╝  ;
-// ; ╚════██║   ██║   ██╔══██║██║╚██╗██║██║      ███╔╝    ╚██╔╝  ██╔═██╗  ;
-// ; ███████║   ██║   ██║  ██║██║ ╚████║╚██████╗███████╗   ██║   ██║  ██╗ ;
-// ; ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝╚══════╝   ╚═╝   ╚═╝  ╚═╝ ;
-// ;                                                                      ;
-// ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;  The Stańczyk Programming Language  ;;
+/*
+ ;;  The Stańczyk Programming Language  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+ ;                                                                      ;
+ ;            ¿«fº"└└-.`└└*∞▄_              ╓▄∞╙╙└└└╙╙*▄▄               ;
+ ;         J^. ,▄▄▄▄▄▄_      └▀████▄ç    JA▀            └▀v             ;
+ ;       ,┘ ▄████████████▄¿     ▀██████▄▀└      ╓▄██████▄¿ "▄_          ;
+ ;      ,─╓██▀└└└╙▀█████████      ▀████╘      ▄████████████_`██▄        ;
+ ;     ;"▄█└      ,██████████-     ▐█▀      ▄███████▀▀J█████▄▐▀██▄      ;
+ ;     ▌█▀      _▄█▀▀█████████      █      ▄██████▌▄▀╙     ▀█▐▄,▀██▄    ;
+ ;    ▐▄▀     A└-▀▌  █████████      ║     J███████▀         ▐▌▌╙█µ▀█▄   ;
+ ;  A╙└▀█∩   [    █  █████████      ▌     ███████H          J██ç ▀▄╙█_  ;
+ ; █    ▐▌    ▀▄▄▀  J█████████      H    ████████          █    █  ▀▄▌  ;
+ ;  ▀▄▄█▀.          █████████▌           ████████          █ç__▄▀ ╓▀└╙%_;
+ ;                 ▐█████████      ▐    J████████▌          .└╙   █¿  ,▌;
+ ;                 █████████▀╙╙█▌└▐█╙└██▀▀████████                 ╙▀▀▀ ;
+ ;                ▐██▀┘Å▀▄A └▓█╓▐█▄▄██▄J▀@└▐▄Å▌▀██▌                     ;
+ ;                █▄▌▄█M╨╙└└-           .└└▀**▀█▄,▌                     ;
+ ;                ²▀█▄▄L_                  _J▄▄▄█▀└                     ;
+ ;                     └╙▀▀▀▀▀MMMR████▀▀▀▀▀▀▀└                          ;
+ ;                                                                      ;
+ ;                                                                      ;
+ ; ███████╗████████╗ █████╗ ███╗   ██╗ ██████╗███████╗██╗   ██╗██╗  ██╗ ;
+ ; ██╔════╝╚══██╔══╝██╔══██╗████╗  ██║██╔════╝╚══███╔╝╚██╗ ██╔╝██║ ██╔╝ ;
+ ; ███████╗   ██║   ███████║██╔██╗ ██║██║       ███╔╝  ╚████╔╝ █████╔╝  ;
+ ; ╚════██║   ██║   ██╔══██║██║╚██╗██║██║      ███╔╝    ╚██╔╝  ██╔═██╗  ;
+ ; ███████║   ██║   ██║  ██║██║ ╚████║╚██████╗███████╗   ██║   ██║  ██╗ ;
+ ; ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝╚══════╝   ╚═╝   ╚═╝  ╚═╝ ;
+ ;                                                                      ;
+ ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;  The Stańczyk Programming Language  ;;
 
-// The Stańczyk Runtime Library
-// Note: The Runtime library is automatically loaded into any program created
-// with Stańczyk by the compiler.
+ The Stańczyk Runtime Library
+
+ The Runtime library is automatically loaded into any program created with Stańczyk by the compiler.
+*/
 
 // Maximum Values for Signed Integers (int)
 const MAX_INT8  int 127 ;
@@ -50,28 +52,58 @@ const MIN_INT64 int -9_223_372_036_854_775_808 ;
 // const MAX_UINT32 uint 4_294_967_295u ;
 // const MAX_UINT64 uint 18_446_744_073_709_551_615u ;
 
-// Removes two values from the stack
-// Calling
-//   - <any> <any> 2drop
+/*
+  Removes the last two values on the stack.
+  Stack input:  1 2
+  Stack output:
+*/
 fn 2drop (any any) drop drop ;
 
-// Duplicate the last 2 values on the stack
-// Calling:
-//   - <arg1> <arg2> 2dup
-// Returns:
-//   - The 2 given arguments, twice
+// Duplicates the last two values on the stack, keeping the same ordering.
+// Stack input:  1 2
+// Stack output: 1 2 1 2
 fn 2dup (x y --- x y x y) over over ;
 
+/*
+  Duplicates the last two values on the stack, just after each value.
+  Stack input:  1 2
+  Stack output: 1 1 2 2
+*/
 fn 2dup* (x y --- x x y y) over swap dup ;
 
+/*
+  Counts the number of characters in a string.
+  Stack input:  "Hello"
+  Stack output: 5
+*/
 fn len (string --- int) 0 swap for c in 1 + loop ;
 
+/*
+  Counts the number of characters in a number.
+  Stack input:  1337
+  Stack output: 4
+*/
 fn len (int --- int) 0 swap 0 > for x in 1 + x 10 / set* loop ;
 
+/*
+  Returns the first element after bool if boolean equals true, the second element if boolean equals false.
+  Usage: true "was true" "was false" ?
+  Stack output: "was true"
+*/
 fn ? (bool x x --- x) rot if drop else nip fi ;
 
+/*
+  Returns the highest integer from the two integers given.
+  Stack input:  1 2
+  Stack output: 2
+*/
 fn max (int int --- int) 2dup > -rot ? ;
 
+/*
+  Returns the lowest integer from the two integers given.
+  Stack input:  1 2
+  Stack output: 1
+*/
 fn min (int int --- int) 2dup < -rot ? ;
 
 // Helper function for Logical And operator (&&).
