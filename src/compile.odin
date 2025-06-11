@@ -379,6 +379,13 @@ compile :: proc() {
 init_everything :: proc() {
     gscope = push_scope(Token{}, .Global)
 
+    checker.basic_types = {
+            .Bool   = new_clone(Type{size = 1, variant = Type_Basic{.Bool}}, context.temp_allocator),
+            .Byte   = new_clone(Type{size = 1, variant = Type_Basic{.Byte}}, context.temp_allocator),
+            .Int    = new_clone(Type{size = 8, variant = Type_Basic{.Int}}, context.temp_allocator),
+            .String = new_clone(Type{size = 8, variant = Type_Basic{.String}}, context.temp_allocator),
+    }
+
     // Add compiler defined constants
     add_global_bool_constant("OS_DARWIN", ODIN_OS == .Darwin)
     add_global_bool_constant("OS_LINUX", ODIN_OS == .Linux)
@@ -386,13 +393,6 @@ init_everything :: proc() {
     add_global_bool_constant("SK_DEBUG", debug_switch_enabled)
 
     add_global_string_constant("SK_VERSION", COMPILER_VERSION)
-
-    checker.basic_types = {
-            .Bool   = new_clone(Type{size = 1, variant = Type_Basic{.Bool}}, context.temp_allocator),
-            .Byte   = new_clone(Type{size = 1, variant = Type_Basic{.Byte}}, context.temp_allocator),
-            .Int    = new_clone(Type{size = 8, variant = Type_Basic{.Int}}, context.temp_allocator),
-            .String = new_clone(Type{size = 8, variant = Type_Basic{.String}}, context.temp_allocator),
-    }
 }
 
 deinit_everything :: proc() {
@@ -1439,7 +1439,7 @@ parse_token :: proc(token: Token, f: ^Function) -> bool {
         emit(f, token, Push_Byte{token.text[0]})
         f.stack->push(checker.basic_types[.Byte])
     case .Bool_Literal:
-        emit(f, token, Push_Bool{token.text == "true" ? true : false})
+        emit(f, token, Push_Bool{token.text == "true"})
         f.stack->push(checker.basic_types[.Bool])
     case .Cstring_Literal:
         emit(f, token, Push_Cstring{

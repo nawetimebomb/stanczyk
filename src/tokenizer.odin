@@ -295,6 +295,7 @@ get_next_token :: proc(t: ^Tokenizer) -> (token: Token, err: Error) {
                 r: byte
                 switch c {
                 case '\\': r = '\\'
+                case 'e':  r = '\e'
                 case 'n':  r = '\n'
                 case 't':  r = '\t'
                 case : r = c

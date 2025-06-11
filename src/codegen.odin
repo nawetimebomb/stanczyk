@@ -144,7 +144,8 @@ gen_op :: proc(c: Bytecode, f: ^Function = nil) {
 
     switch v in c.variant {
     case Push_Bool:
-        writecode("    mov rax, {}", v.val ? 1 : 0)
+        writecode("    xor rax, rax")
+        writecode("    mov eax, {}", v.val ? "1" : "0")
         writecode("    push rax")
     case Push_Bound:
         if v.use_pointer {
@@ -197,33 +198,33 @@ gen_op :: proc(c: Bytecode, f: ^Function = nil) {
     case Declare_Var_Global:
         writecode("    mov rax, stanczyk_static")
         writecode("    add rax, {}", v.offset)
-
-        if v.set {
-            writecode("    pop rbx")
-            writecode("    mov QWORD [rax], rbx")
-        } else {
+        writecode("    xor rbx, rbx")
+        if !v.set {
             switch v.kind {
-            case .Bool:   writecode("    mov QWORD [rax], 0")
-            case .Byte:   writecode("    mov QWORD [rax], 0")
-            case .Int:    writecode("    mov QWORD [rax], 0")
-            case .String: writecode("    mov QWORD [rax], EMPTY_STRING")
+            case .Bool:   writecode("    mov rbx, 0")
+            case .Byte:   writecode("    mov bl, 0")
+            case .Int:    writecode("    mov rbx, 0")
+            case .String: writecode("    mov rbx, EMPTY_STRING")
             }
+            writecode("    push rbx")
         }
+        writecode("    pop rbx")
+        writecode("    mov [rax], rbx")
     case Declare_Var_Local:
         writecode("    mov rax, [ret_stack_ptr]")
         writecode("    add rax, {}", v.offset)
-
-        if v.set {
-            writecode("    pop rbx")
-            writecode("    mov QWORD [rax], rbx")
-        } else {
+        writecode("    xor rbx, rbx")
+        if !v.set {
             switch v.kind {
-            case .Bool:   writecode("    mov QWORD [rax], 0")
-            case .Byte:   writecode("    mov QWORD [rax], 0")
-            case .Int:    writecode("    mov QWORD [rax], 0")
-            case .String: writecode("    mov QWORD [rax], EMPTY_STRING")
+            case .Bool:   writecode("    mov rbx, 0")
+            case .Byte:   writecode("    mov bl, 0")
+            case .Int:    writecode("    mov rbx, 0")
+            case .String: writecode("    mov rbx, EMPTY_STRING")
             }
+            writecode("    push rbx")
         }
+        writecode("    pop rbx")
+        writecode("    mov [rax], rbx")
     case Get_Byte:
         writecode("    pop rbx")
         writecode("    pop rax")

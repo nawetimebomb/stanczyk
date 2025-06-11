@@ -16,7 +16,8 @@ BOLD="\033[1m"
 ERRORS=""
 
 echo -e $RED
-echo -e '┏━  The Stańczyk Programming Language  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+echo -e '
+┏━  The Stańczyk Programming Language  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃                                                                      ┃
 ┃            ¿«fº"└└-.`└└*∞▄_              ╓▄∞╙╙└└└╙╙*▄▄               ┃
 ┃         J^. ,▄▄▄▄▄▄_      └▀████▄ç    JA▀            └▀v             ┃
