@@ -1,8 +1,6 @@
 output
 output.s
 output.o
-bin
 skc
 sandbox
-new_demo
 core*
