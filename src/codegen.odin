@@ -72,7 +72,7 @@ gen_program :: proc() {
 
 gen_bootstrap :: proc() {
     // PREPEND BEGINS HERE
-    writemeta("global main")
+    writemeta("global _start")
     writemeta("extern exit")
 
     for fname in C_functions {
@@ -83,7 +83,7 @@ gen_bootstrap :: proc() {
 
     // CODE BEGINS HERE
     writecode("section .text")
-    writecode("main:")
+    writecode("_start:")
     writecode(";; global code starts here")
 
     for c in gen.global_code { gen_op(c) }

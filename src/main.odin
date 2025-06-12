@@ -214,7 +214,7 @@ Make sure '{0}' is set and points to the directory where The {1} Compiler is ins
     compile()
 
     libc.system(fmt.ctprintf("nasm {0}.asm -f elf64 -o {0}.o", output_filename))
-    libc.system(fmt.ctprintf("gcc {0}.o -o {0}", output_filename))
+    libc.system(fmt.ctprintf("ld {0}.o -lc -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o {0}", output_filename))
 
     when !ODIN_DEBUG {
         os.remove(fmt.tprintf("{}.asm", output_filename))
