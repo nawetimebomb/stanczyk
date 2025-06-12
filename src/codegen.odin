@@ -117,7 +117,7 @@ gen_bootstrap :: proc() {
     writedata("EMPTY_STRING: db 0")
     writedata("FMT_INT: db 37,100,10,0")
     for key, value in strings_table {
-        writedata("str_{}: db {} ; {}", value, gen_ascii(key), escaped(key))
+        writedata("str_{}: db {}", value, gen_ascii(key))
     }
     // DATA ENDS HERE
 }

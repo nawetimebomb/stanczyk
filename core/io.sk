@@ -35,6 +35,9 @@ foreign fn write as C.write (int string int) ---
 // C.read (fd, char*, size_t)
 foreign fn read as C.read (int ^string int --- int) ---
 
+// C.scanf (format)
+foreign fn scanf as C.scanf (string ^string) ---
+
 // C.puts (string)
 foreign fn puts as C.puts (string) ---
 
@@ -67,7 +70,6 @@ fn println (int) print '\n' print ;
 
 fn println (string) print '\n' print ;
 
-// TODO: Improve this by actually supporting a buffer and not a string
-fn read (int string) let fd buf in fd &buf 1024 C.read 0 buf rot 1 - set-byte end ;
+fn read (^string) "%1023[^\n]" swap C.scanf ;
 
 fn write (string int) swap dup len C.write ;
