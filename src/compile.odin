@@ -974,6 +974,7 @@ declare_var :: proc() {
 
     append(entities, Entity{
         address = address,
+        is_global = is_global,
         pos = name_token.pos,
         name = name,
         variant = ev,

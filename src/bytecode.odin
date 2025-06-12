@@ -53,7 +53,6 @@ Bytecode_Variant :: union {
     Call_C_Function,
     Let_Bind,
     Let_Unbind,
-    Print,
     Return,
 }
 
@@ -131,7 +130,6 @@ Call_Function :: struct { address: uint, name: string }
 Call_C_Function :: struct { name: string, inputs: int, outputs: int }
 Let_Bind :: struct { val: int }
 Let_Unbind :: struct { val: int }
-Print :: struct {}
 Return :: struct {}
 
 // END INTRINSICS
@@ -193,7 +191,6 @@ bytecode_to_string :: proc(b: Bytecode) -> string {
     case Call_C_Function: return "call C function"
     case Let_Bind: return "let binding scope starts"
     case Let_Unbind: return "let binding scope ends"
-    case Print: return "print"
     case Return: return "return or implicit ';'"
     }
 

@@ -57,7 +57,7 @@ fn print (byte) C.putchar ;
 
 fn print (int) "%li" swap C.printf ;
 
-fn print (string) STDOUT swap dup len C.write ;
+fn print (string) "%s" swap C.printf ;
 
 fn println (bool) "true\n" "false\n" ? print ;
 
@@ -65,7 +65,7 @@ fn println (byte) print '\n' print ;
 
 fn println (int) print '\n' print ;
 
-fn println (string) STDOUT swap dup len C.write '\n' C.putchar ;
+fn println (string) print '\n' print ;
 
 // TODO: Improve this by actually supporting a buffer and not a string
 fn read (int string) let fd buf in fd &buf 1024 C.read 0 buf rot 1 - set-byte end ;

@@ -41,7 +41,7 @@
   (defconst stanczyk-keywords
     '("if" "else" "fi" "do" "for" "for*" "loop" "fn" "const" "var"
       "let" "in" "end" "as" "using" "foreign" "builtin"
-      "get-byte" "set" "set*" "set-byte" "---" "..")))
+      "get-byte" "set" "set*" "set-byte" "---" ".." "struct")))
 
 (eval-and-compile
   (defconst stanczyk-types

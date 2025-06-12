@@ -72,26 +72,27 @@ gen_program :: proc() {
 
 gen_bootstrap :: proc() {
     // PREPEND BEGINS HERE
-    writemeta("format ELF64")
-    writemeta("public _start")
-    writemeta("extrn exit")
+    writemeta("global main")
+    writemeta("extern exit")
 
     for fname in C_functions {
         if fname == "exit" { continue }
-        writemeta("extrn {}", fname)
+        writemeta("extern {}", fname)
     }
     // PREPEND ENDS HERE
 
     // CODE BEGINS HERE
-    writecode("section '.text' executable")
-    writecode("_start:")
-    writecode("    mov [args_ptr], rsp")
-    writecode("    mov rax, ret_stack_ptr_end")
+    writecode("section .text")
+    writecode("main:")
     writecode(";; global code starts here")
 
     for c in gen.global_code { gen_op(c) }
 
     writecode(";; global code ends here")
+
+    writecode("    mov [args_ptr], rsp")
+    writecode("    mov rax, ret_stack_ptr_end")
+
     writecode(".stanczyk_user_program:")
     writecode("    mov [ret_stack_ptr], rax")
     writecode("    mov rax, rsp")
@@ -105,12 +106,14 @@ gen_bootstrap :: proc() {
     // CODE ENDS HERE
 
     // DATA BEGINS HERE
-    writedata("section '.data' writeable")
-    writedata("args_ptr: rq 1")
-    writedata("ret_stack_ptr: rq 1")
-    writedata("ret_stack: rb 65535")
+    writedata("section .bss")
+    writedata("args_ptr: resq 1")
+    writedata("ret_stack_ptr: resq 1")
+    writedata("ret_stack: resb 65535")
     writedata("ret_stack_ptr_end:")
-    writedata("stanczyk_static: rb {}", gen.global_mem_count)
+    writedata("stanczyk_static: resb {}", gen.global_mem_count)
+
+    writedata("section .data")
     writedata("EMPTY_STRING: db 0")
     writedata("FMT_INT: db 37,100,10,0")
     for key, value in strings_table {
@@ -144,8 +147,7 @@ gen_op :: proc(c: Bytecode, f: ^Function = nil) {
 
     switch v in c.variant {
     case Push_Bool:
-        writecode("    xor rax, rax")
-        writecode("    mov eax, {}", v.val ? "1" : "0")
+        writecode("    mov rax, {}", v.val ? "1" : "0")
         writecode("    push rax")
     case Push_Bound:
         if v.use_pointer {
@@ -197,7 +199,6 @@ gen_op :: proc(c: Bytecode, f: ^Function = nil) {
         }
     case Declare_Var_Global:
         writecode("    mov rax, stanczyk_static")
-        writecode("    add rax, {}", v.offset)
         writecode("    xor rbx, rbx")
         if !v.set {
             switch v.kind {
@@ -209,7 +210,7 @@ gen_op :: proc(c: Bytecode, f: ^Function = nil) {
             writecode("    push rbx")
         }
         writecode("    pop rbx")
-        writecode("    mov [rax], rbx")
+        writecode("    mov [rax+{}], rbx", v.offset)
     case Declare_Var_Local:
         writecode("    mov rax, [ret_stack_ptr]")
         writecode("    add rax, {}", v.offset)
@@ -269,7 +270,6 @@ gen_op :: proc(c: Bytecode, f: ^Function = nil) {
         writecode("    pop rax")
         writecode("    sub rax, rbx")
         writecode("    push rax")
-
     case Comparison:
         writecode("    xor rcx, rcx")
         writecode("    mov rdx, 1")
@@ -422,6 +422,18 @@ gen_op :: proc(c: Bytecode, f: ^Function = nil) {
         writecode("    push rbx")
 
     case Assembly:
+        // TODO: this should be part of the string struct
+        writecode("    pop rsi")
+        writecode("    xor rdx, rdx")
+        writecode(".next_char:")
+        writecode("    cmp byte [rsi+rdx], 0")
+        writecode("    je .done")
+        writecode("    inc rdx")
+        writecode("    jmp .next_char")
+        writecode(".done:")
+        writecode("    mov rax, 1")
+        writecode("    mov rdi, 1")
+        writecode("    syscall")
     case Call_Function:
         writecode("    mov rax, rsp")
         writecode("    mov rsp, [ret_stack_ptr]")
@@ -439,6 +451,7 @@ gen_op :: proc(c: Bytecode, f: ^Function = nil) {
             writecode("    pop {}", sliced_inputs[x])
         }
 
+        writecode("    mov rax, 0")
         writecode("    call {}", v.name)
 
         for x := 0; x < v.outputs; x += 1 {
@@ -460,9 +473,6 @@ gen_op :: proc(c: Bytecode, f: ^Function = nil) {
         writecode("    add rax, {}", unbinds * 8)
         writecode("    mov [ret_stack_ptr], rax")
         f.binds_count -= unbinds
-    case Print:
-        writecode("    pop rdi")
-        writecode("    call print_number")
     case Return:
         if f.binds_count > 0 {
             writecode("    mov rax, [ret_stack_ptr]")
