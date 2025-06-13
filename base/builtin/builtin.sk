@@ -66,20 +66,51 @@ type string string ;
 
 // Compiler-defined functions
 
+/*
+  Removes the last element from the stack.
+*/
 inline fn drop (any ---)
 
+/*
+  Duplicates the last element on the stack.
+*/
 inline fn dup (x --- x x)
 
+/*
+  Duplicates the second to last element on the stack. Maintaining ordering.
+*/
 inline fn dup* (x y --- x x y)
 
+/*
+  Removes the second to last element from the stack.
+*/
 inline fn nip (x y --- y)
 
+/*
+  Duplicates the second to last element on the stack and puts it to the top
+  of the stack.
+*/
 inline fn over (x y --- x y x)
 
+/*
+  Rotates the last three elements from the stack, moving the third to last
+  element to the top and the rest of the elements one position back.
+*/
 inline fn rot (x y z --- y z x)
 
+/*
+  Rotates the last three elements on the stack, moving the top element to
+  the back and the rest of the elements forward.
+*/
 inline fn rot* (x y z --- z x y)
 
+/*
+  Swaps the position of the last two elements on the stack.
+*/
 inline fn swap (x y --- y x)
 
+/*
+  Duplicates the last element on the stack but positions it to be the third
+  to last. Requires a stack size of at least two elements.
+*/
 inline fn tuck (x y --- y x y)

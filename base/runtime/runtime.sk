@@ -54,83 +54,65 @@ const MIN_INT64 int -9_223_372_036_854_775_808 ;
 // const MAX_UINT64 uint 18_446_744_073_709_551_615u ;
 
 /*
-  Removes the last two values on the stack.
-  Stack input:  1 2
-  Stack output:
+  Removes the last two elements from the stack.
 */
 fn 2drop (any any) drop drop ;
 
-// Duplicates the last two values on the stack, keeping the same ordering.
-// Stack input:  1 2
-// Stack output: 1 2 1 2
+/*
+ Duplicates the last two elements on the stack, keeping the same ordering
+ for the group of two elements.
+*/
 fn 2dup (x y --- x y x y) over over ;
 
 /*
-  Duplicates the last two values on the stack, just after each value.
-  Stack input:  1 2
-  Stack output: 1 1 2 2
+  Duplicates the last two elements on the stack, just after each element.
 */
 fn 2dup* (x y --- x x y y) over swap dup ;
 
 /*
   Counts the number of characters in a string.
-  Stack input:  "Hello"
-  Stack output: 5
 */
 fn len (string --- int) 0 swap for c in 1 + loop ;
 
 /*
   Counts the number of characters in a number.
-  Stack input:  1337
-  Stack output: 4
 */
 fn len (int --- int) 0 swap 0 > for x in 1 + x 10 / set* loop ;
 
 /*
-  Returns the first element after bool if boolean equals true, the second element if boolean equals false.
-  Usage: true "was true" "was false" ?
-  Stack output: "was true"
+  Returns the first element after `bool` if it's true or the second element
+  if it's false.
 */
 fn ? (bool x x --- x) rot if drop else nip fi ;
 
 /*
-  Returns the highest integer from the two integers given.
-  Stack input:  1 2
-  Stack output: 2
+  Returns the highest integer from the two given integers.
 */
 fn max (int int --- int) 2dup > rot* ? ;
 
 /*
-  Returns the lowest integer from the two integers given.
-  Stack input:  1 2
-  Stack output: 1
+  Returns the lowest integer from the two given integers.
 */
 fn min (int int --- int) 2dup < rot* ? ;
 
 /*
   Returns the negated boolean.
-  Stack input: true
-  Stack output: false
 */
 fn not (bool --- bool) false true ? ;
 
 /*
-  Returns true if both inputs are true, false if one or both are false.
-  Stack input:  true true
-  Stack output: true
+  Returns true if last two elements on the stack are true,
+  false if one or both are false.
 */
 fn and (bool bool --- bool) over ? ;
 
 /*
-  Returns true if at least one of the inputs is true.
-  Stack input:  true false
-  Stack output: true
+  Returns true if at least one of the last two elements is true.
 */
 fn or (bool bool --- bool) dup* ? ;
 
 /*
-  Returns true if one of the inputs is true, if both are true, returns false.
-  Stack input:  true true
-  Stack output: false
+  Returns true if one of the elements is true, if both are true,
+  or false, returns false.
 */
 fn xor (bool bool --- bool) dup if false swap ? else drop fi ;
