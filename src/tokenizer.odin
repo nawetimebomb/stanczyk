@@ -55,8 +55,8 @@ Token_Kind :: enum u8 {
     Greater_Than_Auto, Greater_Equal_Auto,
     Less_Than_Auto, Less_Equal_Auto,
 
-    Drop, Dup, Nip, Over, Rot,
-    Rot_Neg, Swap, Take, Tuck,
+    Drop, Dup, Dup_Star, Nip, Over, Rot,
+    Rot_Star, Swap, Take, Tuck,
 }
 
 Token :: struct {
@@ -117,8 +117,8 @@ token_string_table := [Token_Kind]string{
         .Greater_Than_Auto = "..>", .Greater_Equal_Auto = "..>=",
         .Less_Than_Auto = "..<", .Less_Equal_Auto = "..<=",
 
-        .Drop = "drop", .Dup = "dup", .Nip = "nip", .Over = "over",
-        .Rot = "rot", .Rot_Neg = "-rot", .Swap = "swap",
+        .Drop = "drop", .Dup = "dup", .Dup_Star = "dup*", .Nip = "nip",
+        .Over = "over", .Rot = "rot", .Rot_Star = "rot*", .Swap = "swap",
         .Take = "take", .Tuck = "tuck",
 }
 
@@ -417,10 +417,11 @@ string_to_token_kind :: proc(str: string) -> (kind: Token_Kind) {
 
     case "drop": kind = .Drop
     case "dup": kind = .Dup
+    case "dup*": kind = .Dup_Star
     case "nip": kind = .Nip
     case "over": kind = .Over
     case "rot": kind = .Rot
-    case "-rot": kind = .Rot_Neg
+    case "rot*": kind = .Rot_Star
     case "swap": kind = .Swap
     case "take": kind = .Take
     case "tuck": kind = .Tuck

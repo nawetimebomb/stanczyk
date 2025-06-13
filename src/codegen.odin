@@ -388,6 +388,12 @@ gen_op :: proc(c: Bytecode, f: ^Function = nil) {
         writecode("    pop rax")
         writecode("    push rax")
         writecode("    push rax")
+    case Dup_Star:
+        writecode("    pop rax")
+        writecode("    pop rbx")
+        writecode("    push rbx")
+        writecode("    push rbx")
+        writecode("    push rax")
     case Nip:
         writecode("    pop rbx")
         writecode("    pop rax")
@@ -398,14 +404,14 @@ gen_op :: proc(c: Bytecode, f: ^Function = nil) {
         writecode("    push rax")
         writecode("    push rbx")
         writecode("    push rax")
-    case Rotate:
+    case Rot:
         writecode("    pop rcx")
         writecode("    pop rbx")
         writecode("    pop rax")
         writecode("    push rbx")
         writecode("    push rcx")
         writecode("    push rax")
-    case Rotate_Neg:
+    case Rot_Star:
         writecode("    pop rcx")
         writecode("    pop rbx")
         writecode("    pop rax")

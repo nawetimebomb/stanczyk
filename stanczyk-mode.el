@@ -40,7 +40,7 @@
 (eval-and-compile
   (defconst stanczyk-keywords
     '("if" "else" "fi" "do" "for" "for*" "loop" "fn" "const" "var" "type"
-      "let" "in" "end" "as" "using" "foreign" "builtin"
+      "let" "in" "end" "as" "using" "foreign" "builtin" "inline"
       "get-byte" "set" "set*" "set-byte" "---" ".." "struct")))
 
 (eval-and-compile

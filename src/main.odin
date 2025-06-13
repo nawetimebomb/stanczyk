@@ -145,7 +145,6 @@ Make sure '{0}' is set and points to the directory where The {1} Compiler is ins
         )
     }
 
-    load_files(fmt.tprintf("{}/base/builtin", compiler_dir), true)
     load_files(fmt.tprintf("{}/base/runtime", compiler_dir), true)
 
     bootstrap_files_count := len(source_files)

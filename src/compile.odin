@@ -1413,6 +1413,7 @@ parse_token :: proc(token: Token, f: ^Function) -> bool {
                 should_error = false
                 pop_scope()
                 f.stack->reset()
+                break close_if_statements
             case checker.curr_scope.kind == .If_Else:
                 b := emit(f, token, Fi{checker.curr_scope.start_op.address})
                 should_error = false
@@ -1523,6 +1524,13 @@ parse_token :: proc(token: Token, f: ^Function) -> bool {
         emit(f, token, Dup{})
         f.stack->push(A)
         f.stack->push(A)
+    case .Dup_Star:
+        B := f.stack->pop()
+        A := f.stack->pop()
+        emit(f, token, Dup_Star{})
+        f.stack->push(A)
+        f.stack->push(A)
+        f.stack->push(B)
     case .Nip:
         B := f.stack->pop()
         A := f.stack->pop()
@@ -1539,15 +1547,15 @@ parse_token :: proc(token: Token, f: ^Function) -> bool {
         C := f.stack->pop()
         B := f.stack->pop()
         A := f.stack->pop()
-        emit(f, token, Rotate{})
+        emit(f, token, Rot{})
         f.stack->push(B)
         f.stack->push(C)
         f.stack->push(A)
-    case .Rot_Neg:
+    case .Rot_Star:
         C := f.stack->pop()
         B := f.stack->pop()
         A := f.stack->pop()
-        emit(f, token, Rotate_Neg{})
+        emit(f, token, Rot_Star{})
         f.stack->push(C)
         f.stack->push(A)
         f.stack->push(B)

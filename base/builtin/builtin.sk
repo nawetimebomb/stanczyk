@@ -63,3 +63,23 @@ type bool   bool   ;
 type byte   byte   ;
 type int    int    ;
 type string string ;
+
+// Compiler-defined functions
+
+inline fn drop (any ---)
+
+inline fn dup (x --- x x)
+
+inline fn dup* (x y --- x x y)
+
+inline fn nip (x y --- y)
+
+inline fn over (x y --- x y x)
+
+inline fn rot (x y z --- y z x)
+
+inline fn rot* (x y z --- z x y)
+
+inline fn swap (x y --- y x)
+
+inline fn tuck (x y --- y x y)

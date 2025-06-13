@@ -40,11 +40,11 @@ Bytecode_Variant :: union {
     For_String_End,
 
     Drop,
-    Dup,
+    Dup, Dup_Star,
     Nip,
     Over,
-    Rotate,
-    Rotate_Neg,
+    Rot,
+    Rot_Star,
     Swap,
     Tuck,
 
@@ -114,10 +114,11 @@ For_String_End :: struct { address: uint }
 
 Drop :: struct {}
 Dup :: struct {}
+Dup_Star :: struct {}
 Nip :: struct {}
 Over :: struct {}
-Rotate :: struct {}
-Rotate_Neg :: struct {}
+Rot :: struct {}
+Rot_Star :: struct {}
 Swap :: struct {}
 Tuck :: struct {}
 
@@ -179,10 +180,11 @@ bytecode_to_string :: proc(b: Bytecode) -> string {
 
     case Drop: return "drop"
     case Dup: return "dup"
+    case Dup_Star: return "dup*"
     case Nip: return "nip"
     case Over: return "over"
-    case Rotate: return "rot"
-    case Rotate_Neg: return "-rot"
+    case Rot: return "rot"
+    case Rot_Star: return "rot*"
     case Swap: return "swap"
     case Tuck: return "tuck"
 
