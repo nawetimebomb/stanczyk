@@ -395,12 +395,12 @@ compile :: proc() {
 init_everything :: proc() {
     gscope = push_scope(Token{}, .Global)
 
-    checker.basic_types[.Bool]   = new_clone(Type{size = 1, variant = Type_Basic{.Bool}})
-    checker.basic_types[.Byte]   = new_clone(Type{size = 1, variant = Type_Basic{.Byte}})
-    checker.basic_types[.Int]    = new_clone(Type{size = 8, variant = Type_Basic{.Int}})
-    checker.basic_types[.String] = new_clone(Type{size = 8, variant = Type_Basic{.String}})
+    checker.basic_types[.Bool]   = new_clone(Type{size = 1, variant = Type_Basic{.Bool}}, context.temp_allocator)
+    checker.basic_types[.Byte]   = new_clone(Type{size = 1, variant = Type_Basic{.Byte}}, context.temp_allocator)
+    checker.basic_types[.Int]    = new_clone(Type{size = 8, variant = Type_Basic{.Int}}, context.temp_allocator)
+    checker.basic_types[.String] = new_clone(Type{size = 8, variant = Type_Basic{.String}}, context.temp_allocator)
 
-    add_type("any", new_clone(Type{size = 8, variant = Type_Any{}}))
+    add_type("any", new_clone(Type{size = 8, variant = Type_Any{}}, context.temp_allocator))
     add_type("bool", checker.basic_types[.Bool])
     add_type("byte", checker.basic_types[.Byte])
     add_type("int", checker.basic_types[.Int])
@@ -665,7 +665,6 @@ delete_scope :: proc(s: ^Scope) {
             delete(v.inputs)
             delete(v.outputs)
         case Entity_Type:
-            free(v.type)
         case Entity_Variable:
         }
     }
