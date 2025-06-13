@@ -69,7 +69,7 @@ cleanup_exit :: proc(code: int) {
     os.exit(code)
 }
 
-load_file :: proc(filename: string, internal := false, dir := "") {
+load_file :: proc(filename: string, internal: bool, dir := "") {
     parsed := filename
 
     if dir != "" {
@@ -93,13 +93,13 @@ load_file :: proc(filename: string, internal := false, dir := "") {
     })
 }
 
-load_files_from_dir :: proc(dir: string) {
+load_files :: proc(dir: string, internal := false) {
     v, _ := os.open(dir)
     fis, _ := os.read_dir(v, 0, context.temp_allocator)
 
     for f in fis {
-        if strings.ends_with(f.name, ".sk") {
-            load_file(f.fullpath)
+        if strings.ends_with(f.name, ".sk") && !strings.contains(f.name, "-test") {
+            load_file(f.fullpath, internal)
         }
     }
 }
@@ -145,8 +145,8 @@ Make sure '{0}' is set and points to the directory where The {1} Compiler is ins
         )
     }
 
-    load_file("builtin.sk", true, fmt.tprintf("{}/base", compiler_dir))
-    load_file("runtime.sk", true, fmt.tprintf("{}/base", compiler_dir))
+    load_files(fmt.tprintf("{}/base/builtin", compiler_dir), true)
+    load_files(fmt.tprintf("{}/base/runtime", compiler_dir), true)
 
     bootstrap_files_count := len(source_files)
 
@@ -173,10 +173,10 @@ Make sure '{0}' is set and points to the directory where The {1} Compiler is ins
 
         if strings.ends_with(input, ".sk") {
             if output_filename == "" { output_filename = filepath.short_stem(input) }
-            load_file(input)
+            load_file(input, false)
         } else {
             if output_filename == "" { output_filename = filepath.base(input) }
-            load_files_from_dir(input)
+            load_files(input)
         }
 
     case "help":

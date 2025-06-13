@@ -38,6 +38,7 @@ Type_Pointer :: struct {
 Type_Polymorphic :: struct {}
 
 Type_Basic_Kind :: enum u8 {
+    Invalid,
     Bool,
     Byte,
     Int,
@@ -102,7 +103,7 @@ type_string_to_basic :: proc(s: string) -> Type_Basic_Kind {
     case "string": return .String
     }
     assert(false)
-    return .Bool
+    return .Invalid
 }
 
 type_string_to_Type :: proc(s: string) -> ^Type {
@@ -124,6 +125,7 @@ type_to_string :: proc(t: ^Type) -> string {
     case Type_Array: return fmt.tprintf("[]{}", type_to_string(v.type))
     case Type_Basic:
         switch v.kind {
+        case .Invalid: assert(false)
         case .Bool: return "bool"
         case .Byte: return "byte"
         case .Int: return "int"

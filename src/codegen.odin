@@ -202,6 +202,7 @@ gen_op :: proc(c: Bytecode, f: ^Function = nil) {
         writecode("    xor rbx, rbx")
         if !v.set {
             switch v.kind {
+            case .Invalid: assert(false)
             case .Bool:   writecode("    mov rbx, 0")
             case .Byte:   writecode("    mov bl, 0")
             case .Int:    writecode("    mov rbx, 0")
@@ -217,6 +218,7 @@ gen_op :: proc(c: Bytecode, f: ^Function = nil) {
         writecode("    xor rbx, rbx")
         if !v.set {
             switch v.kind {
+            case .Invalid: assert(false)
             case .Bool:   writecode("    mov rbx, 0")
             case .Byte:   writecode("    mov bl, 0")
             case .Int:    writecode("    mov rbx, 0")
@@ -356,6 +358,7 @@ gen_op :: proc(c: Bytecode, f: ^Function = nil) {
         writecode("    mov [rax+0], rcx") // character
         writecode(".start{}:", code_ip)
         writecode("    mov rbx, [ret_stack_ptr]")
+        writecode("    xor rax, rax")
         writecode("    mov rax, [rbx+0]")
         writecode("    test rax, rax")
         writecode("    jz .end{}", code_ip)

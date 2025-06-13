@@ -34,6 +34,10 @@ Entity_Function :: struct {
     is_polymorphic: bool,
 }
 
+Entity_Type :: struct {
+    type: ^Type,
+}
+
 Entity_Variable :: struct {
     offset: uint,
     size:   uint,
@@ -44,6 +48,7 @@ Entity_Variant :: union {
     Entity_Binding,
     Entity_Constant,
     Entity_Function,
+    Entity_Type,
     Entity_Variable,
 }
 
@@ -112,11 +117,11 @@ Checker :: struct {
     curr_function: ^Function,
     curr_scope:    ^Scope,
 
+    basic_types: [Type_Basic_Kind]^Type,
+
     prev_token: Token,
     curr_token: Token,
     tokenizer:  Tokenizer,
-
-    basic_types: [Type_Basic_Kind]^Type,
 
     errors: [dynamic]string,
 }
@@ -209,6 +214,16 @@ add_global_string_constant :: proc(name: string, value: string) {
     })
 }
 
+add_type :: proc(name: string, type: ^Type) {
+    append(&checker.curr_scope.entities, Entity{
+        is_global = true,
+        name = name,
+        variant = Entity_Type{
+            type = type,
+        },
+    })
+}
+
 allow :: proc(kind: Token_Kind) -> bool {
     if checker.curr_token.kind == kind {
         next()
@@ -278,6 +293,7 @@ compile :: proc() {
                 case .Using: parse_using()
                 case .Const: declare_const()
                 case .Var: declare_var()
+                case .Type: declare_type()
                 case .Builtin: {
                     expect(.Fn)
                     declare_func(.Builtin)
@@ -379,12 +395,16 @@ compile :: proc() {
 init_everything :: proc() {
     gscope = push_scope(Token{}, .Global)
 
-    checker.basic_types = {
-            .Bool   = new_clone(Type{size = 1, variant = Type_Basic{.Bool}}, context.temp_allocator),
-            .Byte   = new_clone(Type{size = 1, variant = Type_Basic{.Byte}}, context.temp_allocator),
-            .Int    = new_clone(Type{size = 8, variant = Type_Basic{.Int}}, context.temp_allocator),
-            .String = new_clone(Type{size = 8, variant = Type_Basic{.String}}, context.temp_allocator),
-    }
+    checker.basic_types[.Bool]   = new_clone(Type{size = 1, variant = Type_Basic{.Bool}})
+    checker.basic_types[.Byte]   = new_clone(Type{size = 1, variant = Type_Basic{.Byte}})
+    checker.basic_types[.Int]    = new_clone(Type{size = 8, variant = Type_Basic{.Int}})
+    checker.basic_types[.String] = new_clone(Type{size = 8, variant = Type_Basic{.String}})
+
+    add_type("any", new_clone(Type{size = 8, variant = Type_Any{}}))
+    add_type("bool", checker.basic_types[.Bool])
+    add_type("byte", checker.basic_types[.Byte])
+    add_type("int", checker.basic_types[.Int])
+    add_type("string", checker.basic_types[.String])
 
     // Add compiler defined constants
     add_global_bool_constant("OS_DARWIN", ODIN_OS == .Darwin)
@@ -638,11 +658,15 @@ pop_scope :: proc() {
 
 delete_scope :: proc(s: ^Scope) {
     for &e in s.entities {
-        #partial switch v in e.variant {
-            case Entity_Function: {
-                delete(v.inputs)
-                delete(v.outputs)
-            }
+        switch v in e.variant {
+        case Entity_Binding:
+        case Entity_Constant:
+        case Entity_Function:
+            delete(v.inputs)
+            delete(v.outputs)
+        case Entity_Type:
+            free(v.type)
+        case Entity_Variable:
         }
     }
 
@@ -660,17 +684,46 @@ refresh_stack_snapshot :: proc(f: ^Function, s: ^Scope) {
     create_stack_snapshot(f, s)
 }
 
+declare_type :: proc() {
+    name_token := expect(.Word)
+    name := name_token.text
+    et := Entity_Type{}
+    f := checker.curr_function
+    entities := &checker.curr_scope.entities
+
+    value_name_token := expect(.Word)
+    expect(.Semicolon)
+
+    if name_token.text == value_name_token.text {
+        // Do nothing, this was already defined on the compiler
+        return
+    }
+
+    entity := find_entity(f, value_name_token)
+
+    #partial switch v in entity.variant {
+        case Entity_Type: {
+            et.type = v.type
+        }
+        case: parsing_error(value_name_token, "'{}' not a known type", value_name_token.text)
+    }
+
+    append(entities, Entity{
+        pos = name_token.pos,
+        token = name_token,
+        address = 0,
+        name = name_token.text,
+        is_global = f == nil,
+        variant = et,
+    })
+}
+
 declare_const :: proc() {
     name_token := expect(.Word)
     name := name_token.text
     f := checker.curr_function
     ec := Entity_Constant{}
     entities := &checker.curr_scope.entities
-
-    if allow(.Type_Literal) {
-        ec.type = type_string_to_Type(checker.prev_token.text)
-    }
-
     inferred_type: ^Type
     temp_stack := make([dynamic]int, context.temp_allocator)
     defer delete(temp_stack)
@@ -698,30 +751,32 @@ declare_const :: proc() {
                     parsing_error(t, "constant {} is not actually compiler-defined", name)
                 } else {
                     entity := find_entity(f, t)
-                    v, ok := entity.variant.(Entity_Constant)
 
-                    if !ok {
-                        parsing_error(entity.pos, "'{}' is not a compile-time known constant", entity.name)
-                    }
+                    switch v in entity.variant {
+                    case Entity_Binding: unimplemented()
+                    case Entity_Constant:
+                        if inferred_type != nil && inferred_type != v.type {
+                            parsing_error(
+                                t,
+                                "type mismatch in constant {}.\n\tExpected: {}\n\tGot: {}",
+                                name, type_to_string(inferred_type), type_to_string(v.type),
+                            )
+                        }
 
-                    if inferred_type != nil && inferred_type != v.type {
-                        parsing_error(
-                            t,
-                            "type mismatch in constant {}.\n\tExpected: {}\n\tGot: {}",
-                            name, type_to_string(inferred_type), type_to_string(v.type),
-                        )
-                    }
-
-                    inferred_type = v.type
-
-                    switch {
-                    case types_equal(v.type, checker.basic_types[.Int]):
-                        value := v.value.(Push_Int).val
-                        append(&temp_stack, value)
-                    case :
-                        ec.value = v.value
-                        expect(.Semicolon)
-                        break decl_body
+                        inferred_type = v.type
+                        switch {
+                        case types_equal(v.type, checker.basic_types[.Int]):
+                            value := v.value.(Push_Int).val
+                            append(&temp_stack, value)
+                        case :
+                            ec.value = v.value
+                            expect(.Semicolon)
+                            break decl_body
+                        }
+                    case Entity_Function: unimplemented()
+                    case Entity_Type:
+                        ec.type = v.type
+                    case Entity_Variable: unimplemented()
                     }
                 }
             }
@@ -825,14 +880,6 @@ declare_var :: proc() {
     ev := Entity_Variable{}
     address: uint
 
-    // TODO: Allow arrays
-    if allow(.Type_Literal) {
-        type_lit_token := checker.prev_token
-        value_type := type_string_to_basic(type_lit_token.text)
-        ev.type = checker.basic_types[value_type]
-        ev.size = ev.type.size
-    }
-
     inferred_type: ^Type
     temp_stack := make([dynamic]^Type, context.temp_allocator)
     defer delete(temp_stack)
@@ -869,6 +916,9 @@ declare_var :: proc() {
                     inferred_type = v.type
                 case Entity_Function:
                     unimplemented()
+                case Entity_Type:
+                    ev.type = v.type
+                    ev.size = v.type.size
                 case Entity_Variable:
                     if entity.is_global {
                         _emit(t, Push_Var_Global{v.offset, false})
@@ -1081,29 +1131,37 @@ parse_function_head :: proc(ef: ^Entity_Function) {
                         outputs = true
                     }
                     case .Word: {
-                        ef.is_parapoly = true
-                        append(arity, type_string_to_Type(token.text))
-                    }
-                    case .Hat: {
-                        type_token := expect(.Type_Literal)
-                        T := type_string_to_Type(type_token.text)
+                        found := false
 
-                        append(arity, type_create_pointer(T))
-                    }
-                    case .Type_Literal: {
-                        T := type_string_to_Type(token.text)
+                        for &e in gscope.entities {
+                            if e.name == token.text {
+                                if v, ok := e.variant.(Entity_Type); ok {
+                                    found = true
+                                    append(arity, v.type)
 
-                        if type_is_any(T) {
-                            ef.has_any_input = true
+                                    if e.name == "any" {
+                                        ef.has_any_input = true
 
-                            if outputs {
-                                parsing_error(
-                                    token.pos,
-                                    "functions can't have 'Any' as outputs",
-                                )
+                                        if outputs {
+                                            parsing_error(
+                                                token.pos,
+                                                "functions can't have 'Any' as outputs",
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
-                        append(arity, T)
+
+                        if !found {
+                            ef.is_parapoly = true
+                            append(arity, type_string_to_Type(token.text))
+                        }
+                    }
+                    case .Hat: {
+                        type_token := expect(.Word)
+                        T := type_string_to_Type(type_token.text)
+                        append(arity, type_create_pointer(T))
                     }
                     case: parsing_error(
                         token.pos, "unexpected token %s", token_to_string(token),
@@ -1121,17 +1179,14 @@ parse_using :: proc() {
         #partial switch t.kind {
             case .Semicolon: break using_loop
             case .Word: {
-                dir := "base"
-                filename := t.text
+                collection_dir := "base"
+                import_dir := t.text
 
-                if strings.contains(filename, ".") {
-                    dir, _, filename = strings.partition(filename, ".")
+                if strings.contains(import_dir, ".") {
+                    collection_dir, _, import_dir = strings.partition(import_dir, ".")
                 }
 
-                load_file(
-                    fmt.tprintf("{}.sk", filename), false,
-                    fmt.tprintf("{}/{}", compiler_dir, dir),
-                )
+                load_files(fmt.tprintf("{}/{}/{}", compiler_dir, collection_dir, import_dir))
             }
             case: {
                 parsing_error(
@@ -1284,7 +1339,7 @@ parse_function :: proc(e: ^Entity) {
 
 parse_token :: proc(token: Token, f: ^Function) -> bool {
     switch token.kind {
-    case .EOF, .Invalid, .Fn, .Using, .Dash_Dash_Dash, .Foreign, .Builtin:
+    case .EOF, .Invalid, .Fn, .Using, .Dash_Dash_Dash, .Foreign, .Builtin, .Type:
         parsing_error(
             token.pos,
             "invalid token in function body {}",
@@ -1460,7 +1515,6 @@ parse_token :: proc(token: Token, f: ^Function) -> bool {
     case .Uint_Literal:
         emit(f, token, Push_Int{strconv.atoi(token.text)})
         f.stack->push(checker.basic_types[.Int])
-    case .Type_Literal: unimplemented()
 
     case .Drop:
         f.stack->pop()
@@ -1587,6 +1641,8 @@ parse_word :: proc(f: ^Function, t: Token) {
         case result.is_foreign: call_foreign_func(f, t, result)
         case: call_function(result)
         }
+    case Entity_Type:
+        unimplemented()
     case Entity_Variable:
         if result.is_global {
             emit(f, t, Push_Var_Global{v.offset, false})

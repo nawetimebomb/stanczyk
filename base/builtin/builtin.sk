@@ -35,7 +35,7 @@
   are also defined within the compiler itself.
 */
 
-// Compiler-defined Constants. The following constants are added in `compile.odin`.
+// Compiler-defined Constants.
 
 /*
   Operating System - True when the program is compiled on the specific Operating System.
@@ -55,3 +55,11 @@ const SK_DEBUG SK_DEBUG ;
   A `string` containing the version of the Stańczyk compiler.
 */
 const SK_VERSION SK_VERSION ;
+
+// Compiler-defined Types
+
+type any    any    ;
+type bool   bool   ;
+type byte   byte   ;
+type int    int    ;
+type string string ;

@@ -31,16 +31,10 @@ Token_Kind :: enum u8 {
     Paren_Left,
     Paren_Right,
 
-    As,
-    Const,
-    Var,
-    Fn,
-    Builtin,
-    Foreign,
-    Dash_Dash_Dash,
-    Semicolon,
-    Ampersand,
-    Hat,
+    As, Const, Var, Fn, Type,
+    Builtin, Foreign,
+    Dash_Dash_Dash, Semicolon,
+    Ampersand, Hat,
 
     Let, In, End,
     Case, Else, Fi, If,
@@ -53,7 +47,7 @@ Token_Kind :: enum u8 {
     Binary_Literal, Character_Literal, Cstring_Literal,
     Bool_Literal, Float_Literal, Hex_Literal,
     Integer_Literal, Octal_Literal, String_Literal,
-    Type_Literal, Uint_Literal,
+    Uint_Literal,
 
     Plus, Minus, Star, Slash, Percent,
     Equal, Greater_Equal, Greater_Than,
@@ -88,17 +82,11 @@ token_string_table := [Token_Kind]string{
         .Paren_Left = "(",
         .Paren_Right = ")",
 
-        .Const = "const",
-        .Var = "var",
-        .Fn = "fn",
-        .Builtin = "builtin",
-        .Foreign = "foreign",
-        .Dash_Dash_Dash = "---",
-        .Semicolon = ";",
-        .Ampersand = "&",
-        .Hat = "^",
+        .As = "as", .Const = "const", .Var = "var", .Fn = "fn", .Type = "type",
+        .Builtin = "builtin", .Foreign = "foreign",
+        .Dash_Dash_Dash = "---", .Semicolon = ";",
+        .Ampersand = "&", .Hat = "^",
 
-        .As = "as",
         .Let = "let",
         .In = "in",
         .End = "end",
@@ -121,7 +109,6 @@ token_string_table := [Token_Kind]string{
         .Integer_Literal = "literal integer. Example: 1337",
         .Octal_Literal = "literal octal. Example 0o07 or 8o",
         .String_Literal = "literal string. Example: \"Hello\"",
-        .Type_Literal = "literal type name. Example: int",
         .Uint_Literal = "literal unsigned integer. Example: 1337u",
 
         .Plus = "+", .Minus = "-", .Star = "*", .Slash = "/", .Percent = "%",
@@ -382,14 +369,15 @@ string_to_token_kind :: proc(str: string) -> (kind: Token_Kind) {
     case "[": kind = .Bracket_Left
     case "]": kind = .Bracket_Right
 
+    case "as": kind = .As
     case "const": kind = .Const
     case "var": kind = .Var
     case "fn": kind = .Fn
+    case "type": kind = .Type
     case "builtin": kind = .Builtin
     case "foreign": kind = .Foreign
     case "---": kind = .Dash_Dash_Dash
 
-    case "as": kind = .As
     case "let": kind = .Let
     case "in": kind = .In
     case "end": kind = .End
@@ -436,16 +424,6 @@ string_to_token_kind :: proc(str: string) -> (kind: Token_Kind) {
     case "swap": kind = .Swap
     case "take": kind = .Take
     case "tuck": kind = .Tuck
-
-    case "any": kind = .Type_Literal
-    case "bool": kind = .Type_Literal
-    case "byte": kind = .Type_Literal
-    case "float": kind = .Type_Literal
-    case "int": kind = .Type_Literal
-    case "ptr": kind = .Type_Literal
-    case "quote": kind = .Type_Literal
-    case "string": kind = .Type_Literal
-    case "uint": kind = .Type_Literal
     }
 
     return kind
