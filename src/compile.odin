@@ -407,10 +407,10 @@ init_everything :: proc() {
     add_type("string", checker.basic_types[.String])
 
     // Add compiler defined constants
-    add_global_bool_constant("OS_DARWIN", ODIN_OS == .Darwin)
-    add_global_bool_constant("OS_LINUX", ODIN_OS == .Linux)
+    add_global_bool_constant("OS_DARWIN",  ODIN_OS == .Darwin)
+    add_global_bool_constant("OS_LINUX",   ODIN_OS == .Linux)
     add_global_bool_constant("OS_WINDOWS", ODIN_OS == .Windows)
-    add_global_bool_constant("SK_DEBUG", debug_switch_enabled)
+    add_global_bool_constant("SK_DEBUG",   debug_switch_enabled)
 
     add_global_string_constant("SK_VERSION", COMPILER_VERSION)
 }
