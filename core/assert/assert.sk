@@ -1,0 +1,7 @@
+using core.os ;
+
+fn assert (bool)
+  SK_DEBUG if
+    take if "assertion failed" println 1 exit fi
+  fi
+;
