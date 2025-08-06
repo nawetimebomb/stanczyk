@@ -85,6 +85,7 @@ gen_initial_cheaders :: proc() {
 
     writeln(s, "#include <stdio.h>")
     writeln(s, "#include <stdint.h>")
+    writeln(s, "#include <stdbool.h>")
     writeln2(s, "#include <stddef.h>", "")
 }
 
@@ -208,11 +209,11 @@ SKC_STATIC void f64_println(f64 it) {
 }
 
 SKC_STATIC void i64_print(i64 it) {
-    printf("%lli", it);
+    printf("%li", it);
 }
 
 SKC_STATIC void i64_println(i64 it) {
-    printf("%lli\n", it);
+    printf("%li\n", it);
 }
 
 SKC_STATIC void string_print(string it) {
@@ -224,11 +225,11 @@ SKC_STATIC void string_println(string it) {
 }
 
 SKC_STATIC void u64_print(u64 it) {
-    printf("%llu", it);
+    printf("%lu", it);
 }
 
 SKC_STATIC void u64_println(u64 it) {
-    printf("%llu\n", it);
+    printf("%lu\n", it);
 }`)
 }
 
