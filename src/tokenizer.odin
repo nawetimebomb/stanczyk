@@ -44,9 +44,9 @@ Token_Kind :: enum u8 {
     Get_Byte,
     Set, Set_Star, Set_Byte,
 
-    Binary_Literal, Character_Literal, Cstring_Literal,
+    Binary_Literal, Byte_Literal, Cstring_Literal,
     Bool_Literal, Float_Literal, Hex_Literal,
-    Integer_Literal, Octal_Literal, String_Literal,
+    Int_Literal, Octal_Literal, String_Literal,
     Uint_Literal,
 
     Plus, Minus, Star, Slash, Percent,
@@ -102,11 +102,11 @@ token_string_table := [Token_Kind]string{
 
         .Binary_Literal = "literal binary. Example 0b10 or 2b",
         .Bool_Literal = "literal boolean. Example: false or true",
-        .Character_Literal = "literal character. Example: 'a'",
+        .Byte_Literal = "literal byte. Example: 'a'",
         .Cstring_Literal = "literal C string. Example: \"Hello\"c",
         .Float_Literal = "literal float. Example: 3.14",
         .Hex_Literal = "literal hex. Example: 0xff or 16x",
-        .Integer_Literal = "literal integer. Example: 1337",
+        .Int_Literal = "literal integer. Example: 1337",
         .Octal_Literal = "literal octal. Example 0o07 or 8o",
         .String_Literal = "literal string. Example: \"Hello\"",
         .Uint_Literal = "literal unsigned integer. Example: 1337u",
@@ -184,7 +184,7 @@ get_next_token :: proc(t: ^Tokenizer) -> (token: Token, err: Error) {
                 return true
             case last_part == 'i' && maybe_int:
                 token.text = first_part
-                token.kind = .Integer_Literal
+                token.kind = .Int_Literal
                 return true
             case last_part == 'o' && maybe_int:
                 token.text = first_part
@@ -209,7 +209,7 @@ get_next_token :: proc(t: ^Tokenizer) -> (token: Token, err: Error) {
         }
 
         if _, ok = strconv.parse_int(token.text); ok {
-            token.kind = .Integer_Literal
+            token.kind = .Int_Literal
 
             if len(token.text) > 1 {
                 switch token.text[1] {
@@ -268,7 +268,7 @@ get_next_token :: proc(t: ^Tokenizer) -> (token: Token, err: Error) {
     case '\'', '"':
         delimiter := t.data[t.offset]
         result := strings.builder_make(context.temp_allocator)
-        token.kind = delimiter == '\'' ? .Character_Literal : .String_Literal
+        token.kind = delimiter == '\'' ? .Byte_Literal : .String_Literal
         is_escaped := false
         advance(t)
 
@@ -303,7 +303,7 @@ get_next_token :: proc(t: ^Tokenizer) -> (token: Token, err: Error) {
             advance(t)
         }
 
-        if token.kind == .Character_Literal && len(token.text) > 1 {
+        if token.kind == .Byte_Literal && len(token.text) > 1 {
             parsing_error(
                 token.pos,
                 "character literal cannot have length {} found at {}:{}:{}",

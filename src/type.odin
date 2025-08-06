@@ -18,7 +18,9 @@ Type_Variant :: union {
     Type_Pointer,
 }
 
-Type_Any :: struct {}
+Type_Any :: struct {
+    autocast_type: ^Type,
+}
 
 Type_Array :: struct {
     length: int,
@@ -42,6 +44,7 @@ Type_Basic_Kind :: enum u8 {
     Float,
     Int,
     String,
+    Uint,
 }
 
 type_create_pointer :: proc(t: ^Type) -> ^Type {
@@ -57,16 +60,28 @@ types_equal :: proc(a, b: ^Type) -> bool {
         vb := b.variant.(Type_Any) or_return
     case Type_Array:
         vb := b.variant.(Type_Array) or_return
-        if va.length != vb.length do return false
-        if !types_equal(va.type, vb.type) do return false
+
+        if va.length != vb.length {
+            return false
+        }
+
+        if !types_equal(va.type, vb.type) {
+            return false
+        }
     case Type_Basic:
         vb := b.variant.(Type_Basic) or_return
-        if va.kind != vb.kind do return false
+
+        if va.kind != vb.kind {
+            return false
+        }
     case Type_Nil:
         vb := b.variant.(Type_Nil) or_return
     case Type_Pointer:
         vb := b.variant.(Type_Pointer) or_return
-        if !types_equal(va.type, vb.type) do return false
+
+        if !types_equal(va.type, vb.type) {
+            return false
+        }
     }
     return true
 }
@@ -74,6 +89,11 @@ types_equal :: proc(a, b: ^Type) -> bool {
 type_is_any :: proc(t: ^Type) -> bool {
     v := t.variant.(Type_Any) or_return
     return true
+}
+
+type_should_autocast_from_any :: proc(to, from: ^Type) -> bool {
+    v := to.variant.(Type_Any) or_return
+    return v.autocast_type != nil && !types_equal(v.autocast_type, from)
 }
 
 type_is_basic :: proc(t: ^Type, k: Type_Basic_Kind) -> bool {
@@ -124,6 +144,7 @@ type_to_string :: proc(t: ^Type) -> string {
         case .Float:  return "float"
         case .Int:    return "int"
         case .String: return "string"
+        case .Uint:   return "uint"
         }
     case Type_Nil: return "nil"
     case Type_Pointer: return fmt.tprintf("{}*", type_to_string(v.type))
@@ -145,6 +166,7 @@ type_to_foreign_type :: proc(t: ^Type) -> string {
         case .Float:   return "f64"
         case .Int:     return "i64"
         case .String:  return "string"
+        case .Uint:    return "u64"
         }
     case Type_Nil: return "NULL"
     case Type_Pointer: return fmt.tprintf("{}*", type_to_string(v.type))

@@ -9,6 +9,7 @@ import "core:strings"
 Entity :: struct {
     foreign_name: string,
     is_global:    bool,
+    is_builtin:   bool,
     name:         string,
     token:        Token,
     variant:      Entity_Variant,
@@ -321,7 +322,7 @@ parse_arithmetic_statement :: proc(token: Token) -> (node: ^Ast, handled: bool) 
         )
     }
 
-    if !type_is_basic(a.type, .Int) {
+    if !type_is_basic(a.type, .Float) && !type_is_basic(a.type, .Int) && !type_is_basic(a.type, .Uint) {
         parsing_error(
             token.pos, "cannot do arithmetic operation on {}",
             type_to_string(a.type),
@@ -384,13 +385,17 @@ parse_literal_statement :: proc(token: Token) -> (handled: bool) {
             node.type = parser.known_types["bool"]
             node.value = token.text == "true"
         }
+        case .Byte_Literal: {
+            node.type = parser.known_types["byte"]
+            node.value = token.text
+        }
         case .Float_Literal: {
             value, ok := strconv.parse_f64(token.text)
             assert(ok)
             node.type = parser.known_types["float"]
             node.value = value
         }
-        case .Integer_Literal: {
+        case .Int_Literal: {
             value, ok := strconv.parse_i64_of_base(token.text, 10)
             assert(ok)
             node.type = parser.known_types["int"]
@@ -399,6 +404,12 @@ parse_literal_statement :: proc(token: Token) -> (handled: bool) {
         case .String_Literal: {
             node.type = parser.known_types["string"]
             node.value = token.text
+        }
+        case .Uint_Literal: {
+            value, ok := strconv.parse_u64_of_base(token.text, 10)
+            assert(ok)
+            node.type = parser.known_types["uint"]
+            node.value = value
         }
     }
 
@@ -439,6 +450,7 @@ parse_identifier_statement :: proc(token: Token) -> (node: ^Ast, handled: bool) 
 
         node.variant = Ast_Proc_Call{
             foreign_name = ent.foreign_name,
+            is_builtin   = ent.is_builtin,
             params       = slice.clone(params[:]),
         }
     case Entity_Type:
@@ -452,12 +464,18 @@ parse_statement :: proc() -> (node: ^Ast, stack_op: bool) {
     token := next()
 
     switch token.kind {
-    case .Bool_Literal:    stack_op = parse_literal_statement(token)
-    case .Float_Literal:   stack_op = parse_literal_statement(token)
-    case .Integer_Literal: stack_op = parse_literal_statement(token)
-    case .String_Literal:  stack_op = parse_literal_statement(token)
+    case .Bool_Literal:   stack_op = parse_literal_statement(token)
+    case .Byte_Literal:   stack_op = parse_literal_statement(token)
+    case .Float_Literal:  stack_op = parse_literal_statement(token)
+    case .Int_Literal:    stack_op = parse_literal_statement(token)
+    case .String_Literal: stack_op = parse_literal_statement(token)
+    case .Uint_Literal:   stack_op = parse_literal_statement(token)
 
-    case .Plus: node, stack_op = parse_arithmetic_statement(token)
+    case .Plus:    node, stack_op = parse_arithmetic_statement(token)
+    case .Minus:   node, stack_op = parse_arithmetic_statement(token)
+    case .Star:    node, stack_op = parse_arithmetic_statement(token)
+    case .Slash:   node, stack_op = parse_arithmetic_statement(token)
+    case .Percent: node, stack_op = parse_arithmetic_statement(token)
 
     case .Proc: node = parse_proc_decl(token)
 
@@ -499,15 +517,9 @@ parse_statement :: proc() -> (node: ^Ast, stack_op: bool) {
     case .Set_Star: unimplemented()
     case .Set_Byte: unimplemented()
     case .Binary_Literal: unimplemented()
-    case .Character_Literal: unimplemented()
     case .Cstring_Literal: unimplemented()
     case .Hex_Literal: unimplemented()
     case .Octal_Literal: unimplemented()
-    case .Uint_Literal: unimplemented()
-    case .Minus: unimplemented()
-    case .Star: unimplemented()
-    case .Slash: unimplemented()
-    case .Percent: unimplemented()
     case .Equal: unimplemented()
     case .Greater_Equal: unimplemented()
     case .Greater_Than: unimplemented()
@@ -546,6 +558,7 @@ parse :: proc() {
     parser.known_types["float"]  = new_clone(Type{size = 8, variant = Type_Basic{.Float}})
     parser.known_types["int"]    = new_clone(Type{size = 8, variant = Type_Basic{.Int}})
     parser.known_types["string"] = new_clone(Type{size = 8, variant = Type_Basic{.String}})
+    parser.known_types["uint"]   = new_clone(Type{size = 8, variant = Type_Basic{.Uint}})
 
     add_builtin_procedure("print")
     add_builtin_procedure("println")

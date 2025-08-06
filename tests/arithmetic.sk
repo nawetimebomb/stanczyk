@@ -1,6 +1,4 @@
-using core.io ;
-
-fn main
+proc main
   2 2 +                println // 2 + 2 = 4
   10 1 + 2 +           println // 10 + 1 + 2 = 13
   2 3 + 5 + 3 +        println // 2 + 3 + 5 + 3 = 13

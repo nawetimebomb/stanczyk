@@ -106,4 +106,6 @@ if [ "$1" == "show" ]; then
     echo -e "${ERRORS}"
 fi
 
+echo -e ${RESET}
+
 exit $FAIL

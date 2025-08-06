@@ -30,6 +30,7 @@ Ast_Literal :: struct {}
 
 Ast_Proc_Call :: struct {
     foreign_name: string,
+    is_builtin:   bool,
     params:       []^Ast,
 }
 
