@@ -116,13 +116,13 @@ main :: proc() {
         cleanup_exit(int(e))
     }
 
-    when ODIN_DEBUG {
-        context.logger = log.create_console_logger()
+    // when ODIN_DEBUG {
+    //     context.logger = log.create_console_logger()
 
-        default_allocator := context.allocator
-        mem.tracking_allocator_init(&skc_allocator, default_allocator)
-        context.allocator = mem.tracking_allocator(&skc_allocator)
-    }
+    //     default_allocator := context.allocator
+    //     mem.tracking_allocator_init(&skc_allocator, default_allocator)
+    //     context.allocator = mem.tracking_allocator(&skc_allocator)
+    // }
 
     base_dir, ok := os.lookup_env(COMPILER_ENV, context.temp_allocator)
     if !ok {
@@ -144,7 +144,7 @@ Make sure '{0}' is set and points to the directory where The {1} Compiler is ins
         )
     }
 
-    load_files(fmt.tprintf("{}/base/runtime", compiler_dir), true)
+    //load_files(fmt.tprintf("{}/base/runtime", compiler_dir), true)
 
     bootstrap_files_count := len(source_files)
 
@@ -209,22 +209,50 @@ Make sure '{0}' is set and points to the directory where The {1} Compiler is ins
         cleanup_exit(1)
     }
 
-    compile()
+    parse()
 
-    libc.system(fmt.ctprintf("nasm {0}.asm -f elf64 -o {0}.o", output_filename))
-    libc.system(fmt.ctprintf("ld {0}.o -lc -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o {0}", output_filename))
+    generate()
 
-    when !ODIN_DEBUG {
-        os.remove(fmt.tprintf("{}.asm", output_filename))
-        os.remove(fmt.tprintf("{}.o", output_filename))
+    gcc_options := make([dynamic]string)
+    defer delete(gcc_options)
+
+    if debug_switch_enabled {
+        #partial switch ODIN_OS {
+            case .Darwin:  append(&gcc_options, "-ggdb")
+            case .Linux:   append(&gcc_options, "-ggdb")
+            case .Windows: append(&gcc_options, "-gdwarf")
+        }
+    }
+
+    libc.system(fmt.ctprintf(
+        "gcc {0}.c -o {0} {1}",
+        output_filename,
+        strings.join(gcc_options[:], " "),
+    ))
+
+    if !debug_switch_enabled {
+        os.remove(fmt.tprintf("{}.c", output_filename))
     }
 
     if command == "run" {
         libc.system(fmt.ctprintf("./{}", output_filename))
         os.remove(output_filename)
-        os.remove(fmt.tprintf("{}.asm", output_filename))
-        os.remove(fmt.tprintf("{}.o", output_filename))
     }
+
+    // libc.system(fmt.ctprintf("nasm {0}.asm -f elf64 -o {0}.o", output_filename))
+    // libc.system(fmt.ctprintf("ld {0}.o -lc -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o {0}", output_filename))
+
+    // when !ODIN_DEBUG {
+    //     os.remove(fmt.tprintf("{}.asm", output_filename))
+    //     os.remove(fmt.tprintf("{}.o", output_filename))
+    // }
+
+    // if command == "run" {
+    //     libc.system(fmt.ctprintf("./{}", output_filename))
+    //     os.remove(output_filename)
+    //     os.remove(fmt.tprintf("{}.asm", output_filename))
+    //     os.remove(fmt.tprintf("{}.o", output_filename))
+    // }
 
     cleanup_exit(0)
 }

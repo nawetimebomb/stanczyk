@@ -1,6 +1,7 @@
 package main
 
 import "core:fmt"
+import "core:strings"
 import "core:reflect"
 
 Type :: struct {
@@ -14,7 +15,6 @@ Type_Variant :: union {
     Type_Array,
     Type_Basic,
     Type_Nil,
-    Type_Polymorphic,
     Type_Pointer,
 }
 
@@ -35,12 +35,11 @@ Type_Pointer :: struct {
     type: ^Type,
 }
 
-Type_Polymorphic :: struct {}
-
 Type_Basic_Kind :: enum u8 {
     Invalid,
     Bool,
     Byte,
+    Float,
     Int,
     String,
 }
@@ -49,7 +48,7 @@ type_create_pointer :: proc(t: ^Type) -> ^Type {
     return new_clone(Type{
         size = 8,
         variant = Type_Pointer{ type = t },
-    }, context.temp_allocator)
+    })
 }
 
 types_equal :: proc(a, b: ^Type) -> bool {
@@ -68,8 +67,6 @@ types_equal :: proc(a, b: ^Type) -> bool {
     case Type_Pointer:
         vb := b.variant.(Type_Pointer) or_return
         if !types_equal(va.type, vb.type) do return false
-    case Type_Polymorphic:
-        vb := b.variant.(Type_Polymorphic) or_return
     }
     return true
 }
@@ -90,15 +87,11 @@ type_is_pointer :: proc(t: ^Type) -> bool {
     return true
 }
 
-type_is_polymorphic :: proc(t: ^Type) -> bool {
-    v := t.variant.(Type_Polymorphic) or_return
-    return true
-}
-
 type_string_to_basic :: proc(s: string) -> Type_Basic_Kind {
     switch s {
     case "bool":   return .Bool
     case "byte":   return .Byte
+    case "float":  return .Float
     case "int":    return .Int
     case "string": return .String
     }
@@ -106,14 +99,14 @@ type_string_to_basic :: proc(s: string) -> Type_Basic_Kind {
     return .Invalid
 }
 
-type_string_to_Type :: proc(s: string) -> ^Type {
+type_from_string :: proc(s: string) -> ^Type {
     switch s {
-    case "any":    return new_clone(Type{variant = Type_Any{}}, context.temp_allocator)
-    case "bool":   return checker.basic_types[.Bool]
-    case "byte":   return checker.basic_types[.Byte]
-    case "int":    return checker.basic_types[.Int]
-    case "string": return checker.basic_types[.String]
-    case : return new_clone(Type{name = s, variant = Type_Polymorphic{}}, context.temp_allocator)
+    case "any":    return parser.known_types["any"]
+    case "bool":   return parser.known_types["bool"]
+    case "byte":   return parser.known_types["byte"]
+    case "float":  return parser.known_types["float"]
+    case "int":    return parser.known_types["int"]
+    case "string": return parser.known_types["string"]
     }
     assert(false)
     return new_clone(Type{})
@@ -126,13 +119,34 @@ type_to_string :: proc(t: ^Type) -> string {
     case Type_Basic:
         switch v.kind {
         case .Invalid: assert(false)
-        case .Bool: return "bool"
-        case .Byte: return "byte"
-        case .Int: return "int"
+        case .Bool:   return "bool"
+        case .Byte:   return "byte"
+        case .Float:  return "float"
+        case .Int:    return "int"
         case .String: return "string"
         }
     case Type_Nil: return "nil"
-    case Type_Polymorphic: return "polymorphic"
+    case Type_Pointer: return fmt.tprintf("{}*", type_to_string(v.type))
+    }
+
+    assert(false)
+    return ""
+}
+
+type_to_foreign_type :: proc(t: ^Type) -> string {
+    switch v in t.variant {
+    case Type_Any: unimplemented()
+    case Type_Array: unimplemented()
+    case Type_Basic:
+        switch v.kind {
+        case .Invalid: unimplemented()
+        case .Bool:    return "bool"
+        case .Byte:    return "byte"
+        case .Float:   return "f64"
+        case .Int:     return "i64"
+        case .String:  return "string"
+        }
+    case Type_Nil: return "NULL"
     case Type_Pointer: return fmt.tprintf("{}*", type_to_string(v.type))
     }
 

@@ -31,7 +31,7 @@ Token_Kind :: enum u8 {
     Paren_Left,
     Paren_Right,
 
-    As, Const, Var, Fn, Type,
+    As, Const, Var, Type, Proc,
     Builtin, Foreign,
     Dash_Dash_Dash, Semicolon,
     Ampersand, Hat,
@@ -82,7 +82,7 @@ token_string_table := [Token_Kind]string{
         .Paren_Left = "(",
         .Paren_Right = ")",
 
-        .As = "as", .Const = "const", .Var = "var", .Fn = "fn", .Type = "type",
+        .As = "as", .Const = "const", .Var = "var", .Type = "type", .Proc = "proc",
         .Builtin = "builtin", .Foreign = "foreign",
         .Dash_Dash_Dash = "---", .Semicolon = ";",
         .Ampersand = "&", .Hat = "^",
@@ -372,8 +372,8 @@ string_to_token_kind :: proc(str: string) -> (kind: Token_Kind) {
     case "as": kind = .As
     case "const": kind = .Const
     case "var": kind = .Var
-    case "fn": kind = .Fn
     case "type": kind = .Type
+    case "proc": kind = .Proc
     case "builtin": kind = .Builtin
     case "foreign": kind = .Foreign
     case "---": kind = .Dash_Dash_Dash
@@ -435,4 +435,8 @@ token_to_string :: proc(token: Token) -> string {
         return fmt.tprintf("Word with content: %s", token.text)
     }
     return token_string_table[token.kind]
+}
+
+token_pos :: proc(token: Token) -> (string, int, int) {
+    return token.pos.filename, token.pos.line, token.pos.column
 }

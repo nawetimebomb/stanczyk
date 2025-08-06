@@ -38,9 +38,13 @@
   "Syntax table for `stanczyk-mode'.")
 
 (eval-and-compile
+  (defconst stanczyk-constants
+    '("true" "false")))
+
+(eval-and-compile
   (defconst stanczyk-keywords
-    '("if" "else" "fi" "do" "for" "for*" "loop" "fn" "const" "var" "type"
-      "let" "in" "end" "as" "using" "foreign" "builtin" "inline"
+    '("if" "else" "fi" "do" "for" "for*" "loop" "fn" "proc" "const" "var" "type"
+      "let" "in" "end" "as" "using" "foreign" "builtin" "inline" "local"
       "get-byte" "set" "set*" "set-byte" "---" ".." "struct")))
 
 (eval-and-compile
@@ -49,7 +53,9 @@
 
 (defconst stanczyk-highlights
   `((,(regexp-opt stanczyk-keywords 'symbols) . font-lock-keyword-face)
-    (,(regexp-opt stanczyk-types 'symbols)    . font-lock-type-face)))
+    ("[[0-9]" . font-lock-constant-face)
+    (,(regexp-opt stanczyk-types 'symbols)    . font-lock-type-face)
+    (,(regexp-opt stanczyk-constants 'symbols). font-lock-constant-face)))
 
 ;;;###autoload
 (define-derived-mode stanczyk-mode prog-mode "Stańczyk"
