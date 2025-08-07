@@ -134,6 +134,21 @@ gen_stanczyk_code :: proc() {
     writeln(s, "// Stanczyk internal procedures")
 }
 
+gen_binary :: proc(node: ^Ast) {
+    variant := node.variant.(Ast_Binary)
+
+    if variant.name != nil {
+        writef(&gen.user_code, "{} ", type_to_foreign_type(node.type))
+        gen_program(variant.name)
+        write(&gen.user_code, " = ")
+    }
+
+    gen_program(variant.left)
+    writef(&gen.user_code, " {} ", variant.operator)
+    gen_program(variant.right)
+    writeln(&gen.user_code, ";")
+}
+
 gen_identifier :: proc(node: ^Ast) {
     variant := node.variant.(Ast_Identifier)
     writef(&gen.user_code, variant.foreign_name)
@@ -176,7 +191,7 @@ gen_proc_call :: proc(node: ^Ast) {
         gen_program(child)
 
         if index != len(variant.params) - 1 {
-            write(&gen.user_code, ",")
+            write(&gen.user_code, ", ")
         }
     }
 
@@ -191,18 +206,23 @@ gen_proc_decl :: proc(node: ^Ast) {
             writef(s, "{} {}", type_to_foreign_type(param.type), id.foreign_name)
 
             if index != len(params) - 1 {
-                write(s, ",")
+                write(s, ", ")
             }
         }
     }
 
     variant := node.variant.(Ast_Proc_Decl)
+    type_result_str := "void"
 
-    writef(&gen.user_defs, "SKC_STATIC void {}(", variant.foreign_name)
+    if len(variant.results) > 0 {
+        type_result_str = type_to_foreign_type(variant.result_type)
+    }
+
+    writef(&gen.user_defs, "SKC_STATIC {} {}(", type_result_str, variant.foreign_name)
     gen_parameters(&gen.user_defs, variant.params)
     writeln(&gen.user_defs, ");")
 
-    writef(&gen.user_code, "SKC_STATIC void {}(", variant.foreign_name)
+    writef(&gen.user_code, "SKC_STATIC {} {}(", type_result_str, variant.foreign_name)
     gen_parameters(&gen.user_code, variant.params)
     write(&gen.user_code, ")")
     gen_open_codeblock(&gen.user_code)
@@ -212,13 +232,35 @@ gen_proc_decl :: proc(node: ^Ast) {
     gen_close_codeblock(&gen.user_code)
 }
 
+gen_return :: proc(node: ^Ast) {
+    variant := node.variant.(Ast_Return)
+
+    if len(variant.params) == 1 {
+        write(&gen.user_code, "return ")
+        gen_program(variant.params[0])
+        writeln(&gen.user_code, ";")
+    } else {
+        unimplemented()
+    }
+}
+
+gen_value_decl :: proc(node: ^Ast) {
+    variant := node.variant.(Ast_Value_Decl)
+    writef(&gen.user_code, "{} ", type_to_foreign_type(variant.type))
+    gen_program(variant.name)
+    write(&gen.user_code, " = ")
+    gen_program(variant.value)
+}
+
 gen_program :: proc(node: ^Ast) {
     switch v in node.variant {
+    case Ast_Binary:     gen_binary    (node)
     case Ast_Identifier: gen_identifier(node)
     case Ast_Literal:    gen_literal   (node)
     case Ast_Proc_Call:  gen_proc_call (node)
     case Ast_Proc_Decl:  gen_proc_decl (node)
-    case Ast_Return:
+    case Ast_Return:     gen_return    (node)
+    case Ast_Value_Decl: gen_value_decl(node)
     }
 }
 

@@ -1,0 +1,21 @@
+foreign proc printf (string) --- ;
+foreign proc printf like printf1 (string int) --- ;
+
+proc print_proc (string)
+  printf
+;
+
+proc main
+  "Test calling print_proc\n" printf
+  declared_late
+  "The next function takes 2 int values and returns the sum of them\n" printf
+  7 6 sum "%d\n" swap printf1
+;
+
+proc declared_late
+  "This procedure was called late\n" printf
+;
+
+proc sum (int int --- int)
+  +
+;

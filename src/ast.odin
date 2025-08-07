@@ -14,11 +14,20 @@ Ast :: struct {
 }
 
 Ast_Variant :: union {
+    Ast_Binary,
     Ast_Identifier,
     Ast_Literal,
     Ast_Proc_Call,
     Ast_Proc_Decl,
     Ast_Return,
+    Ast_Value_Decl,
+}
+
+Ast_Binary :: struct {
+    left: ^Ast,
+    name: ^Ast,
+    operator: string,
+    right: ^Ast,
 }
 
 Ast_Identifier :: struct {
@@ -39,23 +48,29 @@ Ast_Proc_Decl :: struct {
     foreign_name: string,
     name:         string,
     params:       []^Ast,
+    results:      []^Ast,
+    result_type:  ^Type,
     scope:        ^Scope,
-
-    is_inline: bool,
 }
 
 Ast_Return :: struct {
+    params: []^Ast,
+}
 
+Ast_Value_Decl :: struct {
+    type:   ^Type,
+    name:   ^Ast, // an identifier
+    value:  ^Ast, // a literal
 }
 
 value_to_string :: proc(value: Value) -> string {
     result := strings.builder_make()
 
     switch v in value {
-    case bool:   strings.write_string(&result, v ? "true" : "false")
-    case f64:    strings.write_f64(&result, v, 'f')
-    case i64:    strings.write_i64(&result, v)
-    case u64:    strings.write_u64(&result, v)
+    case bool: strings.write_string(&result, v ? "true" : "false")
+    case f64:  strings.write_f64(&result, v, 'f')
+    case i64:  strings.write_i64(&result, v)
+    case u64:  strings.write_u64(&result, v)
     case string:
         for r in v {
             strings.write_escaped_rune(&result, r, '\\')

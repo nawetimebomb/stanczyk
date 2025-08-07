@@ -250,7 +250,6 @@ add_entity :: proc(base_ent: Entity) {
     }
 
     append(&parser.curr_scope.entities, ent)
-    parser.global_address += 1
 }
 
 find_entity :: proc(name: string) -> ^Entity {
@@ -282,6 +281,13 @@ create_node :: proc() -> ^Ast {
     return node
 }
 
+create_global_name :: proc() -> string {
+    name := strings.builder_make()
+    fmt.sbprintf(&name, "sk{}", parser.global_address)
+    parser.global_address += 1
+    return strings.to_string(name)
+}
+
 parse_proc_decl :: proc(token: Token) -> ^Ast {
     node := create_node()
     name_token := expect(.Word)
@@ -307,10 +313,10 @@ parse_proc_decl :: proc(token: Token) -> ^Ast {
         assert(ok)
         append(&proc_decl.scope.entities, Entity{
             foreign_name = variant.foreign_name,
-            is_global = false,
-            // TODO: this should be the internal Stanczyk name
-            name = variant.name,
-            token = param.token,
+            is_global    = false,
+            // TODO: this could be the binding name
+            name         = variant.name,
+            token        = param.token,
         })
 
         stack->push(param)
@@ -324,6 +330,43 @@ parse_proc_decl :: proc(token: Token) -> ^Ast {
         }
     }
 
+    if len(ep.results) != len(stack.data) {
+        parsing_error(
+            name_token.pos,
+            "number of results for proc {} does not match the signature", ent.name,
+        )
+    }
+
+    if len(ep.results) > 0 {
+        results := make([dynamic]^Ast)
+        defer delete(results)
+
+        #reverse for result, index in ep.results {
+            value := stack->pop()
+
+            if !types_equal(result.type, value.type) {
+                parsing_error(
+                    name_token.pos,
+                    "unmatched type of data in the stack. Expected {}, got {}",
+                    type_to_string(result.type), type_to_string(value.type),
+                )
+            }
+
+            inject_at(&results, 0, value)
+        }
+
+
+        proc_decl.results = slice.clone(results[:])
+        // Support multiple results by making this an internal multireturn struct
+        proc_decl.result_type = results[0].type
+
+        return_node := create_node()
+        return_node.variant = Ast_Return{
+            params = proc_decl.results,
+        }
+        append(&proc_decl.body, return_node)
+    }
+
     node.variant = proc_decl
     pop_scope()
     stack->clear()
@@ -332,7 +375,7 @@ parse_proc_decl :: proc(token: Token) -> ^Ast {
 }
 
 parse_arithmetic_statement :: proc(token: Token) -> (node: ^Ast, handled: bool) {
-    result := create_node()
+    node = create_node()
     b, a := stack->pop(), stack->pop()
 
     if !types_equal(a.type, b.type) {
@@ -358,43 +401,56 @@ parse_arithmetic_statement :: proc(token: Token) -> (node: ^Ast, handled: bool) 
         #partial switch v in a.value {
             case i64: {
                 #partial switch token.kind {
-                    case .Plus:    result.value = v + b.value.(i64)
-                    case .Minus:   result.value = v - b.value.(i64)
-                    case .Star:    result.value = v * b.value.(i64)
-                    case .Slash:   result.value = v / b.value.(i64)
-                    case .Percent: result.value = v % b.value.(i64)
+                    case .Plus:    node.value = v + b.value.(i64)
+                    case .Minus:   node.value = v - b.value.(i64)
+                    case .Star:    node.value = v * b.value.(i64)
+                    case .Slash:   node.value = v / b.value.(i64)
+                    case .Percent: node.value = v % b.value.(i64)
                 }
             }
             case f64: {
                 #partial switch token.kind {
-                    case .Plus:    result.value = v + b.value.(f64)
-                    case .Minus:   result.value = v - b.value.(f64)
-                    case .Star:    result.value = v * b.value.(f64)
-                    case .Slash:   result.value = v / b.value.(f64)
-                    case .Percent: result.value = f64(i64(v) % i64(b.value.(f64)))
+                    case .Plus:    node.value = v + b.value.(f64)
+                    case .Minus:   node.value = v - b.value.(f64)
+                    case .Star:    node.value = v * b.value.(f64)
+                    case .Slash:   node.value = v / b.value.(f64)
+                    case .Percent: node.value = f64(i64(v) % i64(b.value.(f64)))
                 }
             }
             case u64: {
                 #partial switch token.kind {
-                    case .Plus:    result.value = v + b.value.(u64)
-                    case .Minus:   result.value = v - b.value.(u64)
-                    case .Star:    result.value = v * b.value.(u64)
-                    case .Slash:   result.value = v / b.value.(u64)
-                    case .Percent: result.value = v % b.value.(u64)
+                    case .Plus:    node.value = v + b.value.(u64)
+                    case .Minus:   node.value = v - b.value.(u64)
+                    case .Star:    node.value = v * b.value.(u64)
+                    case .Slash:   node.value = v / b.value.(u64)
+                    case .Percent: node.value = v % b.value.(u64)
                 }
             }
         }
 
-        result.type = a.type
-        result.variant = Ast_Literal{}
-        stack->push(result)
+        node.type = a.type
+        node.variant = Ast_Literal{}
+        stack->push(node)
 
         return nil, true
     } else {
-        unimplemented()
-    }
+        name_node := create_node()
+        name_node.type = a.type
+        name_node.variant = Ast_Identifier{
+            foreign_name = create_global_name(),
+        }
+        node.type = a.type
+        node.variant = Ast_Binary{
+            name     = name_node,
+            left     = a,
+            right    = b,
+            operator = token.text,
+        }
 
-    return
+        stack->push(name_node)
+
+        return node, false
+    }
 }
 
 parse_literal_statement :: proc(token: Token) -> (handled: bool) {
@@ -469,13 +525,38 @@ parse_identifier_statement :: proc(token: Token) -> (node: ^Ast, handled: bool) 
             inject_at(&params, 0, value)
         }
 
-        for type in v.results {
-            unimplemented()
-        }
+        switch len(v.results) {
+        case 0: // no results
+            node.variant = Ast_Proc_Call{
+                foreign_name = ent.foreign_name,
+                params       = slice.clone(params[:]),
+            }
+        case 1:
+            result := v.results[0]
 
-        node.variant = Ast_Proc_Call{
-            foreign_name = ent.foreign_name,
-            params       = slice.clone(params[:]),
+            name_node := create_node()
+            name_node.type = result.type
+            name_node.variant = Ast_Identifier{
+                foreign_name = create_global_name(),
+            }
+
+            value_node := create_node()
+            value_node.variant = Ast_Proc_Call{
+                foreign_name = ent.foreign_name,
+                params       = slice.clone(params[:]),
+            }
+
+            node.variant = Ast_Value_Decl{
+                type  = result.type,
+                name  = name_node,
+                value = value_node,
+            }
+
+            stack->push(name_node)
+
+        case :
+            // handle multi result
+            unimplemented()
         }
     case Entity_Type:
     case Entity_Variable:
@@ -484,42 +565,85 @@ parse_identifier_statement :: proc(token: Token) -> (node: ^Ast, handled: bool) 
     return
 }
 
-parse_statement :: proc() -> (node: ^Ast, stack_op: bool) {
+parse_statement :: proc() -> (node: ^Ast, stack_op_done: bool) {
     token := next()
 
     switch token.kind {
-    case .Bool_Literal:    stack_op = parse_literal_statement(token)
-    case .Byte_Literal:    stack_op = parse_literal_statement(token)
-    case .Cstring_Literal: stack_op = parse_literal_statement(token)
-    case .Float_Literal:   stack_op = parse_literal_statement(token)
-    case .Int_Literal:     stack_op = parse_literal_statement(token)
-    case .String_Literal:  stack_op = parse_literal_statement(token)
-    case .Uint_Literal:    stack_op = parse_literal_statement(token)
+    case .Bool_Literal:    stack_op_done = parse_literal_statement(token)
+    case .Byte_Literal:    stack_op_done = parse_literal_statement(token)
+    case .Cstring_Literal: stack_op_done = parse_literal_statement(token)
+    case .Float_Literal:   stack_op_done = parse_literal_statement(token)
+    case .Int_Literal:     stack_op_done = parse_literal_statement(token)
+    case .String_Literal:  stack_op_done = parse_literal_statement(token)
+    case .Uint_Literal:    stack_op_done = parse_literal_statement(token)
 
-    case .Plus:    node, stack_op = parse_arithmetic_statement(token)
-    case .Minus:   node, stack_op = parse_arithmetic_statement(token)
-    case .Star:    node, stack_op = parse_arithmetic_statement(token)
-    case .Slash:   node, stack_op = parse_arithmetic_statement(token)
-    case .Percent: node, stack_op = parse_arithmetic_statement(token)
+    case .Plus:    node, stack_op_done = parse_arithmetic_statement(token)
+    case .Minus:   node, stack_op_done = parse_arithmetic_statement(token)
+    case .Star:    node, stack_op_done = parse_arithmetic_statement(token)
+    case .Slash:   node, stack_op_done = parse_arithmetic_statement(token)
+    case .Percent: node, stack_op_done = parse_arithmetic_statement(token)
 
     case .Proc: node = parse_proc_decl(token)
 
-    case .Word: node, stack_op = parse_identifier_statement(token)
+    case .Word: node, stack_op_done = parse_identifier_statement(token)
+
+    case .Drop:
+        stack->pop()
+        stack_op_done = true
+    case .Dup:
+        a := stack->pop()
+        stack->push(a)
+        stack->push(a)
+        stack_op_done = true
+    case .Dup_Star:
+        b, a := stack->pop(), stack->pop()
+        stack->push(a)
+        stack->push(a)
+        stack->push(b)
+        stack_op_done = true
+    case .Nip:
+        b, a := stack->pop(), stack->pop()
+        stack->push(b)
+        stack_op_done = true
+    case .Over:
+        b, a := stack->pop(), stack->pop()
+        stack->push(a)
+        stack->push(b)
+        stack->push(a)
+        stack_op_done = true
+    case .Rot:
+        c, b, a := stack->pop(), stack->pop(), stack->pop()
+        stack->push(b)
+        stack->push(c)
+        stack->push(a)
+        stack_op_done = true
+    case .Rot_Star:
+        c, b, a := stack->pop(), stack->pop(), stack->pop()
+        stack->push(c)
+        stack->push(a)
+        stack->push(b)
+        stack_op_done = true
+    case .Swap:
+        b, a := stack->pop(), stack->pop()
+        stack->push(b)
+        stack->push(a)
+        stack_op_done = true
+    case .Take:
+        // Nothing really, just a helpful word to know we're looking for the last element in the stack
+    case .Tuck:
+        b, a := stack->pop(), stack->pop()
+        stack->push(b)
+        stack->push(a)
+        stack->push(b)
+        stack_op_done = true
 
     case .Using, .Foreign:
         // No need to do anything here, just skipping
         for !allow(.Semicolon) { next() }
         return parse_statement()
-
     case .Semicolon: compiler_bug("forgot to consume the semicolon on a previous statement")
     case .Invalid:   compiler_bug("invalid end of file")
     case .EOF:       compiler_bug("invalid end of file")
-
-    case .Swap:
-        b, a := stack->pop(), stack->pop()
-        stack->push(b)
-        stack->push(a)
-        stack_op = true
 
     case .Like: unimplemented()
     case .Dash_Dash_Dash: unimplemented()
@@ -564,18 +688,9 @@ parse_statement :: proc() -> (node: ^Ast, stack_op: bool) {
     case .Greater_Equal_Auto: unimplemented()
     case .Less_Than_Auto: unimplemented()
     case .Less_Equal_Auto: unimplemented()
-    case .Drop: unimplemented()
-    case .Dup: unimplemented()
-    case .Dup_Star: unimplemented()
-    case .Nip: unimplemented()
-    case .Over: unimplemented()
-    case .Rot: unimplemented()
-    case .Rot_Star: unimplemented()
-    case .Take: unimplemented()
-    case .Tuck: unimplemented()
     }
 
-    assert(stack_op && node == nil || !stack_op && node != nil)
+    assert(stack_op_done && node == nil || !stack_op_done && node != nil)
     return
 }
 

@@ -1,0 +1,9 @@
+Stanczyk is a work in progress project, and so it has a list of things I would like to complete before leaving it, again (or maybe not)
+
+* Support multi returns
+
+* Simplify print and println
+
+* Allow polymorphism in procedures
+
+* Reimplement all existing OPs
