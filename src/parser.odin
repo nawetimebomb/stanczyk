@@ -8,7 +8,6 @@ import "core:strings"
 
 Entity :: struct {
     foreign_name: string,
-    is_global:    bool,
     is_foreign:   bool,
     name:         string,
     token:        Token,
@@ -31,8 +30,7 @@ Entity_Binding :: struct {
 }
 
 Entity_Constant :: struct {
-    type:  ^Type,
-    value: Bytecode_Variant,
+    value: ^Ast,
 }
 
 Entity_Procedure :: struct {
@@ -59,6 +57,7 @@ Stack :: struct {
 
 Scope :: struct {
     ast:      ^Ast,
+    address:  int,
     entities: Entities,
     kind:     Scope_Kind,
     level:    int,
@@ -68,8 +67,8 @@ Scope :: struct {
 
 Parser :: struct {
     curr_scope:     ^Scope,
+    proc_scope:     ^Scope,
     global_scope:   ^Scope,
-    global_address: int,
     known_types:    map[string]^Type,
 
     prev_token:     Token,
@@ -118,42 +117,62 @@ next :: proc() -> Token {
     return parser.prev_token
 }
 
-push_scope :: proc(k: Scope_Kind, t: ^Token = nil) -> ^Scope {
-    new_scope := new_clone(Scope{
+push_scope :: proc(kind: Scope_Kind, token := Token{}) -> ^Scope {
+    parser.curr_scope = new_clone(Scope{
         entities = make(Entities),
         parent   = parser.curr_scope,
         level    = parser.curr_scope == nil ? 0 : parser.curr_scope.level + 1,
-        kind     = k,
+        kind     = kind,
+        token    = token,
     })
 
-    if t != nil {
-        new_scope.token = t^
-    }
-
-    parser.curr_scope = new_scope
-    return new_scope
+    return parser.curr_scope
 }
 
 pop_scope :: proc() {
     assert(parser.curr_scope != nil)
-    new_scope := parser.curr_scope.parent
+    parser.curr_scope = parser.curr_scope.parent
+}
 
-    //switch parser.curr_scope.validations_at_end {}
-    //for item in parser.curr_scope.stack_copies { delete(item) }
+register_const :: proc() {
+    name_token := expect(.Word)
+    name_str := name_token.text
+    ec := Entity_Constant{}
 
-    // for &ent in parser.curr_scope.entities {
-    //     switch v in ent.variant {
-    //     case Entity_Binding:
-    //     case Entity_Constant:
-    //     case Entity_Procedure:
-    //     case Entity_Type:
-    //     case Entity_Variable:
-    //     }
-    // }
+    // TODO: Support type decl
+    if allow(.Word) {
+        maybe_type_token := parser.prev_token
+        maybe_type := type_from_string(maybe_type_token.text)
 
-    // delete(parser.curr_scope.entities)
-    // free(parser.curr_scope)
-    parser.curr_scope = new_scope
+        if maybe_type == nil {
+            ec.value, _ = parse_identifier_statement(maybe_type_token)
+        }
+    }
+
+    for !allow(.Semicolon) {
+        ec.value, _ = parse_statement()
+    }
+
+    if ec.value == nil {
+        if len(stack.data) != 1 {
+            parsing_error(name_token.pos, "only one value can be stored in the constant")
+        }
+
+        ec.value = stack->pop()
+    }
+
+    if _, ok := ec.value.variant.(Ast_Literal); !ok {
+        parsing_error(name_token.pos, "value is not known on compile-time")
+    }
+
+    for other in parser.curr_scope.entities {
+        if other.name == name_str {
+            // TODO: improve this error
+            parsing_error(name_token.pos, "cannot define entity in the same scope with name {}", name_str)
+        }
+    }
+
+    add_entity(Entity{name = name_str, token = name_token, variant = ec})
 }
 
 register_proc :: proc(is_foreign := false) {
@@ -215,7 +234,7 @@ register_proc :: proc(is_foreign := false) {
     }
 
     add_entity(Entity{
-        is_global = true, name = name_str, token = name_token, variant = ep,
+        name = name_str, token = name_token, variant = ep,
         is_foreign = is_foreign, foreign_name = foreign_name,
     })
 }
@@ -236,9 +255,10 @@ add_entity :: proc(base_ent: Entity) {
     ent := base_ent
 
     if ent.foreign_name == "" {
+        is_global_scope := parser.curr_scope == parser.global_scope
         foreign_name_builder := strings.builder_make()
 
-        if ent.is_global && ent.name == "main" {
+        if is_global_scope && ent.name == "main" {
             strings.write_string(&foreign_name_builder, "stanczyk__main")
         } else {
             strings.write_string(&foreign_name_builder, filepath.short_stem(base_ent.token.filename))
@@ -256,11 +276,11 @@ find_entity :: proc(name: string) -> ^Entity {
     result: ^Entity
     scope := parser.curr_scope
 
-    for scope != nil {
+    search_loop: for scope != nil {
         for &ent in scope.entities {
             if ent.name == name {
                 result = &ent
-                break
+                break search_loop
             }
         }
 
@@ -281,10 +301,11 @@ create_node :: proc() -> ^Ast {
     return node
 }
 
-create_global_name :: proc() -> string {
+create_local_name :: proc(prefix := "sk") -> string {
+    assert(parser.proc_scope != nil)
     name := strings.builder_make()
-    fmt.sbprintf(&name, "sk{}", parser.global_address)
-    parser.global_address += 1
+    fmt.sbprintf(&name, "{}{}", prefix, parser.proc_scope.address)
+    parser.proc_scope.address += 1
     return strings.to_string(name)
 }
 
@@ -306,15 +327,16 @@ parse_proc_decl :: proc(token: Token) -> ^Ast {
         for !allow(.Paren_Right) { next() }
     }
 
-    proc_decl.scope = push_scope(.Procedure, &node.token)
+    proc_scope := push_scope(.Procedure, node.token)
+    proc_decl.scope = proc_scope
+    parser.proc_scope = proc_scope
 
     for param in ep.params {
         variant, ok := param.variant.(Ast_Identifier)
         assert(ok)
         append(&proc_decl.scope.entities, Entity{
-            foreign_name = variant.foreign_name,
-            is_global    = false,
             // TODO: this could be the binding name
+            foreign_name = variant.foreign_name,
             name         = variant.name,
             token        = param.token,
         })
@@ -355,10 +377,7 @@ parse_proc_decl :: proc(token: Token) -> ^Ast {
             inject_at(&results, 0, value)
         }
 
-
         proc_decl.results = slice.clone(results[:])
-        // Support multiple results by making this an internal multireturn struct
-        proc_decl.result_type = results[0].type
 
         return_node := create_node()
         return_node.variant = Ast_Return{
@@ -368,6 +387,7 @@ parse_proc_decl :: proc(token: Token) -> ^Ast {
     }
 
     node.variant = proc_decl
+    parser.proc_scope = nil
     pop_scope()
     stack->clear()
 
@@ -437,7 +457,7 @@ parse_arithmetic_statement :: proc(token: Token) -> (node: ^Ast, handled: bool) 
         name_node := create_node()
         name_node.type = a.type
         name_node.variant = Ast_Identifier{
-            foreign_name = create_global_name(),
+            foreign_name = create_local_name(),
         }
         node.type = a.type
         node.variant = Ast_Binary{
@@ -506,6 +526,8 @@ parse_identifier_statement :: proc(token: Token) -> (node: ^Ast, handled: bool) 
     switch v in ent.variant {
     case Entity_Binding:
     case Entity_Constant:
+        stack->push(v.value)
+        handled = true
     case Entity_Procedure:
         node = create_node()
         params := make([dynamic]^Ast)
@@ -525,19 +547,17 @@ parse_identifier_statement :: proc(token: Token) -> (node: ^Ast, handled: bool) 
             inject_at(&params, 0, value)
         }
 
-        switch len(v.results) {
-        case 0: // no results
+        if len(v.results) == 0 {
+            // no results
             node.variant = Ast_Proc_Call{
                 foreign_name = ent.foreign_name,
                 params       = slice.clone(params[:]),
             }
-        case 1:
-            result := v.results[0]
-
+        } else {
+            result_name := create_local_name()
             name_node := create_node()
-            name_node.type = result.type
             name_node.variant = Ast_Identifier{
-                foreign_name = create_global_name(),
+                foreign_name = result_name,
             }
 
             value_node := create_node()
@@ -547,16 +567,24 @@ parse_identifier_statement :: proc(token: Token) -> (node: ^Ast, handled: bool) 
             }
 
             node.variant = Ast_Value_Decl{
-                type  = result.type,
-                name  = name_node,
-                value = value_node,
+                types  = v.results[:],
+                name   = name_node,
+                value  = value_node,
             }
 
-            stack->push(name_node)
-
-        case :
-            // handle multi result
-            unimplemented()
+            if len(v.results) == 1 {
+                name_node.type = v.results[0].type
+                stack->push(name_node)
+            } else {
+                for result, index in v.results {
+                    stack_value_node := create_node()
+                    stack_value_node.type = result.type
+                    stack_value_node.variant = Ast_Identifier{
+                        foreign_name = fmt.aprintf("{}.arg{}", result_name, index),
+                    }
+                    stack->push(stack_value_node)
+                }
+            }
         }
     case Entity_Type:
     case Entity_Variable:
@@ -569,11 +597,14 @@ parse_statement :: proc() -> (node: ^Ast, stack_op_done: bool) {
     token := next()
 
     switch token.kind {
+    case .Binary_Literal:  unimplemented()
     case .Bool_Literal:    stack_op_done = parse_literal_statement(token)
     case .Byte_Literal:    stack_op_done = parse_literal_statement(token)
     case .Cstring_Literal: stack_op_done = parse_literal_statement(token)
     case .Float_Literal:   stack_op_done = parse_literal_statement(token)
+    case .Hex_Literal:     unimplemented()
     case .Int_Literal:     stack_op_done = parse_literal_statement(token)
+    case .Octal_Literal:   unimplemented()
     case .String_Literal:  stack_op_done = parse_literal_statement(token)
     case .Uint_Literal:    stack_op_done = parse_literal_statement(token)
 
@@ -630,6 +661,7 @@ parse_statement :: proc() -> (node: ^Ast, stack_op_done: bool) {
         stack_op_done = true
     case .Take:
         // Nothing really, just a helpful word to know we're looking for the last element in the stack
+        stack_op_done = true
     case .Tuck:
         b, a := stack->pop(), stack->pop()
         stack->push(b)
@@ -637,16 +669,28 @@ parse_statement :: proc() -> (node: ^Ast, stack_op_done: bool) {
         stack->push(b)
         stack_op_done = true
 
+    case .Const:
+        if parser.curr_scope == parser.global_scope {
+            // Global scope: skip since it's handled on the first cycle
+            for !allow(.Semicolon) { next() }
+            return parse_statement()
+        } else {
+            // Register new constant in local scope and get back the next value
+            register_const()
+            return parse_statement()
+        }
+
     case .Using, .Foreign:
         // No need to do anything here, just skipping
         for !allow(.Semicolon) { next() }
         return parse_statement()
-    case .Semicolon: compiler_bug("forgot to consume the semicolon on a previous statement")
-    case .Invalid:   compiler_bug("invalid end of file")
-    case .EOF:       compiler_bug("invalid end of file")
+
+    case .Semicolon:      compiler_bug("forgot to consume the semicolon on a previous statement")
+    case .Invalid:        compiler_bug("invalid end of file")
+    case .EOF:            compiler_bug("invalid end of file")
+    case .Dash_Dash_Dash: compiler_bug("invalid ---")
 
     case .Like: unimplemented()
-    case .Dash_Dash_Dash: unimplemented()
     case .Brace_Left: unimplemented()
     case .Brace_Right: unimplemented()
     case .Bracket_Left: unimplemented()
@@ -654,7 +698,6 @@ parse_statement :: proc() -> (node: ^Ast, stack_op_done: bool) {
     case .Paren_Left: unimplemented()
     case .Paren_Right: unimplemented()
     case .As: unimplemented()
-    case .Const: unimplemented()
     case .Var: unimplemented()
     case .Type: unimplemented()
     case .Builtin: unimplemented()
@@ -675,9 +718,6 @@ parse_statement :: proc() -> (node: ^Ast, stack_op_done: bool) {
     case .Set: unimplemented()
     case .Set_Star: unimplemented()
     case .Set_Byte: unimplemented()
-    case .Binary_Literal: unimplemented()
-    case .Hex_Literal: unimplemented()
-    case .Octal_Literal: unimplemented()
     case .Equal: unimplemented()
     case .Greater_Equal: unimplemented()
     case .Greater_Than: unimplemented()
@@ -690,7 +730,7 @@ parse_statement :: proc() -> (node: ^Ast, stack_op_done: bool) {
     case .Less_Equal_Auto: unimplemented()
     }
 
-    assert(stack_op_done && node == nil || !stack_op_done && node != nil)
+    fmt.assertf(stack_op_done && node == nil || !stack_op_done && node != nil, "{}", token)
     return
 }
 
@@ -732,54 +772,61 @@ parse :: proc() {
         for !allow(.EOF) {
             token := next()
 
-            if token.kind == .Using {
-                for !allow(.Semicolon) {
-                    token2 := next()
+            #partial switch token.kind {
+                case .Const: register_const()
 
-                    if token2.kind == .Word {
-                        collection_dir := "base"
-                        lib_name := token2.text
+                case .Foreign, .Proc: {
+                    is_foreign := token.kind == .Foreign
 
-                        if strings.contains(lib_name, ".") {
-                            collection_dir, _, lib_name = strings.partition(lib_name, ".")
+                    if is_foreign {
+                        expect(.Proc)
+                    }
+
+                    register_proc(is_foreign)
+                    scope_level := 1
+
+                    body_loop: for {
+                        token2 := next()
+
+                        #partial switch token2.kind {
+                            case .Const: scope_level += 1
+                            case .Semicolon: {
+                                scope_level -= 1
+
+                                if scope_level == 0 {
+                                    break body_loop
+                                }
+                            }
                         }
-
-                        ok := load_from_standard_libs(collection_dir, lib_name)
-
-                        if !ok {
-                            parsing_error(
-                                token2.pos,
-                                "failed to load library from {}.{}",
-                                collection_dir, lib_name,
-                            )
-                        }
-                    } else {
-                        parsing_error(
-                            token2.pos,
-                            "expected words in 'using' statement, got {}",
-                            token_to_string(token2),
-                        )
                     }
                 }
-            } else if token.kind == .Proc || token.kind == .Foreign {
-                is_foreign := token.kind == .Foreign
+                case .Using: {
+                    for !allow(.Semicolon) {
+                        token2 := next()
 
-                if is_foreign {
-                    expect(.Proc)
-                }
+                        if token2.kind == .Word {
+                            collection_dir := "base"
+                            lib_name := token2.text
 
-                register_proc(is_foreign)
-                scope_level := 1
-
-                body_loop: for {
-                    token2 := next()
-
-                    #partial switch token2.kind {
-                        case .Semicolon: {
-                            scope_level -= 1
-                            if scope_level == 0 {
-                                break body_loop
+                            if strings.contains(lib_name, ".") {
+                                collection_dir, _, lib_name = strings.partition(lib_name, ".")
                             }
+
+                            ok := load_from_standard_libs(collection_dir, lib_name)
+
+                            if !ok {
+                                parsing_error(
+                                    token2.pos,
+                                    "failed to load library from {}.{}",
+                                    collection_dir, lib_name,
+                                )
+                            }
+                        } else {
+                            parsing_error(
+                                token2.pos,
+                                "expected words in 'using' statement, got {}",
+                                token_to_string(token2),
+                            )
                         }
                     }
                 }

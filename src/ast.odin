@@ -49,7 +49,6 @@ Ast_Proc_Decl :: struct {
     name:         string,
     params:       []^Ast,
     results:      []^Ast,
-    result_type:  ^Type,
     scope:        ^Scope,
 }
 
@@ -58,9 +57,9 @@ Ast_Return :: struct {
 }
 
 Ast_Value_Decl :: struct {
-    type:   ^Type,
-    name:   ^Ast, // an identifier
-    value:  ^Ast, // a literal
+    types: []^Ast,
+    name:  ^Ast,
+    value: ^Ast,
 }
 
 value_to_string :: proc(value: Value) -> string {

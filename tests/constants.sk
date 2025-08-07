@@ -9,21 +9,40 @@ const i uint 127u ;
 const j 128u i + ;
 const k string "Stańczyk" ;
 
-fn main
+foreign proc printf (string any) --- ;
+foreign proc putchar (byte) --- ;
+
+proc print-string (string)
+  "%s" swap printf
+;
+
+proc print-int (int)
+  "%d" swap printf
+;
+
+proc print-uint (uint)
+  "%d" swap printf
+;
+
+proc println
+  '\n' putchar
+;
+
+proc main
   const x "internal constant" ;
 
-  "15  " print a println
-  "0  " print c println
-  "1337  " print d println
-  "30  " print e println
-  "128  " print f println
-  "0  " print g println
-  "1  " print h println
-  "127  " print i println
-  "255  " print j println
-  "Stańczyk  " print k println
-  "internal constant  " print x println
+  "15  " print-string a print-int println
+  "0  " print-string c print-int println
+  "1337  " print-string d print-int println
+  "30  " print-string e print-int println
+  "128  " print-string f print-int println
+  "0  " print-string g print-int println
+  "1  " print-string h print-int println
+  "127  " print-string i print-uint println
+  "255  " print-string j print-uint println
+  "Stańczyk  " print-string k print-string println
+  "internal constant  " print-string x print-string println
 
   const a "shadowing" ;
-  "shadowing  " print a println
+  "shadowing  " print-string a print-string println
 ;

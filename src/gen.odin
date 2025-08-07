@@ -8,9 +8,10 @@ import "core:strings"
 Generator :: struct {
     cheaders: strings.Builder,
 
-    // The Stanczyk standards and internal procedures
-    stanczyk_defs: strings.Builder,
-    stanczyk_code: strings.Builder,
+    // The Stanczyk standards and internals
+    stanczyk_defs:    strings.Builder,
+    stanczyk_code:    strings.Builder,
+    stanczyk_results: strings.Builder,
 
     // The user defined content
     user_defs: strings.Builder,
@@ -67,6 +68,7 @@ writef :: proc(s: ^strings.Builder, format: string, args: ..any) {
 writefln :: proc(s: ^strings.Builder, format: string, args: ..any) {
     writef(s, format, ..args)
     write(s, "\n")
+    write_indent(s)
 }
 
 gen_open_codeblock :: proc(s: ^strings.Builder) {
@@ -74,10 +76,11 @@ gen_open_codeblock :: proc(s: ^strings.Builder) {
     writeln(s, " {")
 }
 
-gen_close_codeblock :: proc(s: ^strings.Builder) {
+gen_close_codeblock :: proc(s: ^strings.Builder, with_semicolon := false) {
+    close_str := with_semicolon ? "};" : "}"
     gen.indent_level -= 1
     write_indent(s)
-    writeln2(s, "}", "")
+    writeln2(s, close_str, "")
 }
 
 gen_initial_cheaders :: proc() {
@@ -124,14 +127,49 @@ typedef charptr string;
 #define SKC_INLINE static inline
 #define SKC_STATIC static
 
-// Stanczyk Structs
-`)
+// Stanczyk Structs`)
 }
 
 gen_stanczyk_code :: proc() {
     s := &gen.stanczyk_code
 
     writeln(s, "// Stanczyk internal procedures")
+}
+
+gen_multiresult_str :: proc(params: []^Ast) -> string {
+    result_str := strings.builder_make(context.temp_allocator)
+
+    write(&result_str, "multi_")
+
+    for param, index in params {
+        write(&result_str, type_to_foreign_type(param.type))
+
+        if index < len(params) - 1 {
+            write(&result_str, "_")
+        }
+    }
+
+    for el in generated_multi_results {
+        if el == strings.to_string(result_str) {
+            return el
+        }
+    }
+
+    result := strings.clone(strings.to_string(result_str))
+    append(&generated_multi_results, result)
+
+    writefln(&gen.stanczyk_defs, "typedef struct {0} {0};", result)
+
+    writef(&gen.stanczyk_results, "struct {}", result)
+    gen_open_codeblock(&gen.stanczyk_results)
+
+    for param, index in params {
+        writefln(&gen.stanczyk_results, "{} arg{};", type_to_foreign_type(param.type), index)
+    }
+
+    gen_close_codeblock(&gen.stanczyk_results, true)
+
+    return result
 }
 
 gen_binary :: proc(node: ^Ast) {
@@ -212,17 +250,20 @@ gen_proc_decl :: proc(node: ^Ast) {
     }
 
     variant := node.variant.(Ast_Proc_Decl)
-    type_result_str := "void"
+    result_type_str := "void"
 
-    if len(variant.results) > 0 {
-        type_result_str = type_to_foreign_type(variant.result_type)
+    if len(variant.results) == 1 {
+        result := variant.results[0]
+        result_type_str = type_to_foreign_type(result.type)
+    } else if len(variant.results) > 1 {
+        result_type_str = gen_multiresult_str(variant.results)
     }
 
-    writef(&gen.user_defs, "SKC_STATIC {} {}(", type_result_str, variant.foreign_name)
+    writef(&gen.user_defs, "SKC_STATIC {} {}(", result_type_str, variant.foreign_name)
     gen_parameters(&gen.user_defs, variant.params)
     writeln(&gen.user_defs, ");")
 
-    writef(&gen.user_code, "SKC_STATIC {} {}(", type_result_str, variant.foreign_name)
+    writef(&gen.user_code, "SKC_STATIC {} {}(", result_type_str, variant.foreign_name)
     gen_parameters(&gen.user_code, variant.params)
     write(&gen.user_code, ")")
     gen_open_codeblock(&gen.user_code)
@@ -235,18 +276,44 @@ gen_proc_decl :: proc(node: ^Ast) {
 gen_return :: proc(node: ^Ast) {
     variant := node.variant.(Ast_Return)
 
+    if len(variant.params) == 0 {
+        return
+    }
+
     if len(variant.params) == 1 {
         write(&gen.user_code, "return ")
         gen_program(variant.params[0])
         writeln(&gen.user_code, ";")
     } else {
-        unimplemented()
+        result_str := gen_multiresult_str(variant.params)
+
+        write(&gen.user_code, "return ")
+        writef(&gen.user_code, "({}){{", result_str)
+
+        for param, index in variant.params {
+            writef(&gen.user_code, ".arg{}=", index)
+            gen_program(param)
+
+            if index < len(variant.params) - 1 {
+                write(&gen.user_code, ", ")
+            }
+        }
+
+        writeln(&gen.user_code, "};")
     }
 }
 
 gen_value_decl :: proc(node: ^Ast) {
     variant := node.variant.(Ast_Value_Decl)
-    writef(&gen.user_code, "{} ", type_to_foreign_type(variant.type))
+    result_str: string
+
+    if len(variant.types) == 1 {
+        result_str = type_to_foreign_type(variant.types[0].type)
+    } else {
+        result_str = gen_multiresult_str(variant.types)
+    }
+
+    writef(&gen.user_code, "{} ", result_str)
     gen_program(variant.name)
     write(&gen.user_code, " = ")
     gen_program(variant.value)
@@ -265,6 +332,7 @@ gen_program :: proc(node: ^Ast) {
 }
 
 gen: Generator
+generated_multi_results: [dynamic]string
 
 generate :: proc() {
     init_generator(&gen)
@@ -290,6 +358,7 @@ write_to_file :: proc() {
     writeln(&result, strings.to_string(gen.cheaders))
     writeln(&result, strings.to_string(gen.stanczyk_defs))
     writeln(&result, strings.to_string(gen.stanczyk_code))
+    writeln(&result, strings.to_string(gen.stanczyk_results))
     writeln(&result, strings.to_string(gen.user_defs))
     write(&result, strings.to_string(gen.user_code))
 

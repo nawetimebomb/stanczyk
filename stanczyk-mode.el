@@ -49,7 +49,7 @@
 
 (eval-and-compile
   (defconst stanczyk-types
-    '("int" "float" "bool" "cstring" "string" "any" "byte")))
+    '("int" "float" "bool" "cstring" "string" "any" "byte" "uint")))
 
 (defconst stanczyk-highlights
   `((,(regexp-opt stanczyk-keywords 'symbols) . font-lock-keyword-face)

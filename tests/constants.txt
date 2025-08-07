@@ -1,0 +1,12 @@
+15  15
+0  0
+1337  1337
+30  30
+128  128
+0  0
+1  1
+127  127
+255  255
+Stańczyk  Stańczyk
+internal constant  internal constant
+shadowing  shadowing

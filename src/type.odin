@@ -129,9 +129,9 @@ type_from_string :: proc(s: string) -> ^Type {
     case "float":   return parser.known_types["float"]
     case "int":     return parser.known_types["int"]
     case "string":  return parser.known_types["string"]
+    case "uint":    return parser.known_types["uint"]
     }
-    assert(false)
-    return new_clone(Type{})
+    return nil
 }
 
 type_to_string :: proc(t: ^Type) -> string {
