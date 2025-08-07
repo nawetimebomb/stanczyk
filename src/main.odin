@@ -92,15 +92,25 @@ load_file :: proc(filename: string, internal: bool, dir := "") {
     })
 }
 
-load_files :: proc(dir: string, internal := false) {
-    v, _ := os.open(dir)
+load_from_standard_libs :: proc(collection, lib: string) -> bool {
+    return load_files(fmt.tprintf("{}/libs/{}/{}", compiler_dir, collection, lib), true)
+}
+
+load_files :: proc(dir: string, internal := false) -> bool {
+    v, err := os.open(dir)
     fis, _ := os.read_dir(v, 0, context.temp_allocator)
+
+    if err != nil {
+        return false
+    }
 
     for f in fis {
         if strings.ends_with(f.name, ".sk") && !strings.contains(f.name, "-test") {
             load_file(f.fullpath, internal)
         }
     }
+
+    return true
 }
 
 Compiler_Error :: enum u8 {

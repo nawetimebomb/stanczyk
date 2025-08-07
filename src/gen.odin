@@ -110,7 +110,7 @@ typedef double f64;
 typedef unsigned char* byteptr;
 typedef void* voidptr;
 typedef char* charptr;
-typedef struct string string;
+typedef charptr string;
 
 // #ifndef __cplusplus
 //     #ifndef bool
@@ -124,113 +124,14 @@ typedef struct string string;
 #define SKC_INLINE static inline
 #define SKC_STATIC static
 
-SKC_STATIC void _write_buffer_to_fd(int fd, byteptr buf, int len);
-SKC_STATIC void _writeln_to_fd(int fd, string s);
-
-SKC_STATIC void bool_print(bool it);
-SKC_STATIC void bool_println(bool it);
-SKC_STATIC void byte_print(byte it);
-SKC_STATIC void byte_println(byte it);
-SKC_STATIC void f64_print(f64 it);
-SKC_STATIC void f64_println(f64 it);
-SKC_STATIC void i64_print(i64 it);
-SKC_STATIC void i64_println(i64 it);
-SKC_STATIC void string_print(string it);
-SKC_STATIC void string_println(string it);
-SKC_STATIC void u64_print(u64 it);
-SKC_STATIC void u64_println(u64 it);
-
-SKC_INLINE string i64_to_string(i64 n);
-
-// Stanczyk Macros
-#define _SLIT0 (string){.str=(byteptr)(""), .len=0, .is_lit=1}
-#define _S(s) ((string){.str=(byteptr)("" s), .len=(sizeof(s)-1), .is_lit=1})
-#define _SLEN(s, n) ((string){.str=(byteptr)("" s), .len=n, .is_lit=1})
-
 // Stanczyk Structs
-struct string {
-    byteptr str;
-    int     len;
-    int     is_lit;
-};`)
+`)
 }
 
 gen_stanczyk_code :: proc() {
     s := &gen.stanczyk_code
 
     writeln(s, "// Stanczyk internal procedures")
-    writeln(s, `SKC_STATIC void _writeln_to_fd(int fd, string s) {
-    byte lf = (byte)'\n';
-    _write_buffer_to_fd(fd, s.str, s.len);
-    _write_buffer_to_fd(fd, &lf, 1);
-}
-
-SKC_STATIC void _write_buffer_to_fd(int fd, byteptr buf, int len) {
-    if (len <= 0) {
-        return;
-    }
-    byteptr ptr = buf;
-    isize next_bytes = (isize)len;
-    isize x = (isize)0;
-    voidptr stream = (voidptr)stdout;
-    if (fd == 2) {
-        stream = (voidptr)stderr;
-    }
-    for (;;) {
-        if (!(next_bytes) > 0) break;
-        x = (isize)fwrite(ptr, 1, next_bytes, stream);
-        ptr += x;
-        next_bytes -= x;
-    }
-}
-
-SKC_STATIC void bool_print(bool it) {
-    printf("%s", it ? "true" : "false");
-}
-
-SKC_STATIC void bool_println(bool it) {
-    printf("%s\n", it ? "true" : "false");
-}
-
-SKC_STATIC void byte_print(byte it) {
-    printf("%c", it);
-}
-
-SKC_STATIC void byte_println(byte it) {
-    printf("%c\n", it);
-}
-
-SKC_STATIC void f64_print(f64 it) {
-    printf("%g", it);
-}
-
-SKC_STATIC void f64_println(f64 it) {
-    printf("%g\n", it);
-}
-
-SKC_STATIC void i64_print(i64 it) {
-    printf("%li", it);
-}
-
-SKC_STATIC void i64_println(i64 it) {
-    printf("%li\n", it);
-}
-
-SKC_STATIC void string_print(string it) {
-    _write_buffer_to_fd(1, it.str, it.len);
-}
-
-SKC_STATIC void string_println(string it) {
-    _writeln_to_fd(1, it);
-}
-
-SKC_STATIC void u64_print(u64 it) {
-    printf("%lu", it);
-}
-
-SKC_STATIC void u64_println(u64 it) {
-    printf("%lu\n", it);
-}`)
 }
 
 gen_identifier :: proc(node: ^Ast) {
@@ -252,8 +153,10 @@ gen_literal :: proc(node: ^Ast) {
             write(&gen.user_code, value_to_string(node.value))
         case .Byte:
             writef(&gen.user_code, "({})'{}'", type_to_foreign_type(node.type), value_to_string(node.value))
+        case .Cstring:
+            writef(&gen.user_code, `"{}"`, value_to_string(node.value))
         case .String:
-            writef(&gen.user_code, `_S("{}")`, value_to_string(node.value))
+            writef(&gen.user_code, `"{}"`, value_to_string(node.value))
 
         case .Float, .Int, .Uint:
             writef(&gen.user_code, "({}){}", type_to_foreign_type(node.type), value_to_string(node.value))
@@ -266,12 +169,6 @@ gen_literal :: proc(node: ^Ast) {
 
 gen_proc_call :: proc(node: ^Ast) {
     variant := node.variant.(Ast_Proc_Call)
-
-    if variant.is_builtin {
-        for child in variant.params {
-            writef(&gen.user_code, "{}_", type_to_foreign_type(child.type))
-        }
-    }
 
     writef(&gen.user_code, "{}(", variant.foreign_name)
 

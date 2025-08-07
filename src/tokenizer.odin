@@ -31,6 +31,8 @@ Token_Kind :: enum u8 {
     Paren_Left,
     Paren_Right,
 
+    Like,
+
     As, Const, Var, Type, Proc,
     Builtin, Foreign,
     Dash_Dash_Dash, Semicolon,
@@ -81,6 +83,8 @@ token_string_table := [Token_Kind]string{
         .Bracket_Right = "]",
         .Paren_Left = "(",
         .Paren_Right = ")",
+
+        .Like = "like",
 
         .As = "as", .Const = "const", .Var = "var", .Type = "type", .Proc = "proc",
         .Builtin = "builtin", .Foreign = "foreign",
@@ -368,6 +372,8 @@ string_to_token_kind :: proc(str: string) -> (kind: Token_Kind) {
     case "}": kind = .Brace_Right
     case "[": kind = .Bracket_Left
     case "]": kind = .Bracket_Right
+
+    case "like": kind = .Like
 
     case "as": kind = .As
     case "const": kind = .Const

@@ -44,16 +44,16 @@
 (eval-and-compile
   (defconst stanczyk-keywords
     '("if" "else" "fi" "do" "for" "for*" "loop" "proc" "const" "var" "type"
-      "let" "in" "end" "as" "using" "foreign" "builtin" "inline" "local"
+      "let" "in" "end" "as" "using" "foreign" "builtin" "inline" "local" "like"
       "get-byte" "set" "set*" "set-byte" "---" ".." "struct")))
 
 (eval-and-compile
   (defconst stanczyk-types
-    '("int" "float" "bool" "string" "any" "byte")))
+    '("int" "float" "bool" "cstring" "string" "any" "byte")))
 
 (defconst stanczyk-highlights
   `((,(regexp-opt stanczyk-keywords 'symbols) . font-lock-keyword-face)
-    ("[[0-9]" . font-lock-constant-face)
+    ("\\b[0-9]+[bfiou]?\\b" . font-lock-constant-face)
     (,(regexp-opt stanczyk-types 'symbols)    . font-lock-type-face)
     (,(regexp-opt stanczyk-constants 'symbols). font-lock-constant-face)))
 

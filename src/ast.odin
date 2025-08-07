@@ -49,20 +49,17 @@ Ast_Return :: struct {
 }
 
 value_to_string :: proc(value: Value) -> string {
-    if v, ok := value.(string); ok {
-        return v
-    }
-
-    if v, ok := value.(bool); ok {
-        return v ? "true" : "false"
-    }
-
     result := strings.builder_make()
 
-    #partial switch v in value {
-        case f64: strings.write_f64(&result, v, 'f')
-        case i64: strings.write_i64(&result, v)
-        case u64: strings.write_u64(&result, v)
+    switch v in value {
+    case bool:   strings.write_string(&result, v ? "true" : "false")
+    case f64:    strings.write_f64(&result, v, 'f')
+    case i64:    strings.write_i64(&result, v)
+    case u64:    strings.write_u64(&result, v)
+    case string:
+        for r in v {
+            strings.write_escaped_rune(&result, r, '\\')
+        }
     }
 
     return strings.to_string(result)

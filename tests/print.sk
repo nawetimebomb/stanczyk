@@ -1,24 +1,27 @@
+foreign proc printf like print (string) --- ;
+foreign proc printf (string int) --- ;
+
 proc main
-  "1  " print 1 println
-  "-----------" println
+  "1  " print "%d\n" 1 printf
+  "-----------\n" print
 
-  "13  " print 13 println
-  "-----------" println
+  "13  " print "%d\n" 13 printf
+  "-----------\n" print
 
-  "666  " print 666 println
-  "-----------" println
+  "666  " print "%d\n" 666 printf
+  "-----------\n" print
 
-  "1889  " print 1889 println
-  "-----------" println
+  "1889  " print "%d\n" 1889 printf
+  "-----------\n" print
 
-  "92720  " print 92720 println
-  "-----------" println
+  "92720  " print "%d\n" 92720 printf
+  "-----------\n" print
 
-  "121911  " print 121911 println
-  "-----------" println
+  "121911  " print "%d\n" 121911 printf
+  "-----------\n" print
 
-  "1000000  " print 1_000_000 println
-  "-----------" println
+  "1000000  " print "%d\n" 1_000_000 printf
+  "-----------\n" print
 
-  "2000000000  " print 2_000_000_000 println
+  "2000000000  " print "%d\n" 2_000_000_000 printf
 ;

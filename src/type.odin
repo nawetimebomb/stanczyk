@@ -41,6 +41,7 @@ Type_Basic_Kind :: enum u8 {
     Invalid,
     Bool,
     Byte,
+    Cstring,
     Float,
     Int,
     String,
@@ -121,12 +122,13 @@ type_string_to_basic :: proc(s: string) -> Type_Basic_Kind {
 
 type_from_string :: proc(s: string) -> ^Type {
     switch s {
-    case "any":    return parser.known_types["any"]
-    case "bool":   return parser.known_types["bool"]
-    case "byte":   return parser.known_types["byte"]
-    case "float":  return parser.known_types["float"]
-    case "int":    return parser.known_types["int"]
-    case "string": return parser.known_types["string"]
+    case "any":     return parser.known_types["any"]
+    case "bool":    return parser.known_types["bool"]
+    case "byte":    return parser.known_types["byte"]
+    case "cstring": return parser.known_types["cstring"]
+    case "float":   return parser.known_types["float"]
+    case "int":     return parser.known_types["int"]
+    case "string":  return parser.known_types["string"]
     }
     assert(false)
     return new_clone(Type{})
@@ -139,12 +141,13 @@ type_to_string :: proc(t: ^Type) -> string {
     case Type_Basic:
         switch v.kind {
         case .Invalid: assert(false)
-        case .Bool:   return "bool"
-        case .Byte:   return "byte"
-        case .Float:  return "float"
-        case .Int:    return "int"
-        case .String: return "string"
-        case .Uint:   return "uint"
+        case .Bool:    return "bool"
+        case .Byte:    return "byte"
+        case .Cstring: return "cstring"
+        case .Float:   return "float"
+        case .Int:     return "int"
+        case .String:  return "string"
+        case .Uint:    return "uint"
         }
     case Type_Nil: return "nil"
     case Type_Pointer: return fmt.tprintf("{}*", type_to_string(v.type))
@@ -163,6 +166,7 @@ type_to_foreign_type :: proc(t: ^Type) -> string {
         case .Invalid: unimplemented()
         case .Bool:    return "bool"
         case .Byte:    return "byte"
+        case .Cstring: return "string"
         case .Float:   return "f64"
         case .Int:     return "i64"
         case .String:  return "string"
