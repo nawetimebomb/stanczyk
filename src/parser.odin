@@ -33,10 +33,7 @@ Entity_Variant :: union {
 }
 
 Entity_Binding :: struct {
-    type:     ^Type,
-    index:    int,
-    internal: bool,
-    mutable:  bool,
+    value: ^Ast,
 }
 
 Entity_Constant :: struct {
@@ -208,7 +205,45 @@ register_const :: proc() {
         }
     }
 
-    add_entity(Entity{name = name_str, token = name_token, variant = ec})
+    add_entity({name = name_str, token = name_token, variant = ec})
+}
+
+register_bindings :: proc(token: Token) {
+    if !peek(.Word) {
+        parsing_error(token.pos, "at least one identifier needed in binding context")
+    }
+    // let bindings are read from right-to-left. So the right most one
+    // indicates the last element in the stack
+    words := make([dynamic]Token, context.temp_allocator)
+    defer delete(words)
+
+    push_scope(.Let, token)
+
+    for !allow(.In) {
+        token2 := next()
+
+        if token2.kind == .Word {
+            append(&words, token2)
+        } else {
+            parsing_error(
+                token.pos, "invalid token in binding context; expected identifier or 'in', found {}",
+                token_to_string(token2),
+            )
+        }
+    }
+
+    if len(stack.data) < len(words) {
+        parsing_error(
+            token.pos,
+            "not enought stack values to bind; expected {}, got {}",
+            len(words), len(stack.data),
+        )
+    }
+
+    #reverse for word_token in words {
+        v := stack->pop()
+        add_entity({ token = word_token, name = word_token.text, variant = Entity_Binding{v}})
+    }
 }
 
 register_proc :: proc(is_foreign := false) {
@@ -275,14 +310,14 @@ register_proc :: proc(is_foreign := false) {
         }
     }
 
-    add_entity(Entity{name = name_str, token = name_token, variant = ep, foreign_name = foreign_name})
+    add_entity({name = name_str, token = name_token, variant = ep, foreign_name = foreign_name}, !is_foreign)
 }
 
-add_entity :: proc(base_ent: Entity) {
+add_entity :: proc(base_ent: Entity, generate_foreign_name := false) {
     assert(parser.curr_scope != nil)
     ent := base_ent
 
-    if ent.foreign_name == "" {
+    if generate_foreign_name {
         ent.foreign_name = create_foreign_name(ent.token.filename, ent.name)
     }
 
@@ -342,12 +377,21 @@ create_node :: proc() -> ^Ast {
     return node
 }
 
-create_local_name :: proc(prefix := "sk") -> string {
-    // fmt.assertf(parser.curr_scope != nil, "called outside a procedure by token {}", parser.prev_token)
-    name := strings.builder_make()
-    fmt.sbprintf(&name, "{}{}", prefix, parser.curr_scope.address)
-    parser.curr_scope.address += 1
-    return strings.to_string(name)
+create_node_name :: proc(prefix := "sk") -> string {
+    address: int
+    scope: string
+
+    if parser.proc_scope != nil {
+        address = parser.proc_scope.address
+        parser.proc_scope.address += 1
+        scope = "local"
+    } else {
+        address = parser.global_scope.address
+        parser.global_scope.address += 1
+        scope = "global"
+    }
+
+    return fmt.aprintf("{}{}{}", prefix, scope, address)
 }
 
 parsing_error :: proc(pos: Position, format: string, args: ..any) {
@@ -689,7 +733,7 @@ parse_binary_statement :: proc(token: Token) -> (node: ^Ast) {
         name_node := create_node()
         name_node.type = result_type
         name_node.variant = Ast_Identifier{
-            foreign_name = create_local_name(),
+            foreign_name = create_node_name(),
         }
         node.type = a.type
         node.pushed_to_stack = true
@@ -757,7 +801,8 @@ parse_identifier_statement :: proc(token: Token) -> (node: ^Ast) {
 
     switch v in ent.variant {
     case Entity_Binding:
-        unimplemented()
+        stack->push(v.value)
+        return nil
     case Entity_Constant:
         stack->push(v.value)
         return nil
@@ -787,7 +832,7 @@ parse_identifier_statement :: proc(token: Token) -> (node: ^Ast) {
                 params       = slice.clone(params[:]),
             }
         } else {
-            result_name := create_local_name()
+            result_name := create_node_name()
             name_node := create_node()
             name_node.variant = Ast_Identifier{
                 foreign_name = result_name,
@@ -841,6 +886,22 @@ parse_identifier_statement :: proc(token: Token) -> (node: ^Ast) {
     return nil
 }
 
+parse_end_of_scope :: proc(token: Token) {
+    #partial switch token.kind {
+        case .End: {
+            if parser.curr_scope.kind != .Let {
+                parsing_error(
+                    token.pos,
+                    "'end' cannot be used to close block of code started with {}",
+                    token_to_string(parser.curr_scope.token),
+                )
+            }
+
+            pop_scope()
+        }
+    }
+}
+
 parse_statement :: proc() -> (node: ^Ast) {
     is_global := parser.curr_scope == parser.global_scope
     token := next()
@@ -869,6 +930,7 @@ parse_statement :: proc() -> (node: ^Ast) {
     case .Slash:         node = parse_binary_statement(token)
     case .Star:          node = parse_binary_statement(token)
 
+        // TODO: May be _Sequence instead of _Auto?
     case .Greater_Than_Auto: unimplemented()
     case .Greater_Equal_Auto: unimplemented()
     case .Less_Than_Auto: unimplemented()
@@ -877,12 +939,20 @@ parse_statement :: proc() -> (node: ^Ast) {
     case .Const:
         register_const()
 
-    case .Proc:
-        node = parse_proc_decl(token)
     case .Var:
         node = parse_variable_decl(token)
+
     case .Word:
         node = parse_identifier_statement(token)
+
+    case .Let:
+        register_bindings(token)
+
+    case .In:
+        parsing_error(token.pos, "'in' keyword used outside of a code block context")
+
+    case .End:
+        parse_end_of_scope(token)
 
     case .Drop:
         stack->pop()
@@ -938,11 +1008,15 @@ parse_statement :: proc() -> (node: ^Ast) {
         // No need to do anything here, just skipping
         for !allow(.Semicolon) { next() }
 
-    case .Semicolon: return nil // this is an escape hatch because this code block may be done.
-
-    case .Invalid:        compiler_bug("invalid end of file")
-    case .EOF:            unexpected_end_of_file()
-    case .Dash_Dash_Dash: compiler_bug("invalid ---")
+    case .Semicolon:
+        // this is an escape hatch because this code block may be done.
+        return nil
+    case .Proc, .Dash_Dash_Dash:
+        parsing_error(token.pos, "invalid token {} in procedure body", token.text)
+    case .Invalid:
+        compiler_bug("invalid token, most likely a bug on the tokenization of the file.")
+    case .EOF:
+        unexpected_end_of_file()
 
     case .Like: unimplemented()
     case .Brace_Left: unimplemented()
@@ -956,9 +1030,6 @@ parse_statement :: proc() -> (node: ^Ast) {
     case .Builtin: unimplemented()
     case .Ampersand: unimplemented()
     case .Hat: unimplemented()
-    case .Let: unimplemented()
-    case .In: unimplemented()
-    case .End: unimplemented()
     case .Case: unimplemented()
     case .Else: unimplemented()
     case .Fi: unimplemented()
