@@ -7,10 +7,11 @@ Value :: union {
 }
 
 Ast :: struct {
-    token:   Token,
-    type:    ^Type,
-    value:   Value,
-    variant: Ast_Variant,
+    pushed_to_stack: bool,
+    token:           Token,
+    type:            ^Type,
+    value:           Value,
+    variant:         Ast_Variant,
 }
 
 Ast_Variant :: union {
@@ -19,8 +20,9 @@ Ast_Variant :: union {
     Ast_Literal,
     Ast_Proc_Call,
     Ast_Proc_Decl,
+    Ast_Result_Decl,
     Ast_Return,
-    Ast_Value_Decl,
+    Ast_Variable_Decl,
 }
 
 Ast_Binary :: struct {
@@ -52,14 +54,20 @@ Ast_Proc_Decl :: struct {
     scope:        ^Scope,
 }
 
+Ast_Result_Decl :: struct {
+    types: []^Ast,
+    name:  ^Ast,
+    value: ^Ast,
+}
+
 Ast_Return :: struct {
     params: []^Ast,
 }
 
-Ast_Value_Decl :: struct {
-    types: []^Ast,
-    name:  ^Ast,
-    value: ^Ast,
+Ast_Variable_Decl :: struct {
+    is_global: bool,
+    name:      ^Ast,
+    value:     ^Ast,
 }
 
 value_to_string :: proc(value: Value) -> string {

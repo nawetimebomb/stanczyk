@@ -1,0 +1,22 @@
+foreign proc printf (string any) --- ;
+
+proc print-int (int)
+  "%d\n" swap printf
+;
+
+proc print-string (string)
+  "%s\n" swap printf
+;
+
+var global "this is a global var" ;
+var global-with-type int 13 ;
+
+proc main
+  var local13 13 ;
+  global print-string
+  global-with-type print-int
+  local13 print-int
+
+  var global "this is shadowing" ;
+  global print-string
+;

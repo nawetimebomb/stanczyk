@@ -1,0 +1,4 @@
+this is a global var
+13
+13
+this is shadowing

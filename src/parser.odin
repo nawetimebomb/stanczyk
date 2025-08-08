@@ -1,14 +1,24 @@
 package main
 
 import "core:fmt"
+import "core:os"
 import "core:path/filepath"
 import "core:slice"
 import "core:strconv"
 import "core:strings"
 
+Entities :: distinct [dynamic]Entity
+
+Scope_Kind :: enum u8 {
+    Invalid,
+    Global,
+    Procedure,
+    If, If_Else, Let,
+    Loop,
+}
+
 Entity :: struct {
     foreign_name: string,
-    is_foreign:   bool,
     name:         string,
     token:        Token,
     variant:      Entity_Variant,
@@ -34,8 +44,8 @@ Entity_Constant :: struct {
 }
 
 Entity_Procedure :: struct {
-    params:  [dynamic]^Ast,
-    results: [dynamic]^Ast,
+    params:  []^Ast,
+    results: []^Ast,
 }
 
 Entity_Type :: struct {
@@ -43,9 +53,7 @@ Entity_Type :: struct {
 }
 
 Entity_Variable :: struct {
-    offset: uint,
-    size:   uint,
-    type:   ^Type,
+    value: ^Ast,
 }
 
 Stack :: struct {
@@ -139,7 +147,6 @@ register_const :: proc() {
     name_str := name_token.text
     ec := Entity_Constant{}
 
-    // TODO: Support type decl
     if allow(.Word) {
         maybe_type_token := parser.prev_token
         maybe_type := type_from_string(maybe_type_token.text)
@@ -155,20 +162,23 @@ register_const :: proc() {
 
     if ec.value == nil {
         if len(stack.data) != 1 {
-            parsing_error(name_token.pos, "only one value can be stored in the constant")
+            parsing_error(name_token.pos, "only one value can be stored")
         }
 
         ec.value = stack->pop()
     }
 
     if _, ok := ec.value.variant.(Ast_Literal); !ok {
-        parsing_error(name_token.pos, "value is not known on compile-time")
+        parsing_error(name_token.pos, "value is not compile-time known constant")
     }
 
     for other in parser.curr_scope.entities {
         if other.name == name_str {
-            // TODO: improve this error
-            parsing_error(name_token.pos, "cannot define entity in the same scope with name {}", name_str)
+            filename, line, column := token_pos(other.token)
+            parsing_error(
+                name_token.pos, "redeclaration of '{}' in {}:{}:{}",
+                name_str, filename, line, column,
+            )
         }
     }
 
@@ -192,26 +202,29 @@ register_proc :: proc(is_foreign := false) {
 
     if allow(.Paren_Left) {
         if !allow(.Paren_Right) {
-            arity := &ep.params
+            params  := make([dynamic]^Ast)
+            results := make([dynamic]^Ast)
+            defer delete(params)
+            defer delete(results)
+
+            arity := &params
             arity_index := 0
 
             arity_loop: for {
                 token := next()
 
                 #partial switch token.kind {
-                    case .Semicolon: parsing_error(
-                        token.pos, "missing ')' on procedure definition",
-                    )
-                    case .Paren_Right:    break arity_loop
-                    case .Dash_Dash_Dash: arity = &ep.results
+                    case .Semicolon: parsing_error(token.pos, "missing ')' on procedure definition")
+                    case .Paren_Right: break arity_loop
+                    case .Dash_Dash_Dash: arity = &results
                     case .Word: {
                         node := create_node()
-                        generated_name := fmt.aprintf("arg{}", arity_index)
+                        arity_name := fmt.aprintf("{}{}", GENERIC_STRUCT_FIELD_NAME, arity_index)
 
                         node.type = type_from_string(token.text)
                         node.variant = Ast_Identifier{
-                            foreign_name = generated_name,
-                            name         = generated_name,
+                            foreign_name = arity_name,
+                            name         = arity_name,
                         }
 
                         append(arity, node)
@@ -220,10 +233,13 @@ register_proc :: proc(is_foreign := false) {
 
                 arity_index += 1
             }
+
+            ep.params  = slice.clone(params[:])
+            ep.results = slice.clone(results[:])
         }
     }
 
-    for &other in parser.curr_scope.entities {
+    for other in parser.curr_scope.entities {
         if other.name == name_str {
             filename, line, column := token_pos(other.token)
             parsing_error(
@@ -233,43 +249,42 @@ register_proc :: proc(is_foreign := false) {
         }
     }
 
-    add_entity(Entity{
-        name = name_str, token = name_token, variant = ep,
-        is_foreign = is_foreign, foreign_name = foreign_name,
-    })
+    add_entity(Entity{name = name_str, token = name_token, variant = ep, foreign_name = foreign_name})
 }
 
 add_entity :: proc(base_ent: Entity) {
-    write_sane_name :: proc(s: ^strings.Builder, name: string) {
-        VALID :: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
-        snake_name := strings.to_snake_case(name)
-
-        for r in snake_name {
-            if strings.contains_rune(VALID, r) {
-                strings.write_rune(s, r)
-            }
-        }
-    }
-
     assert(parser.curr_scope != nil)
     ent := base_ent
 
     if ent.foreign_name == "" {
-        is_global_scope := parser.curr_scope == parser.global_scope
-        foreign_name_builder := strings.builder_make()
-
-        if is_global_scope && ent.name == "main" {
-            strings.write_string(&foreign_name_builder, "stanczyk__main")
-        } else {
-            strings.write_string(&foreign_name_builder, filepath.short_stem(base_ent.token.filename))
-            strings.write_string(&foreign_name_builder, "__")
-            write_sane_name(&foreign_name_builder, ent.name)
-        }
-
-        ent.foreign_name = strings.to_string(foreign_name_builder)
+        ent.foreign_name = create_foreign_name(ent.token.filename, ent.name)
     }
 
     append(&parser.curr_scope.entities, ent)
+}
+
+create_foreign_name :: proc(filename: string, stanczyk_name: string) -> string {
+    VALID :: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
+
+    is_global_scope := parser.curr_scope == parser.global_scope
+    foreign_name_builder := strings.builder_make()
+
+    if is_global_scope && stanczyk_name == "main" {
+        strings.write_string(&foreign_name_builder, "stanczyk__main")
+    } else {
+        strings.write_string(&foreign_name_builder, filepath.short_stem(filename))
+        strings.write_string(&foreign_name_builder, "__")
+
+        snake_name := strings.to_snake_case(stanczyk_name)
+
+        for r in snake_name {
+            if strings.contains_rune(VALID, r) {
+                strings.write_rune(&foreign_name_builder, r)
+            }
+        }
+    }
+
+    return strings.to_string(foreign_name_builder)
 }
 
 find_entity :: proc(name: string) -> ^Entity {
@@ -302,11 +317,33 @@ create_node :: proc() -> ^Ast {
 }
 
 create_local_name :: proc(prefix := "sk") -> string {
-    assert(parser.proc_scope != nil)
+    // fmt.assertf(parser.curr_scope != nil, "called outside a procedure by token {}", parser.prev_token)
     name := strings.builder_make()
-    fmt.sbprintf(&name, "{}{}", prefix, parser.proc_scope.address)
-    parser.proc_scope.address += 1
+    fmt.sbprintf(&name, "{}{}", prefix, parser.curr_scope.address)
+    parser.curr_scope.address += 1
     return strings.to_string(name)
+}
+
+parsing_error :: proc(pos: Position, format: string, args: ..any) {
+    for err in parser.errors {
+        fmt.eprint(err)
+    }
+
+    if len(parser.errors) > 0 {
+        fmt.eprintfln("\nBut an error was encountered that stop compilation:\n")
+    }
+
+    fmt.eprintf("%s(%d:%d) parsing error: ", pos.filename, pos.line, pos.column)
+    fmt.eprintfln(format, ..args)
+    os.exit(1)
+}
+
+unexpected_end_of_file :: proc() {
+    parsing_error(parser.prev_token.pos, "unexpected end of file")
+}
+
+compiler_bug :: proc(details: string = "not specified by the compiler developer", loc := #caller_location) {
+    parsing_error(parser.prev_token.pos, "COMPILER BUG: This is an error on the compiler, not on the Stańczyk code.\nThe root cause for this might be: %s\nCalled from: %s", details, loc)
 }
 
 parse_proc_decl :: proc(token: Token) -> ^Ast {
@@ -394,6 +431,76 @@ parse_proc_decl :: proc(token: Token) -> ^Ast {
     return node
 }
 
+parse_variable_decl :: proc(token: Token) -> ^Ast {
+    is_global := parser.curr_scope == parser.global_scope
+    name_token := expect(.Word)
+    name_str := name_token.text
+    stack_copy := slice.clone(stack.data[:], context.temp_allocator)
+    body := make([dynamic]^Ast)
+    defer delete(body)
+
+    if allow(.Word) {
+        maybe_type_token := parser.prev_token
+        maybe_type := type_from_string(maybe_type_token.text)
+
+        if maybe_type == nil {
+            stmt, _ := parse_identifier_statement(maybe_type_token)
+
+            if stmt != nil {
+                append(&body, stmt)
+            }
+        }
+    }
+
+    for !allow(.Semicolon) {
+        stmt, _ := parse_statement()
+
+        if stmt != nil {
+            append(&body, stmt)
+        }
+    }
+
+    value_node: ^Ast
+
+    if len(body) == 1 {
+        value_node = pop(&body)
+        value_node.pushed_to_stack = false
+    } else {
+        value_node = stack->pop()
+    }
+
+    name_node := create_node()
+    name_node.type = value_node.type
+    name_node.variant = Ast_Identifier{
+        foreign_name = create_foreign_name(name_token.filename, name_str),
+    }
+
+    main_node := create_node()
+    main_node.variant = Ast_Variable_Decl{
+        is_global = is_global,
+        name      = name_node,
+        value     = value_node,
+    }
+
+    // NOTE: This validation is here to follow the C standard that only
+    // known compile-time constants can be used in global variables...
+    // TODO: Fix this by making variables smarter for Stanczyk
+    if is_global {
+        if _, ok := value_node.variant.(Ast_Literal); !ok {
+            parsing_error(
+                value_node.token.pos,
+                "only compile-time known constants can be used in global variable initialization",
+            )
+        }
+    }
+
+    add_entity(Entity{name = name_str, token = name_token, variant = Entity_Variable{name_node}})
+    delete(stack.data)
+    stack.data = slice.clone_to_dynamic(stack_copy)
+
+    return main_node
+}
+
 parse_arithmetic_statement :: proc(token: Token) -> (node: ^Ast, handled: bool) {
     node = create_node()
     b, a := stack->pop(), stack->pop()
@@ -460,6 +567,7 @@ parse_arithmetic_statement :: proc(token: Token) -> (node: ^Ast, handled: bool) 
             foreign_name = create_local_name(),
         }
         node.type = a.type
+        node.pushed_to_stack = true
         node.variant = Ast_Binary{
             name     = name_node,
             left     = a,
@@ -527,7 +635,7 @@ parse_identifier_statement :: proc(token: Token) -> (node: ^Ast, handled: bool) 
     case Entity_Binding:
     case Entity_Constant:
         stack->push(v.value)
-        handled = true
+        return nil, true
     case Entity_Procedure:
         node = create_node()
         params := make([dynamic]^Ast)
@@ -566,12 +674,20 @@ parse_identifier_statement :: proc(token: Token) -> (node: ^Ast, handled: bool) 
                 params       = slice.clone(params[:]),
             }
 
-            node.variant = Ast_Value_Decl{
+            node.variant = Ast_Result_Decl{
                 types  = v.results[:],
                 name   = name_node,
                 value  = value_node,
             }
 
+            // In order to minimize the amount of code generated, we
+            // only store the result into one value of the output
+            // stack. If there are multiple results, we will pack them
+            // into a struct, but the Stanczyk compilation stack will
+            // keep reference to all of the fields of that
+            // struct. Now, if it's just a single result we store the
+            // variable with that type, as we don't need to produce a
+            // struct for it.
             if len(v.results) == 1 {
                 name_node.type = v.results[0].type
                 stack->push(name_node)
@@ -580,20 +696,27 @@ parse_identifier_statement :: proc(token: Token) -> (node: ^Ast, handled: bool) 
                     stack_value_node := create_node()
                     stack_value_node.type = result.type
                     stack_value_node.variant = Ast_Identifier{
-                        foreign_name = fmt.aprintf("{}.arg{}", result_name, index),
+                        foreign_name = fmt.aprintf(
+                            "{}.{}{}", result_name, GENERIC_STRUCT_FIELD_NAME, index,
+                        ),
                     }
                     stack->push(stack_value_node)
                 }
             }
         }
+
+        return node, false
     case Entity_Type:
     case Entity_Variable:
+        stack->push(v.value)
+        return nil, true
     }
 
-    return
+    return nil, false
 }
 
 parse_statement :: proc() -> (node: ^Ast, stack_op_done: bool) {
+    is_global := parser.curr_scope == parser.global_scope
     token := next()
 
     switch token.kind {
@@ -614,8 +737,11 @@ parse_statement :: proc() -> (node: ^Ast, stack_op_done: bool) {
     case .Slash:   node, stack_op_done = parse_arithmetic_statement(token)
     case .Percent: node, stack_op_done = parse_arithmetic_statement(token)
 
+    case .Const:
+        register_const()
+        stack_op_done = true
     case .Proc: node = parse_proc_decl(token)
-
+    case .Var:  node = parse_variable_decl(token)
     case .Word: node, stack_op_done = parse_identifier_statement(token)
 
     case .Drop:
@@ -669,17 +795,6 @@ parse_statement :: proc() -> (node: ^Ast, stack_op_done: bool) {
         stack->push(b)
         stack_op_done = true
 
-    case .Const:
-        if parser.curr_scope == parser.global_scope {
-            // Global scope: skip since it's handled on the first cycle
-            for !allow(.Semicolon) { next() }
-            return parse_statement()
-        } else {
-            // Register new constant in local scope and get back the next value
-            register_const()
-            return parse_statement()
-        }
-
     case .Using, .Foreign:
         // No need to do anything here, just skipping
         for !allow(.Semicolon) { next() }
@@ -687,7 +802,7 @@ parse_statement :: proc() -> (node: ^Ast, stack_op_done: bool) {
 
     case .Semicolon:      compiler_bug("forgot to consume the semicolon on a previous statement")
     case .Invalid:        compiler_bug("invalid end of file")
-    case .EOF:            compiler_bug("invalid end of file")
+    case .EOF:            unexpected_end_of_file()
     case .Dash_Dash_Dash: compiler_bug("invalid ---")
 
     case .Like: unimplemented()
@@ -698,7 +813,6 @@ parse_statement :: proc() -> (node: ^Ast, stack_op_done: bool) {
     case .Paren_Left: unimplemented()
     case .Paren_Right: unimplemented()
     case .As: unimplemented()
-    case .Var: unimplemented()
     case .Type: unimplemented()
     case .Builtin: unimplemented()
     case .Ampersand: unimplemented()
@@ -773,7 +887,13 @@ parse :: proc() {
             token := next()
 
             #partial switch token.kind {
-                case .Const: register_const()
+                case .Const: {
+                    register_const()
+                }
+
+                case .Var: {
+                    append(&parser.program, parse_variable_decl(parser.prev_token))
+                }
 
                 case .Foreign, .Proc: {
                     is_foreign := token.kind == .Foreign
@@ -790,6 +910,7 @@ parse :: proc() {
 
                         #partial switch token2.kind {
                             case .Const: scope_level += 1
+                            case .Var:   scope_level += 1
                             case .Semicolon: {
                                 scope_level -= 1
 
@@ -800,6 +921,7 @@ parse :: proc() {
                         }
                     }
                 }
+
                 case .Using: {
                     for !allow(.Semicolon) {
                         token2 := next()
@@ -839,24 +961,15 @@ parse :: proc() {
         next()
 
         for !allow(.EOF) {
-            stmt, handled_by_stack := parse_statement()
+            token := next()
 
-            if handled_by_stack {
-                parsing_error(
-                    parser.prev_token.pos,
-                    "stack-handled operation is not permitted in global scope",
-                )
+            if token.kind == .Foreign {
+                for !allow(.Semicolon) { next() }
             }
 
-            #partial switch v in stmt.variant {
-                case Ast_Proc_Decl: // do nothing, this is valid
-                case: parsing_error(
-                    stmt.token.pos,
-                    "unexpected statement in global scope",
-                )
+            if token.kind == .Proc {
+                append(&parser.program, parse_proc_decl(token))
             }
-
-            append(&parser.program, stmt)
         }
     }
 }

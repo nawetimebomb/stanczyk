@@ -5,6 +5,8 @@ import "core:os"
 import "core:strconv"
 import "core:strings"
 
+GENERIC_STRUCT_FIELD_NAME :: "arg"
+
 Generator :: struct {
     cheaders: strings.Builder,
 
@@ -14,8 +16,9 @@ Generator :: struct {
     stanczyk_results: strings.Builder,
 
     // The user defined content
-    user_defs: strings.Builder,
-    user_code: strings.Builder,
+    user_code:    strings.Builder,
+    user_defs:    strings.Builder,
+    user_globals: strings.Builder,
 
     indent_level: int,
 }
@@ -164,7 +167,8 @@ gen_multiresult_str :: proc(params: []^Ast) -> string {
     gen_open_codeblock(&gen.stanczyk_results)
 
     for param, index in params {
-        writefln(&gen.stanczyk_results, "{} arg{};", type_to_foreign_type(param.type), index)
+        writefln(&gen.stanczyk_results, "{} {}{};",
+                 type_to_foreign_type(param.type), GENERIC_STRUCT_FIELD_NAME, index)
     }
 
     gen_close_codeblock(&gen.stanczyk_results, true)
@@ -172,27 +176,28 @@ gen_multiresult_str :: proc(params: []^Ast) -> string {
     return result
 }
 
-gen_binary :: proc(node: ^Ast) {
+gen_binary :: proc(node: ^Ast, s: ^strings.Builder) {
     variant := node.variant.(Ast_Binary)
 
-    if variant.name != nil {
-        writef(&gen.user_code, "{} ", type_to_foreign_type(node.type))
-        gen_program(variant.name)
-        write(&gen.user_code, " = ")
+    if node.pushed_to_stack {
+        assert(variant.name != nil)
+        writef(s, "{} ", type_to_foreign_type(node.type))
+        gen_program(variant.name, s)
+        write(s, " = ")
     }
 
-    gen_program(variant.left)
-    writef(&gen.user_code, " {} ", variant.operator)
-    gen_program(variant.right)
-    writeln(&gen.user_code, ";")
+    gen_program(variant.left, s)
+    writef(s, " {} ", variant.operator)
+    gen_program(variant.right, s)
+    writeln(s, ";")
 }
 
-gen_identifier :: proc(node: ^Ast) {
+gen_identifier :: proc(node: ^Ast, s: ^strings.Builder) {
     variant := node.variant.(Ast_Identifier)
-    writef(&gen.user_code, variant.foreign_name)
+    writef(s, variant.foreign_name)
 }
 
-gen_literal :: proc(node: ^Ast) {
+gen_literal :: proc(node: ^Ast, s: ^strings.Builder) {
     switch v in node.type.variant {
     case Type_Any:
         unimplemented()
@@ -203,37 +208,37 @@ gen_literal :: proc(node: ^Ast) {
         case .Invalid:
             unimplemented()
         case .Bool:
-            write(&gen.user_code, value_to_string(node.value))
+            write(s, value_to_string(node.value))
         case .Byte:
-            writef(&gen.user_code, "({})'{}'", type_to_foreign_type(node.type), value_to_string(node.value))
+            writef(s, "({})'{}'", type_to_foreign_type(node.type), value_to_string(node.value))
         case .Cstring:
-            writef(&gen.user_code, `"{}"`, value_to_string(node.value))
+            writef(s, `"{}"`, value_to_string(node.value))
         case .String:
-            writef(&gen.user_code, `"{}"`, value_to_string(node.value))
+            writef(s, `"{}"`, value_to_string(node.value))
 
         case .Float, .Int, .Uint:
-            writef(&gen.user_code, "({}){}", type_to_foreign_type(node.type), value_to_string(node.value))
+            writef(s, "({}){}", type_to_foreign_type(node.type), value_to_string(node.value))
         }
     case Type_Nil:
-        write(&gen.user_code, "NULL")
+        write(s, "NULL")
     case Type_Pointer: unimplemented()
     }
 }
 
-gen_proc_call :: proc(node: ^Ast) {
+gen_proc_call :: proc(node: ^Ast, s: ^strings.Builder) {
     variant := node.variant.(Ast_Proc_Call)
 
-    writef(&gen.user_code, "{}(", variant.foreign_name)
+    writef(s, "{}(", variant.foreign_name)
 
     for child, index in variant.params {
-        gen_program(child)
+        gen_program(child, s)
 
         if index != len(variant.params) - 1 {
-            write(&gen.user_code, ", ")
+            write(s, ", ")
         }
     }
 
-    writeln(&gen.user_code, ");")
+    writeln(s, ");")
 }
 
 gen_proc_decl :: proc(node: ^Ast) {
@@ -268,9 +273,25 @@ gen_proc_decl :: proc(node: ^Ast) {
     write(&gen.user_code, ")")
     gen_open_codeblock(&gen.user_code)
     for child in variant.body {
-        gen_program(child)
+        gen_program(child, &gen.user_code)
     }
     gen_close_codeblock(&gen.user_code)
+}
+
+gen_result_decl :: proc(node: ^Ast, s: ^strings.Builder) {
+    variant := node.variant.(Ast_Result_Decl)
+    result_str: string
+
+    if len(variant.types) == 1 {
+        result_str = type_to_foreign_type(variant.types[0].type)
+    } else {
+        result_str = gen_multiresult_str(variant.types)
+    }
+
+    writef(s, "{} ", result_str)
+    gen_identifier(variant.name, s)
+    write(s, " = ")
+    gen_program(variant.value, s)
 }
 
 gen_return :: proc(node: ^Ast) {
@@ -282,7 +303,7 @@ gen_return :: proc(node: ^Ast) {
 
     if len(variant.params) == 1 {
         write(&gen.user_code, "return ")
-        gen_program(variant.params[0])
+        gen_program(variant.params[0], &gen.user_code)
         writeln(&gen.user_code, ";")
     } else {
         result_str := gen_multiresult_str(variant.params)
@@ -291,8 +312,8 @@ gen_return :: proc(node: ^Ast) {
         writef(&gen.user_code, "({}){{", result_str)
 
         for param, index in variant.params {
-            writef(&gen.user_code, ".arg{}=", index)
-            gen_program(param)
+            writef(&gen.user_code, ".{}{}=", GENERIC_STRUCT_FIELD_NAME, index)
+            gen_program(param, &gen.user_code)
 
             if index < len(variant.params) - 1 {
                 write(&gen.user_code, ", ")
@@ -303,31 +324,38 @@ gen_return :: proc(node: ^Ast) {
     }
 }
 
-gen_value_decl :: proc(node: ^Ast) {
-    variant := node.variant.(Ast_Value_Decl)
-    result_str: string
+gen_variable_decl :: proc(node: ^Ast) {
+    variant := node.variant.(Ast_Variable_Decl)
+    name := variant.name
+    value := variant.value
+    s := &gen.user_code
 
-    if len(variant.types) == 1 {
-        result_str = type_to_foreign_type(variant.types[0].type)
-    } else {
-        result_str = gen_multiresult_str(variant.types)
+    if variant.is_global {
+        s = &gen.user_globals
     }
 
-    writef(&gen.user_code, "{} ", result_str)
-    gen_program(variant.name)
-    write(&gen.user_code, " = ")
-    gen_program(variant.value)
+    _, add_semicolon := value.variant.(Ast_Literal)
+
+    writef(s, "{} ", type_to_foreign_type(value.type))
+    gen_identifier(name, s)
+    write(s, " = ")
+    gen_program(value, s)
+
+    if add_semicolon {
+        writeln(s, ";")
+    }
 }
 
-gen_program :: proc(node: ^Ast) {
+gen_program :: proc(node: ^Ast, s: ^strings.Builder) {
     switch v in node.variant {
-    case Ast_Binary:     gen_binary    (node)
-    case Ast_Identifier: gen_identifier(node)
-    case Ast_Literal:    gen_literal   (node)
-    case Ast_Proc_Call:  gen_proc_call (node)
-    case Ast_Proc_Decl:  gen_proc_decl (node)
-    case Ast_Return:     gen_return    (node)
-    case Ast_Value_Decl: gen_value_decl(node)
+    case Ast_Binary:        gen_binary       (node, s)
+    case Ast_Identifier:    gen_identifier   (node, s)
+    case Ast_Literal:       gen_literal      (node, s)
+    case Ast_Proc_Call:     gen_proc_call    (node, s)
+    case Ast_Proc_Decl:     gen_proc_decl    (node)
+    case Ast_Result_Decl:   gen_result_decl  (node, s)
+    case Ast_Return:        gen_return       (node)
+    case Ast_Variable_Decl: gen_variable_decl(node)
     }
 }
 
@@ -341,11 +369,12 @@ generate :: proc() {
     gen_stanczyk_defines()
     gen_stanczyk_code()
 
-    writeln(&gen.user_defs, "// User definitions start here")
     writeln(&gen.user_code, "// User code start here")
+    writeln(&gen.user_defs, "// User definitions start here")
+    writeln(&gen.user_globals, "// User globals start here")
 
     for ast in parser.program {
-        gen_program(ast)
+        gen_program(ast, &gen.user_code)
     }
 
     write_to_file()
@@ -360,6 +389,7 @@ write_to_file :: proc() {
     writeln(&result, strings.to_string(gen.stanczyk_code))
     writeln(&result, strings.to_string(gen.stanczyk_results))
     writeln(&result, strings.to_string(gen.user_defs))
+    writeln(&result, strings.to_string(gen.user_globals))
     write(&result, strings.to_string(gen.user_code))
 
     writeln(&result, `int main(int argc, const char *argv) {
