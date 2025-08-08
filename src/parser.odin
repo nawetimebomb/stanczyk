@@ -876,68 +876,70 @@ parse_statement :: proc() -> (node: ^Ast) {
 
     case .Const:
         register_const()
-        return parse_statement()
-    case .Proc: node = parse_proc_decl(token)
-    case .Var:  node = parse_variable_decl(token)
-    case .Word: node = parse_identifier_statement(token)
+
+    case .Proc:
+        node = parse_proc_decl(token)
+    case .Var:
+        node = parse_variable_decl(token)
+    case .Word:
+        node = parse_identifier_statement(token)
 
     case .Drop:
         stack->pop()
-        return parse_statement()
+
     case .Dup:
         a := stack->pop()
         stack->push(a)
         stack->push(a)
-        return parse_statement()
+
     case .Dup_Star:
         b, a := stack->pop(), stack->pop()
         stack->push(a)
         stack->push(a)
         stack->push(b)
-        return parse_statement()
+
     case .Nip:
         b, a := stack->pop(), stack->pop()
         stack->push(b)
-        return parse_statement()
+
     case .Over:
         b, a := stack->pop(), stack->pop()
         stack->push(a)
         stack->push(b)
         stack->push(a)
-        return parse_statement()
+
     case .Rot:
         c, b, a := stack->pop(), stack->pop(), stack->pop()
         stack->push(b)
         stack->push(c)
         stack->push(a)
-        return parse_statement()
+
     case .Rot_Star:
         c, b, a := stack->pop(), stack->pop(), stack->pop()
         stack->push(c)
         stack->push(a)
         stack->push(b)
-        return parse_statement()
+
     case .Swap:
         b, a := stack->pop(), stack->pop()
         stack->push(b)
         stack->push(a)
-        return parse_statement()
+
     case .Take:
         // Nothing really, just a helpful word to know we're looking for the last element in the stack
-        return parse_statement()
+
     case .Tuck:
         b, a := stack->pop(), stack->pop()
         stack->push(b)
         stack->push(a)
         stack->push(b)
-        return parse_statement()
 
     case .Using, .Foreign:
         // No need to do anything here, just skipping
         for !allow(.Semicolon) { next() }
-        return parse_statement()
 
-    case .Semicolon:      return nil //compiler_bug("forgot to consume the semicolon on a previous statement")
+    case .Semicolon: return nil // this is an escape hatch because this code block may be done.
+
     case .Invalid:        compiler_bug("invalid end of file")
     case .EOF:            unexpected_end_of_file()
     case .Dash_Dash_Dash: compiler_bug("invalid ---")
