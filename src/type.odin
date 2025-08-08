@@ -97,6 +97,11 @@ type_should_autocast_from_any :: proc(to, from: ^Type) -> bool {
     return v.autocast_type != nil && !types_equal(v.autocast_type, from)
 }
 
+type_is_basic_all :: proc(t: ^Type) -> bool {
+    v := t.variant.(Type_Basic) or_return
+    return true
+}
+
 type_is_basic :: proc(t: ^Type, k: Type_Basic_Kind) -> bool {
     v := t.variant.(Type_Basic) or_return
     if v.kind != k do return false

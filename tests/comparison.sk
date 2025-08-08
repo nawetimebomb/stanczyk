@@ -1,40 +1,50 @@
-fn main
-  "equal" println
-  "2 2 = -> true " print 2 2 = println
-  "2 3 = -> false " print 2 3 = println
-  "3 2 = -> false " print 3 2 = println
-  "test test -> true " print "test" "test" = println
-  "test Test -> false " print "test" "Test" = println
-  "-----------" println
+foreign proc printf (string any) --- ;
 
-  "not equal" println
-  "2 3 != -> true " print 2 3 != println
-  "3 2 != -> true " print 3 2 != println
-  "2 2 != -> false " print 2 2 != println
-  "test Test -> true " print "test" "Test" != println
-  "test test -> false " print "test" "test" != println
-  "-----------" println
+proc print-string (string)
+  "%s" swap printf
+;
 
-  "less" println
-  "3 2 > -> true " print 3 2 > println
-  "2 3 > -> false " print 2 3 > println
-  "3 3 > -> false " print 3 3 > println
-  "-----------" println
+proc print-bool (bool)
+  "%d\n" swap printf
+;
 
-  "less equal" println
-  "3 3 >= -> true " print 3 3 >= println
-  "3 2 >= -> true " print 3 2 >= println
-  "2 3 >= -> false " print 2 3 >= println
-  "-----------" println
+proc main
+  "equal\n" print-string
+  "2 2 = -> true " print-string 2 2 = print-bool
+  "2 3 = -> false " print-string 2 3 = print-bool
+  "3 2 = -> false " print-string 3 2 = print-bool
+  "test test -> true " print-string "test" "test" = print-bool
+  "test Test -> false " print-string "test" "Test" = print-bool
+  "-----------\n" print-string
 
-  "greater" println
-  "2 3 < -> true " print 2 3 < println
-  "3 2 < -> false " print 3 2 < println
-  "2 2 < -> false " print 2 2 < println
-  "-----------" println
+  "not equal\n" print-string
+  "2 3 != -> true " print-string 2 3 != print-bool
+  "3 2 != -> true " print-string 3 2 != print-bool
+  "2 2 != -> false " print-string 2 2 != print-bool
+  "test Test -> true " print-string "test" "Test" != print-bool
+  "test test -> false " print-string "test" "test" != print-bool
+  "-----------\n" print-string
 
-  "greater equal" println
-  "2 2 <= -> true " print 2 2 <= println
-  "2 3 <= -> true " print 2 3 <= println
-  "3 2 <= -> false " print 3 2 <= println
+  "less\n" print-string
+  "3 2 > -> true " print-string 3 2 > print-bool
+  "2 3 > -> false " print-string 2 3 > print-bool
+  "3 3 > -> false " print-string 3 3 > print-bool
+  "-----------\n" print-string
+
+  "less equal\n" print-string
+  "3 3 >= -> true " print-string 3 3 >= print-bool
+  "3 2 >= -> true " print-string 3 2 >= print-bool
+  "2 3 >= -> false " print-string 2 3 >= print-bool
+  "-----------\n" print-string
+
+  "greater\n" print-string
+  "2 3 < -> true " print-string 2 3 < print-bool
+  "3 2 < -> false " print-string 3 2 < print-bool
+  "2 2 < -> false " print-string 2 2 < print-bool
+  "-----------\n" print-string
+
+  "greater equal\n" print-string
+  "2 2 <= -> true " print-string 2 2 <= print-bool
+  "2 3 <= -> true " print-string 2 3 <= print-bool
+  "3 2 <= -> false " print-string 3 2 <= print-bool
 ;

@@ -98,6 +98,10 @@ allow :: proc(kind: Token_Kind) -> bool {
     return false
 }
 
+end_of_block_found :: proc(node: ^Ast) -> bool {
+    return node == nil && parser.prev_token.kind == .Semicolon
+}
+
 expect :: proc(kind: Token_Kind) -> Token {
     token := next()
 
@@ -125,6 +129,10 @@ next :: proc() -> Token {
     return parser.prev_token
 }
 
+peek :: proc(kind: Token_Kind) -> bool {
+    return parser.curr_token.kind == kind
+}
+
 push_scope :: proc(kind: Scope_Kind, token := Token{}) -> ^Scope {
     parser.curr_scope = new_clone(Scope{
         entities = make(Entities),
@@ -146,18 +154,28 @@ register_const :: proc() {
     name_token := expect(.Word)
     name_str := name_token.text
     ec := Entity_Constant{}
+    // just for testing the types
+    temp_node := new(Ast, context.temp_allocator)
 
-    if allow(.Word) {
-        maybe_type_token := parser.prev_token
+    if peek(.Word) {
+        // Check if the next token is a type definition, consume it if so
+        maybe_type_token := parser.curr_token
         maybe_type := type_from_string(maybe_type_token.text)
 
-        if maybe_type == nil {
-            ec.value, _ = parse_identifier_statement(maybe_type_token)
+        if maybe_type != nil {
+            temp_node.type = maybe_type
+            expect(.Word)
         }
     }
 
-    for !allow(.Semicolon) {
-        ec.value, _ = parse_statement()
+    for {
+        stmt := parse_statement()
+
+        if end_of_block_found(stmt) {
+            break
+        }
+
+        ec.value = stmt
     }
 
     if ec.value == nil {
@@ -170,6 +188,14 @@ register_const :: proc() {
 
     if _, ok := ec.value.variant.(Ast_Literal); !ok {
         parsing_error(name_token.pos, "value is not compile-time known constant")
+    }
+
+    if temp_node.type != nil && !types_equal(temp_node.type, ec.value.type) {
+        parsing_error(
+            name_token.pos,
+            "mismatched type in variable declaration; expected {}, got {}",
+            type_to_string(temp_node.type), type_to_string(ec.value.type),
+        )
     }
 
     for other in parser.curr_scope.entities {
@@ -382,11 +408,14 @@ parse_proc_decl :: proc(token: Token) -> ^Ast {
     }
 
     for !allow(.Semicolon) {
-        stmt, handled_by_stack := parse_statement()
+        stmt := parse_statement()
 
-        if !handled_by_stack {
-            append(&proc_decl.body, stmt)
+        if end_of_block_found(stmt) {
+            break
         }
+
+        assert(stmt != nil)
+        append(&proc_decl.body, stmt)
     }
 
     if len(ep.results) != len(stack.data) {
@@ -439,25 +468,28 @@ parse_variable_decl :: proc(token: Token) -> ^Ast {
     body := make([dynamic]^Ast)
     defer delete(body)
 
-    if allow(.Word) {
-        maybe_type_token := parser.prev_token
+    name_node := create_node()
+
+    if peek(.Word) {
+        // Check if the next token is a type definition, consume it if so
+        maybe_type_token := parser.curr_token
         maybe_type := type_from_string(maybe_type_token.text)
 
-        if maybe_type == nil {
-            stmt, _ := parse_identifier_statement(maybe_type_token)
-
-            if stmt != nil {
-                append(&body, stmt)
-            }
+        if maybe_type != nil {
+            name_node.type = maybe_type
+            expect(.Word)
         }
     }
 
-    for !allow(.Semicolon) {
-        stmt, _ := parse_statement()
+    for {
+        stmt := parse_statement()
 
-        if stmt != nil {
-            append(&body, stmt)
+        if end_of_block_found(stmt) {
+            break
         }
+
+        assert(stmt != nil)
+        append(&body, stmt)
     }
 
     value_node: ^Ast
@@ -469,7 +501,14 @@ parse_variable_decl :: proc(token: Token) -> ^Ast {
         value_node = stack->pop()
     }
 
-    name_node := create_node()
+    if name_node.type != nil && !types_equal(name_node.type, value_node.type) {
+        parsing_error(
+            name_token.pos,
+            "mismatched type in variable declaration; expected {}, got {}",
+            type_to_string(name_node.type), type_to_string(value_node.type),
+        )
+    }
+
     name_node.type = value_node.type
     name_node.variant = Ast_Identifier{
         foreign_name = create_foreign_name(name_token.filename, name_str),
@@ -484,7 +523,9 @@ parse_variable_decl :: proc(token: Token) -> ^Ast {
 
     // NOTE: This validation is here to follow the C standard that only
     // known compile-time constants can be used in global variables...
-    // TODO: Fix this by making variables smarter for Stanczyk
+    // TODO: Fix this by making variables smarter for Stanczyk. For example,
+    // if the variable was just declared and is a literal value, replace it
+    // with that literal value instead.
     if is_global {
         if _, ok := value_node.variant.(Ast_Literal); !ok {
             parsing_error(
@@ -501,21 +542,21 @@ parse_variable_decl :: proc(token: Token) -> ^Ast {
     return main_node
 }
 
-parse_arithmetic_statement :: proc(token: Token) -> (node: ^Ast, handled: bool) {
+parse_binary_statement :: proc(token: Token) -> (node: ^Ast) {
     node = create_node()
     b, a := stack->pop(), stack->pop()
 
     if !types_equal(a.type, b.type) {
         parsing_error(
-            token.pos, "mismatched type in arithmetic operation {0}({1}) {2} {3}({4})",
+            token.pos, "mismatched type in binary operation {0}({1}) {2} {3}({4})",
             type_to_string(a.type), value_to_string(a.value), token.text,
             type_to_string(b.type), value_to_string(b.value),
         )
     }
 
-    if !type_is_basic(a.type, .Float) && !type_is_basic(a.type, .Int) && !type_is_basic(a.type, .Uint) {
+    if !type_is_basic_all(a.type) {
         parsing_error(
-            token.pos, "cannot do arithmetic operation on {}",
+            token.pos, "cannot do binary operation on {}",
             type_to_string(a.type),
         )
     }
@@ -525,44 +566,128 @@ parse_arithmetic_statement :: proc(token: Token) -> (node: ^Ast, handled: bool) 
     parsing_on_literals := a_ok && b_ok
 
     if parsing_on_literals {
-        #partial switch v in a.value {
-            case i64: {
-                #partial switch token.kind {
-                    case .Plus:    node.value = v + b.value.(i64)
-                    case .Minus:   node.value = v - b.value.(i64)
-                    case .Star:    node.value = v * b.value.(i64)
-                    case .Slash:   node.value = v / b.value.(i64)
-                    case .Percent: node.value = v % b.value.(i64)
-                }
+        switch v in a.value {
+        case bool:
+            #partial switch token.kind {
+                case .Equal:     node.value = v == b.value.(bool)
+                case .Not_Equal: node.value = v != b.value.(bool)
+                case: parsing_error(
+                    token.pos,
+                    "cannot make this kind of operation on boolean values ({} {} {})",
+                    v, token.text, b.value.(bool),
+                )
             }
-            case f64: {
-                #partial switch token.kind {
-                    case .Plus:    node.value = v + b.value.(f64)
-                    case .Minus:   node.value = v - b.value.(f64)
-                    case .Star:    node.value = v * b.value.(f64)
-                    case .Slash:   node.value = v / b.value.(f64)
-                    case .Percent: node.value = f64(i64(v) % i64(b.value.(f64)))
-                }
+        case string:
+            #partial switch token.kind {
+                case .Equal:     node.value = v == b.value.(string)
+                case .Not_Equal: node.value = v != b.value.(string)
+                case: parsing_error(
+                    token.pos,
+                    "cannot make this kind of operation on string values ({} {} {})",
+                    v, token.text, b.value.(string),
+                )
             }
-            case u64: {
-                #partial switch token.kind {
-                    case .Plus:    node.value = v + b.value.(u64)
-                    case .Minus:   node.value = v - b.value.(u64)
-                    case .Star:    node.value = v * b.value.(u64)
-                    case .Slash:   node.value = v / b.value.(u64)
-                    case .Percent: node.value = v % b.value.(u64)
-                }
+        case i64:
+            #partial switch token.kind {
+                case .Plus:          node.value = v +  b.value.(i64)
+                case .Minus:         node.value = v -  b.value.(i64)
+                case .Star:          node.value = v *  b.value.(i64)
+                case .Slash:         node.value = v /  b.value.(i64)
+                case .Percent:       node.value = v %  b.value.(i64)
+                case .Equal:         node.value = v == b.value.(i64)
+                case .Greater_Equal: node.value = v >= b.value.(i64)
+                case .Greater_Than:  node.value = v >  b.value.(i64)
+                case .Less_Equal:    node.value = v <= b.value.(i64)
+                case .Less_Than:     node.value = v <  b.value.(i64)
+                case .Not_Equal:     node.value = v != b.value.(i64)
+                case: parsing_error(
+                    token.pos,
+                    "cannot make this kind of operation on integer values ({} {} {})",
+                    v, token.text, b.value.(i64),
+                )
+            }
+        case f64:
+            #partial switch token.kind {
+                case .Plus:          node.value = v + b.value.(f64)
+                case .Minus:         node.value = v - b.value.(f64)
+                case .Star:          node.value = v * b.value.(f64)
+                case .Slash:         node.value = v / b.value.(f64)
+                case .Percent:       node.value = f64(i64(v) % i64(b.value.(f64)))
+                case .Equal:         node.value = v == b.value.(f64)
+                case .Greater_Equal: node.value = v >= b.value.(f64)
+                case .Greater_Than:  node.value = v >  b.value.(f64)
+                case .Less_Equal:    node.value = v <= b.value.(f64)
+                case .Less_Than:     node.value = v <  b.value.(f64)
+                case .Not_Equal:     node.value = v != b.value.(f64)
+                case: parsing_error(
+                    token.pos,
+                    "cannot make this kind of operation on float values ({} {} {})",
+                    v, token.text, b.value.(f64),
+                )
+            }
+        case u64:
+            #partial switch token.kind {
+                case .Plus:          node.value = v +  b.value.(u64)
+                case .Minus:         node.value = v -  b.value.(u64)
+                case .Star:          node.value = v *  b.value.(u64)
+                case .Slash:         node.value = v /  b.value.(u64)
+                case .Percent:       node.value = v %  b.value.(u64)
+                case .Equal:         node.value = v == b.value.(u64)
+                case .Greater_Equal: node.value = v >= b.value.(u64)
+                case .Greater_Than:  node.value = v >  b.value.(u64)
+                case .Less_Equal:    node.value = v <= b.value.(u64)
+                case .Less_Than:     node.value = v <  b.value.(u64)
+                case .Not_Equal:     node.value = v != b.value.(u64)
+                case: parsing_error(
+                    token.pos,
+                    "cannot make this kind of operation on unsigned integer values ({} {} {})",
+                    v, token.text, b.value.(u64),
+                )
             }
         }
 
-        node.type = a.type
+        switch v in node.value {
+        case bool:   node.type = parser.known_types["bool"]
+        case f64:    node.type = parser.known_types["float"]
+        case i64:    node.type = parser.known_types["int"]
+        case string: node.type = parser.known_types["string"]
+        case u64:    node.type = parser.known_types["uint"]
+        }
+
         node.variant = Ast_Literal{}
         stack->push(node)
 
-        return nil, true
+        return nil
     } else {
+        operator := token.text
+        // type inherited for most operations
+        result_type := a.type
+
+        #partial switch token.kind {
+            // type is always boolean
+            case .Equal: {
+                operator = "=="
+                result_type = parser.known_types["bool"]
+            }
+            case .Greater_Equal: {
+                result_type = parser.known_types["bool"]
+            }
+            case .Greater_Than: {
+                result_type = parser.known_types["bool"]
+            }
+            case .Less_Equal: {
+                result_type = parser.known_types["bool"]
+            }
+            case .Less_Than: {
+                result_type = parser.known_types["bool"]
+            }
+            case .Not_Equal: {
+                result_type = parser.known_types["bool"]
+            }
+        }
+
         name_node := create_node()
-        name_node.type = a.type
+        name_node.type = result_type
         name_node.variant = Ast_Identifier{
             foreign_name = create_local_name(),
         }
@@ -572,16 +697,16 @@ parse_arithmetic_statement :: proc(token: Token) -> (node: ^Ast, handled: bool) 
             name     = name_node,
             left     = a,
             right    = b,
-            operator = token.text,
+            operator = operator,
         }
 
         stack->push(name_node)
 
-        return node, false
+        return node
     }
 }
 
-parse_literal_statement :: proc(token: Token) -> (handled: bool) {
+parse_literal_statement :: proc(token: Token) -> ^Ast {
     node := create_node()
     node.variant = Ast_Literal{}
 
@@ -623,19 +748,19 @@ parse_literal_statement :: proc(token: Token) -> (handled: bool) {
     }
 
     stack->push(node)
-    handled = true
 
-    return
+    return nil
 }
 
-parse_identifier_statement :: proc(token: Token) -> (node: ^Ast, handled: bool) {
+parse_identifier_statement :: proc(token: Token) -> (node: ^Ast) {
     ent := find_entity(token.text)
 
     switch v in ent.variant {
     case Entity_Binding:
+        unimplemented()
     case Entity_Constant:
         stack->push(v.value)
-        return nil, true
+        return nil
     case Entity_Procedure:
         node = create_node()
         params := make([dynamic]^Ast)
@@ -705,102 +830,114 @@ parse_identifier_statement :: proc(token: Token) -> (node: ^Ast, handled: bool) 
             }
         }
 
-        return node, false
+        return node
     case Entity_Type:
+        unimplemented()
     case Entity_Variable:
         stack->push(v.value)
-        return nil, true
+        return nil
     }
 
-    return nil, false
+    return nil
 }
 
-parse_statement :: proc() -> (node: ^Ast, stack_op_done: bool) {
+parse_statement :: proc() -> (node: ^Ast) {
     is_global := parser.curr_scope == parser.global_scope
     token := next()
 
     switch token.kind {
     case .Binary_Literal:  unimplemented()
-    case .Bool_Literal:    stack_op_done = parse_literal_statement(token)
-    case .Byte_Literal:    stack_op_done = parse_literal_statement(token)
-    case .Cstring_Literal: stack_op_done = parse_literal_statement(token)
-    case .Float_Literal:   stack_op_done = parse_literal_statement(token)
+    case .Bool_Literal:    node = parse_literal_statement(token)
+    case .Byte_Literal:    node = parse_literal_statement(token)
+    case .Cstring_Literal: node = parse_literal_statement(token)
+    case .Float_Literal:   node = parse_literal_statement(token)
     case .Hex_Literal:     unimplemented()
-    case .Int_Literal:     stack_op_done = parse_literal_statement(token)
+    case .Int_Literal:     node = parse_literal_statement(token)
     case .Octal_Literal:   unimplemented()
-    case .String_Literal:  stack_op_done = parse_literal_statement(token)
-    case .Uint_Literal:    stack_op_done = parse_literal_statement(token)
+    case .String_Literal:  node = parse_literal_statement(token)
+    case .Uint_Literal:    node = parse_literal_statement(token)
 
-    case .Plus:    node, stack_op_done = parse_arithmetic_statement(token)
-    case .Minus:   node, stack_op_done = parse_arithmetic_statement(token)
-    case .Star:    node, stack_op_done = parse_arithmetic_statement(token)
-    case .Slash:   node, stack_op_done = parse_arithmetic_statement(token)
-    case .Percent: node, stack_op_done = parse_arithmetic_statement(token)
+    case .Equal:         node = parse_binary_statement(token)
+    case .Greater_Equal: node = parse_binary_statement(token)
+    case .Greater_Than:  node = parse_binary_statement(token)
+    case .Less_Equal:    node = parse_binary_statement(token)
+    case .Less_Than:     node = parse_binary_statement(token)
+    case .Minus:         node = parse_binary_statement(token)
+    case .Not_Equal:     node = parse_binary_statement(token)
+    case .Percent:       node = parse_binary_statement(token)
+    case .Plus:          node = parse_binary_statement(token)
+    case .Slash:         node = parse_binary_statement(token)
+    case .Star:          node = parse_binary_statement(token)
+
+    case .Greater_Than_Auto: unimplemented()
+    case .Greater_Equal_Auto: unimplemented()
+    case .Less_Than_Auto: unimplemented()
+    case .Less_Equal_Auto: unimplemented()
 
     case .Const:
         register_const()
-        stack_op_done = true
+        return parse_statement()
     case .Proc: node = parse_proc_decl(token)
     case .Var:  node = parse_variable_decl(token)
-    case .Word: node, stack_op_done = parse_identifier_statement(token)
+    case .Word: node = parse_identifier_statement(token)
 
     case .Drop:
         stack->pop()
-        stack_op_done = true
+        return parse_statement()
     case .Dup:
         a := stack->pop()
         stack->push(a)
         stack->push(a)
-        stack_op_done = true
+        return parse_statement()
     case .Dup_Star:
         b, a := stack->pop(), stack->pop()
         stack->push(a)
         stack->push(a)
         stack->push(b)
-        stack_op_done = true
+        return parse_statement()
     case .Nip:
         b, a := stack->pop(), stack->pop()
         stack->push(b)
-        stack_op_done = true
+        return parse_statement()
     case .Over:
         b, a := stack->pop(), stack->pop()
         stack->push(a)
         stack->push(b)
         stack->push(a)
-        stack_op_done = true
+        return parse_statement()
     case .Rot:
         c, b, a := stack->pop(), stack->pop(), stack->pop()
         stack->push(b)
         stack->push(c)
         stack->push(a)
-        stack_op_done = true
+        return parse_statement()
     case .Rot_Star:
         c, b, a := stack->pop(), stack->pop(), stack->pop()
         stack->push(c)
         stack->push(a)
         stack->push(b)
-        stack_op_done = true
+        return parse_statement()
     case .Swap:
         b, a := stack->pop(), stack->pop()
         stack->push(b)
         stack->push(a)
-        stack_op_done = true
+        return parse_statement()
     case .Take:
         // Nothing really, just a helpful word to know we're looking for the last element in the stack
-        stack_op_done = true
+        return parse_statement()
     case .Tuck:
         b, a := stack->pop(), stack->pop()
         stack->push(b)
         stack->push(a)
         stack->push(b)
-        stack_op_done = true
+        return parse_statement()
 
     case .Using, .Foreign:
         // No need to do anything here, just skipping
         for !allow(.Semicolon) { next() }
         return parse_statement()
 
-    case .Semicolon:      compiler_bug("forgot to consume the semicolon on a previous statement")
+    case .Semicolon:      return nil //compiler_bug("forgot to consume the semicolon on a previous statement")
     case .Invalid:        compiler_bug("invalid end of file")
     case .EOF:            unexpected_end_of_file()
     case .Dash_Dash_Dash: compiler_bug("invalid ---")
@@ -832,19 +969,12 @@ parse_statement :: proc() -> (node: ^Ast, stack_op_done: bool) {
     case .Set: unimplemented()
     case .Set_Star: unimplemented()
     case .Set_Byte: unimplemented()
-    case .Equal: unimplemented()
-    case .Greater_Equal: unimplemented()
-    case .Greater_Than: unimplemented()
-    case .Less_Equal: unimplemented()
-    case .Less_Than: unimplemented()
-    case .Not_Equal: unimplemented()
-    case .Greater_Than_Auto: unimplemented()
-    case .Greater_Equal_Auto: unimplemented()
-    case .Less_Than_Auto: unimplemented()
-    case .Less_Equal_Auto: unimplemented()
     }
 
-    fmt.assertf(stack_op_done && node == nil || !stack_op_done && node != nil, "{}", token)
+    if node == nil {
+        return parse_statement()
+    }
+
     return
 }
 
