@@ -92,6 +92,7 @@ gen_initial_cheaders :: proc() {
     writeln(s, "#include <stdio.h>")
     writeln(s, "#include <stdint.h>")
     writeln(s, "#include <stdbool.h>")
+    writeln(s, "#include <stdlib.h>")
     writeln2(s, "#include <stddef.h>", "")
 }
 

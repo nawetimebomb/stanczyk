@@ -121,10 +121,13 @@ type_string_to_basic :: proc(s: string) -> Type_Basic_Kind {
     case "int":    return .Int
     case "string": return .String
     }
-    assert(false)
-    return .Invalid
+
+    unreachable()
 }
 
+// NOTE(nawe) This is usually used to figure out if the string is a type while
+// parsing when there's a change it might be a type definition or a valid
+// identifier, that's why returning `nil` is important.
 type_from_string :: proc(s: string) -> ^Type {
     switch s {
     case "any":     return parser.known_types["any"]
@@ -136,6 +139,7 @@ type_from_string :: proc(s: string) -> ^Type {
     case "string":  return parser.known_types["string"]
     case "uint":    return parser.known_types["uint"]
     }
+
     return nil
 }
 
@@ -158,8 +162,7 @@ type_to_string :: proc(t: ^Type) -> string {
     case Type_Pointer: return fmt.tprintf("{}*", type_to_string(v.type))
     }
 
-    assert(false)
-    return ""
+    unreachable()
 }
 
 type_to_foreign_type :: proc(t: ^Type) -> string {
@@ -181,6 +184,5 @@ type_to_foreign_type :: proc(t: ^Type) -> string {
     case Type_Pointer: return fmt.tprintf("{}*", type_to_string(v.type))
     }
 
-    assert(false)
-    return ""
+    unreachable()
 }

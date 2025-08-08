@@ -37,7 +37,7 @@ source_files:      [dynamic]Source_File
 output_filename:      string
 debug_switch_enabled: bool
 
-// TODO: This is useful for debugging, but maybe I need an Arena allocator as the default
+// TODO(nawe) This is useful for debugging, but maybe I need an Arena allocator as the default
 skc_allocator: mem.Tracking_Allocator
 
 when ODIN_DEBUG {
@@ -136,7 +136,8 @@ main :: proc() {
 
     base_dir, ok := os.lookup_env(COMPILER_ENV, context.temp_allocator)
     if !ok {
-        // TODO: Maybe allow the user to access some kind of command that sets the environment variable for them.
+        // TODO(nawe) Maybe allow the user to access some kind of command that
+        // sets the environment variable for them.
         setup_fatalf(
                 .Missing_Environment,
             `'{0}' environment variable is not set

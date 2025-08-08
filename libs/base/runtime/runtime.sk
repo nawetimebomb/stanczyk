@@ -46,12 +46,11 @@ const MIN_INT16 int -32_768 ;
 const MIN_INT32 int -2_147_483_648 ;
 const MIN_INT64 int -9_223_372_036_854_775_808 ;
 
-// Maximum Values for Unsigned Integers (uint).
-// TODO: Add them back when we support uint again
-// const MAX_UINT8  uint 255u ;
-// const MAX_UINT16 uint 65_535u ;
-// const MAX_UINT32 uint 4_294_967_295u ;
-// const MAX_UINT64 uint 18_446_744_073_709_551_615u ;
+// Maximum Values for Unsigned Integers (uint)
+const MAX_UINT8  uint 255u ;
+const MAX_UINT16 uint 65_535u ;
+const MAX_UINT32 uint 4_294_967_295u ;
+const MAX_UINT64 uint 18_446_744_073_709_551_615u ;
 
 /*
   Removes the last two elements from the stack.

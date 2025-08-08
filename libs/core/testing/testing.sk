@@ -36,7 +36,7 @@
 
 using core.io core.os ;
 
-// TODO: Log error lines specifically
+// TODO(nawe) Log error lines specifically
 var TEST_ERRORS int ;
 
 var TEST_COMPLETE false ;

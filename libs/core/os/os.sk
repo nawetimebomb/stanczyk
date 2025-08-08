@@ -33,4 +33,4 @@
   The OS library gives you access to functionality from the Operating System.
 */
 
-foreign fn exit (int) ---
+foreign proc exit (int) --- ;

@@ -442,7 +442,7 @@ parse_proc_decl :: proc(token: Token) -> ^Ast {
         variant, ok := param.variant.(Ast_Identifier)
         assert(ok)
         append(&proc_decl.scope.entities, Entity{
-            // TODO: this could be the binding name
+            // TODO(nawe) this could be the binding name
             foreign_name = variant.foreign_name,
             name         = variant.name,
             token        = param.token,
@@ -565,11 +565,13 @@ parse_variable_decl :: proc(token: Token) -> ^Ast {
         value     = value_node,
     }
 
-    // NOTE: This validation is here to follow the C standard that only
-    // known compile-time constants can be used in global variables...
-    // TODO: Fix this by making variables smarter for Stanczyk. For example,
-    // if the variable was just declared and is a literal value, replace it
-    // with that literal value instead.
+    // NOTE(nawe) This validation is here to follow the C standard
+    // that only known compile-time constants can be used in global
+    // variables...
+
+    // TODO(nawe) Fix this by making variables smarter for
+    // Stanczyk. For example, if the variable was just declared and is
+    // a literal value, replace it with that literal value instead.
     if is_global {
         if _, ok := value_node.variant.(Ast_Literal); !ok {
             parsing_error(
@@ -930,7 +932,7 @@ parse_statement :: proc() -> (node: ^Ast) {
     case .Slash:         node = parse_binary_statement(token)
     case .Star:          node = parse_binary_statement(token)
 
-        // TODO: May be _Sequence instead of _Auto?
+        // TODO(nawe) May be _Sequence instead of _Auto?
     case .Greater_Than_Auto: unimplemented()
     case .Greater_Equal_Auto: unimplemented()
     case .Less_Than_Auto: unimplemented()
@@ -1112,6 +1114,8 @@ parse :: proc() {
                         token2 := next()
 
                         #partial switch token2.kind {
+                            case .EOF: unexpected_end_of_file()
+                            case .Proc: scope_level += 1
                             case .Const: scope_level += 1
                             case .Var:   scope_level += 1
                             case .Semicolon: {
@@ -1149,7 +1153,7 @@ parse :: proc() {
                         } else {
                             parsing_error(
                                 token2.pos,
-                                "expected words in 'using' statement, got {}",
+                                "expected words in 'using' statement, got {} (maybe missing semicolon)",
                                 token_to_string(token2),
                             )
                         }

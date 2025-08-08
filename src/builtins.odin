@@ -1,6 +1,6 @@
 package main
 
-// NOTE: Not used yet but keep as a demo
+// NOTE(nawe) Not used yet but keep as a demo
 // add_builtin_procedure :: proc(name: string) {
 //     switch name {
 //     case "print":   fallthrough
