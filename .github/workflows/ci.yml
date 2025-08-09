@@ -7,8 +7,8 @@ jobs:
             - name: Setup Odin
               uses: laytan/setup-odin@v2.10.0
               with:
-                branch: 'dev-2025-04'
-                release: 'dev-2025-04'
+                branch: 'dev-2025-08'
+                release: 'dev-2025-08'
             - uses: actions/checkout@v3
             - name: run tests
               run: |
