@@ -181,10 +181,14 @@ Make sure '{0}' is set and points to the directory where The {1} Compiler is ins
         }
 
         if strings.ends_with(input, ".sk") {
-            if output_filename == "" { output_filename = filepath.short_stem(input) }
+            if output_filename == "" {
+                output_filename = filepath.short_stem(input)
+            }
             load_file(input, false)
         } else {
-            if output_filename == "" { output_filename = filepath.base(input) }
+            if output_filename == "" {
+                output_filename = fmt.aprintf("{}.out", filepath.base(input))
+            }
             load_files(input)
         }
 
@@ -249,21 +253,6 @@ Make sure '{0}' is set and points to the directory where The {1} Compiler is ins
         libc.system(fmt.ctprintf("./{}", output_filename))
         os.remove(output_filename)
     }
-
-    // libc.system(fmt.ctprintf("nasm {0}.asm -f elf64 -o {0}.o", output_filename))
-    // libc.system(fmt.ctprintf("ld {0}.o -lc -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o {0}", output_filename))
-
-    // when !ODIN_DEBUG {
-    //     os.remove(fmt.tprintf("{}.asm", output_filename))
-    //     os.remove(fmt.tprintf("{}.o", output_filename))
-    // }
-
-    // if command == "run" {
-    //     libc.system(fmt.ctprintf("./{}", output_filename))
-    //     os.remove(output_filename)
-    //     os.remove(fmt.tprintf("{}.asm", output_filename))
-    //     os.remove(fmt.tprintf("{}.o", output_filename))
-    // }
 
     cleanup_exit(0)
 }

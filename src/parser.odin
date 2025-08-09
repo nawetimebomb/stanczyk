@@ -333,7 +333,14 @@ create_foreign_name :: proc(filename: string, stanczyk_name: string) -> string {
     if is_global_scope && stanczyk_name == "main" {
         strings.write_string(&foreign_name_builder, "stanczyk__main")
     } else {
-        strings.write_string(&foreign_name_builder, filepath.short_stem(filename))
+        snake_filename := strings.to_snake_case(filepath.short_stem(filename))
+
+        for r in snake_filename {
+            if strings.contains_rune(VALID, r) {
+                strings.write_rune(&foreign_name_builder, r)
+            }
+        }
+
         strings.write_string(&foreign_name_builder, "__")
 
         snake_name := strings.to_snake_case(stanczyk_name)

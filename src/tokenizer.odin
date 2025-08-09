@@ -8,7 +8,7 @@ Position :: struct {
     filename: string,
     column:   int,
     line:     int,
-    offset:    int,
+    offset:   int,
     internal: bool,
 }
 
