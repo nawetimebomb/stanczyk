@@ -911,6 +911,38 @@ parse_end_of_scope :: proc(token: Token) {
     }
 }
 
+parse_set_statement :: proc(token: Token) -> ^Ast {
+    if len(stack.data) >= 2 {
+        assignee := stack->pop()
+        value := stack->pop()
+
+        if _, ok := assignee.variant.(Ast_Identifier); !ok {
+            parsing_error(
+                assignee.token.pos,
+                "not a valid variable in set operation",
+            )
+        }
+
+        if !types_equal(assignee.type, value.type) {
+            parsing_error(
+                token.pos,
+                "mismatched types in set operation ({} vs {})",
+                type_to_string(assignee.type), type_to_string(value.type),
+            )
+        }
+
+        node := create_node()
+        node.variant = Ast_Assign{
+            assignee = assignee,
+            value    = value,
+            operator = "=",
+        }
+        return node
+    }
+
+    unimplemented()
+}
+
 parse_statement :: proc() -> (node: ^Ast) {
     is_global := parser.curr_scope == parser.global_scope
     token := next()
@@ -944,6 +976,8 @@ parse_statement :: proc() -> (node: ^Ast) {
     case .Greater_Equal_Auto: unimplemented()
     case .Less_Than_Auto: unimplemented()
     case .Less_Equal_Auto: unimplemented()
+
+    case .Set: node = parse_set_statement(token)
 
     case .Const:
         register_const()
@@ -1015,13 +1049,19 @@ parse_statement :: proc() -> (node: ^Ast) {
 
     case .Using, .Foreign:
         // No need to do anything here, just skipping
-        for !allow(.Semicolon) { next() }
+        for !allow(.Semicolon) {
+            next()
+        }
 
     case .Semicolon:
         // this is an escape hatch because this code block may be done.
         return nil
+
     case .Proc, .Dash_Dash_Dash:
-        parsing_error(token.pos, "invalid token {} in procedure body", token.text)
+        parsing_error(
+            token.pos,
+            "invalid token {} in procedure body", token.text,
+        )
     case .Invalid:
         compiler_bug("invalid token, most likely a bug on the tokenization of the file.")
     case .EOF:
@@ -1048,7 +1088,6 @@ parse_statement :: proc() -> (node: ^Ast) {
     case .Loop: unimplemented()
     case .Leave: unimplemented()
     case .Get_Byte: unimplemented()
-    case .Set: unimplemented()
     case .Set_Star: unimplemented()
     case .Set_Byte: unimplemented()
     }

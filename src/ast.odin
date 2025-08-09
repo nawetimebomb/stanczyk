@@ -15,6 +15,7 @@ Ast :: struct {
 }
 
 Ast_Variant :: union {
+    Ast_Assign,
     Ast_Binary,
     Ast_Identifier,
     Ast_Literal,
@@ -23,6 +24,12 @@ Ast_Variant :: union {
     Ast_Result_Decl,
     Ast_Return,
     Ast_Variable_Decl,
+}
+
+Ast_Assign :: struct {
+    assignee: ^Ast,
+    value:    ^Ast,
+    operator: string,
 }
 
 Ast_Binary :: struct {

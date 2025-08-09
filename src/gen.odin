@@ -177,6 +177,15 @@ gen_multiresult_str :: proc(params: []^Ast) -> string {
     return result
 }
 
+gen_assign :: proc(node: ^Ast, s: ^strings.Builder) {
+    variant := node.variant.(Ast_Assign)
+
+    gen_identifier(variant.assignee, s)
+    write(s, " = ")
+    gen_program(variant.value, s)
+    writeln(s, ";")
+}
+
 gen_binary :: proc(node: ^Ast, s: ^strings.Builder) {
     variant := node.variant.(Ast_Binary)
 
@@ -349,6 +358,7 @@ gen_variable_decl :: proc(node: ^Ast) {
 
 gen_program :: proc(node: ^Ast, s: ^strings.Builder) {
     switch v in node.variant {
+    case Ast_Assign:        gen_assign       (node, s)
     case Ast_Binary:        gen_binary       (node, s)
     case Ast_Identifier:    gen_identifier   (node, s)
     case Ast_Literal:       gen_literal      (node, s)
