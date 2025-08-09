@@ -13,7 +13,7 @@ Scope_Kind :: enum u8 {
     Invalid,
     Global,
     Procedure,
-    If, If_Else, Let,
+    If, Else, Let,
     Loop,
 }
 
@@ -461,12 +461,9 @@ parse_proc_decl :: proc(token: Token) -> ^Ast {
     for !allow(.Semicolon) {
         stmt := parse_statement()
 
-        if end_of_block_found(stmt) {
-            break
+        if stmt != nil {
+            append(&proc_decl.body, stmt)
         }
-
-        assert(stmt != nil)
-        append(&proc_decl.body, stmt)
     }
 
     if len(ep.results) != len(stack.data) {
@@ -532,22 +529,18 @@ parse_variable_decl :: proc(token: Token) -> ^Ast {
         }
     }
 
-    for {
+    for !allow(.Semicolon) {
         stmt := parse_statement()
 
-        if end_of_block_found(stmt) {
-            break
+        if stmt != nil {
+            append(&body, stmt)
         }
-
-        assert(stmt != nil)
-        append(&body, stmt)
     }
 
     value_node: ^Ast
 
     if len(body) == 1 {
         value_node = pop(&body)
-        value_node.pushed_to_stack = false
     } else {
         value_node = stack->pop()
     }
@@ -745,7 +738,6 @@ parse_binary_statement :: proc(token: Token) -> (node: ^Ast) {
             foreign_name = create_node_name(),
         }
         node.type = a.type
-        node.pushed_to_stack = true
         node.variant = Ast_Binary{
             name     = name_node,
             left     = a,
@@ -895,52 +887,123 @@ parse_identifier_statement :: proc(token: Token) -> (node: ^Ast) {
     return nil
 }
 
-parse_end_of_scope :: proc(token: Token) {
-    #partial switch token.kind {
-        case .End: {
-            if parser.curr_scope.kind != .Let {
-                parsing_error(
-                    token.pos,
-                    "'end' cannot be used to close block of code started with {}",
-                    token_to_string(parser.curr_scope.token),
-                )
-            }
-
-            pop_scope()
-        }
+parse_set_statement :: proc(token: Token) -> ^Ast {
+    if len(stack.data) < 2 {
+        parsing_error(token.pos, "not enough values in the stack to do a set operation")
     }
+
+    assignee := stack->pop()
+    value := stack->pop()
+
+    if _, ok := assignee.variant.(Ast_Identifier); !ok {
+        parsing_error(
+            assignee.token.pos,
+            "not a valid variable in set operation",
+        )
+    }
+
+    if !types_equal(assignee.type, value.type) {
+        parsing_error(
+            token.pos,
+            "mismatched types in set operation ({} vs {})",
+            type_to_string(assignee.type), type_to_string(value.type),
+        )
+    }
+
+    node := create_node()
+    node.variant = Ast_Assign{
+        assignee = assignee,
+        value    = value,
+        operator = "=",
+    }
+    return node
 }
 
-parse_set_statement :: proc(token: Token) -> ^Ast {
-    if len(stack.data) >= 2 {
-        assignee := stack->pop()
-        value := stack->pop()
+parse_if_statement :: proc(token: Token) -> ^Ast {
+    node := create_node()
+    condition := stack->pop()
+    stack_copy_before_if := slice.clone(stack.data[:], context.temp_allocator)
 
-        if _, ok := assignee.variant.(Ast_Identifier); !ok {
-            parsing_error(
-                assignee.token.pos,
-                "not a valid variable in set operation",
-            )
-        }
-
-        if !types_equal(assignee.type, value.type) {
-            parsing_error(
-                token.pos,
-                "mismatched types in set operation ({} vs {})",
-                type_to_string(assignee.type), type_to_string(value.type),
-            )
-        }
-
-        node := create_node()
-        node.variant = Ast_Assign{
-            assignee = assignee,
-            value    = value,
-            operator = "=",
-        }
-        return node
+    if !type_is_basic(condition.type, .Bool) {
+        parsing_error(
+            token.pos,
+            "a boolean condition must exists before if statement, got {}",
+            type_to_string(condition.type),
+        )
     }
 
-    unimplemented()
+    if_body := make([dynamic]^Ast, context.temp_allocator)
+    else_body := make([dynamic]^Ast, context.temp_allocator)
+
+    push_scope(.If, token)
+
+    for !peek(.Fi) && !peek(.Else) {
+        stmt := parse_statement()
+
+        if stmt != nil {
+            append(&if_body, stmt)
+        }
+    }
+
+    stack_copy_before_else := slice.clone(stack_copy_before_if[:], context.temp_allocator)
+
+    if allow(.Else) {
+        if parser.curr_scope.kind != .If {
+            parsing_error(
+                token.pos,
+                "else used outside of if statement context",
+            )
+        }
+        pop_scope()
+
+        push_scope(.If)
+
+        for !peek(.Fi) {
+            stmt := parse_statement()
+
+            if stmt != nil {
+                append(&else_body, stmt)
+            }
+        }
+
+        if len(stack_copy_before_else) != len(stack_copy_before_if) {
+            parsing_error(
+                token.pos,
+                "mismatched number of stack operations between if and else statements; if did {} operations, else did {} operations",
+                len(stack_copy_before_else), len(stack_copy_before_if),
+            )
+        }
+    } else {
+        if len(stack_copy_before_if) != len(stack.data) {
+            parsing_error(token.pos, "stack length cannot change inside if statement")
+        }
+    }
+
+    // TODO(nawe) I need to add some kind of result array here that
+    // can be stored outside of the scope of the flow control
+    // statement so it can be changed with value in runtime.
+
+    // TODO(nawe) A big optimization would be to just fold this code
+    // into one result if we exactly know what's happening in
+    // runtime. In the case that the conditional is a literal value,
+    // we could just run that code without the need of an if
+    // statement.
+    node.variant = Ast_If{
+        condition = condition,
+        if_body   = slice.clone(if_body[:]),
+        else_body = slice.clone(else_body[:]),
+    }
+
+    if parser.curr_scope.kind != .If {
+        parsing_error(
+            token.pos,
+            "fi used outside of if statement context",
+        )
+    }
+    pop_scope()
+    expect(.Fi)
+
+    return node
 }
 
 parse_statement :: proc() -> (node: ^Ast) {
@@ -977,7 +1040,11 @@ parse_statement :: proc() -> (node: ^Ast) {
     case .Less_Than_Auto: unimplemented()
     case .Less_Equal_Auto: unimplemented()
 
-    case .Set: node = parse_set_statement(token)
+    case .Set:
+        node = parse_set_statement(token)
+
+    case .If:
+        node = parse_if_statement(token)
 
     case .Const:
         register_const()
@@ -995,7 +1062,16 @@ parse_statement :: proc() -> (node: ^Ast) {
         parsing_error(token.pos, "'in' keyword used outside of a code block context")
 
     case .End:
-        parse_end_of_scope(token)
+        if parser.curr_scope.kind != .Let {
+            parsing_error(
+                token.pos,
+                "'end' cannot be used to close block of code started with {}",
+                token_to_string(parser.curr_scope.token),
+            )
+        }
+
+        pop_scope()
+    case .Fi:
 
     case .Drop:
         stack->pop()
@@ -1081,19 +1157,10 @@ parse_statement :: proc() -> (node: ^Ast) {
     case .Hat: unimplemented()
     case .Case: unimplemented()
     case .Else: unimplemented()
-    case .Fi: unimplemented()
-    case .If: unimplemented()
     case .For: unimplemented()
     case .For_Star: unimplemented()
     case .Loop: unimplemented()
     case .Leave: unimplemented()
-    case .Get_Byte: unimplemented()
-    case .Set_Star: unimplemented()
-    case .Set_Byte: unimplemented()
-    }
-
-    if node == nil {
-        return parse_statement()
     }
 
     return

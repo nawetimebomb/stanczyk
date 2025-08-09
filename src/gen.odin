@@ -20,6 +20,10 @@ Generator :: struct {
     user_defs:    strings.Builder,
     user_globals: strings.Builder,
 
+    // A builder for when a procedure is created, allows to declare stack needed
+    // variables at the top of the procedure.
+    top_proc_buffer: ^strings.Builder,
+
     indent_level: int,
 }
 
@@ -119,14 +123,6 @@ typedef void* voidptr;
 typedef char* charptr;
 typedef charptr string;
 
-// #ifndef __cplusplus
-//     #ifndef bool
-//         typedef u8 bool;
-//         #define true 1
-//         #define false 0
-//     #endif
-// #endif
-
 #define SKC_EXPORT extern __declspec(dllexport)
 #define SKC_INLINE static inline
 #define SKC_STATIC static
@@ -189,9 +185,18 @@ gen_assign :: proc(node: ^Ast, s: ^strings.Builder) {
 gen_binary :: proc(node: ^Ast, s: ^strings.Builder) {
     variant := node.variant.(Ast_Binary)
 
-    if node.pushed_to_stack {
-        assert(variant.name != nil)
-        writef(s, "{} ", type_to_foreign_type(node.type))
+    // NOTE(nawe) Maybe needed, in case we want to clean up the code generation
+    // to not record the variable name when the stack is not handling this, but
+    // instead is set in another variable. See tests/variables.sk:
+    // var first-var 13 ;
+    // var second-var first-var 2 + ;
+    if variant.name != nil {
+        if gen.top_proc_buffer != nil {
+            writef(gen.top_proc_buffer, "{} ", type_to_foreign_type(node.type))
+            gen_program(variant.name, gen.top_proc_buffer)
+            writeln(gen.top_proc_buffer, ";")
+        }
+
         gen_program(variant.name, s)
         write(s, " = ")
     }
@@ -205,6 +210,34 @@ gen_binary :: proc(node: ^Ast, s: ^strings.Builder) {
 gen_identifier :: proc(node: ^Ast, s: ^strings.Builder) {
     variant := node.variant.(Ast_Identifier)
     writef(s, variant.foreign_name)
+}
+
+gen_if :: proc(node: ^Ast) {
+    variant := node.variant.(Ast_If)
+    s := &gen.user_code
+
+    writeln(s, "")
+    write(s, "if (")
+    gen_program(variant.condition, s)
+    write(s, ")")
+    gen_open_codeblock(s)
+
+    for child in variant.if_body {
+        gen_program(child, s)
+    }
+
+    gen_close_codeblock(s)
+
+    if len(variant.else_body) > 0 {
+        write(s, "else")
+        gen_open_codeblock(s)
+
+        for child in variant.else_body {
+            gen_program(child, s)
+        }
+
+        gen_close_codeblock(s)
+    }
 }
 
 gen_literal :: proc(node: ^Ast, s: ^strings.Builder) {
@@ -264,8 +297,10 @@ gen_proc_decl :: proc(node: ^Ast) {
         }
     }
 
-    variant := node.variant.(Ast_Proc_Decl)
     result_type_str := "void"
+    variant := node.variant.(Ast_Proc_Decl)
+    internal_builder := strings.builder_make(context.temp_allocator)
+    gen.top_proc_buffer = &internal_builder
 
     if len(variant.results) == 1 {
         result := variant.results[0]
@@ -282,10 +317,21 @@ gen_proc_decl :: proc(node: ^Ast) {
     gen_parameters(&gen.user_code, variant.params)
     write(&gen.user_code, ")")
     gen_open_codeblock(&gen.user_code)
+
+    top_of_proc_pos := len(gen.user_code.buf)
+
     for child in variant.body {
         gen_program(child, &gen.user_code)
     }
+
+    if len(internal_builder.buf) > 0 {
+        writeln(&internal_builder, "")
+        inject_at(&gen.user_code.buf, top_of_proc_pos, strings.to_string(internal_builder))
+    }
+
     gen_close_codeblock(&gen.user_code)
+
+    strings.builder_destroy(&internal_builder)
 }
 
 gen_result_decl :: proc(node: ^Ast, s: ^strings.Builder) {
@@ -338,13 +384,12 @@ gen_variable_decl :: proc(node: ^Ast) {
     variant := node.variant.(Ast_Variable_Decl)
     name := variant.name
     value := variant.value
+    _, add_semicolon := value.variant.(Ast_Literal)
     s := &gen.user_code
 
     if variant.is_global {
         s = &gen.user_globals
     }
-
-    _, add_semicolon := value.variant.(Ast_Literal)
 
     writef(s, "{} ", type_to_foreign_type(value.type))
     gen_identifier(name, s)
@@ -361,6 +406,7 @@ gen_program :: proc(node: ^Ast, s: ^strings.Builder) {
     case Ast_Assign:        gen_assign       (node, s)
     case Ast_Binary:        gen_binary       (node, s)
     case Ast_Identifier:    gen_identifier   (node, s)
+    case Ast_If:            gen_if           (node)
     case Ast_Literal:       gen_literal      (node, s)
     case Ast_Proc_Call:     gen_proc_call    (node, s)
     case Ast_Proc_Decl:     gen_proc_decl    (node)

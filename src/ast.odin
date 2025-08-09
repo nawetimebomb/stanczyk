@@ -7,17 +7,18 @@ Value :: union {
 }
 
 Ast :: struct {
-    pushed_to_stack: bool,
-    token:           Token,
-    type:            ^Type,
-    value:           Value,
-    variant:         Ast_Variant,
+    token:   Token,
+    type:    ^Type,
+    value:   Value,
+    variant: Ast_Variant,
+    dont_write: bool,
 }
 
 Ast_Variant :: union {
     Ast_Assign,
     Ast_Binary,
     Ast_Identifier,
+    Ast_If,
     Ast_Literal,
     Ast_Proc_Call,
     Ast_Proc_Decl,
@@ -42,6 +43,12 @@ Ast_Binary :: struct {
 Ast_Identifier :: struct {
     foreign_name: string,
     name: string,
+}
+
+Ast_If :: struct {
+    condition: ^Ast,
+    if_body:   []^Ast,
+    else_body: []^Ast,
 }
 
 Ast_Literal :: struct {}

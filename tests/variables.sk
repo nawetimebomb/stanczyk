@@ -13,9 +13,11 @@ var global-with-type int 13 ;
 
 proc main
   var local13 13 ;
+  var local15 local13 2 + ;
   global print-string
   global-with-type print-int
   local13 print-int
+  local15 print-int
 
   var global "this is shadowing" ;
   global print-string

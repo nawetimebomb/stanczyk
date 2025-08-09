@@ -1,5 +1,6 @@
 this is a global var
 13
 13
+15
 this is shadowing
 set with different value
