@@ -10,14 +10,13 @@ NAME_ABBREV   :: "skc"
 NAME_FULL     :: "The Stańczyk Compiler"
 VERSION_MAJOR :: "0"
 VERSION_MINOR :: "7"
-VERSION_PATCH :: "0"
 
 Error :: enum u8 {
-    None                           = 0,
-    Compiler_Directory_Unreachable = 1,
-    User_Directory_Unreachable     = 2,
-    Compiler_Malformed_Arguments   = 3,
-    Compiler_Failed_To_Load_File   = 4,
+    None                  = 0,
+    Directory_Unreachable = 1,
+    Malformed_Arguments   = 2,
+    Failed_To_Load_File   = 3,
+    Parsing_Errors        = 4,
 }
 
 File_Info :: struct {
@@ -31,8 +30,7 @@ compiler_dir:      string
 working_dir:       string
 output_filename:   string
 source_files:      [dynamic]File_Info
-//compilation_units: [dynamic]^Ast
-//to_validate_units: [dynamic]^Ast
+program_bytecode:  [dynamic]Op_Code
 
 // Defaults
 switch_debug := true
@@ -40,11 +38,11 @@ switch_debug := true
 main :: proc() {
     error1, error2: os2.Error
     compiler_dir, error1 = os2.get_executable_directory(context.allocator)
-    working_dir, error2 = os2.get_working_directory(context.allocator)
+    working_dir, error2  = os2.get_working_directory(context.allocator)
 
     if error1 != nil {
         fatalf(
-            .Compiler_Directory_Unreachable,
+            .Directory_Unreachable,
             "failed to get compiler directory with error {}",
             error1,
         )
@@ -52,7 +50,7 @@ main :: proc() {
 
     if error2 != nil {
         fatalf(
-            .User_Directory_Unreachable,
+            .Directory_Unreachable,
             "failed to get current working directory with error {}",
             error2,
         )
@@ -60,17 +58,20 @@ main :: proc() {
 
     if len(os.args) < 2 {
         fatalf(
-            .Compiler_Malformed_Arguments,
+            .Malformed_Arguments,
             "please provide the entry point to your program",
         )
     }
 
     if !strings.ends_with(os.args[1], ".sk") {
         fatalf(
-            .Compiler_Malformed_Arguments,
+            .Malformed_Arguments,
             "entry point needs to end with '.sk'",
         )
     }
+
+    init_types()
+
 
 
     append(&source_files, File_Info{
@@ -101,7 +102,7 @@ load_entire_file :: proc(file_info: ^File_Info) {
     data, error := os2.read_entire_file_from_path(file_info.fullpath, context.temp_allocator)
     if error != nil {
         fatalf(
-            .Compiler_Failed_To_Load_File,
+            .Failed_To_Load_File,
             "failed to load file '{}' with error {}",
             file_info.fullpath, error,
         )
@@ -111,7 +112,13 @@ load_entire_file :: proc(file_info: ^File_Info) {
 }
 
 fatalf :: proc(error: Error, format: string, args: ..any) {
-    fmt.eprintf("Compiler error: ")
+    fmt.eprintln()
+    error_red("Compiler Error: ")
     fmt.eprintfln(format, ..args)
+    fmt.eprintln()
     os2.exit(int(error))
+}
+
+error_red :: proc(s: string) {
+    fmt.eprintf("\e[1;91m{}\e[0m", s)
 }
