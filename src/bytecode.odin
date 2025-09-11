@@ -9,12 +9,15 @@ Op_Code :: struct {
 }
 
 Op_Variant :: union {
-    Op_Basic_Literal,
     Op_Identifier, // unsure what to do, depends on type checking
+
+    Op_Basic_Literal,
     Op_Type,
 
     Op_Binary,
     Op_Proc_Decl,
+
+    Op_Print,
 
     Op_Return,
 }
@@ -48,6 +51,8 @@ Op_Proc_Decl :: struct {
     body:        [dynamic]Op_Code,
 }
 
+Op_Print :: struct {}
+
 Op_Return :: struct {}
 
 print_op_debug :: proc(op: Op_Code, level := 0) {
@@ -63,7 +68,7 @@ print_op_debug :: proc(op: Op_Code, level := 0) {
 
     print_prefix(level)
 
-    fmt.printf("(%5d) ", op.local_ip)
+    fmt.printf("(%4d) ", op.local_ip)
     switch variant in op.variant {
     case Op_Basic_Literal:
         print_op_name("BASIC_LITERAL")
@@ -119,7 +124,12 @@ print_op_debug :: proc(op: Op_Code, level := 0) {
         print_prefix(level)
         fmt.printfln("; \e[1m{}\e[0m\n", variant.name.text)
 
+    case Op_Print:
+        print_op_name("PRINT")
+        fmt.println()
     case Op_Return:
+        print_op_name("RETURN")
+        fmt.println()
     }
 
 }

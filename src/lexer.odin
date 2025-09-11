@@ -73,8 +73,10 @@ Token_Kind :: enum u8 {
     Using            = 100,
     Proc             = 101,
     Dash_Dash_Dash   = 102,
-
     Foreign          = 150,
+
+    // To delete
+    Print            = 255,
 }
 
 init_lexer :: proc(parser: ^Parser) {
@@ -315,8 +317,8 @@ get_next_token :: proc(l: ^Lexer) -> (token: Token) {
 
 get_token_kind_from_string :: proc(s: string) -> (Token_Kind) {
     switch s {
-    case "false": return .False
-    case "true":  return .True
+    case "false":  return .False
+    case "true":   return .True
 
     case "bool":   return .Type_Bool
     case "float":  return .Type_Float
@@ -324,8 +326,10 @@ get_token_kind_from_string :: proc(s: string) -> (Token_Kind) {
     case "string": return .Type_String
     case "uint":   return .Type_Uint
 
-    case "proc":  return .Proc
-    case "using": return .Using
+    case "proc":   return .Proc
+    case "using":  return .Using
+
+    case "print":  return .Print
     }
 
     return .EOF

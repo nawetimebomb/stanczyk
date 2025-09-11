@@ -46,6 +46,7 @@ Scope :: struct {
 }
 
 parsing_error :: proc(parser: ^Parser, kind: Parser_Error_Kind, format: string, args: ..any) {
+    parser.error_in_context = true
     message := fmt.aprintf(format, ..args)
     append(&parser.errors, Parser_Error{
         kind    = kind,
@@ -93,8 +94,9 @@ print_all_errors :: proc(parser: ^Parser) {
 
             error_red(parser.lexer.data[token.start:token.end])
         } else {
-            curr_line := parser.lexer.data[:token.end]
-            fmt.eprintfln("\t{} | \t{}", token.l0, curr_line)
+            curr_line := parser.lexer.data[:token.start]
+            fmt.eprintf("\t{} | \t{}", line_number_to_string(token.l0), curr_line)
+            error_red(parser.lexer.data[token.start:token.end])
         }
 
         fmt.eprint("\e[0m\n")
@@ -185,7 +187,7 @@ parse_file :: proc(file_info: ^File_Info) {
         )
     }
 
-    fmt.println("\n========")
+    fmt.println("\n========\n")
     for op, index in program_bytecode {
         print_op_debug(op)
     }
@@ -248,6 +250,9 @@ parse_expression :: proc(parser: ^Parser) -> (should_leave: bool) {
     case .Using:               unimplemented()
     case .Proc:                parse_proc_decl (parser, token)
     case .Foreign:             parse_foreign   (parser, token); return true
+
+    case .Print:
+        write_op_code(parser, token, Op_Print{})
     }
 
     return false
@@ -287,7 +292,6 @@ parse_foreign :: proc(parser: ^Parser, token: Token) {
 parse_proc_decl :: proc(parser: ^Parser, token: Token) {
     proc_decl := Op_Proc_Decl{}
     proc_decl.name = expect(parser, .Identifier)
-    if parser.error_in_context do return
 
     proc_decl.scope = push_scope(parser, .Procedure, &proc_decl.body)
     parser.scope.proc_decl = &proc_decl
@@ -295,14 +299,14 @@ parse_proc_decl :: proc(parser: ^Parser, token: Token) {
     if allow(parser, .Paren_Left) {
         parser.scope.body = &proc_decl.arguments
 
-        for {
+        for !parser.error_in_context {
             should_leave := parse_expression(parser)
             if should_leave do break
         }
 
         if was(parser, .Dash_Dash_Dash) {
             parser.scope.body = &proc_decl.results
-            for {
+            for !parser.error_in_context {
                 should_leave := parse_expression(parser)
                 if should_leave do break
             }
@@ -311,10 +315,18 @@ parse_proc_decl :: proc(parser: ^Parser, token: Token) {
         parser.scope.body = &proc_decl.body
     }
 
-    for {
+    for !parser.error_in_context {
         should_leave := parse_expression(parser)
         if should_leave do break
     }
+
+    if parser.error_in_context {
+        for !allow(parser, .Semicolon) && !allow(parser, .EOF) do next(parser)
+        pop_scope(parser)
+        return
+    }
+
+    write_op_code(parser, token, Op_Return{})
 
     pop_scope(parser)
     write_op_code(parser, token, proc_decl)
@@ -377,7 +389,7 @@ parse_value :: proc(parser: ^Parser, token: Token) {
 
     case .False:            fallthrough
     case .True:             value.type = get_basic_type(.Bool)
-    case: unimplemented()
+    case: assert(false)
     }
 
     write_op_code(parser, token, value)
