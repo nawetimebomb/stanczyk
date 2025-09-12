@@ -6,6 +6,9 @@ Op_Code :: struct {
     local_ip:  int,
     token:     Token,
     variant:   Op_Variant,
+
+    // does it have an associated Ast already?
+    ast:       ^Ast,
 }
 
 Op_Variant :: union {
@@ -23,7 +26,6 @@ Op_Variant :: union {
 }
 
 Op_Basic_Literal :: struct {
-    type:  ^Type,
     value: Token,
 }
 
@@ -32,8 +34,9 @@ Op_Identifier :: struct {
 }
 
 Op_Type :: struct {
-    value: ^Type,
+    value: Token,
 }
+
 
 
 Op_Binary :: struct {
@@ -42,20 +45,19 @@ Op_Binary :: struct {
 
 Op_Proc_Decl :: struct {
     name:        Token,
-    scope:       ^Scope,
     is_foreign:  bool,
     foreign_lib: Token,
 
-    arguments:   [dynamic]Op_Code,
-    results:     [dynamic]Op_Code,
-    body:        [dynamic]Op_Code,
+    arguments:   [dynamic]^Op_Code,
+    results:     [dynamic]^Op_Code,
+    body:        [dynamic]^Op_Code,
 }
 
 Op_Print :: struct {}
 
 Op_Return :: struct {}
 
-print_op_debug :: proc(op: Op_Code, level := 0) {
+print_op_debug :: proc(op: ^Op_Code, level := 0) {
     print_op_name :: proc(s: string) {
         fmt.printf("%-15s", s)
     }
@@ -72,13 +74,13 @@ print_op_debug :: proc(op: Op_Code, level := 0) {
     switch variant in op.variant {
     case Op_Basic_Literal:
         print_op_name("BASIC_LITERAL")
-        fmt.printfln("{} {}", type_to_string(variant.type), variant.value.text)
+        fmt.printfln("{} {}", variant.value.kind, variant.value.text)
     case Op_Identifier:
         print_op_name("IDENTIFIER")
         fmt.println(variant.value.text)
     case Op_Type:
         print_op_name("TYPE")
-        fmt.println(type_to_string(variant.value))
+        fmt.println(variant.value.text)
 
     case Op_Binary:
         print_op_name("BINARY")
@@ -131,5 +133,4 @@ print_op_debug :: proc(op: Op_Code, level := 0) {
         print_op_name("RETURN")
         fmt.println()
     }
-
 }

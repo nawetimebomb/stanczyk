@@ -1,6 +1,7 @@
 package main
 
 import "core:fmt"
+import "core:path/filepath"
 import "core:strconv"
 
 // Lexer rules:
@@ -10,8 +11,9 @@ import "core:strconv"
 
 Lexer :: struct {
     data:        string,
+    filename:    string,
     fullpath:    string,
-    line_starts: [dynamic]int,
+    file_info:   ^File_Info,
 
     column:      int,
     line:        int,
@@ -19,7 +21,7 @@ Lexer :: struct {
 }
 
 Token :: struct {
-    fullpath:   string,
+    file_info:  ^File_Info,
     l0, l1:     int,
     c0, c1:     int,
     start, end: int,
@@ -29,29 +31,33 @@ Token :: struct {
 }
 
 Token_Kind :: enum u8 {
-    EOF              = 0,
-    Comment          = 1,
+    Invalid          = 0,
+    EOF              = 1,
+
+    // we tokenize this because we may need it when reporting errors
+    Comment          = 2,
+
 
     // Basic Type Values
-    Identifier       = 2,
-    Integer          = 3,
-    Unsigned_Integer = 4,
-    Float            = 5,
-    Hex              = 6,
-    Binary           = 7,
-    Octal            = 8,
-    String           = 9,
-    Char             = 10,
-    True             = 11,
-    False            = 12,
+    Identifier       = 10,
+    Integer          = 11,
+    Unsigned_Integer = 12,
+    Float            = 13,
+    Hex              = 14,
+    Binary           = 15,
+    Octal            = 16,
+    String           = 17,
+    Char             = 18,
+    True             = 19,
+    False            = 20,
 
 
     // Basic Type Names
-    Type_Int         = 20,
-    Type_Uint        = 21,
-    Type_Float       = 22,
-    Type_Bool        = 23,
-    Type_String      = 24,
+    Type_Int         = 30,
+    Type_Uint        = 31,
+    Type_Float       = 32,
+    Type_Bool        = 33,
+    Type_String      = 34,
 
 
     // Single character tokens
@@ -80,17 +86,18 @@ Token_Kind :: enum u8 {
 }
 
 init_lexer :: proc(parser: ^Parser) {
+    parser.lexer.file_info = parser.file_info
     parser.lexer.data      = parser.file_info.source
+    parser.lexer.filename  = filepath.short_stem(parser.file_info.filename)
     parser.lexer.fullpath  = parser.file_info.fullpath
     parser.lexer.column    = 0
     parser.lexer.line      = 1
     parser.lexer.offset    = 0
 
-    append(&parser.lexer.line_starts, 0)
+    append(&parser.file_info.line_starts, 0)
 }
 
 destroy_lexer :: proc(parser: ^Parser) {
-    delete(parser.lexer.line_starts)
 }
 
 get_next_token :: proc(l: ^Lexer) -> (token: Token) {
@@ -265,20 +272,20 @@ get_next_token :: proc(l: ^Lexer) -> (token: Token) {
             advance(l)
             l.line += 1
             l.column = 0
-            append(&l.line_starts, l.offset)
+            append(&l.file_info.line_starts, l.offset)
         case:
             break eat_whitespace
         }
     }
 
-    token.kind     = .EOF
-    token.fullpath = l.fullpath
-    token.c0       = l.column
-    token.l0       = l.line
-    token.start    = l.offset
-    token.c1     = l.column
-    token.l1     = l.line
-    token.end    = l.offset
+    token.kind      = .EOF
+    token.file_info = l.file_info
+    token.c0        = l.column
+    token.l0        = l.line
+    token.start     = l.offset
+    token.c1        = l.column
+    token.l1        = l.line
+    token.end       = l.offset
     if is_eof(l) do return
 
     switch l.data[l.offset] {

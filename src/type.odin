@@ -3,6 +3,7 @@ package main
 Type :: struct {
     size:    uint,
     name:    string,
+    token:   Token,
     variant: Type_Variant,
 }
 
@@ -34,7 +35,7 @@ init_types :: proc() {
     append(&types, new_clone(Type{size=8, name="uint",    variant=Type_Basic{.Uint}}))
 }
 
-get_basic_type :: proc(kind: Type_Basic_Kind) -> ^Type {
+get_type_basic :: proc(kind: Type_Basic_Kind) -> ^Type {
     for type in types {
         #partial switch v in type.variant {
         case Type_Basic:
@@ -55,6 +56,16 @@ get_type_by_name :: proc(name: string) -> ^Type {
     }
 
     return nil
+}
+
+types_are_equal :: proc(t1, t2: ^Type) -> bool {
+    switch variant in t1.variant {
+    case Type_Basic:
+        t2v, ok := t2.variant.(Type_Basic)
+        return ok && variant.kind == t2v.kind
+    }
+
+    return false
 }
 
 type_to_string :: proc(t: ^Type) -> string {

@@ -7,6 +7,10 @@ odin build src -use-separate-modules -out:$BIN_NAME -strict-style -vet-using-stm
 if [ "$?" == 0 ]; then
   if [ ! -z "$1" ]; then
     skc sandbox/test.sk
+
+    if [ "$?" == 0 ]; then
+       cat sandbox/test.c
+    fi
   fi
 fi
 

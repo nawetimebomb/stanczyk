@@ -4,116 +4,72 @@ import "core:fmt"
 import "core:strconv"
 import "core:strings"
 
-ERROR_IDENTIFIER_IN_FILE_SCOPE :: "We found an attempt to use an identifier statement at file scope, this is not allowed."
-ERROR_OPERATOR_IN_FILE_SCOPE   :: "We found an operator in file scope."
-ERROR_VALUE_IN_FILE_SCOPE      :: "We found an attempt to stack a value from file scope, this is not allowed."
-ERROR_FOREIGN_MISPLACED        :: "#foreign can only be used in procedures with no bodies."
-ERROR_UNEXPECTED_TOKEN         :: "Unexpected token {} while in {} scope."
+PARSER_IDENTIFIER_IN_FILE_SCOPE :: "We found an attempt to use an identifier statement at file scope, this is not allowed."
+PARSER_OPERATOR_IN_FILE_SCOPE   :: "We found an operator in file scope."
+PARSER_VALUE_IN_FILE_SCOPE      :: "We found an attempt to stack a value from file scope, this is not allowed."
+PARSER_FOREIGN_MISPLACED        :: "#foreign can only be used in procedures with no bodies."
+PARSER_UNEXPECTED_TOKEN         :: "Unexpected token {} while in {} scope."
 
-Parser_Error_Kind :: enum {
-    Syntax,
-}
+Parsing_Scope_Kind :: enum u8 {
+    File = 0,
 
-Scope_Kind :: enum {
-    File,
-    Procedure,
+    Procedure_Arguments = 1,
+    Procedure_Results   = 2,
+    Procedure_Body      = 3,
 }
 
 Parser :: struct {
     file_info:         ^File_Info,
-    errors:            [dynamic]Parser_Error,
+    errors:            [dynamic]Compiler_Error,
     error_in_context:  bool,
 
     prev_token:        Token,
     curr_token:        Token,
     lexer:             Lexer,
-    scope:             ^Scope,
-    file_scope:        ^Scope,
+    scope:             ^Parsing_Scope,
+    file_scope:        ^Parsing_Scope,
 }
 
-Parser_Error :: struct {
-    message: string,
-    kind:    Parser_Error_Kind,
-    token:   Token,
-}
-
-Scope :: struct {
+Parsing_Scope :: struct {
     proc_decl:  ^Op_Proc_Decl,
-    body:       ^[dynamic]Op_Code,
-    kind:       Scope_Kind,
-    previous:   ^Scope,
+    body:       ^[dynamic]^Op_Code,
+    kind:       Parsing_Scope_Kind,
+    previous:   ^Parsing_Scope,
     ip_counter: int,
 }
 
-parsing_error :: proc(parser: ^Parser, kind: Parser_Error_Kind, format: string, args: ..any) {
+parser_error :: proc(parser: ^Parser, format: string, args: ..any) {
     parser.error_in_context = true
     message := fmt.aprintf(format, ..args)
-    append(&parser.errors, Parser_Error{
-        kind    = kind,
+    append(&parser.errors, Compiler_Error{
         message = message,
         token   = parser.prev_token,
     })
 }
 
-print_all_errors :: proc(parser: ^Parser) {
-    line_number_to_string :: proc(number: int) -> string {
-        number_str := fmt.tprintf("{}", number)
-        return strings.right_justify(number_str, 4, " ")
-    }
-
-    for error in parser.errors {
-        token := error.token
-        fmt.eprintfln(
-            "\e[1m{}({}:{})\e[0;91m {} Error:\e[0m {}",
-            token.fullpath, token.l0, token.c0, error.kind, error.message,
-        )
-        fmt.eprint("\e[0;36m")
-        if token.l0 > 1 {
-            line_index := max(token.l0-2, 0)
-            count_of_chars := 0
-            for line_index > 0 && count_of_chars == 0 {
-                start := parser.lexer.line_starts[line_index]
-                end := parser.lexer.line_starts[line_index+1] - 1
-                count_of_chars = end - start
-                if count_of_chars == 0 do line_index -= 1
-            }
-            line_index = max(line_index, 0)
-            start := parser.lexer.line_starts[line_index]
-            text := parser.lexer.data[start:token.start]
-            token_start_index := token.start - start
-
-            fmt.eprintf("\t{} | \t", line_number_to_string(line_index + 1))
-            for r, index in text {
-                fmt.eprint(r)
-
-                if r == '\n' {
-                    line_index += 1
-                    fmt.eprintf("\t{} | \t", line_number_to_string(line_index + 1))
-                }
-            }
-
-            error_red(parser.lexer.data[token.start:token.end])
-        } else {
-            curr_line := parser.lexer.data[:token.start]
-            fmt.eprintf("\t{} | \t{}", line_number_to_string(token.l0), curr_line)
-            error_red(parser.lexer.data[token.start:token.end])
-        }
-
-        fmt.eprint("\e[0m\n")
-    }
+parser_fatal_error :: proc(parser: ^Parser) {
+    report_all_errors(parser.errors[:])
+    errors_count := len(parser.errors)
+    fatalf(
+        .Parser,
+        "found {} {} while parsing {}",
+        errors_count,
+        errors_count > 1 ? "errors" : "error",
+        parser.file_info.fullpath,
+    )
 }
 
 write_op_code :: proc(parser: ^Parser, token: Token, variant: Op_Variant) {
-    append(parser.scope.body, Op_Code{
-        local_ip  = parser.scope.ip_counter,
-        token     = token,
-        variant   = variant,
-    })
+    op := new(Op_Code)
+    op.local_ip = parser.scope.ip_counter
+    op.token    = token
+    op.variant  = variant
+    append(parser.scope.body, op)
     parser.scope.ip_counter += 1
 }
 
-push_scope :: proc(parser: ^Parser, kind: Scope_Kind, body: ^[dynamic]Op_Code) -> ^Scope {
-    new_scope := new(Scope)
+push_parser_scope :: proc(parser: ^Parser, kind: Parsing_Scope_Kind, body: ^[dynamic]^Op_Code) -> ^Parsing_Scope {
+    new_scope := new(Parsing_Scope)
     new_scope.body     = body
     new_scope.kind     = kind
     new_scope.previous = parser.scope
@@ -142,7 +98,7 @@ expect :: proc(parser: ^Parser, kind: Token_Kind) -> (token: Token) {
     token = next(parser)
 
     if token.kind != kind {
-        parsing_error(parser, .Syntax, "Expected {}, got {}", kind, token.kind)
+        parser_error(parser, "Expected {}, got {}", kind, token.kind)
         for {
             token := next(parser)
             if token.kind == .EOF || token.kind == .Semicolon do break
@@ -163,7 +119,7 @@ parse_file :: proc(file_info: ^File_Info) {
     parser := new(Parser)
     parser.file_info = file_info
 
-    parser.file_scope = push_scope(parser, .File, &program_bytecode)
+    parser.file_scope = push_parser_scope(parser, .File, &program_bytecode)
     parser.scope = parser.file_scope
 
     init_lexer(parser)
@@ -176,22 +132,14 @@ parse_file :: proc(file_info: ^File_Info) {
     }
 
     if len(parser.errors) > 0 {
-        print_all_errors(parser)
-        errors_count := len(parser.errors)
-        fatalf(
-            .Parsing_Errors,
-            "found {} {} while parsing {}",
-            errors_count,
-            errors_count > 1 ? "errors" : "error",
-            parser.file_info.fullpath,
-        )
+        parser_fatal_error(parser)
     }
 
-    fmt.println("\n========\n")
-    for op, index in program_bytecode {
-        print_op_debug(op)
-    }
-    fmt.println("========\n")
+    total_lines_count += parser.lexer.line
+
+    //fmt.printfln("\n======== {}\n", parser.file_info.filename)
+    //for op, index in program_bytecode do print_op_debug(op)
+    //fmt.printfln("======== {}\n", parser.file_info.filename)
 
     pop_scope(parser)
 
@@ -203,14 +151,15 @@ parse_expression :: proc(parser: ^Parser) -> (should_leave: bool) {
     token := next(parser)
 
     switch token.kind {
+    case .Invalid:
+        parser_error(parser, "Invalid token found {}", token.text)
+
     case .Dash_Dash_Dash:
         // special case because this is only
         // allowed when parsing arguments
         if parser.scope.body != &parser.scope.proc_decl.arguments {
-            parsing_error(
-                parser, .Syntax,
-                ERROR_UNEXPECTED_TOKEN,
-                token.text, parser.scope.kind,
+            parser_error(
+                parser, PARSER_UNEXPECTED_TOKEN, token.text, parser.scope.kind,
             )
         }
         return true
@@ -261,11 +210,7 @@ parse_expression :: proc(parser: ^Parser) -> (should_leave: bool) {
 parse_binary :: proc(parser: ^Parser, token: Token) {
     // not allowed in global scope
     if parser.scope.kind == .File {
-        parsing_error(
-            parser,
-            .Syntax,
-            ERROR_OPERATOR_IN_FILE_SCOPE,
-        )
+        parser_error(parser, PARSER_OPERATOR_IN_FILE_SCOPE)
     }
 
     write_op_code(parser, token, Op_Binary{token})
@@ -273,11 +218,7 @@ parse_binary :: proc(parser: ^Parser, token: Token) {
 
 parse_foreign :: proc(parser: ^Parser, token: Token) {
     if parser.scope.proc_decl == nil {
-        parsing_error(
-            parser,
-            .Syntax,
-            ERROR_FOREIGN_MISPLACED,
-        )
+        parser_error(parser, PARSER_FOREIGN_MISPLACED)
     }
 
     parser.scope.proc_decl.is_foreign = true
@@ -293,10 +234,11 @@ parse_proc_decl :: proc(parser: ^Parser, token: Token) {
     proc_decl := Op_Proc_Decl{}
     proc_decl.name = expect(parser, .Identifier)
 
-    proc_decl.scope = push_scope(parser, .Procedure, &proc_decl.body)
+    push_parser_scope(parser, .Procedure_Body, &proc_decl.body)
     parser.scope.proc_decl = &proc_decl
 
     if allow(parser, .Paren_Left) {
+        parser.scope.kind = .Procedure_Arguments
         parser.scope.body = &proc_decl.arguments
 
         for !parser.error_in_context {
@@ -305,13 +247,16 @@ parse_proc_decl :: proc(parser: ^Parser, token: Token) {
         }
 
         if was(parser, .Dash_Dash_Dash) {
+            parser.scope.kind = .Procedure_Results
             parser.scope.body = &proc_decl.results
+
             for !parser.error_in_context {
                 should_leave := parse_expression(parser)
                 if should_leave do break
             }
         }
 
+        parser.scope.kind = .Procedure_Body
         parser.scope.body = &proc_decl.body
     }
 
@@ -335,11 +280,7 @@ parse_proc_decl :: proc(parser: ^Parser, token: Token) {
 parse_identifier :: proc(parser: ^Parser, token: Token) {
     // not allowed in global scope
     if parser.scope.kind == .File {
-        parsing_error(
-            parser,
-            .Syntax,
-            ERROR_IDENTIFIER_IN_FILE_SCOPE,
-        )
+        parser_error(parser, PARSER_IDENTIFIER_IN_FILE_SCOPE)
     }
 
     write_op_code(parser, token, Op_Identifier{token})
@@ -348,49 +289,18 @@ parse_identifier :: proc(parser: ^Parser, token: Token) {
 parse_type :: proc(parser: ^Parser, token: Token) {
     // not allowed in global scope
     if parser.scope.kind == .File {
-        parsing_error(
-            parser,
-            .Syntax,
-            ERROR_IDENTIFIER_IN_FILE_SCOPE,
-        )
+        parser_error(parser, PARSER_IDENTIFIER_IN_FILE_SCOPE)
     }
 
-    #partial switch token.kind {
-    case .Type_Int:    write_op_code(parser, token, Op_Type{get_basic_type(.Int)})
-    case .Type_Uint:   write_op_code(parser, token, Op_Type{get_basic_type(.Uint)})
-    case .Type_Float:  write_op_code(parser, token, Op_Type{get_basic_type(.Float)})
-    case .Type_Bool:   write_op_code(parser, token, Op_Type{get_basic_type(.Bool)})
-    case .Type_String: write_op_code(parser, token, Op_Type{get_basic_type(.String)})
-    }
+    write_op_code(parser, token, Op_Type{token})
 }
 
 parse_value :: proc(parser: ^Parser, token: Token) {
     // not allowed in global scope
     if parser.scope.kind == .File {
-        parsing_error(
-            parser,
-            .Syntax,
-            ERROR_VALUE_IN_FILE_SCOPE,
-        )
+        parser_error(parser, PARSER_VALUE_IN_FILE_SCOPE)
         return
     }
 
-    value := Op_Basic_Literal{value=token}
-
-    #partial switch token.kind {
-    case .Binary:           value.type = get_basic_type(.Int)
-    case .Char:             value.type = get_basic_type(.Char)
-    case .Float:            value.type = get_basic_type(.Float)
-    case .Hex:              value.type = get_basic_type(.Int)
-    case .Integer:          value.type = get_basic_type(.Int)
-    case .Octal:            value.type = get_basic_type(.Int)
-    case .String:           value.type = get_basic_type(.String)
-    case .Unsigned_Integer: value.type = get_basic_type(.Uint)
-
-    case .False:            fallthrough
-    case .True:             value.type = get_basic_type(.Bool)
-    case: assert(false)
-    }
-
-    write_op_code(parser, token, value)
+    write_op_code(parser, token, Op_Basic_Literal{token})
 }
