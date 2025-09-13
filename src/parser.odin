@@ -401,7 +401,7 @@ parse_integer :: proc(parser: ^Parser, token: Token) -> ^Op_Code {
     value, ok := strconv.parse_i64(stanczyk_number_to_c_number(token.text))
     if !ok do parser_error(parser, PARSER_INVALID_NUMBER)
     op.value = value
-    op.variant = Op_Push_Constant{}
+    op.variant = Op_Constant{}
     return op
 }
 

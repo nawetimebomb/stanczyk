@@ -2,14 +2,19 @@ package main
 
 import "core:fmt"
 import "core:os/os2"
+import "core:slice"
 import "core:strings"
 
 Generator :: struct {
-    code:   strings.Builder,
-    defs:   strings.Builder,
-    indent: int,
+    head:          strings.Builder,
+    multi:         strings.Builder,
+    sk_code:       strings.Builder,
+    code:          strings.Builder,
+    defs:          strings.Builder,
+    indent:        int,
 
-    source: ^strings.Builder,
+    source:        ^strings.Builder,
+    multi_results: [dynamic]string,
 }
 
 gen_indent :: proc(gen: ^Generator) {
@@ -43,8 +48,37 @@ gen_end_scope :: proc(gen: ^Generator, visible := true) {
     }
 }
 
+gen_multiresult_str :: proc(gen: ^Generator, params: []^Op_Code) -> string {
+    result := strings.builder_make(context.temp_allocator)
+
+    strings.write_string(&result, "multi_")
+
+    for param, index in params {
+        strings.write_string(&result, type_to_cname(param.type))
+        if index < len(params)-1 do strings.write_string(&result, "_")
+    }
+
+    index, found := slice.binary_search(gen.multi_results[:], strings.to_string(result))
+
+    if !found {
+        result_str := strings.to_string(result)
+
+        append(&gen.multi_results, strings.clone(result_str))
+
+        fmt.sbprintf(&gen.multi, "typedef struct {} {{\n", result_str)
+        for param, index in params {
+            fmt.sbprintf(&gen.multi, "\t{} {}{};\n", type_to_cname(param.type), MULTI_RESULT_PREFIX, index)
+        }
+        fmt.sbprintf(&gen.multi, "} {};\n", result_str)
+
+        return result_str
+    }
+
+    return gen.multi_results[index]
+}
+
 gen_register :: proc(gen: ^Generator, reg: ^Register) {
-    gen_printf(gen, "{}%3d", reg.prefix, reg.ip)
+    gen_printf(gen, "{}%d", reg.prefix, reg.ip)
 }
 
 gen_result_type :: proc(gen: ^Generator, results: []^Op_Code) {
@@ -53,14 +87,13 @@ gen_result_type :: proc(gen: ^Generator, results: []^Op_Code) {
     } else if len(results) == 1 {
         gen_printf(gen, "{}", type_to_cname(results[0].type))
     } else {
-        // TODO(nawe) register to multi results
-        assert(false)
+        gen_printf(gen, "{}", gen_multiresult_str(gen, results))
     }
 }
 
 gen_proc_signature :: proc(gen: ^Generator, op: ^Op_Code) {
     variant := op.variant.(Op_Proc_Decl)
-    gen_printf(gen, "static ")
+    gen_printf(gen, "SK_STATIC ")
     gen_result_type(gen, variant.results)
     gen_printf(gen, " {}(", variant.cname)
 
@@ -80,7 +113,7 @@ gen_op :: proc(gen: ^Generator, op: ^Op_Code) {
     case Op_Identifier:
         assert(false, "Compiler Bug: Identifier should have been evaluated in checker")
 
-    case Op_Push_Constant:
+    case Op_Constant:
         gen_op_push_constant(gen, op)
     case Op_Proc_Call:
         gen_op_proc_call(gen, op)
@@ -96,7 +129,7 @@ gen_op :: proc(gen: ^Generator, op: ^Op_Code) {
 }
 
 gen_op_push_constant :: proc(gen: ^Generator, op: ^Op_Code) {
-    variant := op.variant.(Op_Push_Constant)
+    variant := op.variant.(Op_Constant)
     assert(op.register != nil)
 
     gen_register(gen, op.register)
@@ -106,7 +139,14 @@ gen_op_push_constant :: proc(gen: ^Generator, op: ^Op_Code) {
 gen_op_proc_call :: proc(gen: ^Generator, op: ^Op_Code) {
     variant := op.variant.(Op_Proc_Call)
 
-    // TODO(nawe) results
+    if len(variant.results) == 1 {
+        result := variant.results[0]
+        gen_register(gen, result.register)
+        gen_print(gen, " = ")
+    } else if len(variant.results) > 1 {
+        gen_printf(gen, "{} multi{} = ", gen_multiresult_str(gen, variant.results), op.ip)
+    }
+
     gen_printf(gen, "{}(", variant.cname)
     for arg, index in variant.arguments {
         gen_register(gen, arg.register)
@@ -116,6 +156,18 @@ gen_op_proc_call :: proc(gen: ^Generator, op: ^Op_Code) {
         }
     }
     gen_print(gen, ")")
+
+    if len(variant.results) > 1 {
+        gen_print(gen, ";\n")
+        for result, index in variant.results {
+            gen_indent(gen)
+            gen_register(gen, result.register)
+            gen_printf(gen, " = multi{}.{}{}", op.ip, MULTI_RESULT_PREFIX, index)
+            if index < len(variant.results)-1 {
+                gen_print(gen, ";\n")
+            }
+        }
+    }
 }
 
 gen_op_type_lit :: proc(gen: ^Generator, op: ^Op_Code) {
@@ -192,12 +244,23 @@ gen_op_return :: proc(gen: ^Generator, op: ^Op_Code) {
     if len(variant.results) == 1 {
         result := variant.results[0]
 
-        gen_result_type(gen, variant.results)
         gen_print(gen, "(")
-        gen_register(gen, result.register)
+        gen_result_type(gen, variant.results)
         gen_print(gen, ")")
+        gen_register(gen, result.register)
     } else {
-        assert(false)
+        gen_print(gen, "(")
+        gen_result_type(gen, variant.results)
+        gen_print(gen, ")")
+        gen_print(gen, "{")
+        for result, index in variant.results {
+            gen_printf(gen, ".{}{}=", MULTI_RESULT_PREFIX, index)
+            gen_register(gen, result.register)
+            if index < len(variant.results)-1 {
+                gen_print(gen, ", ")
+            }
+        }
+        gen_print(gen, "}")
     }
 }
 
@@ -211,9 +274,51 @@ gen_procs_recursive :: proc(gen: ^Generator, op: ^Op_Code) {
     }
 }
 
+gen_bootstrap :: proc(gen: ^Generator) {
+    gen.source = &gen.head
+    gen_print(gen, "#include <stdio.h>\n")
+    gen_print(gen, "#include <stdint.h>\n")
+    gen_print(gen, "\n")
+
+    gen_print(gen, "#define SK_EXPORT extern __declspec(dllexport)\n")
+    gen_print(gen, "#define SK_INLINE static inline\n")
+    gen_print(gen, "#define SK_STATIC static\n")
+    gen_print(gen, "\n")
+
+    gen_print(gen, "// Stanczyk Builtin Types\n")
+    gen_print(gen, "typedef int64_t s64;\n")
+
+    gen.source = &gen.multi
+    gen_print(gen, "// Stanczyk Multireturn types\n")
+
+    gen.source = &gen.sk_code
+    gen_print(gen, "// Stanczyk Internal Procedures\n")
+    gen_print(gen, "static void internal_print(s64 n);\n")
+    gen_print(gen, "\n")
+    gen_print(gen, "static void internal_print(s64 n)\n")
+    gen_begin_scope(gen)
+    gen_indent(gen)
+    gen_print(gen, "printf(\"%lli\\n\", n);\n")
+    gen_end_scope(gen)
+
+
+    gen.source = &gen.defs
+    gen_print(gen, "// User Definitions\n")
+
+    gen.source = &gen.code
+    gen_print(gen, "// User Code\n")
+
+}
+
 gen_program :: proc() {
     gen := new(Generator)
-    gen.code = strings.builder_make()
+    gen.head    = strings.builder_make()
+    gen.multi   = strings.builder_make()
+    gen.sk_code = strings.builder_make()
+    gen.defs    = strings.builder_make()
+    gen.code    = strings.builder_make()
+
+    gen_bootstrap(gen)
 
     for op in program_bytecode {
         gen_procs_recursive(gen, op)
@@ -224,6 +329,12 @@ gen_program :: proc() {
 
 write_file :: proc(gen: ^Generator) {
     result := strings.builder_make()
+    strings.write_string(&result, strings.to_string(gen.head))
+    strings.write_string(&result, "\n")
+    strings.write_string(&result, strings.to_string(gen.multi))
+    strings.write_string(&result, "\n")
+    strings.write_string(&result, strings.to_string(gen.sk_code))
+    strings.write_string(&result, "\n")
     strings.write_string(&result, strings.to_string(gen.defs))
     strings.write_string(&result, "\n")
     strings.write_string(&result, strings.to_string(gen.code))
@@ -237,7 +348,7 @@ write_file :: proc(gen: ^Generator) {
     gen_print(gen, "return 0;\n")
     gen_end_scope(gen)
 
-    error := os2.write_entire_file(output_filename, result.buf[:])
+    error := os2.write_entire_file(fmt.tprintf("{}.c", output_filename), result.buf[:])
     if error != nil {
         fatalf(.Generator, "could not generate output file")
     }

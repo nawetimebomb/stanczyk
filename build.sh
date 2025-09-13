@@ -9,7 +9,8 @@ if [ "$?" == 0 ]; then
     skc sandbox/test.sk
 
     if [ "$?" == 0 ]; then
-       cat sandbox/test.c
+       echo -e "\nProgram result:\n"
+       ./sandbox/test
     fi
   fi
 fi

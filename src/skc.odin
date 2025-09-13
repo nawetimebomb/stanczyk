@@ -1,20 +1,23 @@
 package main
 
+import "core:c/libc"
 import "core:fmt"
+import "core:mem"
 import "core:os"
 import "core:os/os2"
 import "core:path/filepath"
 import "core:strings"
 import "core:time"
 
-NAME          :: "Stańczyk"
-NAME_ABBREV   :: "skc"
-NAME_FULL     :: "The Stańczyk Compiler"
-VERSION_MAJOR :: "0"
-VERSION_MINOR :: "7"
+NAME            :: "Stańczyk"
+NAME_ABBREV     :: "skc"
+NAME_FULL       :: "The Stańczyk Compiler"
+VERSION_MAJOR   :: "0"
+VERSION_MINOR   :: "7"
 
-ARGUMENT_PREFIX :: "arg"
-REGISTER_PREFIX :: "reg"
+ARGUMENT_PREFIX     :: "a"
+REGISTER_PREFIX     :: "r"
+MULTI_RESULT_PREFIX :: "p"
 
 Fatal_Error_Kind :: enum u8 {
     None      = 0,
@@ -48,6 +51,11 @@ program_bytecode:  [dynamic]^Op_Code
 switch_debug := true
 
 main :: proc() {
+    tracking_allocator: mem.Tracking_Allocator
+    default_allocator := context.allocator
+    mem.tracking_allocator_init(&tracking_allocator, default_allocator)
+    context.allocator = mem.tracking_allocator(&tracking_allocator)
+
     error1, error2: os2.Error
     compiler_dir, error1 = os2.get_executable_directory(context.allocator)
     working_dir, error2  = os2.get_working_directory(context.allocator)
@@ -90,7 +98,7 @@ main :: proc() {
         )
     }
     extension := filepath.ext(input_filename)
-    output_filename = fmt.aprintf("{}.c", input_filename[:len(input_filename)-len(extension)])
+    output_filename = fmt.aprintf("{}", input_filename[:len(input_filename)-len(extension)])
 
     init_types()
 
@@ -105,21 +113,20 @@ main :: proc() {
     free_all(context.temp_allocator)
 
     check_program_bytecode()
-    frontend_time := time.duration_milliseconds(time.tick_lap_time(&accumulator))
+    frontend_time := time.duration_seconds(time.tick_lap_time(&accumulator))
 
     gen_program()
-    codegen_time := time.duration_milliseconds(time.tick_lap_time(&accumulator))
+    codegen_time := time.duration_seconds(time.tick_lap_time(&accumulator))
 
-    //fmt.printfln("\n========\n")
-    //for op, index in program_bytecode do print_op_debug(op)
-    //fmt.printfln("========\n")
+    libc.system(fmt.ctprintf("gcc {0}.c -o {0}", output_filename))
+    compile_time := time.duration_seconds(time.tick_lap_time(&accumulator))
+    alloc_amount := tracking_allocator.current_memory_allocated
 
-    print_magenta("\t[Lines processed]     ")
-    fmt.printfln("{}", total_lines_count)
-    print_magenta("\t[Compiler Front-end]  ")
-    fmt.printfln("%.6fms", frontend_time)
-    print_magenta("\t[Code generation]     ")
-    fmt.printfln("%.6fms", codegen_time)
+    fmt.printf("\tLines processed.............{}\n", total_lines_count)
+    fmt.printf("\tCompiler Front-end..........%.6fs\n", frontend_time)
+    fmt.printf("\tCode generation.............%.6fs\n", codegen_time)
+    fmt.printf("\tCompiler Back-end...........%.6fs\n", compile_time)
+    fmt.printf("\tMemory used.................%.5fmb\n", (f64(alloc_amount)/1024.)/1024.)
 }
 
 add_source_file :: proc(directory, filename: string) {
@@ -167,9 +174,9 @@ error_red :: proc(format: string, args: ..any) {
     fmt.eprintf("\e[1;91m{}\e[0m", message)
 }
 
-print_magenta :: proc(format: string, args: ..any) {
+print_cyan :: proc(format: string, args: ..any) {
     message := fmt.tprintf(format, ..args)
-    fmt.printf("\e[1;95m{}\e[0m", message)
+    fmt.printf("\e[0;96m{}\e[0m", message)
 }
 
 report_all_errors :: proc(comp_errors: []Compiler_Error) {
@@ -188,7 +195,7 @@ report_all_errors :: proc(comp_errors: []Compiler_Error) {
             "\e[1m{}({}:{})\e[1;91m Error:\e[0m {}",
             fullpath, token.l0, token.c0, error.message,
         )
-        fmt.eprint("\e[0;36m")
+        fmt.eprint("\e[0;96m")
         if token.l0 > 1 {
             line_index := max(token.l0-2, 0)
             count_of_chars := 0

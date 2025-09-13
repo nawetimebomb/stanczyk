@@ -32,7 +32,7 @@ Op_Variant :: union {
     // figure out if this is proc call, a variable or the like.
     Op_Identifier,
 
-    Op_Push_Constant,
+    Op_Constant,
     Op_Proc_Call,
     Op_Return,
 
@@ -50,7 +50,7 @@ Op_Identifier :: struct {
 
 
 
-Op_Push_Constant :: struct {}
+Op_Constant :: struct {}
 
 Op_Proc_Call :: struct {
     arguments: []^Op_Code,
@@ -118,7 +118,7 @@ print_op_debug :: proc(op: ^Op_Code, level := 0) {
 
     fmt.printf("(%4d) ", op.ip)
     switch variant in op.variant {
-    case Op_Push_Constant:
+    case Op_Constant:
         print_op_name("PUSH_CONSTANT")
         print_op_type(op)
         print_op_value(op)
