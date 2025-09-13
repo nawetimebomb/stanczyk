@@ -18,7 +18,7 @@ Register :: struct {
 }
 
 Op_Code :: struct {
-    local_ip:  int,
+    ip:        int,
     register:  ^Register,
     token:     Token,
 
@@ -28,20 +28,42 @@ Op_Code :: struct {
 }
 
 Op_Variant :: union {
-    Op_Push_Constant,
-    Op_Proc_Decl,
+    // unsure what to do here, depends on type checking to
+    // figure out if this is proc call, a variable or the like.
+    Op_Identifier,
 
-    Op_Identifier, // unsure what to do, depends on type checking
+    Op_Push_Constant,
+    Op_Proc_Call,
+    Op_Return,
+
+    Op_Proc_Decl,
 
     Op_Type_Lit,
 
+    Op_Drop,
     Op_Binary_Expr,
-
-
-    Op_Return,
 }
 
+Op_Identifier :: struct {
+    value: Token,
+}
+
+
+
 Op_Push_Constant :: struct {}
+
+Op_Proc_Call :: struct {
+    arguments: []^Op_Code,
+    results:   []^Op_Code,
+    entity:    ^Entity,
+    cname:     string,
+}
+
+Op_Return :: struct {
+    results: []^Op_Code,
+}
+
+
 
 Op_Proc_Decl :: struct {
     name:        Token,
@@ -58,16 +80,12 @@ Op_Proc_Decl :: struct {
     body:        [dynamic]^Op_Code,
 }
 
-Op_Return :: struct {
-    results: []^Op_Code,
-}
-
-Op_Identifier :: struct {
-    value: Token,
-}
-
 Op_Type_Lit :: struct {}
 
+
+Op_Drop :: struct {
+
+}
 
 Op_Binary_Expr :: struct {
     lhs: ^Register,
@@ -98,7 +116,7 @@ print_op_debug :: proc(op: ^Op_Code, level := 0) {
 
     print_prefix(level)
 
-    fmt.printf("(%4d) ", op.local_ip)
+    fmt.printf("(%4d) ", op.ip)
     switch variant in op.variant {
     case Op_Push_Constant:
         print_op_name("PUSH_CONSTANT")
@@ -106,12 +124,18 @@ print_op_debug :: proc(op: ^Op_Code, level := 0) {
         print_op_value(op)
         fmt.println()
 
+    case Op_Drop:
+
     case Op_Identifier:
         print_op_name("IDENTIFIER")
         fmt.println(variant.value.text)
     case Op_Type_Lit:
         print_op_name("TYPE")
         fmt.println(type_to_string(op.type))
+
+    case Op_Proc_Call:
+        print_op_name("PROC_CALL")
+        fmt.println()
 
     case Op_Binary_Expr:
         print_op_name("BINARY_EXPR")

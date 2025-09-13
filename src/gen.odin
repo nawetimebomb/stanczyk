@@ -44,7 +44,7 @@ gen_end_scope :: proc(gen: ^Generator, visible := true) {
 }
 
 gen_register :: proc(gen: ^Generator, reg: ^Register) {
-    gen_printf(gen, "{}{}", reg.prefix, reg.ip)
+    gen_printf(gen, "{}%3d", reg.prefix, reg.ip)
 }
 
 gen_result_type :: proc(gen: ^Generator, results: []^Op_Code) {
@@ -77,13 +77,21 @@ gen_proc_signature :: proc(gen: ^Generator, op: ^Op_Code) {
 
 gen_op :: proc(gen: ^Generator, op: ^Op_Code) {
     switch variant in op.variant {
-    case Op_Proc_Decl:     // skipped
-    case Op_Push_Constant: gen_op_push_constant(gen, op)
+    case Op_Identifier:
+        assert(false, "Compiler Bug: Identifier should have been evaluated in checker")
 
-    case Op_Identifier:  gen_op_identifier (gen, op)
+    case Op_Push_Constant:
+        gen_op_push_constant(gen, op)
+    case Op_Proc_Call:
+        gen_op_proc_call(gen, op)
+    case Op_Return:
+        gen_op_return(gen, op)
+
+    case Op_Proc_Decl: // skipped
+
+    case Op_Drop: // skipped
     case Op_Type_Lit:    gen_op_type_lit   (gen, op)
     case Op_Binary_Expr: gen_op_binary_expr(gen, op)
-    case Op_Return:      gen_op_return     (gen, op)
     }
 }
 
@@ -92,11 +100,22 @@ gen_op_push_constant :: proc(gen: ^Generator, op: ^Op_Code) {
     assert(op.register != nil)
 
     gen_register(gen, op.register)
-    gen_printf(gen, "={}", op.value)
+    gen_printf(gen, " = {}", op.value)
 }
 
-gen_op_identifier :: proc(gen: ^Generator, op: ^Op_Code) {
+gen_op_proc_call :: proc(gen: ^Generator, op: ^Op_Code) {
+    variant := op.variant.(Op_Proc_Call)
 
+    // TODO(nawe) results
+    gen_printf(gen, "{}(", variant.cname)
+    for arg, index in variant.arguments {
+        gen_register(gen, arg.register)
+
+        if index < len(variant.arguments)-1 {
+            gen_print(gen, ", ")
+        }
+    }
+    gen_print(gen, ")")
 }
 
 gen_op_type_lit :: proc(gen: ^Generator, op: ^Op_Code) {
@@ -108,9 +127,9 @@ gen_op_binary_expr :: proc(gen: ^Generator, op: ^Op_Code) {
     variant := op.variant.(Op_Binary_Expr)
 
     gen_register(gen, op.register)
-    gen_print(gen, "=")
+    gen_print(gen, " = ")
     gen_register(gen, variant.lhs)
-    gen_print(gen, variant.op)
+    gen_printf(gen, " {} ", variant.op)
     gen_register(gen, variant.rhs)
 }
 
@@ -136,16 +155,26 @@ gen_op_proc_decl :: proc(gen: ^Generator, op: ^Op_Code) {
 
             if index < len(array)-1 {
                 gen_print(gen, ", ")
-            } else {
-                gen_print(gen, ";\n")
+            }
+
+            if (index + 1) % 10 == 0 {
+                gen_print(gen, "\n")
+                gen_indent(gen)
+                gen_print(gen, "    ")
             }
         }
+
+        gen_print(gen, ";\n")
     }
 
     for child in variant.body {
-        gen_indent(gen)
-        gen_op(gen, child)
-        gen_print(gen, ";\n")
+        #partial switch _ in child.variant {
+        case Op_Proc_Decl, Op_Drop: // skipped
+        case:
+            gen_indent(gen)
+            gen_op(gen, child)
+            gen_print(gen, ";\n")
+        }
     }
 
     gen_end_scope(gen)
@@ -153,9 +182,12 @@ gen_op_proc_decl :: proc(gen: ^Generator, op: ^Op_Code) {
 
 gen_op_return :: proc(gen: ^Generator, op: ^Op_Code) {
     variant := op.variant.(Op_Return)
+
+    gen_print(gen, "return")
+
     if len(variant.results) == 0 do return
 
-    gen_print(gen, "return ")
+    gen_print(gen, " ")
 
     if len(variant.results) == 1 {
         result := variant.results[0]

@@ -66,7 +66,7 @@ is_eof :: proc(parser: ^Parser) -> bool {
 create_op_code :: proc(parser: ^Parser, token: Token) -> ^Op_Code {
     op := new(Op_Code)
     op.token = token
-    op.local_ip = parser.current_context.ip_counter
+    op.ip = parser.current_context.ip_counter
     parser.current_context.ip_counter += 1
     return op
 }
@@ -263,6 +263,11 @@ parse_expression :: proc(parser: ^Parser) -> ^Op_Code {
     case .Proc:
         return parse_proc_decl(parser, token)
 
+    case .Drop:
+        op := create_op_code(parser, token)
+        op.variant = Op_Drop{}
+        return op
+
     case .Foreign:
         parse_foreign(parser, token)
 
@@ -349,7 +354,7 @@ parse_proc_signature :: proc(parser: ^Parser, proc_decl: ^Op_Proc_Decl) {
             assert(false) // TODO(nawe) support this
         case .Type_Int, .Type_Uint, .Type_Float, .Type_Bool, .Type_String:
             op := parse_literal_type(parser, token)
-            op.register = new_clone(Register{prefix="arg", ip=IP, type=op.type})
+            op.register = new_clone(Register{prefix=ARGUMENT_PREFIX, ip=IP, type=op.type})
             IP += 1
             append(&arguments, op)
         case:

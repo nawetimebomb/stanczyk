@@ -15,8 +15,6 @@ Checker :: struct {
     scope:            ^Scope,
     global_scope:     ^Scope,
     proc_scope:       ^Scope,
-
-    global_ip:        uint,
 }
 
 Scope :: struct {
@@ -127,7 +125,7 @@ stack_pop :: proc(checker: ^Checker, stack: ^Stack, token: Token) -> ^Op_Code {
     return value
 }
 
-add_register :: proc(checker: ^Checker, type: ^Type, prefix := "r") -> ^Register {
+add_register :: proc(checker: ^Checker, type: ^Type, prefix := REGISTER_PREFIX) -> ^Register {
     assert(checker.proc_scope != nil)
     proc_op := &checker.proc_scope.op_code.variant.(Op_Proc_Decl)
     IP := 0
@@ -216,6 +214,24 @@ create_entity :: proc(checker: ^Checker, name: string, op: ^Op_Code, variant: En
     return entity
 }
 
+find_entity :: proc(checker: ^Checker, name: string, deep_search := true) -> []^Entity {
+    result := make([dynamic]^Entity, context.temp_allocator)
+    scope := checker.scope
+
+    for scope != nil {
+        for ent in scope.entities {
+            if ent.name == name {
+                append(&result, ent)
+            }
+        }
+
+        if !deep_search do break
+        scope = scope.parent
+    }
+
+    return result[:]
+}
+
 check_program_bytecode :: proc() {
     checker := new(Checker)
     checker.global_scope = create_scope(checker)
@@ -258,21 +274,26 @@ check_create_entities :: proc(checker: ^Checker, op: ^Op_Code) {
 
 check_op :: proc(checker: ^Checker, op: ^Op_Code) {
     switch variant in op.variant {
+    case Op_Identifier:
+        check_identifier(checker, op)
+
     case Op_Push_Constant:
         stack_push(checker, checker.scope.stack, op)
+    case Op_Proc_Call:
+        // maybe not needed?
+    case Op_Return:
+        check_return(checker, op)
 
-    case Op_Identifier:
+    case Op_Proc_Decl:
+        check_proc_decl(checker, op)
 
     case Op_Type_Lit:
 
     case Op_Binary_Expr:
         check_binary_expr(checker, op)
 
-    case Op_Proc_Decl:
-        check_proc_decl(checker, op)
-
-    case Op_Return:
-        check_return(checker, op)
+    case Op_Drop:
+        stack_pop(checker, checker.scope.stack, op.token)
     }
 }
 
@@ -286,6 +307,65 @@ check_binary_expr :: proc(checker: ^Checker, op: ^Op_Code) {
     binary_op.rhs = v2.register
 
     stack_push(checker, checker.scope.stack, op)
+}
+
+check_identifier :: proc(checker: ^Checker, op: ^Op_Code) {
+    name := op.variant.(Op_Identifier).value.text
+    matches := find_entity(checker, name, true)
+
+    if len(matches) == 0 {
+        checker_error(
+            checker, op.token,
+            CHECKER_MISSING_IDENTIFIER_DECLARATION, name,
+        )
+        return
+    } else if len(matches) == 1 {
+        entity := matches[0]
+
+        switch variant in entity.variant {
+        case Entity_Procedure:
+            proc_decl := entity.op_code.variant.(Op_Proc_Decl)
+            stack := checker.scope.stack
+
+            // testing the stack with the required arguments
+            if len(stack.values) < len(proc_decl.arguments) {
+                checker_error(
+                    checker, op.token, CHECKER_NOT_ENOUGH_VALUES_IN_STACK,
+                )
+                return
+            }
+
+            stack_needed := stack.values[len(stack.values) - len(proc_decl.arguments):]
+
+            for index in 0..<len(stack_needed) {
+                stack_value := stack_needed[index]
+                arg_value := proc_decl.arguments[index]
+
+                if !types_are_equal(stack_value.type, arg_value.type) {
+                    checker_error(checker, op.token, CHECKER_MISMATCHED_TYPE)
+                    return
+                }
+            }
+
+            arguments_for_call := make([dynamic]^Op_Code)
+
+            for index in 0..<len(proc_decl.arguments) {
+                v := stack_pop(checker, stack, op.token)
+                inject_at(&arguments_for_call, 0, v)
+            }
+
+            proc_call := Op_Proc_Call{}
+            proc_call.cname = proc_decl.cname
+            proc_call.entity = entity
+            proc_call.arguments = arguments_for_call[:]
+            op.variant = proc_call
+
+            // TODO(nawe) Do results
+        }
+    } else {
+        // TODO(nawe) handle multiple
+        assert(false)
+    }
 }
 
 check_proc_decl :: proc(checker: ^Checker, op: ^Op_Code) {

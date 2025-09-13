@@ -75,6 +75,7 @@ Token_Kind :: enum u8 {
     Using            = 100,
     Proc             = 101,
     Dash_Dash_Dash   = 102,
+    Drop             = 103,
     Foreign          = 150,
 }
 
@@ -328,6 +329,7 @@ get_token_kind_from_string :: proc(s: string) -> (Token_Kind) {
 
     case "proc":   return .Proc
     case "using":  return .Using
+    case "drop":   return .Drop
     }
 
     return .EOF

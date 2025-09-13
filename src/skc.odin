@@ -13,6 +13,9 @@ NAME_FULL     :: "The Stańczyk Compiler"
 VERSION_MAJOR :: "0"
 VERSION_MINOR :: "7"
 
+ARGUMENT_PREFIX :: "arg"
+REGISTER_PREFIX :: "reg"
+
 Fatal_Error_Kind :: enum u8 {
     None      = 0,
     Compiler  = 1,
@@ -40,7 +43,6 @@ output_filename:   string
 total_lines_count: int
 source_files:      [dynamic]File_Info
 program_bytecode:  [dynamic]^Op_Code
-program_ast:       [dynamic]^Ast
 
 // Defaults
 switch_debug := true
@@ -108,9 +110,9 @@ main :: proc() {
     gen_program()
     codegen_time := time.duration_milliseconds(time.tick_lap_time(&accumulator))
 
-    fmt.printfln("\n========\n")
-    for op, index in program_bytecode do print_op_debug(op)
-    fmt.printfln("========\n")
+    //fmt.printfln("\n========\n")
+    //for op, index in program_bytecode do print_op_debug(op)
+    //fmt.printfln("========\n")
 
     print_magenta("\t[Lines processed]     ")
     fmt.printfln("{}", total_lines_count)
