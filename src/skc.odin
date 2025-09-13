@@ -111,6 +111,10 @@ main :: proc() {
     gen_program()
     print_magenta("\t[Code generation]     ")
     fmt.printfln("%.6fms", time.duration_milliseconds(time.tick_lap_time(&accumulator)))
+
+    fmt.printfln("\n========\n")
+    for op, index in program_bytecode do print_op_debug(op)
+    fmt.printfln("========\n")
 }
 
 add_source_file :: proc(directory, filename: string) {

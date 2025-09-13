@@ -43,70 +43,122 @@ gen_end_scope :: proc(gen: ^Generator, visible := true) {
     }
 }
 
-gen_ast :: proc(gen: ^Generator, ast: ^Ast) {
-    switch variant in ast.variant {
-    case Ast_Builtin:
-        gen_printf(gen, "{}(", variant.cname)
-        for arg, index in variant.arguments {
-            gen_ast(gen, arg)
-            if index < len(variant.arguments)-1 {
-                gen_print(gen, ",")
-            }
+gen_register :: proc(gen: ^Generator, reg: ^Register) {
+    gen_printf(gen, "{}{}", reg.prefix, reg.ip)
+}
+
+gen_proc_signature :: proc(gen: ^Generator, op: ^Op_Code) {
+    variant := op.variant.(Op_Proc_Decl)
+    // TODO(nawe) do results
+    gen_printf(gen, "static void {}(", variant.cname)
+    for child, index in variant.arguments {
+        gen_printf(gen, "{} ", type_to_cname(child.type))
+        gen_register(gen, child.register)
+
+        if index < len(variant.arguments)-1 {
+            gen_print(gen, ", ")
         }
-        gen_print(gen, ")")
+    }
+    gen_print(gen, ")")
+}
 
-    case Ast_Basic_Literal: gen_basic_literal(gen, ast)
-    case Ast_Binary:        gen_binary       (gen, ast)
-    case Ast_Block:         gen_block        (gen, ast)
-    case Ast_Proc_Decl:     gen_proc_decl    (gen, ast)
+gen_op :: proc(gen: ^Generator, op: ^Op_Code) {
+    switch variant in op.variant {
+    case Op_Proc_Decl:     // skipped
+    case Op_Push_Constant: gen_op_push_constant(gen, op)
+
+    case Op_Identifier:  gen_op_identifier (gen, op)
+    case Op_Type_Lit:    gen_op_type_lit   (gen, op)
+    case Op_Binary_Expr: gen_op_binary_expr(gen, op)
+    case Op_Return:      gen_op_return     (gen, op)
     }
 }
 
-gen_basic_literal :: proc(gen: ^Generator, ast: ^Ast) {
-    value := ast.variant.(Ast_Basic_Literal)
+gen_op_push_constant :: proc(gen: ^Generator, op: ^Op_Code) {
+    variant := op.variant.(Op_Push_Constant)
+    assert(op.register != nil)
 
-    switch v in ast.value {
-    case bool:    gen_printf(gen, "{}", v)
-    case f64:     gen_printf(gen, "{}", v)
-    case i64:     gen_printf(gen, "{}", v)
-    case u64:     gen_printf(gen, "{}", v)
-    case string:  gen_printf(gen, "{}", v)
-    }
+    gen_register(gen, op.register)
+    gen_printf(gen, "={}", op.value)
 }
 
-gen_binary :: proc(gen: ^Generator, ast: ^Ast) {
-    value := ast.variant.(Ast_Binary)
+gen_op_identifier :: proc(gen: ^Generator, op: ^Op_Code) {
+
 }
 
-gen_block :: proc(gen: ^Generator, ast: ^Ast) {
-    value := ast.variant.(Ast_Block)
+gen_op_type_lit :: proc(gen: ^Generator, op: ^Op_Code) {
 
-    for child in value.body {
-        gen_indent(gen)
-        gen_ast(gen, child)
-        gen_print(gen, ";\n")
-    }
 }
 
-gen_proc_decl :: proc(gen: ^Generator, ast: ^Ast) {
-    value := ast.variant.(Ast_Proc_Decl)
+gen_op_binary_expr :: proc(gen: ^Generator, op: ^Op_Code) {
+    assert(op.register != nil)
+    variant := op.variant.(Op_Binary_Expr)
+
+    gen_register(gen, op.register)
+    gen_print(gen, "=")
+    gen_register(gen, variant.lhs)
+    gen_print(gen, variant.op)
+    gen_register(gen, variant.rhs)
+}
+
+gen_op_proc_decl :: proc(gen: ^Generator, op: ^Op_Code) {
+    variant := op.variant.(Op_Proc_Decl)
 
     gen.source = &gen.defs
-    gen_printf(gen, "static void {}();\n", value.cname)
+    gen_proc_signature(gen, op)
+    gen_printf(gen, ";\n")
 
     gen.source = &gen.code
-    gen_printf(gen, "static void {}()\n", value.cname)
+    gen_proc_signature(gen, op)
+    gen_printf(gen, "\n")
+
     gen_begin_scope(gen)
-    gen_ast(gen, value.body)
+
+    for key, array in variant.registers {
+        gen_indent(gen)
+        gen_printf(gen, "{} ", type_to_cname(key))
+
+        for &reg, index in array {
+            gen_register(gen, &reg)
+
+            if index < len(array)-1 {
+                gen_print(gen, ", ")
+            } else {
+                gen_print(gen, ";\n")
+            }
+        }
+    }
+
+    for child in variant.body {
+        gen_indent(gen)
+        gen_op(gen, child)
+        gen_print(gen, ";\n")
+    }
+
     gen_end_scope(gen)
+}
+
+gen_op_return :: proc(gen: ^Generator, op: ^Op_Code) {
+
+}
+
+gen_procs_recursive :: proc(gen: ^Generator, op: ^Op_Code) {
+    if proc_op, is_proc_decl := op.variant.(Op_Proc_Decl); is_proc_decl {
+        gen_op_proc_decl(gen, op)
+
+        for child in proc_op.body {
+            gen_procs_recursive(gen, child)
+        }
+    }
 }
 
 gen_program :: proc() {
     gen := new(Generator)
     gen.code = strings.builder_make()
 
-    gen.source = &gen.code
-    for ast in program_ast do gen_ast(gen, ast)
+    for op in program_bytecode {
+        gen_procs_recursive(gen, op)
+    }
 
     write_file(gen)
 }

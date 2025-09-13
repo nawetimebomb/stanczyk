@@ -3,43 +3,36 @@ package main
 import "core:strings"
 
 Ast :: struct {
+    ip:         uint,
     token:      Token,
+    op_code:    ^Op_Code,
+
     type:       ^Type,
     value:      Value,
     variant:    Ast_Variant,
 }
 
-Value :: union {
-    bool,
-    f64,
-    i64,
-    u64,
-    string,
-}
-
 Ast_Variant :: union {
     Ast_Builtin,
-
     Ast_Basic_Literal,
-    Ast_Binary,
-    Ast_Block,
+
     Ast_Proc_Decl,
+
+    Ast_Binary_Expr,
+
+    Ast_Block_Stmt,
 }
 
-Ast_Basic_Literal :: struct {
-    token: Token,
-}
+Ast_Basic_Literal :: struct {}
 
-Ast_Binary :: struct {
+Ast_Binary_Expr :: struct {
     lhs: ^Ast,
     rhs: ^Ast,
     op:  string,
 }
 
-Ast_Block :: struct {
-    open:  Token,
-    close: Token,
-    body:  [dynamic]^Ast,
+Ast_Block_Stmt :: struct {
+    body:  []^Ast,
 }
 
 Ast_Builtin :: struct {
@@ -48,13 +41,13 @@ Ast_Builtin :: struct {
 }
 
 Ast_Proc_Decl :: struct {
-    name:      string,
-    cname:     string,
-    body:      ^Ast,
-    type:      ^Ast,
+    name:   string,
+    cname:  string,
+    body:   ^Ast,
+    type:   ^Ast,
 
-    entity:    ^Entity,
-    scope:     ^Scope,
+    entity: ^Entity,
+    scope:  ^Scope,
 }
 
 Ast_Proc_Type :: struct {

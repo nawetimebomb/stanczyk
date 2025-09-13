@@ -9,11 +9,14 @@ Type :: struct {
 
 Type_Variant :: union {
     Type_Basic,
+    Type_Id,
 }
 
 Type_Basic :: struct {
     kind: Type_Basic_Kind,
 }
+
+Type_Id :: struct {}
 
 Type_Basic_Kind :: enum {
     Bool,
@@ -33,6 +36,7 @@ init_types :: proc() {
     append(&types, new_clone(Type{size=8, name="int",     variant=Type_Basic{.Int}}))
     append(&types, new_clone(Type{size=8, name="string",  variant=Type_Basic{.String}}))
     append(&types, new_clone(Type{size=8, name="uint",    variant=Type_Basic{.Uint}}))
+    append(&types, new_clone(Type{size=8, name="typeid",  variant=Type_Id{}}))
 }
 
 get_type_basic :: proc(kind: Type_Basic_Kind) -> ^Type {
@@ -63,6 +67,9 @@ types_are_equal :: proc(t1, t2: ^Type) -> bool {
     case Type_Basic:
         t2v, ok := t2.variant.(Type_Basic)
         return ok && variant.kind == t2v.kind
+    case Type_Id:
+        _, ok := t2.variant.(Type_Id)
+        return ok
     }
 
     return false
@@ -80,7 +87,21 @@ type_to_string :: proc(t: ^Type) -> string {
         case .String: return "string"
         case .Uint:   return "uint"
         }
+    case Type_Id:     return "typeid"
     }
 
     return "unreachable"
+}
+
+type_to_cname :: proc(t: ^Type) -> string {
+    if t == nil do return "TODO"
+    #partial switch variant in t.variant {
+    case Type_Basic:
+        #partial switch variant.kind {
+        case .Int:    return "s64"
+        case .String: return "string"
+        }
+    }
+
+    return "TODO"
 }

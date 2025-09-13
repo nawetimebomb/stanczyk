@@ -34,10 +34,6 @@ Token_Kind :: enum u8 {
     Invalid          = 0,
     EOF              = 1,
 
-    // we tokenize this because we may need it when reporting errors
-    Comment          = 2,
-
-
     // Basic Type Values
     Identifier       = 10,
     Integer          = 11,
@@ -80,9 +76,6 @@ Token_Kind :: enum u8 {
     Proc             = 101,
     Dash_Dash_Dash   = 102,
     Foreign          = 150,
-
-    // To delete
-    Print            = 255,
 }
 
 init_lexer :: proc(parser: ^Parser) {
@@ -243,13 +236,7 @@ get_next_token :: proc(l: ^Lexer) -> (token: Token) {
     }
 
     tokenize_slash :: proc(l: ^Lexer, token: ^Token) {
-        token.kind = .Slash
-        advance(l)
-        if get_byte(l) == '/' {
-            // is a comment
-            token.kind = .Comment
-            for !is_eof(l) && get_byte(l) != '\n' do advance(l)
-        }
+
     }
 
     maybe_is_a_keyword :: proc(token: ^Token) -> bool {
@@ -290,7 +277,13 @@ get_next_token :: proc(l: ^Lexer) -> (token: Token) {
 
     switch l.data[l.offset] {
     case '0'..='9': tokenize_number(l, &token)
-    case '/':       tokenize_slash(l, &token)
+    case '/':
+        token.kind = .Slash
+        advance(l)
+        if get_byte(l) == '/' {
+            for !is_eof(l) && get_byte(l) != '\n' do advance(l)
+            return get_next_token(l)
+        }
     case '-':       tokenize_minus(l, &token)
     case '#':       tokenize_directive(l, &token)
     case '{':       token.kind = .Brace_Left;    advance(l)
@@ -335,8 +328,6 @@ get_token_kind_from_string :: proc(s: string) -> (Token_Kind) {
 
     case "proc":   return .Proc
     case "using":  return .Using
-
-    case "print":  return .Print
     }
 
     return .EOF

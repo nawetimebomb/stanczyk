@@ -8,14 +8,14 @@ PARSER_IDENTIFIER_IN_FILE_SCOPE :: "We found an attempt to use an identifier sta
 PARSER_OPERATOR_IN_FILE_SCOPE   :: "We found an operator in file scope."
 PARSER_VALUE_IN_FILE_SCOPE      :: "We found an attempt to stack a value from file scope, this is not allowed."
 PARSER_FOREIGN_MISPLACED        :: "#foreign can only be used in procedures with no bodies."
-PARSER_UNEXPECTED_TOKEN         :: "Unexpected token {} while in {} scope."
+PARSER_UNEXPECTED_TOKEN :: "Unexpected token {}."
+PARSER_UNEXPECTED_EOF   :: "Unexpected end of file found."
+PARSER_INVALID_NUMBER   :: "Found an invalid number."
+PARSER_COMPILER_ERROR   :: "Compiler error"
 
-Parsing_Scope_Kind :: enum u8 {
-    File = 0,
-
-    Procedure_Arguments = 1,
-    Procedure_Results   = 2,
-    Procedure_Body      = 3,
+Parsing_Context_Kind :: enum u8 {
+    File      = 0,
+    Procedure = 1,
 }
 
 Parser :: struct {
@@ -26,15 +26,14 @@ Parser :: struct {
     prev_token:        Token,
     curr_token:        Token,
     lexer:             Lexer,
-    scope:             ^Parsing_Scope,
-    file_scope:        ^Parsing_Scope,
+    current_context:     ^Parsing_Context,
+    file_context:      ^Parsing_Context,
 }
 
-Parsing_Scope :: struct {
+Parsing_Context :: struct {
     proc_decl:  ^Op_Proc_Decl,
-    body:       ^[dynamic]^Op_Code,
-    kind:       Parsing_Scope_Kind,
-    previous:   ^Parsing_Scope,
+    kind:       Parsing_Context_Kind,
+    previous:   ^Parsing_Context,
     ip_counter: int,
 }
 
@@ -59,27 +58,33 @@ parser_fatal_error :: proc(parser: ^Parser) {
     )
 }
 
-write_op_code :: proc(parser: ^Parser, token: Token, variant: Op_Variant) {
-    op := new(Op_Code)
-    op.local_ip = parser.scope.ip_counter
-    op.token    = token
-    op.variant  = variant
-    append(parser.scope.body, op)
-    parser.scope.ip_counter += 1
+is_eof :: proc(parser: ^Parser) -> bool {
+    return parser.prev_token.kind == .EOF
 }
 
-push_parser_scope :: proc(parser: ^Parser, kind: Parsing_Scope_Kind, body: ^[dynamic]^Op_Code) -> ^Parsing_Scope {
-    new_scope := new(Parsing_Scope)
-    new_scope.body     = body
+create_op_code :: proc(parser: ^Parser, token: Token) -> ^Op_Code {
+    op := new(Op_Code)
+    op.token = token
+    op.local_ip = parser.current_context.ip_counter
+    parser.current_context.ip_counter += 1
+    return op
+}
+
+write_op_code :: proc(chunk: ^[dynamic]^Op_Code, op: ^Op_Code) {
+    append(chunk, op)
+}
+
+push_parsing_context :: proc(parser: ^Parser, kind: Parsing_Context_Kind) -> ^Parsing_Context {
+    new_scope := new(Parsing_Context)
     new_scope.kind     = kind
-    new_scope.previous = parser.scope
-    parser.scope = new_scope
+    new_scope.previous = parser.current_context
+    parser.current_context = new_scope
     return new_scope
 }
 
-pop_scope :: proc(parser: ^Parser) {
-    old_scope := parser.scope
-    parser.scope = old_scope.previous
+pop_parsing_context :: proc(parser: ^Parser) {
+    old_scope := parser.current_context
+    parser.current_context = old_scope.previous
 }
 
 allow :: proc(parser: ^Parser, kind: Token_Kind) -> bool {
@@ -119,16 +124,21 @@ parse_file :: proc(file_info: ^File_Info) {
     parser := new(Parser)
     parser.file_info = file_info
 
-    parser.file_scope = push_parser_scope(parser, .File, &program_bytecode)
-    parser.scope = parser.file_scope
+    parser.file_context = push_parsing_context(parser, .File)
+    parser.current_context = parser.file_context
 
     init_lexer(parser)
     next(parser)
 
-    for {
+    main_loop: for !is_eof(parser) {
+        if allow(parser, .EOF) {
+            break main_loop
+        }
+
         parser.error_in_context = false
-        should_leave := parse_expression(parser)
-        if should_leave do break
+        op := parse_expression(parser)
+        if op == nil do break
+        write_op_code(&program_bytecode, op)
     }
 
     if len(parser.errors) > 0 {
@@ -137,170 +147,257 @@ parse_file :: proc(file_info: ^File_Info) {
 
     total_lines_count += parser.lexer.line
 
-    //fmt.printfln("\n======== {}\n", parser.file_info.filename)
-    //for op, index in program_bytecode do print_op_debug(op)
-    //fmt.printfln("======== {}\n", parser.file_info.filename)
+    pop_parsing_context(parser)
 
-    pop_scope(parser)
-
-    assert(parser.scope == nil)
+    assert(parser.current_context == nil)
     free(parser)
 }
 
-parse_expression :: proc(parser: ^Parser) -> (should_leave: bool) {
+parse_expression :: proc(parser: ^Parser) -> ^Op_Code {
     token := next(parser)
 
     switch token.kind {
     case .Invalid:
-        parser_error(parser, "Invalid token found {}", token.text)
+        parser_error(parser, PARSER_UNEXPECTED_TOKEN, token.text)
+        return nil
 
     case .Dash_Dash_Dash:
-        // special case because this is only
-        // allowed when parsing arguments
-        if parser.scope.body != &parser.scope.proc_decl.arguments {
-            parser_error(
-                parser, PARSER_UNEXPECTED_TOKEN, token.text, parser.scope.kind,
-            )
-        }
-        return true
+        parser_error(parser, PARSER_UNEXPECTED_TOKEN, token.text)
+        return nil
 
-    case .EOF:                 return true
-    case .Semicolon:           return true
-    case .Paren_Left:          return true
-    case .Paren_Right:         return true
-    case .Comment:             return false
+    case .EOF:
+        parser_error(parser, PARSER_UNEXPECTED_EOF)
+        return nil
 
+    case .Semicolon:
+        parser_error(parser, PARSER_COMPILER_ERROR)
+        return nil
 
-    case .Identifier:          parse_identifier(parser, token)
-    case .Integer:             parse_value     (parser, token)
-    case .Unsigned_Integer:    parse_value     (parser, token)
-    case .Float:               parse_value     (parser, token)
-    case .Hex:                 parse_value     (parser, token)
-    case .Binary:              parse_value     (parser, token)
-    case .Octal:               parse_value     (parser, token)
-    case .String:              parse_value     (parser, token)
-    case .Char:                parse_value     (parser, token)
-    case .True:                parse_value     (parser, token)
-    case .False:               parse_value     (parser, token)
-    case .Type_Int:            parse_type      (parser, token)
-    case .Type_Uint:           parse_type      (parser, token)
-    case .Type_Float:          parse_type      (parser, token)
-    case .Type_Bool:           parse_type      (parser, token)
-    case .Type_String:         parse_type      (parser, token)
-    case .Brace_Left:          unimplemented()
-    case .Brace_Right:         unimplemented()
-    case .Bracket_Left:        unimplemented()
-    case .Bracket_Right:       unimplemented()
-    case .Minus:               parse_binary    (parser, token)
-    case .Plus:                parse_binary    (parser, token)
-    case .Star:                parse_binary    (parser, token)
-    case .Slash:               parse_binary    (parser, token)
-    case .Percent:             parse_binary    (parser, token)
-    case .Using:               unimplemented()
-    case .Proc:                parse_proc_decl (parser, token)
-    case .Foreign:             parse_foreign   (parser, token); return true
+    case .Paren_Left:
+        parser_error(parser, PARSER_COMPILER_ERROR)
+        return nil
 
-    case .Print:
-        write_op_code(parser, token, Op_Print{})
+    case .Paren_Right:
+        parser_error(parser, PARSER_COMPILER_ERROR)
+        return nil
+
+    case .Identifier:
+        return parse_identifier(parser, token)
+
+    case .Integer:
+        return parse_integer(parser, token)
+
+    case .Unsigned_Integer:
+        unimplemented()
+
+    case .Float:
+        unimplemented()
+
+    case .Hex:
+        unimplemented()
+
+    case .Binary:
+        unimplemented()
+
+    case .Octal:
+        unimplemented()
+
+    case .String:
+        unimplemented()
+
+    case .Char:
+        unimplemented()
+
+    case .True:
+        unimplemented()
+
+    case .False:
+        unimplemented()
+
+    case .Type_Int:
+        return parse_literal_type(parser, token)
+
+    case .Type_Uint:
+        return parse_literal_type(parser, token)
+
+    case .Type_Float:
+        return parse_literal_type(parser, token)
+
+    case .Type_Bool:
+        return parse_literal_type(parser, token)
+
+    case .Type_String:
+        return parse_literal_type(parser, token)
+
+    case .Brace_Left:
+        unimplemented()
+
+    case .Brace_Right:
+        unimplemented()
+
+    case .Bracket_Left:
+        unimplemented()
+
+    case .Bracket_Right:
+        unimplemented()
+
+    case .Minus:
+        return parse_binary_expr(parser, token)
+
+    case .Plus:
+        return parse_binary_expr(parser, token)
+
+    case .Star:
+        return parse_binary_expr(parser, token)
+
+    case .Slash:
+        return parse_binary_expr(parser, token)
+
+    case .Percent:
+        return parse_binary_expr(parser, token)
+
+    case .Using:
+        unimplemented()
+
+    case .Proc:
+        return parse_proc_decl(parser, token)
+
+    case .Foreign:
+        parse_foreign(parser, token)
+
     }
 
-    return false
+    return nil
 }
 
-parse_binary :: proc(parser: ^Parser, token: Token) {
+parse_binary_expr :: proc(parser: ^Parser, token: Token) -> ^Op_Code {
     // not allowed in global scope
-    if parser.scope.kind == .File {
+    if parser.current_context.kind == .File {
         parser_error(parser, PARSER_OPERATOR_IN_FILE_SCOPE)
     }
 
-    write_op_code(parser, token, Op_Binary{token})
+    op := create_op_code(parser, token)
+    op.variant = Op_Binary_Expr{op=token.text}
+    return op
 }
 
 parse_foreign :: proc(parser: ^Parser, token: Token) {
-    if parser.scope.proc_decl == nil {
+    if parser.current_context.proc_decl == nil {
         parser_error(parser, PARSER_FOREIGN_MISPLACED)
     }
 
-    parser.scope.proc_decl.is_foreign = true
+    parser.current_context.proc_decl.is_foreign = true
 
     if allow(parser, .Identifier) {
-        parser.scope.proc_decl.foreign_lib = parser.prev_token
+        parser.current_context.proc_decl.foreign_lib = parser.prev_token
     }
 
     expect(parser, .Semicolon)
 }
 
-parse_proc_decl :: proc(parser: ^Parser, token: Token) {
+parse_proc_decl :: proc(parser: ^Parser, token: Token) -> ^Op_Code {
+    result := create_op_code(parser, token)
     proc_decl := Op_Proc_Decl{}
     proc_decl.name = expect(parser, .Identifier)
 
-    push_parser_scope(parser, .Procedure_Body, &proc_decl.body)
-    parser.scope.proc_decl = &proc_decl
+    push_parsing_context(parser, .Procedure)
+    parser.current_context.proc_decl = &proc_decl
 
-    if allow(parser, .Paren_Left) {
-        parser.scope.kind = .Procedure_Arguments
-        parser.scope.body = &proc_decl.arguments
-
-        for !parser.error_in_context {
-            should_leave := parse_expression(parser)
-            if should_leave do break
-        }
-
-        if was(parser, .Dash_Dash_Dash) {
-            parser.scope.kind = .Procedure_Results
-            parser.scope.body = &proc_decl.results
-
-            for !parser.error_in_context {
-                should_leave := parse_expression(parser)
-                if should_leave do break
-            }
-        }
-
-        parser.scope.kind = .Procedure_Body
-        parser.scope.body = &proc_decl.body
+    if allow(parser, .Paren_Left) && !allow(parser, .Paren_Right) {
+        parse_proc_signature(parser, &proc_decl)
     }
 
-    for !parser.error_in_context {
-        should_leave := parse_expression(parser)
-        if should_leave do break
+    proc_body_loop: for !parser.error_in_context {
+        if allow(parser, .Semicolon) {
+            break proc_body_loop
+        }
+
+        value := parse_expression(parser)
+        write_op_code(&proc_decl.body, value)
     }
 
     if parser.error_in_context {
         for !allow(parser, .Semicolon) && !allow(parser, .EOF) do next(parser)
-        pop_scope(parser)
-        return
+        pop_parsing_context(parser)
+        return nil
     }
 
-    write_op_code(parser, token, Op_Return{})
+    pop_parsing_context(parser)
 
-    pop_scope(parser)
-    write_op_code(parser, token, proc_decl)
+    result.variant = proc_decl
+    return result
 }
 
-parse_identifier :: proc(parser: ^Parser, token: Token) {
+parse_proc_signature :: proc(parser: ^Parser, proc_decl: ^Op_Proc_Decl) {
+    arguments := make([dynamic]^Op_Code)
+    results := make([dynamic]^Op_Code)
+    collection := &arguments
+    IP := 0
+
+    proc_type_loop: for !parser.error_in_context {
+        token := next(parser)
+
+        #partial switch token.kind {
+        case .Dash_Dash_Dash:
+            collection = &results
+        case .Paren_Right:
+            break proc_type_loop
+        case .Identifier:
+            assert(false) // TODO(nawe) support this
+        case .Type_Int, .Type_Uint, .Type_Float, .Type_Bool, .Type_String:
+            op := parse_literal_type(parser, token)
+            op.register = new_clone(Register{prefix="arg", ip=IP, type=op.type})
+            IP += 1
+            append(collection, op)
+        case:
+            assert(false)
+
+        }
+    }
+
+    proc_decl.arguments = arguments[:]
+    proc_decl.results   = results[:]
+}
+
+parse_identifier :: proc(parser: ^Parser, token: Token) -> ^Op_Code {
     // not allowed in global scope
-    if parser.scope.kind == .File {
+    if parser.current_context.kind == .File {
         parser_error(parser, PARSER_IDENTIFIER_IN_FILE_SCOPE)
     }
 
-    write_op_code(parser, token, Op_Identifier{token})
+    op := create_op_code(parser, token)
+    op.variant = Op_Identifier{token}
+    return op
 }
 
-parse_type :: proc(parser: ^Parser, token: Token) {
-    // not allowed in global scope
-    if parser.scope.kind == .File {
-        parser_error(parser, PARSER_IDENTIFIER_IN_FILE_SCOPE)
-    }
-
-    write_op_code(parser, token, Op_Type{token})
+parse_integer :: proc(parser: ^Parser, token: Token) -> ^Op_Code {
+    op := create_op_code(parser, token)
+    op.type = get_type_basic(.Int)
+    value, ok := strconv.parse_i64(stanczyk_number_to_c_number(token.text))
+    if !ok do parser_error(parser, PARSER_INVALID_NUMBER)
+    op.value = value
+    op.variant = Op_Push_Constant{}
+    return op
 }
 
-parse_value :: proc(parser: ^Parser, token: Token) {
-    // not allowed in global scope
-    if parser.scope.kind == .File {
-        parser_error(parser, PARSER_VALUE_IN_FILE_SCOPE)
-        return
+parse_literal_type :: proc(parser: ^Parser, token: Token) -> ^Op_Code {
+    op := create_op_code(parser, token)
+    op.variant = Op_Type_Lit{}
+    op.value = get_type_by_name("typeid")
+
+    #partial switch token.kind {
+    case .Type_Int:    op.type = get_type_basic(.Int)
+    case .Type_Uint:   op.type = get_type_basic(.Uint)
+    case .Type_Float:  op.type = get_type_basic(.Float)
+    case .Type_Bool:   op.type = get_type_basic(.Bool)
+    case .Type_String: op.type = get_type_basic(.String)
     }
 
-    write_op_code(parser, token, Op_Basic_Literal{token})
+    return op
+}
+
+stanczyk_number_to_c_number :: proc(s: string) -> string {
+    b := s[len(s)-1]
+    if b != '.' && !(b >= '0' && b <= '9') do return s[:len(s)-1]
+    return s
 }
