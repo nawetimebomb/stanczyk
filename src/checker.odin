@@ -272,6 +272,7 @@ check_op :: proc(checker: ^Checker, op: ^Op_Code) {
         check_proc_decl(checker, op)
 
     case Op_Return:
+        check_return(checker, op)
     }
 }
 
@@ -295,11 +296,40 @@ check_proc_decl :: proc(checker: ^Checker, op: ^Op_Code) {
         stack_push(checker, checker.scope.stack, arg)
     }
 
-    fmt.println(checker.scope.stack.values)
-
     for child in proc_op.body {
         check_op(checker, child)
     }
     // do stack ops
     pop_proc(checker)
+}
+
+check_return :: proc(checker: ^Checker, op: ^Op_Code) {
+    return_op := op.variant.(Op_Return)
+    stack := checker.scope.stack
+
+    if len(return_op.results) != len(stack.values) {
+        checker_error(
+            checker, op.token,
+            "Mismatched number of results in procedure. Expected {} but got {}",
+            len(return_op.results), len(stack.values),
+        )
+        return
+    }
+
+    for index in 0..<len(stack.values) {
+        stack_value := stack.values[index]
+        result_value := return_op.results[index]
+
+        if !types_are_equal(stack_value.type, result_value.type) {
+            checker_error(
+                checker, op.token,
+                "Mismatched type of results in procedure. Expected '{}' but got '{}'",
+                type_to_string(stack_value.type), type_to_string(result_value.type),
+            )
+            return
+        }
+
+        // set the register to the stack value register so we can return
+        result_value.register = stack_value.register
+    }
 }

@@ -29,6 +29,7 @@ Op_Code :: struct {
 
 Op_Variant :: union {
     Op_Push_Constant,
+    Op_Proc_Decl,
 
     Op_Identifier, // unsure what to do, depends on type checking
 
@@ -36,25 +37,11 @@ Op_Variant :: union {
 
     Op_Binary_Expr,
 
-    Op_Proc_Decl,
 
     Op_Return,
 }
 
 Op_Push_Constant :: struct {}
-
-Op_Identifier :: struct {
-    value: Token,
-}
-
-Op_Type_Lit :: struct {}
-
-
-Op_Binary_Expr :: struct {
-    lhs: ^Register,
-    rhs: ^Register,
-    op:  string,
-}
 
 Op_Proc_Decl :: struct {
     name:        Token,
@@ -71,12 +58,22 @@ Op_Proc_Decl :: struct {
     body:        [dynamic]^Op_Code,
 }
 
-Op_Proc_Type :: struct {
-    arguments: []^Op_Code,
-    results:   []^Type,
+Op_Return :: struct {
+    results: []^Op_Code,
 }
 
-Op_Return :: struct {}
+Op_Identifier :: struct {
+    value: Token,
+}
+
+Op_Type_Lit :: struct {}
+
+
+Op_Binary_Expr :: struct {
+    lhs: ^Register,
+    rhs: ^Register,
+    op:  string,
+}
 
 
 

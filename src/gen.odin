@@ -47,10 +47,23 @@ gen_register :: proc(gen: ^Generator, reg: ^Register) {
     gen_printf(gen, "{}{}", reg.prefix, reg.ip)
 }
 
+gen_result_type :: proc(gen: ^Generator, results: []^Op_Code) {
+    if len(results) == 0 {
+        gen_print(gen, "void")
+    } else if len(results) == 1 {
+        gen_printf(gen, "{}", type_to_cname(results[0].type))
+    } else {
+        // TODO(nawe) register to multi results
+        assert(false)
+    }
+}
+
 gen_proc_signature :: proc(gen: ^Generator, op: ^Op_Code) {
     variant := op.variant.(Op_Proc_Decl)
-    // TODO(nawe) do results
-    gen_printf(gen, "static void {}(", variant.cname)
+    gen_printf(gen, "static ")
+    gen_result_type(gen, variant.results)
+    gen_printf(gen, " {}(", variant.cname)
+
     for child, index in variant.arguments {
         gen_printf(gen, "{} ", type_to_cname(child.type))
         gen_register(gen, child.register)
@@ -139,7 +152,21 @@ gen_op_proc_decl :: proc(gen: ^Generator, op: ^Op_Code) {
 }
 
 gen_op_return :: proc(gen: ^Generator, op: ^Op_Code) {
+    variant := op.variant.(Op_Return)
+    if len(variant.results) == 0 do return
 
+    gen_print(gen, "return ")
+
+    if len(variant.results) == 1 {
+        result := variant.results[0]
+
+        gen_result_type(gen, variant.results)
+        gen_print(gen, "(")
+        gen_register(gen, result.register)
+        gen_print(gen, ")")
+    } else {
+        assert(false)
+    }
 }
 
 gen_procs_recursive :: proc(gen: ^Generator, op: ^Op_Code) {

@@ -10,6 +10,7 @@ PARSER_VALUE_IN_FILE_SCOPE      :: "We found an attempt to stack a value from fi
 PARSER_FOREIGN_MISPLACED        :: "#foreign can only be used in procedures with no bodies."
 PARSER_UNEXPECTED_TOKEN :: "Unexpected token {}."
 PARSER_UNEXPECTED_EOF   :: "Unexpected end of file found."
+PARSER_UNEXPECTED_TOKEN_IN_PROC_SIGNATURE :: "Unexpected token {} while parsing procedure signature."
 PARSER_INVALID_NUMBER   :: "Found an invalid number."
 PARSER_COMPILER_ERROR   :: "Compiler error"
 
@@ -322,6 +323,10 @@ parse_proc_decl :: proc(parser: ^Parser, token: Token) -> ^Op_Code {
         return nil
     }
 
+    return_op := create_op_code(parser, parser.prev_token)
+    return_op.variant = Op_Return{results=proc_decl.results[:]}
+    write_op_code(&proc_decl.body, return_op)
+
     pop_parsing_context(parser)
 
     result.variant = proc_decl
@@ -331,26 +336,41 @@ parse_proc_decl :: proc(parser: ^Parser, token: Token) -> ^Op_Code {
 parse_proc_signature :: proc(parser: ^Parser, proc_decl: ^Op_Proc_Decl) {
     arguments := make([dynamic]^Op_Code)
     results := make([dynamic]^Op_Code)
-    collection := &arguments
     IP := 0
+    maybe_has_results := false
 
-    proc_type_loop: for !parser.error_in_context {
+    proc_args: for {
         token := next(parser)
-
         #partial switch token.kind {
-        case .Dash_Dash_Dash:
-            collection = &results
-        case .Paren_Right:
-            break proc_type_loop
+        case .Dash_Dash_Dash, .Paren_Right:
+            maybe_has_results = token.kind == .Dash_Dash_Dash
+            break proc_args
         case .Identifier:
             assert(false) // TODO(nawe) support this
         case .Type_Int, .Type_Uint, .Type_Float, .Type_Bool, .Type_String:
             op := parse_literal_type(parser, token)
             op.register = new_clone(Register{prefix="arg", ip=IP, type=op.type})
             IP += 1
-            append(collection, op)
+            append(&arguments, op)
         case:
-            assert(false)
+            parser_error(parser, PARSER_UNEXPECTED_TOKEN_IN_PROC_SIGNATURE, token.text)
+            return
+        }
+    }
+
+    if maybe_has_results {
+        proc_results: for {
+            token := next(parser)
+
+            #partial switch token.kind {
+            case .Paren_Right:
+                break proc_results
+            case .Type_Int, .Type_Uint, .Type_Float, .Type_Bool, .Type_String:
+                append(&results, parse_literal_type(parser, token))
+            case:
+                parser_error(parser, PARSER_UNEXPECTED_TOKEN_IN_PROC_SIGNATURE, token.text)
+                return
+            }
 
         }
     }

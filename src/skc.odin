@@ -101,20 +101,23 @@ main :: proc() {
     }
 
     free_all(context.temp_allocator)
-    print_magenta("\t[Lines processed]     ")
-    fmt.printfln("{}", total_lines_count)
 
     check_program_bytecode()
-    print_magenta("\t[Compiler Front-end]  ")
-    fmt.printfln("%.6fms", time.duration_milliseconds(time.tick_lap_time(&accumulator)))
+    frontend_time := time.duration_milliseconds(time.tick_lap_time(&accumulator))
 
     gen_program()
-    print_magenta("\t[Code generation]     ")
-    fmt.printfln("%.6fms", time.duration_milliseconds(time.tick_lap_time(&accumulator)))
+    codegen_time := time.duration_milliseconds(time.tick_lap_time(&accumulator))
 
     fmt.printfln("\n========\n")
     for op, index in program_bytecode do print_op_debug(op)
     fmt.printfln("========\n")
+
+    print_magenta("\t[Lines processed]     ")
+    fmt.printfln("{}", total_lines_count)
+    print_magenta("\t[Compiler Front-end]  ")
+    fmt.printfln("%.6fms", frontend_time)
+    print_magenta("\t[Code generation]     ")
+    fmt.printfln("%.6fms", codegen_time)
 }
 
 add_source_file :: proc(directory, filename: string) {
