@@ -114,10 +114,7 @@ main :: proc() {
         compiler.basic_types[v.kind] = &t
     }
 
-    create_entity("print", nil, Entity_Builtin{
-        foreign_name = "internal_print",
-        arguments    = {compiler.basic_types[.Int]},
-    })
+    register_builtin_print_entity()
 
     accumulator := time.tick_now()
     add_source_file(working_dir, os.args[1])
@@ -183,4 +180,10 @@ is_global_scope :: proc() -> bool {
 
 has_error :: #force_inline proc() -> bool {
     return compiler.error_reported
+}
+
+make_token :: proc(text: string) -> Token {
+    result: Token
+    result.text = text
+    return result
 }

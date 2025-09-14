@@ -28,15 +28,8 @@ Entity :: struct {
 }
 
 Entity_Variant :: union {
-    Entity_Builtin,
     Entity_Procedure,
     Entity_Type,
-}
-
-Entity_Builtin :: struct {
-    foreign_name: string,
-    arguments:    []^Type,
-    results:      []^Type,
 }
 
 Entity_Procedure :: struct {}
@@ -154,7 +147,7 @@ check_op :: proc(op: ^Op_Code) {
     case Op_Constant:
         stack_push(compiler.current_scope.stack, op)
     case Op_Proc_Call:
-        check_proc_call(op)
+        check_op_proc_call(op)
         // maybe not needed?
     case Op_Plus:
         v2 := stack_pop(compiler.current_scope.stack, op.token)
@@ -169,7 +162,7 @@ check_op :: proc(op: ^Op_Code) {
         check_return(op)
 
     case Op_Proc_Decl:
-        check_proc_decl(op)
+        check_op_proc_decl(op)
 
     case Op_Type_Lit:
 
@@ -194,29 +187,6 @@ check_binary_expr :: proc(op: ^Op_Code) {
 }
 
 check_identifier :: proc(op: ^Op_Code) {
-    _stack_checks_failed :: proc(token: Token, stack: ^Stack, params: []^Type) -> bool {
-        if len(stack.values) < len(params) {
-            checker_error(token, CHECKER_NOT_ENOUGH_VALUES_IN_STACK)
-            return true
-        }
-        stack_needed := stack.values[len(stack.values) - len(params):]
-
-        for index in 0..<len(stack_needed) {
-            stack_value := stack_needed[index]
-            arg_type := params[index]
-
-            if !types_are_equal(stack_value.type, arg_type) {
-                checker_error(
-                    token, CHECKER_MISMATCHED_TYPE_PROC_ARGS,
-                    type_to_string(arg_type), type_to_string(stack_value.type),
-                )
-                return true
-            }
-        }
-
-        return false
-    }
-
     name := op.variant.(Op_Identifier).value.text
     matches := find_entity(name, true)
 
@@ -231,86 +201,13 @@ check_identifier :: proc(op: ^Op_Code) {
         stack := compiler.current_scope.stack
 
         switch variant in entity.variant {
-        case Entity_Builtin:
-            proc_call := Op_Proc_Call{}
-            proc_call.foreign_name = variant.foreign_name
-            proc_call.entity = entity
-
-            if _stack_checks_failed(op.token, stack, variant.arguments) {
-                return
-            }
-
-            if len(variant.arguments) > 0 {
-                arguments_for_call := make([dynamic]^Op_Code)
-
-                for index in 0..<len(variant.arguments) {
-                    v := stack_pop(stack, op.token)
-                    inject_at(&arguments_for_call, 0, v)
-                }
-
-                proc_call.arguments = arguments_for_call[:]
-            }
-
-            if len(variant.results) > 0 {
-                results_from_call := make([dynamic]^Op_Code)
-
-                for type in variant.results {
-                    new_result := new(Op_Code)
-                    new_result.token = op.token
-                    new_result.type = type
-                    new_result.register = nil
-                    new_result.variant = Op_Type_Lit{}
-                    stack_push(stack, new_result)
-                    append(&results_from_call, new_result)
-                }
-
-                proc_call.results = results_from_call[:]
-            }
-
-            op.variant = proc_call
-
         case Entity_Procedure:
             proc_decl := entity.op_code.variant.(Op_Proc_Decl)
-            proc_call := Op_Proc_Call{}
-            proc_call.foreign_name = proc_decl.foreign_name
-            proc_call.entity = entity
-
-            if len(proc_decl.arguments) > 0 {
-                arguments_for_call := make([dynamic]^Op_Code)
-                temp_params_array := make([dynamic]^Type, context.temp_allocator)
-
-                for arg in proc_decl.arguments {
-                    append(&temp_params_array, arg.type)
-                }
-
-                if _stack_checks_failed(op.token, stack, temp_params_array[:]) {
-                    return
-                }
-
-                delete(temp_params_array)
-
-                for index in 0..<len(proc_decl.arguments) {
-                    v := stack_pop(stack, op.token)
-                    inject_at(&arguments_for_call, 0, v)
-                }
-
-                proc_call.arguments = arguments_for_call[:]
+            op.variant = Op_Proc_Call{
+                foreign_name = proc_decl.foreign_name,
+                entity = entity,
             }
-
-            if len(proc_decl.results) > 0 {
-                results_from_call := make([dynamic]^Op_Code)
-
-                for result in proc_decl.results {
-                    new_result := new_clone(result^)
-                    new_result.register = nil
-                    stack_push(stack, new_result)
-                    append(&results_from_call, new_result)
-                }
-
-                proc_call.results = results_from_call[:]
-            }
-
-            op.variant = proc_call
+            check_op_proc_call(op)
         case Entity_Type: assert(false)
         }
     } else {
@@ -319,8 +216,8 @@ check_identifier :: proc(op: ^Op_Code) {
     }
 }
 
-check_proc_call :: proc(op: ^Op_Code) {
-    _stack_checks_failed :: proc(token: Token, stack: ^Stack, params: []^Type) -> bool {
+check_op_proc_call :: proc(op: ^Op_Code) {
+    _stack_checks_failed :: proc(token: Token, stack: ^Stack, params: []^Op_Code) -> bool {
         if len(stack.values) < len(params) {
             checker_error(token, CHECKER_NOT_ENOUGH_VALUES_IN_STACK)
             return true
@@ -329,12 +226,12 @@ check_proc_call :: proc(op: ^Op_Code) {
 
         for index in 0..<len(stack_needed) {
             stack_value := stack_needed[index]
-            arg_type := params[index]
+            arg_value := params[index]
 
-            if !types_are_equal(stack_value.type, arg_type) {
+            if !types_are_equal(stack_value.type, arg_value.type) {
                 checker_error(
                     token, CHECKER_MISMATCHED_TYPE_PROC_ARGS,
-                    type_to_string(arg_type), type_to_string(stack_value.type),
+                    type_to_string(arg_value.type), type_to_string(stack_value.type),
                 )
                 return true
             }
@@ -347,54 +244,15 @@ check_proc_call :: proc(op: ^Op_Code) {
     stack := compiler.current_scope.stack
 
     #partial switch variant in proc_call.entity.variant {
-    case Entity_Builtin:
-        if _stack_checks_failed(op.token, stack, variant.arguments) {
-            return
-        }
-
-        if len(variant.arguments) > 0 {
-            arguments_for_call := make([dynamic]^Op_Code)
-
-            for index in 0..<len(variant.arguments) {
-                v := stack_pop(stack, op.token)
-                inject_at(&arguments_for_call, 0, v)
-            }
-
-            proc_call.arguments = arguments_for_call[:]
-        }
-
-        if len(variant.results) > 0 {
-            results_from_call := make([dynamic]^Op_Code)
-
-            for type in variant.results {
-                new_result := new(Op_Code)
-                new_result.token = op.token
-                new_result.type = type
-                new_result.register = nil
-                new_result.variant = Op_Type_Lit{}
-                stack_push(stack, new_result)
-                append(&results_from_call, new_result)
-            }
-
-            proc_call.results = results_from_call[:]
-        }
-
     case Entity_Procedure:
         proc_decl := proc_call.entity.op_code.variant.(Op_Proc_Decl)
 
         if len(proc_decl.arguments) > 0 {
             arguments_for_call := make([dynamic]^Op_Code)
-            temp_params_array := make([dynamic]^Type, context.temp_allocator)
 
-            for arg in proc_decl.arguments {
-                append(&temp_params_array, arg.type)
-            }
-
-            if _stack_checks_failed(op.token, stack, temp_params_array[:]) {
+            if _stack_checks_failed(op.token, stack, proc_decl.arguments) {
                 return
             }
-
-            delete(temp_params_array)
 
             for index in 0..<len(proc_decl.arguments) {
                 v := stack_pop(stack, op.token)
@@ -419,7 +277,7 @@ check_proc_call :: proc(op: ^Op_Code) {
     }
 }
 
-check_proc_decl :: proc(op: ^Op_Code) {
+check_op_proc_decl :: proc(op: ^Op_Code) {
     proc_op := op.variant.(Op_Proc_Decl)
 
     push_proc(proc_op.scope)

@@ -443,11 +443,6 @@ parse_identifier :: proc(token: Token) -> ^Op_Code {
         entity := matches[0]
 
         switch variant in entity.variant {
-        case Entity_Builtin:
-            proc_call := Op_Proc_Call{}
-            proc_call.foreign_name = variant.foreign_name
-            proc_call.entity = entity
-            op.variant = proc_call
         case Entity_Procedure:
             proc_decl := entity.op_code.variant.(Op_Proc_Decl)
             proc_call := Op_Proc_Call{}
