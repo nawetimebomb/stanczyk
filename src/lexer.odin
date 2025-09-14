@@ -48,13 +48,6 @@ Token_Kind :: enum u8 {
     False            = 20,
 
 
-    // Basic Type Names
-    Type_Int         = 30,
-    Type_Uint        = 31,
-    Type_Float       = 32,
-    Type_Bool        = 33,
-    Type_String      = 34,
-
 
     // Single character tokens
     Semicolon        = 40,
@@ -79,16 +72,21 @@ Token_Kind :: enum u8 {
     Foreign          = 150,
 }
 
-init_lexer :: proc(parser: ^Parser) {
-    parser.lexer.file_info = parser.file_info
-    parser.lexer.data      = parser.file_info.source
-    parser.lexer.filename  = filepath.short_stem(parser.file_info.filename)
-    parser.lexer.fullpath  = parser.file_info.fullpath
-    parser.lexer.column    = 0
-    parser.lexer.line      = 1
-    parser.lexer.offset    = 0
+init_lexer :: proc() {
+    file_info := compiler.parser.file_info
+    lexer := Lexer{}
 
-    append(&parser.file_info.line_starts, 0)
+    lexer.file_info = file_info
+    lexer.data      = file_info.source
+    lexer.filename  = filepath.short_stem(file_info.filename)
+    lexer.fullpath  = file_info.fullpath
+    lexer.column    = 0
+    lexer.line      = 1
+    lexer.offset    = 0
+
+    compiler.parser.lexer = lexer
+
+    append(&file_info.line_starts, 0)
 }
 
 destroy_lexer :: proc(parser: ^Parser) {
@@ -320,12 +318,6 @@ get_token_kind_from_string :: proc(s: string) -> (Token_Kind) {
     switch s {
     case "false":  return .False
     case "true":   return .True
-
-    case "bool":   return .Type_Bool
-    case "float":  return .Type_Float
-    case "int":    return .Type_Int
-    case "string": return .Type_String
-    case "uint":   return .Type_Uint
 
     case "proc":   return .Proc
     case "using":  return .Using

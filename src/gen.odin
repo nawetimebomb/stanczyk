@@ -54,7 +54,7 @@ gen_multiresult_str :: proc(gen: ^Generator, params: []^Op_Code) -> string {
     strings.write_string(&result, "multi_")
 
     for param, index in params {
-        strings.write_string(&result, type_to_cname(param.type))
+        strings.write_string(&result, type_to_foreign_name(param.type))
         if index < len(params)-1 do strings.write_string(&result, "_")
     }
 
@@ -67,7 +67,7 @@ gen_multiresult_str :: proc(gen: ^Generator, params: []^Op_Code) -> string {
 
         fmt.sbprintf(&gen.multi, "typedef struct {} {{\n", result_str)
         for param, index in params {
-            fmt.sbprintf(&gen.multi, "\t{} {}{};\n", type_to_cname(param.type), MULTI_RESULT_PREFIX, index)
+            fmt.sbprintf(&gen.multi, "\t{} {}{};\n", type_to_foreign_name(param.type), MULTI_RESULT_PREFIX, index)
         }
         fmt.sbprintf(&gen.multi, "} {};\n", result_str)
 
@@ -85,7 +85,7 @@ gen_result_type :: proc(gen: ^Generator, results: []^Op_Code) {
     if len(results) == 0 {
         gen_print(gen, "void")
     } else if len(results) == 1 {
-        gen_printf(gen, "{}", type_to_cname(results[0].type))
+        gen_printf(gen, "{}", type_to_foreign_name(results[0].type))
     } else {
         gen_printf(gen, "{}", gen_multiresult_str(gen, results))
     }
@@ -95,10 +95,10 @@ gen_proc_signature :: proc(gen: ^Generator, op: ^Op_Code) {
     variant := op.variant.(Op_Proc_Decl)
     gen_printf(gen, "SK_STATIC ")
     gen_result_type(gen, variant.results)
-    gen_printf(gen, " {}(", variant.cname)
+    gen_printf(gen, " {}(", variant.foreign_name)
 
     for child, index in variant.arguments {
-        gen_printf(gen, "{} ", type_to_cname(child.type))
+        gen_printf(gen, "{} ", type_to_foreign_name(child.type))
         gen_register(gen, child.register)
 
         if index < len(variant.arguments)-1 {
@@ -115,6 +115,8 @@ gen_op :: proc(gen: ^Generator, op: ^Op_Code) {
 
     case Op_Constant:
         gen_op_push_constant(gen, op)
+    case Op_Plus:
+        gen_op_plus(gen, op)
     case Op_Proc_Call:
         gen_op_proc_call(gen, op)
     case Op_Return:
@@ -136,6 +138,17 @@ gen_op_push_constant :: proc(gen: ^Generator, op: ^Op_Code) {
     gen_printf(gen, " = {}", op.value)
 }
 
+gen_op_plus :: proc(gen: ^Generator, op: ^Op_Code) {
+    assert(op.register != nil)
+    variant := op.variant.(Op_Plus)
+
+    gen_register(gen, op.register)
+    gen_print(gen, " = ")
+    gen_register(gen, variant.lhs)
+    gen_print(gen, " + ")
+    gen_register(gen, variant.rhs)
+}
+
 gen_op_proc_call :: proc(gen: ^Generator, op: ^Op_Code) {
     variant := op.variant.(Op_Proc_Call)
 
@@ -147,7 +160,7 @@ gen_op_proc_call :: proc(gen: ^Generator, op: ^Op_Code) {
         gen_printf(gen, "{} multi{} = ", gen_multiresult_str(gen, variant.results), op.ip)
     }
 
-    gen_printf(gen, "{}(", variant.cname)
+    gen_printf(gen, "{}(", variant.foreign_name)
     for arg, index in variant.arguments {
         gen_register(gen, arg.register)
 
@@ -200,7 +213,7 @@ gen_op_proc_decl :: proc(gen: ^Generator, op: ^Op_Code) {
 
     for key, array in variant.registers {
         gen_indent(gen)
-        gen_printf(gen, "{} ", type_to_cname(key))
+        gen_printf(gen, "{} ", type_to_foreign_name(key))
 
         for &reg, index in array {
             gen_register(gen, &reg)

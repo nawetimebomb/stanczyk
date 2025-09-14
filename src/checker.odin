@@ -10,15 +10,6 @@ CHECKER_NOT_ENOUGH_VALUES_IN_STACK :: "Not enough stack values to make this oper
 CHECKER_NOT_A_NUMBER :: "We could not parse number."
 CHECKER_TYPES_NOT_ALLOWED_IN_OPERATION :: "The types of elements in the stack can not be used in the following operation ({} {} {})."
 
-Checker :: struct {
-    errors:           [dynamic]Compiler_Error,
-    error_reported:   bool,
-
-    scope:            ^Scope,
-    global_scope:     ^Scope,
-    proc_scope:       ^Scope,
-}
-
 Scope :: struct {
     op_code:  ^Op_Code,
     entities: [dynamic]^Entity,
@@ -39,105 +30,65 @@ Entity :: struct {
 Entity_Variant :: union {
     Entity_Builtin,
     Entity_Procedure,
+    Entity_Type,
 }
 
 Entity_Builtin :: struct {
-    cname:     string,
-    arguments: []^Type,
-    results:   []^Type,
+    foreign_name: string,
+    arguments:    []^Type,
+    results:      []^Type,
 }
 
 Entity_Procedure :: struct {}
 
-checker_error :: proc(checker: ^Checker, token: Token, format: string, args: ..any) {
-    checker.error_reported = true
+Entity_Type :: struct {
+    type: ^Type,
+}
+
+checker_error :: proc(token: Token, format: string, args: ..any) {
+    compiler.error_reported = true
     message := fmt.aprintf(format, ..args)
-    append(&checker.errors, Compiler_Error{
+    append(&compiler.errors, Compiler_Error{
         message = message,
         token   = token,
     })
 }
 
-checker_fatal_error :: proc(checker: ^Checker) {
-    report_all_errors(checker.errors[:])
-    errors_count := len(checker.errors)
+checker_fatal_error :: proc() {
+    report_all_errors()
+    errors_count := len(compiler.errors)
     fatalf(
         .Checker, "found {} {} while doing type checking.",
         errors_count, errors_count > 1 ? "errors" : "error",
     )
 }
 
-create_scope :: proc(checker: ^Checker, op_code: ^Op_Code = nil) -> ^Scope {
-    new_scope := new(Scope)
-    new_scope.stack = new(Stack)
-    new_scope.op_code = op_code
-    return new_scope
-}
-
-push_proc :: proc(checker: ^Checker, proc_scope: ^Scope) {
-    assert(proc_scope != nil)
-    push_scope(checker, proc_scope)
-    checker.proc_scope = proc_scope
-}
-
-pop_proc :: proc(checker: ^Checker) {
-    is_scope_proc :: proc(scope: ^Scope) -> bool {
-        if scope.op_code != nil {
-            _, is_proc := scope.op_code.variant.(Op_Proc_Decl)
-            return is_proc
-        }
-
-        return false
-    }
-
-    pop_scope(checker)
-
-    if is_scope_proc(checker.scope) {
-        checker.proc_scope = checker.scope
-    } else {
-        checker.proc_scope = nil
-    }
-}
-
-push_scope :: proc(checker: ^Checker, new_scope: ^Scope) {
-    assert(new_scope != nil)
-    new_scope.parent = checker.scope
-    checker.scope = new_scope
-}
-
-pop_scope :: proc(checker: ^Checker) {
-    old_scope := checker.scope
-    checker.scope = old_scope.parent
-    stack_reset(checker, old_scope.stack)
-}
-
-
-stack_reset :: proc(checker: ^Checker, stack: ^Stack) {
+stack_reset :: proc(stack: ^Stack) {
     clear(&stack.values)
 }
 
-stack_push :: proc(checker: ^Checker, stack: ^Stack, op: ^Op_Code) {
+stack_push :: proc(stack: ^Stack, op: ^Op_Code) {
     if op.register == nil {
-        op.register = add_register(checker, op.type)
+        op.register = add_register(op.type)
     }
 
     append(&stack.values, op)
 }
 
-stack_pop :: proc(checker: ^Checker, stack: ^Stack, token: Token) -> ^Op_Code {
+stack_pop :: proc(stack: ^Stack, token: Token) -> ^Op_Code {
     value, ok := pop_safe(&stack.values)
 
     if !ok {
-        checker_error(checker, token, CHECKER_NOT_ENOUGH_VALUES_IN_STACK)
-        checker_fatal_error(checker)
+        checker_error(token, CHECKER_NOT_ENOUGH_VALUES_IN_STACK)
+        checker_fatal_error()
     }
 
     return value
 }
 
-add_register :: proc(checker: ^Checker, type: ^Type, prefix := REGISTER_PREFIX) -> ^Register {
-    assert(checker.proc_scope != nil)
-    proc_op := &checker.proc_scope.op_code.variant.(Op_Proc_Decl)
+add_register :: proc(type: ^Type, prefix := REGISTER_PREFIX) -> ^Register {
+    assert(compiler.proc_scope != nil)
+    proc_op := &compiler.proc_scope.op_code.variant.(Op_Proc_Decl)
     IP := 0
 
     if _, exists := proc_op.registers[type]; exists {
@@ -150,83 +101,19 @@ add_register :: proc(checker: ^Checker, type: ^Type, prefix := REGISTER_PREFIX) 
     return &proc_op.registers[type][IP]
 }
 
-
-create_foreign_name :: proc(checker: ^Checker, parts: []string) -> string {
-    VALID :: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
-
-    is_global_scope := checker.scope == checker.global_scope
-    foreign_name_builder := strings.builder_make()
-
-    for part, part_index in parts {
-        snake_name := strings.to_snake_case(part)
-
-        for r, index in snake_name {
-            if strings.contains_rune(VALID, r) {
-                strings.write_rune(&foreign_name_builder, r)
-            } else {
-                if index == 0 {
-                    strings.write_rune(&foreign_name_builder, '_')
-                }
-
-                strings.write_int(&foreign_name_builder, int(r))
-            }
-        }
-
-        if part_index < len(parts)-1 {
-            strings.write_string(&foreign_name_builder, "__")
-        }
-    }
-
-    return strings.to_string(foreign_name_builder)
-}
-
-create_foreign_proc_name :: proc(checker: ^Checker, token: Token, stanczyk_name: string) -> string {
-    foreign_name: string
-    filename := token.file_info.short_name
-
-    if checker.scope != checker.global_scope {
-        parts := make([dynamic]string, context.temp_allocator)
-        s := checker.scope
-
-        append(&parts, filename)
-
-        for s.op_code != nil || s != checker.global_scope {
-            if proc_scope, ok := s.op_code.variant.(Op_Proc_Decl); ok {
-                append(&parts, proc_scope.name.text)
-            }
-
-            s = s.parent
-        }
-
-        append(&parts, stanczyk_name)
-
-        foreign_name = create_foreign_name(checker, parts[:])
-
-    } else {
-        if stanczyk_name == "main" {
-            foreign_name = strings.clone("stanczyk__main")
-        } else {
-            foreign_name = create_foreign_name(checker, {filename, stanczyk_name})
-        }
-    }
-
-    return foreign_name
-}
-
-
-create_entity :: proc(checker: ^Checker, name: string, op: ^Op_Code, variant: Entity_Variant) -> ^Entity {
+create_entity :: proc(name: string, op: ^Op_Code, variant: Entity_Variant) -> ^Entity {
     entity := new(Entity)
     entity.op_code = op
     entity.name    = name
     entity.variant = variant
 
-    append(&checker.scope.entities, entity)
+    append(&compiler.current_scope.entities, entity)
     return entity
 }
 
-find_entity :: proc(checker: ^Checker, name: string, deep_search := true) -> []^Entity {
+find_entity :: proc(name: string, deep_search := true) -> []^Entity {
     result := make([dynamic]^Entity, context.temp_allocator)
-    scope := checker.scope
+    scope := compiler.current_scope
 
     for scope != nil {
         for ent in scope.entities {
@@ -243,91 +130,73 @@ find_entity :: proc(checker: ^Checker, name: string, deep_search := true) -> []^
 }
 
 check_program_bytecode :: proc() {
-    checker := new(Checker)
-    checker.global_scope = create_scope(checker)
-    push_scope(checker, checker.global_scope)
+    //for op in program_bytecode {
+    //    check_create_entities(op)
+    //}
 
-    create_entity(checker, "print", nil, Entity_Builtin{
-        cname = "internal_print",
-        arguments = {get_type_basic(.Int)},
-    })
+    assert(compiler.current_scope == compiler.global_scope)
 
     for op in program_bytecode {
-        check_create_entities(checker, op)
+        compiler.error_reported = false
+        check_op(op)
     }
 
-    assert(checker.scope == checker.global_scope)
-
-    for op in program_bytecode {
-        checker.error_reported = false
-        check_op(checker, op)
-    }
-
-    pop_scope(checker)
-    assert(checker.scope == nil)
-
-    if len(checker.errors) > 0 {
-        checker_fatal_error(checker)
+    if len(compiler.errors) > 0 {
+        checker_fatal_error()
     }
 }
 
-check_create_entities :: proc(checker: ^Checker, op: ^Op_Code) {
-    #partial switch &variant in op.variant {
-    case Op_Proc_Decl:
-        name := variant.name.text
-        variant.cname  = create_foreign_proc_name(checker, op.token, name)
-        variant.entity = create_entity(checker, name, op, Entity_Procedure{})
-        variant.scope  = create_scope(checker, op)
-
-        push_proc(checker, variant.scope)
-        for child in variant.body {
-            check_create_entities(checker, child)
-        }
-        pop_proc(checker)
-    }
-}
-
-check_op :: proc(checker: ^Checker, op: ^Op_Code) {
-    switch variant in op.variant {
+check_op :: proc(op: ^Op_Code) {
+    switch &variant in op.variant {
     case Op_Identifier:
-        check_identifier(checker, op)
+        check_identifier(op)
 
     case Op_Constant:
-        stack_push(checker, checker.scope.stack, op)
+        stack_push(compiler.current_scope.stack, op)
     case Op_Proc_Call:
+        check_proc_call(op)
         // maybe not needed?
+    case Op_Plus:
+        v2 := stack_pop(compiler.current_scope.stack, op.token)
+        v1 := stack_pop(compiler.current_scope.stack, op.token)
+        op.type = v1.type
+
+        variant.lhs = v1.register
+        variant.rhs = v2.register
+        stack_push(compiler.current_scope.stack, op)
+
     case Op_Return:
-        check_return(checker, op)
+        check_return(op)
 
     case Op_Proc_Decl:
-        check_proc_decl(checker, op)
+        check_proc_decl(op)
 
     case Op_Type_Lit:
 
     case Op_Binary_Expr:
-        check_binary_expr(checker, op)
+        check_binary_expr(op)
 
     case Op_Drop:
-        stack_pop(checker, checker.scope.stack, op.token)
+        stack_pop(compiler.current_scope.stack, op.token)
     }
 }
 
-check_binary_expr :: proc(checker: ^Checker, op: ^Op_Code) {
+check_binary_expr :: proc(op: ^Op_Code) {
     binary_op := &op.variant.(Op_Binary_Expr)
-    v2 := stack_pop(checker, checker.scope.stack, op.token)
-    v1 := stack_pop(checker, checker.scope.stack, op.token)
+    v2 := stack_pop(compiler.current_scope.stack, op.token)
+    v1 := stack_pop(compiler.current_scope.stack, op.token)
 
     op.type = v1.type
     binary_op.lhs = v1.register
     binary_op.rhs = v2.register
 
-    stack_push(checker, checker.scope.stack, op)
+    stack_push(compiler.current_scope.stack, op)
 }
 
-check_identifier :: proc(checker: ^Checker, op: ^Op_Code) {
-    _stack_checks_failed :: proc(checker: ^Checker, token: Token, stack: ^Stack, params: []^Type) -> bool {
+check_identifier :: proc(op: ^Op_Code) {
+    _stack_checks_failed :: proc(token: Token, stack: ^Stack, params: []^Type) -> bool {
         if len(stack.values) < len(params) {
-            checker_error(checker, token, CHECKER_NOT_ENOUGH_VALUES_IN_STACK)
+            checker_error(token, CHECKER_NOT_ENOUGH_VALUES_IN_STACK)
             return true
         }
         stack_needed := stack.values[len(stack.values) - len(params):]
@@ -338,7 +207,7 @@ check_identifier :: proc(checker: ^Checker, op: ^Op_Code) {
 
             if !types_are_equal(stack_value.type, arg_type) {
                 checker_error(
-                    checker, token, CHECKER_MISMATCHED_TYPE_PROC_ARGS,
+                    token, CHECKER_MISMATCHED_TYPE_PROC_ARGS,
                     type_to_string(arg_type), type_to_string(stack_value.type),
                 )
                 return true
@@ -349,25 +218,25 @@ check_identifier :: proc(checker: ^Checker, op: ^Op_Code) {
     }
 
     name := op.variant.(Op_Identifier).value.text
-    matches := find_entity(checker, name, true)
+    matches := find_entity(name, true)
 
     if len(matches) == 0 {
         checker_error(
-            checker, op.token,
+            op.token,
             CHECKER_MISSING_IDENTIFIER_DECLARATION, name,
         )
         return
     } else if len(matches) == 1 {
         entity := matches[0]
-        stack := checker.scope.stack
+        stack := compiler.current_scope.stack
 
         switch variant in entity.variant {
         case Entity_Builtin:
             proc_call := Op_Proc_Call{}
-            proc_call.cname = variant.cname
+            proc_call.foreign_name = variant.foreign_name
             proc_call.entity = entity
 
-            if _stack_checks_failed(checker, op.token, stack, variant.arguments) {
+            if _stack_checks_failed(op.token, stack, variant.arguments) {
                 return
             }
 
@@ -375,7 +244,7 @@ check_identifier :: proc(checker: ^Checker, op: ^Op_Code) {
                 arguments_for_call := make([dynamic]^Op_Code)
 
                 for index in 0..<len(variant.arguments) {
-                    v := stack_pop(checker, stack, op.token)
+                    v := stack_pop(stack, op.token)
                     inject_at(&arguments_for_call, 0, v)
                 }
 
@@ -391,7 +260,7 @@ check_identifier :: proc(checker: ^Checker, op: ^Op_Code) {
                     new_result.type = type
                     new_result.register = nil
                     new_result.variant = Op_Type_Lit{}
-                    stack_push(checker, stack, new_result)
+                    stack_push(stack, new_result)
                     append(&results_from_call, new_result)
                 }
 
@@ -403,7 +272,7 @@ check_identifier :: proc(checker: ^Checker, op: ^Op_Code) {
         case Entity_Procedure:
             proc_decl := entity.op_code.variant.(Op_Proc_Decl)
             proc_call := Op_Proc_Call{}
-            proc_call.cname = proc_decl.cname
+            proc_call.foreign_name = proc_decl.foreign_name
             proc_call.entity = entity
 
             if len(proc_decl.arguments) > 0 {
@@ -414,14 +283,14 @@ check_identifier :: proc(checker: ^Checker, op: ^Op_Code) {
                     append(&temp_params_array, arg.type)
                 }
 
-                if _stack_checks_failed(checker, op.token, stack, temp_params_array[:]) {
+                if _stack_checks_failed(op.token, stack, temp_params_array[:]) {
                     return
                 }
 
                 delete(temp_params_array)
 
                 for index in 0..<len(proc_decl.arguments) {
-                    v := stack_pop(checker, stack, op.token)
+                    v := stack_pop(stack, op.token)
                     inject_at(&arguments_for_call, 0, v)
                 }
 
@@ -434,7 +303,7 @@ check_identifier :: proc(checker: ^Checker, op: ^Op_Code) {
                 for result in proc_decl.results {
                     new_result := new_clone(result^)
                     new_result.register = nil
-                    stack_push(checker, stack, new_result)
+                    stack_push(stack, new_result)
                     append(&results_from_call, new_result)
                 }
 
@@ -442,6 +311,7 @@ check_identifier :: proc(checker: ^Checker, op: ^Op_Code) {
             }
 
             op.variant = proc_call
+        case Entity_Type: assert(false)
         }
     } else {
         // TODO(nawe) handle multiple
@@ -449,29 +319,128 @@ check_identifier :: proc(checker: ^Checker, op: ^Op_Code) {
     }
 }
 
-check_proc_decl :: proc(checker: ^Checker, op: ^Op_Code) {
+check_proc_call :: proc(op: ^Op_Code) {
+    _stack_checks_failed :: proc(token: Token, stack: ^Stack, params: []^Type) -> bool {
+        if len(stack.values) < len(params) {
+            checker_error(token, CHECKER_NOT_ENOUGH_VALUES_IN_STACK)
+            return true
+        }
+        stack_needed := stack.values[len(stack.values) - len(params):]
+
+        for index in 0..<len(stack_needed) {
+            stack_value := stack_needed[index]
+            arg_type := params[index]
+
+            if !types_are_equal(stack_value.type, arg_type) {
+                checker_error(
+                    token, CHECKER_MISMATCHED_TYPE_PROC_ARGS,
+                    type_to_string(arg_type), type_to_string(stack_value.type),
+                )
+                return true
+            }
+        }
+
+        return false
+    }
+
+    proc_call := &op.variant.(Op_Proc_Call)
+    stack := compiler.current_scope.stack
+
+    #partial switch variant in proc_call.entity.variant {
+    case Entity_Builtin:
+        if _stack_checks_failed(op.token, stack, variant.arguments) {
+            return
+        }
+
+        if len(variant.arguments) > 0 {
+            arguments_for_call := make([dynamic]^Op_Code)
+
+            for index in 0..<len(variant.arguments) {
+                v := stack_pop(stack, op.token)
+                inject_at(&arguments_for_call, 0, v)
+            }
+
+            proc_call.arguments = arguments_for_call[:]
+        }
+
+        if len(variant.results) > 0 {
+            results_from_call := make([dynamic]^Op_Code)
+
+            for type in variant.results {
+                new_result := new(Op_Code)
+                new_result.token = op.token
+                new_result.type = type
+                new_result.register = nil
+                new_result.variant = Op_Type_Lit{}
+                stack_push(stack, new_result)
+                append(&results_from_call, new_result)
+            }
+
+            proc_call.results = results_from_call[:]
+        }
+
+    case Entity_Procedure:
+        proc_decl := proc_call.entity.op_code.variant.(Op_Proc_Decl)
+
+        if len(proc_decl.arguments) > 0 {
+            arguments_for_call := make([dynamic]^Op_Code)
+            temp_params_array := make([dynamic]^Type, context.temp_allocator)
+
+            for arg in proc_decl.arguments {
+                append(&temp_params_array, arg.type)
+            }
+
+            if _stack_checks_failed(op.token, stack, temp_params_array[:]) {
+                return
+            }
+
+            delete(temp_params_array)
+
+            for index in 0..<len(proc_decl.arguments) {
+                v := stack_pop(stack, op.token)
+                inject_at(&arguments_for_call, 0, v)
+            }
+
+            proc_call.arguments = arguments_for_call[:]
+        }
+
+        if len(proc_decl.results) > 0 {
+            results_from_call := make([dynamic]^Op_Code)
+
+            for result in proc_decl.results {
+                new_result := new_clone(result^)
+                new_result.register = nil
+                stack_push(stack, new_result)
+                append(&results_from_call, new_result)
+            }
+
+            proc_call.results = results_from_call[:]
+        }
+    }
+}
+
+check_proc_decl :: proc(op: ^Op_Code) {
     proc_op := op.variant.(Op_Proc_Decl)
 
-    push_proc(checker, proc_op.scope)
+    push_proc(proc_op.scope)
     for arg in proc_op.arguments {
-        stack_push(checker, checker.scope.stack, arg)
+        stack_push(compiler.current_scope.stack, arg)
     }
 
     for child in proc_op.body {
-        if checker.error_reported do break
-        check_op(checker, child)
+        if compiler.error_reported do break
+        check_op(child)
     }
-    // do stack ops
-    pop_proc(checker)
+    pop_proc()
 }
 
-check_return :: proc(checker: ^Checker, op: ^Op_Code) {
+check_return :: proc(op: ^Op_Code) {
     return_op := op.variant.(Op_Return)
-    stack := checker.scope.stack
+    stack := compiler.current_scope.stack
 
     if len(return_op.results) != len(stack.values) {
         checker_error(
-            checker, op.token,
+            op.token,
             "Mismatched number of results in procedure. Expected {} but got {}",
             len(return_op.results), len(stack.values),
         )
@@ -484,7 +453,7 @@ check_return :: proc(checker: ^Checker, op: ^Op_Code) {
 
         if !types_are_equal(stack_value.type, result_value.type) {
             checker_error(
-                checker, op.token,
+                op.token,
                 "Mismatched type of results in procedure. Expected '{}' but got '{}'",
                 type_to_string(stack_value.type), type_to_string(result_value.type),
             )

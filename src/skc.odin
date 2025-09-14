@@ -19,19 +19,6 @@ ARGUMENT_PREFIX     :: "a"
 REGISTER_PREFIX     :: "r"
 MULTI_RESULT_PREFIX :: "p"
 
-Fatal_Error_Kind :: enum u8 {
-    None      = 0,
-    Compiler  = 1,
-    Parser    = 2,
-    Checker   = 3,
-    Generator = 4,
-}
-
-Compiler_Error :: struct {
-    message: string,
-    token:   Token,
-}
-
 File_Info :: struct {
     short_name:  string,
     filename:    string,
@@ -40,15 +27,32 @@ File_Info :: struct {
     line_starts: [dynamic]int,
 }
 
+Compiler :: struct {
+    errors:            [dynamic]Compiler_Error,
+    error_reported:    bool,
+
+    current_scope:     ^Scope,
+    global_scope:      ^Scope,
+    proc_scope:        ^Scope,
+
+    basic_types:       [Type_Basic_Kind]^Type,
+
+    parser:            ^Parser,
+    current_ip:        int,
+    lines_parsed:      int,
+}
+
 compiler_dir:      string
 working_dir:       string
 output_filename:   string
-total_lines_count: int
+
 source_files:      [dynamic]File_Info
 program_bytecode:  [dynamic]^Op_Code
 
 // Defaults
 switch_debug := true
+
+compiler: Compiler
 
 main :: proc() {
     tracking_allocator: mem.Tracking_Allocator
@@ -100,8 +104,20 @@ main :: proc() {
     extension := filepath.ext(input_filename)
     output_filename = fmt.aprintf("{}", input_filename[:len(input_filename)-len(extension)])
 
-    init_types()
 
+    compiler.global_scope = create_scope()
+    push_scope(compiler.global_scope)
+
+    for &t in BASIC_TYPES {
+        create_entity(t.name, nil, Entity_Type{&t})
+        v := t.variant.(Type_Basic)
+        compiler.basic_types[v.kind] = &t
+    }
+
+    create_entity("print", nil, Entity_Builtin{
+        foreign_name = "internal_print",
+        arguments    = {compiler.basic_types[.Int]},
+    })
 
     accumulator := time.tick_now()
     add_source_file(working_dir, os.args[1])
@@ -122,10 +138,10 @@ main :: proc() {
     compile_time := time.duration_seconds(time.tick_lap_time(&accumulator))
     alloc_amount := tracking_allocator.current_memory_allocated
 
-    fmt.printf("\tLines processed.............{}\n", total_lines_count)
-    fmt.printf("\tCompiler Front-end..........%.6fs\n", frontend_time)
-    fmt.printf("\tCode generation.............%.6fs\n", codegen_time)
-    fmt.printf("\tCompiler Back-end...........%.6fs\n", compile_time)
+    fmt.printf("\tLines processed.............{}\n",     compiler.lines_parsed)
+    fmt.printf("\tCompiler Front-end..........%.6fs\n",  frontend_time)
+    fmt.printf("\tCode generation.............%.6fs\n",  codegen_time)
+    fmt.printf("\tCompiler Back-end...........%.6fs\n",  compile_time)
     fmt.printf("\tMemory used.................%.5fmb\n", (f64(alloc_amount)/1024.)/1024.)
 }
 
@@ -161,72 +177,10 @@ load_entire_file :: proc(file_info: ^File_Info) {
     file_info.source = strings.clone(string(data))
 }
 
-fatalf :: proc(error: Fatal_Error_Kind, format: string, args: ..any) {
-    fmt.eprintln()
-    error_red("{} Error: ", error)
-    fmt.eprintfln(format, ..args)
-    fmt.eprintln()
-    os2.exit(int(error))
+is_global_scope :: proc() -> bool {
+    return compiler.current_scope == compiler.global_scope
 }
 
-error_red :: proc(format: string, args: ..any) {
-    message := fmt.tprintf(format, ..args)
-    fmt.eprintf("\e[1;91m{}\e[0m", message)
-}
-
-print_cyan :: proc(format: string, args: ..any) {
-    message := fmt.tprintf(format, ..args)
-    fmt.printf("\e[0;96m{}\e[0m", message)
-}
-
-report_all_errors :: proc(comp_errors: []Compiler_Error) {
-    line_number_to_string :: proc(number: int) -> string {
-        number_str := fmt.tprintf("{}", number)
-        return strings.right_justify(number_str, 4, " ")
-    }
-
-    for error in comp_errors {
-        token := error.token
-        fullpath := token.file_info.fullpath
-        line_starts := token.file_info.line_starts
-        source := token.file_info.source
-
-        fmt.eprintfln(
-            "\e[1m{}({}:{})\e[1;91m Error:\e[0m {}",
-            fullpath, token.l0, token.c0, error.message,
-        )
-        fmt.eprint("\e[0;96m")
-        if token.l0 > 1 {
-            line_index := max(token.l0-2, 0)
-            count_of_chars := 0
-            for line_index > 0 && count_of_chars == 0 {
-                start := line_starts[line_index]
-                end := line_starts[line_index+1] - 1
-                count_of_chars = end - start
-                if count_of_chars == 0 do line_index -= 1
-            }
-            line_index = max(line_index, 0)
-            start := line_starts[line_index]
-            text := source[start:token.start]
-            token_start_index := token.start - start
-
-            fmt.eprintf("\t{} | \t", line_number_to_string(line_index + 1))
-            for r, index in text {
-                fmt.eprint(r)
-
-                if r == '\n' {
-                    line_index += 1
-                    fmt.eprintf("\t{} | \t", line_number_to_string(line_index + 1))
-                }
-            }
-
-            error_red(source[token.start:token.end])
-        } else {
-            curr_line := source[:token.start]
-            fmt.eprintf("\t{} | \t{}", line_number_to_string(token.l0), curr_line)
-            error_red(source[token.start:token.end])
-        }
-
-        fmt.eprint("\e[0m\n")
-    }
+has_error :: #force_inline proc() -> bool {
+    return compiler.error_reported
 }

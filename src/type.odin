@@ -1,18 +1,15 @@
 package main
 
 Type :: struct {
-    size:    uint,
+    size:    int,
     name:    string,
-    token:   Token,
-    variant: Type_Variant,
-}
-
-Type_Variant :: union {
-    Type_Basic,
-    Type_Id,
+    variant: union {
+        Type_Basic,
+    },
 }
 
 Type_Basic :: struct {
+    name: string,
     kind: Type_Basic_Kind,
 }
 
@@ -27,39 +24,13 @@ Type_Basic_Kind :: enum {
     Uint,
 }
 
-types: [dynamic]^Type
-
-init_types :: proc() {
-    append(&types, new_clone(Type{size=1, name="bool",    variant=Type_Basic{.Bool}}))
-    append(&types, new_clone(Type{size=1, name="char",    variant=Type_Basic{.Char}}))
-    append(&types, new_clone(Type{size=8, name="float",   variant=Type_Basic{.Float}}))
-    append(&types, new_clone(Type{size=8, name="int",     variant=Type_Basic{.Int}}))
-    append(&types, new_clone(Type{size=8, name="string",  variant=Type_Basic{.String}}))
-    append(&types, new_clone(Type{size=8, name="uint",    variant=Type_Basic{.Uint}}))
-    append(&types, new_clone(Type{size=8, name="typeid",  variant=Type_Id{}}))
-}
-
-get_type_basic :: proc(kind: Type_Basic_Kind) -> ^Type {
-    for type in types {
-        #partial switch v in type.variant {
-        case Type_Basic:
-            if v.kind == kind {
-                return type
-            }
-        }
-    }
-
-    return nil
-}
-
-get_type_by_name :: proc(name: string) -> ^Type {
-    for type in types {
-        if type.name == name {
-            return type
-        }
-    }
-
-    return nil
+BASIC_TYPES := []Type{
+    {name = "bool",   size = 1, variant = Type_Basic{kind=.Bool}},
+    {name = "char",   size = 1, variant = Type_Basic{kind=.Char}},
+    {name = "float",  size = 8, variant = Type_Basic{kind=.Float}},
+    {name = "int",    size = 8, variant = Type_Basic{kind=.Int}},
+    {name = "string", size = 8, variant = Type_Basic{kind=.String}},
+    {name = "uint",   size = 8, variant = Type_Basic{kind=.Uint}},
 }
 
 types_are_equal :: proc(t1, t2: ^Type) -> bool {
@@ -67,9 +38,6 @@ types_are_equal :: proc(t1, t2: ^Type) -> bool {
     case Type_Basic:
         t2v, ok := t2.variant.(Type_Basic)
         return ok && variant.kind == t2v.kind
-    case Type_Id:
-        _, ok := t2.variant.(Type_Id)
-        return ok
     }
 
     return false
@@ -87,13 +55,12 @@ type_to_string :: proc(t: ^Type) -> string {
         case .String: return "string"
         case .Uint:   return "uint"
         }
-    case Type_Id:     return "typeid"
     }
 
     return "unreachable"
 }
 
-type_to_cname :: proc(t: ^Type) -> string {
+type_to_foreign_name :: proc(t: ^Type) -> string {
     if t == nil do return "TODO"
     #partial switch variant in t.variant {
     case Type_Basic:

@@ -14,60 +14,107 @@ PARSER_UNEXPECTED_TOKEN_IN_PROC_SIGNATURE :: "Unexpected token {} while parsing 
 PARSER_INVALID_NUMBER   :: "Found an invalid number."
 PARSER_COMPILER_ERROR   :: "Compiler error"
 
-Parsing_Context_Kind :: enum u8 {
-    File      = 0,
-    Procedure = 1,
-}
-
 Parser :: struct {
     file_info:         ^File_Info,
-    errors:            [dynamic]Compiler_Error,
-    error_in_context:  bool,
 
     prev_token:        Token,
     curr_token:        Token,
     lexer:             Lexer,
-    current_context:     ^Parsing_Context,
-    file_context:      ^Parsing_Context,
 }
 
-Parsing_Context :: struct {
-    proc_decl:  ^Op_Proc_Decl,
-    kind:       Parsing_Context_Kind,
-    previous:   ^Parsing_Context,
-    ip_counter: int,
-}
-
-parser_error :: proc(parser: ^Parser, format: string, args: ..any) {
-    parser.error_in_context = true
+parser_error :: proc(token: Token, format: string, args: ..any) {
+    compiler.error_reported = true
     message := fmt.aprintf(format, ..args)
-    append(&parser.errors, Compiler_Error{
+    append(&compiler.errors, Compiler_Error{
         message = message,
-        token   = parser.prev_token,
+        token   = token,
     })
 }
 
-parser_fatal_error :: proc(parser: ^Parser) {
-    report_all_errors(parser.errors[:])
-    errors_count := len(parser.errors)
+parser_fatal_error :: proc() {
+    report_all_errors()
+    errors_count := len(compiler.errors)
     fatalf(
         .Parser,
         "found {} {} while parsing {}",
         errors_count,
         errors_count > 1 ? "errors" : "error",
-        parser.file_info.fullpath,
+        compiler.parser.file_info.fullpath,
     )
 }
 
-is_eof :: proc(parser: ^Parser) -> bool {
-    return parser.prev_token.kind == .EOF
+is_eof :: proc() -> bool {
+    return compiler.parser.prev_token.kind == .EOF
 }
 
-create_op_code :: proc(parser: ^Parser, token: Token) -> ^Op_Code {
+create_foreign_name :: proc(parts: []string) -> string {
+    VALID :: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
+
+    is_global_scope := compiler.current_scope == compiler.global_scope
+    foreign_name_builder := strings.builder_make()
+
+    for part, part_index in parts {
+        snake_name := strings.to_snake_case(part)
+
+        for r, index in snake_name {
+            if strings.contains_rune(VALID, r) {
+                strings.write_rune(&foreign_name_builder, r)
+            } else {
+                if index == 0 {
+                    strings.write_rune(&foreign_name_builder, '_')
+                }
+
+                strings.write_int(&foreign_name_builder, int(r))
+            }
+        }
+
+        if part_index < len(parts)-1 {
+            strings.write_string(&foreign_name_builder, "__")
+        }
+    }
+
+    return strings.to_string(foreign_name_builder)
+}
+
+create_foreign_proc_name :: proc(token: Token) -> string {
+    filename := token.file_info.short_name
+    stanczyk_name := token.text
+    foreign_name: string
+
+    if compiler.current_scope != compiler.global_scope {
+        parts := make([dynamic]string, context.temp_allocator)
+        s := compiler.current_scope
+
+        append(&parts, filename)
+
+        for s.op_code != nil || s != compiler.global_scope {
+            if proc_scope, ok := s.op_code.variant.(Op_Proc_Decl); ok {
+                append(&parts, proc_scope.name.text)
+            }
+
+            s = s.parent
+        }
+
+        append(&parts, stanczyk_name)
+
+        foreign_name = create_foreign_name(parts[:])
+
+    } else {
+        if stanczyk_name == "main" {
+            foreign_name = strings.clone("stanczyk__main")
+        } else {
+            foreign_name = create_foreign_name({filename, stanczyk_name})
+        }
+    }
+
+    return foreign_name
+}
+
+create_op_code :: proc(token: Token) -> ^Op_Code {
     op := new(Op_Code)
     op.token = token
-    op.ip = parser.current_context.ip_counter
-    parser.current_context.ip_counter += 1
+    op.ip = compiler.current_ip
+    compiler.current_ip += 1
     return op
 }
 
@@ -75,38 +122,65 @@ write_op_code :: proc(chunk: ^[dynamic]^Op_Code, op: ^Op_Code) {
     append(chunk, op)
 }
 
-push_parsing_context :: proc(parser: ^Parser, kind: Parsing_Context_Kind) -> ^Parsing_Context {
-    new_scope := new(Parsing_Context)
-    new_scope.kind     = kind
-    new_scope.previous = parser.current_context
-    parser.current_context = new_scope
+create_scope :: proc(op_code: ^Op_Code = nil) -> ^Scope {
+    new_scope := new(Scope)
+    new_scope.stack = new(Stack)
+    new_scope.op_code = op_code
     return new_scope
 }
 
-pop_parsing_context :: proc(parser: ^Parser) {
-    old_scope := parser.current_context
-    parser.current_context = old_scope.previous
+push_proc :: proc(proc_scope: ^Scope) {
+    assert(proc_scope != nil)
+    push_scope(proc_scope)
+    compiler.proc_scope = proc_scope
 }
 
-allow :: proc(parser: ^Parser, kind: Token_Kind) -> bool {
-    if parser.curr_token.kind == kind {
-        next(parser)
+pop_proc :: proc() {
+    is_scope_proc :: proc(scope: ^Scope) -> bool {
+        if scope.op_code != nil {
+            _, is_proc := scope.op_code.variant.(Op_Proc_Decl)
+            return is_proc
+        }
+
+        return false
+    }
+
+    pop_scope()
+
+    if is_scope_proc(compiler.current_scope) {
+        compiler.proc_scope = compiler.current_scope
+    } else {
+        compiler.proc_scope = nil
+    }
+}
+
+push_scope :: proc(new_scope: ^Scope) {
+    assert(new_scope != nil)
+    new_scope.parent = compiler.current_scope
+    compiler.current_scope = new_scope
+}
+
+pop_scope :: proc() {
+    old_scope := compiler.current_scope
+    compiler.current_scope = old_scope.parent
+    stack_reset(old_scope.stack)
+}
+
+allow :: proc(kind: Token_Kind) -> bool {
+    if compiler.parser.curr_token.kind == kind {
+        next()
         return true
     }
     return false
 }
 
-was :: proc(parser: ^Parser, kind: Token_Kind) -> bool {
-    return parser.prev_token.kind == kind
-}
-
-expect :: proc(parser: ^Parser, kind: Token_Kind) -> (token: Token) {
-    token = next(parser)
+expect :: proc(kind: Token_Kind) -> (token: Token) {
+    token = next()
 
     if token.kind != kind {
-        parser_error(parser, "Expected {}, got {}", kind, token.kind)
+        parser_error(token, "Expected {}, got {}", kind, token.kind)
         for {
-            token := next(parser)
+            token := next()
             if token.kind == .EOF || token.kind == .Semicolon do break
         }
     }
@@ -114,79 +188,73 @@ expect :: proc(parser: ^Parser, kind: Token_Kind) -> (token: Token) {
     return
 }
 
-next :: proc(parser: ^Parser) -> Token {
-    token := get_next_token(&parser.lexer)
-    parser.prev_token = parser.curr_token
-    parser.curr_token = token
-    return parser.prev_token
+next :: proc() -> Token {
+    token := get_next_token(&compiler.parser.lexer)
+    compiler.parser.prev_token = compiler.parser.curr_token
+    compiler.parser.curr_token = token
+    return compiler.parser.prev_token
 }
 
 parse_file :: proc(file_info: ^File_Info) {
-    parser := new(Parser)
-    parser.file_info = file_info
+    compiler.parser = new(Parser)
+    compiler.parser.file_info = file_info
 
-    parser.file_context = push_parsing_context(parser, .File)
-    parser.current_context = parser.file_context
+    init_lexer()
+    next()
 
-    init_lexer(parser)
-    next(parser)
-
-    main_loop: for !is_eof(parser) {
-        if allow(parser, .EOF) {
+    main_loop: for !is_eof() {
+        if allow(.EOF) {
             break main_loop
         }
 
-        parser.error_in_context = false
-        op := parse_expression(parser)
+        compiler.error_reported = false
+        op := parse_expression()
         if op == nil do break
         write_op_code(&program_bytecode, op)
     }
 
-    if len(parser.errors) > 0 {
-        parser_fatal_error(parser)
+    if len(compiler.errors) > 0 {
+        parser_fatal_error()
     }
 
-    total_lines_count += parser.lexer.line
+    compiler.lines_parsed += compiler.parser.lexer.line
 
-    pop_parsing_context(parser)
-
-    assert(parser.current_context == nil)
-    free(parser)
+    free(compiler.parser)
 }
 
-parse_expression :: proc(parser: ^Parser) -> ^Op_Code {
-    token := next(parser)
+parse_expression :: proc() -> ^Op_Code {
+    token := next()
 
     switch token.kind {
     case .Invalid:
-        parser_error(parser, PARSER_UNEXPECTED_TOKEN, token.text)
+        parser_error(token, PARSER_UNEXPECTED_TOKEN, token.text)
         return nil
 
     case .Dash_Dash_Dash:
-        parser_error(parser, PARSER_UNEXPECTED_TOKEN, token.text)
+        parser_error(token, PARSER_UNEXPECTED_TOKEN, token.text)
         return nil
 
     case .EOF:
-        parser_error(parser, PARSER_UNEXPECTED_EOF)
+        parser_error(token, PARSER_UNEXPECTED_EOF)
         return nil
 
     case .Semicolon:
-        parser_error(parser, PARSER_COMPILER_ERROR)
+        parser_error(token, PARSER_COMPILER_ERROR)
         return nil
 
     case .Paren_Left:
-        parser_error(parser, PARSER_COMPILER_ERROR)
+        parser_error(token, PARSER_COMPILER_ERROR)
         return nil
 
     case .Paren_Right:
-        parser_error(parser, PARSER_COMPILER_ERROR)
+        parser_error(token, PARSER_COMPILER_ERROR)
         return nil
 
     case .Identifier:
-        return parse_identifier(parser, token)
+        return parse_identifier(token)
 
     case .Integer:
-        return parse_integer(parser, token)
+        return parse_integer(token)
 
     case .Unsigned_Integer:
         unimplemented()
@@ -215,21 +283,6 @@ parse_expression :: proc(parser: ^Parser) -> ^Op_Code {
     case .False:
         unimplemented()
 
-    case .Type_Int:
-        return parse_literal_type(parser, token)
-
-    case .Type_Uint:
-        return parse_literal_type(parser, token)
-
-    case .Type_Float:
-        return parse_literal_type(parser, token)
-
-    case .Type_Bool:
-        return parse_literal_type(parser, token)
-
-    case .Type_String:
-        return parse_literal_type(parser, token)
-
     case .Brace_Left:
         unimplemented()
 
@@ -243,140 +296,133 @@ parse_expression :: proc(parser: ^Parser) -> ^Op_Code {
         unimplemented()
 
     case .Minus:
-        return parse_binary_expr(parser, token)
+        return parse_binary_expr(token)
 
     case .Plus:
-        return parse_binary_expr(parser, token)
+        op := create_op_code(token)
+        op.variant = Op_Plus{}
+        return op
 
     case .Star:
-        return parse_binary_expr(parser, token)
+        return parse_binary_expr(token)
 
     case .Slash:
-        return parse_binary_expr(parser, token)
+        return parse_binary_expr(token)
 
     case .Percent:
-        return parse_binary_expr(parser, token)
+        return parse_binary_expr(token)
 
     case .Using:
         unimplemented()
 
     case .Proc:
-        return parse_proc_decl(parser, token)
+        return parse_proc_decl(token)
 
     case .Drop:
-        op := create_op_code(parser, token)
+        op := create_op_code(token)
         op.variant = Op_Drop{}
         return op
 
     case .Foreign:
-        parse_foreign(parser, token)
+        parse_foreign(token)
 
     }
 
     return nil
 }
 
-parse_binary_expr :: proc(parser: ^Parser, token: Token) -> ^Op_Code {
-    // not allowed in global scope
-    if parser.current_context.kind == .File {
-        parser_error(parser, PARSER_OPERATOR_IN_FILE_SCOPE)
+parse_binary_expr :: proc(token: Token) -> ^Op_Code {
+    if is_global_scope() {
+        parser_error(token, PARSER_OPERATOR_IN_FILE_SCOPE)
     }
 
-    op := create_op_code(parser, token)
+    op := create_op_code(token)
     op.variant = Op_Binary_Expr{op=token.text}
     return op
 }
 
-parse_foreign :: proc(parser: ^Parser, token: Token) {
-    if parser.current_context.proc_decl == nil {
-        parser_error(parser, PARSER_FOREIGN_MISPLACED)
+parse_foreign :: proc(token: Token) {
+    if allow(.Identifier) {
+        //parser.current_context.proc_decl.foreign_lib = parser.prev_token
     }
 
-    parser.current_context.proc_decl.is_foreign = true
-
-    if allow(parser, .Identifier) {
-        parser.current_context.proc_decl.foreign_lib = parser.prev_token
-    }
-
-    expect(parser, .Semicolon)
+    expect(.Semicolon)
 }
 
-parse_proc_decl :: proc(parser: ^Parser, token: Token) -> ^Op_Code {
-    result := create_op_code(parser, token)
+parse_proc_decl :: proc(token: Token) -> ^Op_Code {
+    result := create_op_code(token)
     proc_decl := Op_Proc_Decl{}
-    proc_decl.name = expect(parser, .Identifier)
+    proc_decl.name = expect(.Identifier)
+    proc_decl.foreign_name = create_foreign_proc_name(proc_decl.name)
+    proc_decl.entity = create_entity(proc_decl.name.text, result, Entity_Procedure{})
+    proc_decl.scope  = create_scope(result)
 
-    push_parsing_context(parser, .Procedure)
-    parser.current_context.proc_decl = &proc_decl
+    push_proc(proc_decl.scope)
 
-    if allow(parser, .Paren_Left) && !allow(parser, .Paren_Right) {
-        parse_proc_signature(parser, &proc_decl)
+    if allow(.Paren_Left) && !allow(.Paren_Right) {
+        parse_proc_signature(&proc_decl)
     }
 
-    proc_body_loop: for !parser.error_in_context {
-        if allow(parser, .Semicolon) {
+    proc_body_loop: for !has_error() {
+        if allow(.Semicolon) {
             break proc_body_loop
         }
 
-        value := parse_expression(parser)
+        value := parse_expression()
         write_op_code(&proc_decl.body, value)
     }
 
-    if parser.error_in_context {
-        for !allow(parser, .Semicolon) && !allow(parser, .EOF) do next(parser)
-        pop_parsing_context(parser)
+    if has_error() {
+        for !allow(.Semicolon) && !allow(.EOF) do next()
         return nil
     }
 
-    return_op := create_op_code(parser, parser.prev_token)
+    return_op := create_op_code(compiler.parser.prev_token)
     return_op.variant = Op_Return{results=proc_decl.results[:]}
     write_op_code(&proc_decl.body, return_op)
 
-    pop_parsing_context(parser)
-
     result.variant = proc_decl
+    pop_proc()
     return result
 }
 
-parse_proc_signature :: proc(parser: ^Parser, proc_decl: ^Op_Proc_Decl) {
+parse_proc_signature :: proc(proc_decl: ^Op_Proc_Decl) {
     arguments := make([dynamic]^Op_Code)
     results := make([dynamic]^Op_Code)
     IP := 0
     maybe_has_results := false
 
     proc_args: for {
-        token := next(parser)
+        token := next()
+
         #partial switch token.kind {
         case .Dash_Dash_Dash, .Paren_Right:
             maybe_has_results = token.kind == .Dash_Dash_Dash
             break proc_args
         case .Identifier:
-            assert(false) // TODO(nawe) support this
-        case .Type_Int, .Type_Uint, .Type_Float, .Type_Bool, .Type_String:
-            op := parse_literal_type(parser, token)
+            op := parse_identifier(token)
             op.register = new_clone(Register{prefix=ARGUMENT_PREFIX, ip=IP, type=op.type})
-            IP += 1
             append(&arguments, op)
+            IP += 1
         case:
-            parser_error(parser, PARSER_UNEXPECTED_TOKEN_IN_PROC_SIGNATURE, token.text)
+            parser_error(token, PARSER_UNEXPECTED_TOKEN_IN_PROC_SIGNATURE, token.text)
             return
         }
     }
 
     if maybe_has_results {
         proc_results: for {
-            token := next(parser)
+            token := next()
 
             #partial switch token.kind {
             case .Paren_Right:
                 break proc_results
-            case .Type_Int, .Type_Uint, .Type_Float, .Type_Bool, .Type_String:
-                append(&results, parse_literal_type(parser, token))
+            case .Identifier:
+                append(&results, parse_identifier(token))
             case:
-                parser_error(parser, PARSER_UNEXPECTED_TOKEN_IN_PROC_SIGNATURE, token.text)
+                parser_error(token, PARSER_UNEXPECTED_TOKEN_IN_PROC_SIGNATURE, token.text)
                 return
             }
-
         }
     }
 
@@ -384,40 +430,49 @@ parse_proc_signature :: proc(parser: ^Parser, proc_decl: ^Op_Proc_Decl) {
     proc_decl.results   = results[:]
 }
 
-parse_identifier :: proc(parser: ^Parser, token: Token) -> ^Op_Code {
+parse_identifier :: proc(token: Token) -> ^Op_Code {
     // not allowed in global scope
-    if parser.current_context.kind == .File {
-        parser_error(parser, PARSER_IDENTIFIER_IN_FILE_SCOPE)
+    if is_global_scope() {
+        parser_error(token, PARSER_IDENTIFIER_IN_FILE_SCOPE)
     }
 
-    op := create_op_code(parser, token)
-    op.variant = Op_Identifier{token}
+    matches := find_entity(token.text)
+    op := create_op_code(token)
+
+    if len(matches) == 1 {
+        entity := matches[0]
+
+        switch variant in entity.variant {
+        case Entity_Builtin:
+            proc_call := Op_Proc_Call{}
+            proc_call.foreign_name = variant.foreign_name
+            proc_call.entity = entity
+            op.variant = proc_call
+        case Entity_Procedure:
+            proc_decl := entity.op_code.variant.(Op_Proc_Decl)
+            proc_call := Op_Proc_Call{}
+            proc_call.foreign_name = proc_decl.foreign_name
+            proc_call.entity = entity
+            op.variant = proc_call
+
+        case Entity_Type:
+            op.type = variant.type
+            op.variant = Op_Identifier{token}
+        }
+    } else {
+        op.variant = Op_Identifier{token}
+    }
+
     return op
 }
 
-parse_integer :: proc(parser: ^Parser, token: Token) -> ^Op_Code {
-    op := create_op_code(parser, token)
-    op.type = get_type_basic(.Int)
+parse_integer :: proc(token: Token) -> ^Op_Code {
+    op := create_op_code(token)
     value, ok := strconv.parse_i64(stanczyk_number_to_c_number(token.text))
-    if !ok do parser_error(parser, PARSER_INVALID_NUMBER)
+    if !ok do parser_error(token, PARSER_INVALID_NUMBER)
     op.value = value
+    op.type  = compiler.basic_types[.Int]
     op.variant = Op_Constant{}
-    return op
-}
-
-parse_literal_type :: proc(parser: ^Parser, token: Token) -> ^Op_Code {
-    op := create_op_code(parser, token)
-    op.variant = Op_Type_Lit{}
-    op.value = get_type_by_name("typeid")
-
-    #partial switch token.kind {
-    case .Type_Int:    op.type = get_type_basic(.Int)
-    case .Type_Uint:   op.type = get_type_basic(.Uint)
-    case .Type_Float:  op.type = get_type_basic(.Float)
-    case .Type_Bool:   op.type = get_type_basic(.Bool)
-    case .Type_String: op.type = get_type_basic(.String)
-    }
-
     return op
 }
 

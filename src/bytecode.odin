@@ -17,6 +17,11 @@ Register :: struct {
     type:   ^Type,
 }
 
+Binary :: struct {
+    lhs: ^Register,
+    rhs: ^Register,
+}
+
 Op_Code :: struct {
     ip:        int,
     register:  ^Register,
@@ -33,6 +38,7 @@ Op_Variant :: union {
     Op_Identifier,
 
     Op_Constant,
+    Op_Plus,
     Op_Proc_Call,
     Op_Return,
 
@@ -50,13 +56,19 @@ Op_Identifier :: struct {
 
 
 
-Op_Constant :: struct {}
+Op_Constant :: struct {
+
+}
+
+Op_Plus :: struct {
+    using binary: Binary,
+}
 
 Op_Proc_Call :: struct {
-    arguments: []^Op_Code,
-    results:   []^Op_Code,
-    entity:    ^Entity,
-    cname:     string,
+    arguments:    []^Op_Code,
+    results:      []^Op_Code,
+    entity:       ^Entity,
+    foreign_name: string,
 }
 
 Op_Return :: struct {
@@ -66,18 +78,18 @@ Op_Return :: struct {
 
 
 Op_Proc_Decl :: struct {
-    name:        Token,
-    cname:       string,
-    is_foreign:  bool,
-    foreign_lib: Token,
+    name:         Token,
+    foreign_name: string,
+    is_foreign:   bool,
+    foreign_lib:  Token,
 
-    scope:       ^Scope,
-    entity:      ^Entity,
+    scope:        ^Scope,
+    entity:       ^Entity,
 
-    registers:   map[^Type][dynamic]Register,
-    arguments:   []^Op_Code,
-    results:     []^Op_Code,
-    body:        [dynamic]^Op_Code,
+    registers:    map[^Type][dynamic]Register,
+    arguments:    []^Op_Code,
+    results:      []^Op_Code,
+    body:         [dynamic]^Op_Code,
 }
 
 Op_Type_Lit :: struct {}
@@ -92,98 +104,3 @@ Op_Binary_Expr :: struct {
     rhs: ^Register,
     op:  string,
 }
-
-
-
-print_op_debug :: proc(op: ^Op_Code, level := 0) {
-    print_op_name :: proc(s: string) {
-        fmt.printf(" %-15s ", s)
-    }
-
-    print_op_type :: proc(op: ^Op_Code) {
-        fmt.printf(" {} ", type_to_string(op.type))
-    }
-
-    print_op_value :: proc(op: ^Op_Code) {
-        fmt.printf(" {} ", op.value)
-    }
-
-    print_prefix :: proc(level: int) {
-        TABS := "\t\t\t\t\t\t\t\t\t\t\t\t\t"
-        prefix := TABS[:level]
-        fmt.printf("{}", prefix)
-    }
-
-    print_prefix(level)
-
-    fmt.printf("(%4d) ", op.ip)
-    switch variant in op.variant {
-    case Op_Constant:
-        print_op_name("PUSH_CONSTANT")
-        print_op_type(op)
-        print_op_value(op)
-        fmt.println()
-
-    case Op_Drop:
-
-    case Op_Identifier:
-        print_op_name("IDENTIFIER")
-        fmt.println(variant.value.text)
-    case Op_Type_Lit:
-        print_op_name("TYPE")
-        fmt.println(type_to_string(op.type))
-
-    case Op_Proc_Call:
-        print_op_name("PROC_CALL")
-        fmt.println()
-
-    case Op_Binary_Expr:
-        print_op_name("BINARY_EXPR")
-        fmt.println(variant.op)
-    case Op_Proc_Decl:
-        if variant.is_foreign {
-            lib_name := variant.foreign_lib.text
-            fmt.printf("FOREIGN")
-            if len(lib_name) > 0 {
-                fmt.printf("({}) ", lib_name)
-            } else {
-                fmt.print(" ")
-            }
-        }
-        fmt.printf("PROCEDURE \e[1m{}\e[0m ", variant.name.text)
-
-        fmt.printf("(")
-        if len(variant.arguments) > 0 {
-            for op2, index in variant.arguments {
-                fmt.printf(
-                    "{}{}",
-                    op2.token.text,
-                    index < len(variant.arguments)-1 ? " " : "",
-                )
-            }
-        }
-
-        if len(variant.results) > 0 {
-            fmt.print(" --- ")
-            for op2, index in variant.results {
-                fmt.printf(
-                    "{}{}",
-                    op2.token.text,
-                    index < len(variant.results)-1 ? " " : "",
-                )
-            }
-        }
-        fmt.println("):")
-
-        for op2 in variant.body {
-            print_op_debug(op2, level + 1)
-        }
-        print_prefix(level)
-        fmt.printfln("; \e[1m{}\e[0m\n", variant.name.text)
-
-    case Op_Return:
-        print_op_name("RETURN")
-        fmt.println()
-    }
-}
-
