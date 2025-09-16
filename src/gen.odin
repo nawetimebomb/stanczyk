@@ -2,6 +2,7 @@ package main
 
 import "core:fmt"
 import "core:os/os2"
+import "core:reflect"
 import "core:slice"
 import "core:strings"
 
@@ -48,13 +49,41 @@ gen_end_scope :: proc(gen: ^Generator, visible := true) {
     }
 }
 
-gen_multiresult_str :: proc(gen: ^Generator, params: []^Op_Code) -> string {
-    result := strings.builder_make(context.temp_allocator)
+gen_multiresult_string :: proc{
+    gen_multiresult_string_from_registers,
+    gen_multiresult_string_from_params,
+    gen_multiresult_string_from_types,
+}
 
-    strings.write_string(&result, "multi_")
+gen_multiresult_string_from_registers :: proc(gen: ^Generator, params: []^Register) -> string {
+    types_array := make([]^Type, len(params), context.temp_allocator)
 
     for param, index in params {
-        strings.write_string(&result, type_to_foreign_name(param.type))
+        types_array[index] = param.type
+    }
+
+    result := gen_multiresult_string_from_types(gen, types_array)
+    return result
+}
+
+gen_multiresult_string_from_params :: proc(gen: ^Generator, params: []Parameter) -> string {
+    types_array := make([]^Type, len(params), context.temp_allocator)
+
+    for param, index in params {
+        types_array[index] = param.type
+    }
+
+    result := gen_multiresult_string_from_types(gen, types_array)
+    return result
+}
+
+gen_multiresult_string_from_types :: proc(gen: ^Generator, params: []^Type) -> string {
+    result := strings.builder_make(context.temp_allocator)
+
+    strings.write_string(&result, "sk_result_")
+
+    for param, index in params {
+        strings.write_string(&result, param.foreign_name)
         if index < len(params)-1 do strings.write_string(&result, "_")
     }
 
@@ -67,9 +96,9 @@ gen_multiresult_str :: proc(gen: ^Generator, params: []^Op_Code) -> string {
 
         fmt.sbprintf(&gen.multi, "typedef struct {} {{\n", result_str)
         for param, index in params {
-            fmt.sbprintf(&gen.multi, "\t{} {}{};\n", type_to_foreign_name(param.type), MULTI_RESULT_PREFIX, index)
+            fmt.sbprintf(&gen.multi, "\t{} p{};\n", param.foreign_name, index)
         }
-        fmt.sbprintf(&gen.multi, "} {};\n", result_str)
+        fmt.sbprintf(&gen.multi, "} {};\n\n", result_str)
 
         return result_str
     }
@@ -78,213 +107,7 @@ gen_multiresult_str :: proc(gen: ^Generator, params: []^Op_Code) -> string {
 }
 
 gen_register :: proc(gen: ^Generator, reg: ^Register) {
-    gen_printf(gen, "{}%d", reg.prefix, reg.ip)
-}
-
-gen_result_type :: proc(gen: ^Generator, results: []^Op_Code) {
-    if len(results) == 0 {
-        gen_print(gen, "void")
-    } else if len(results) == 1 {
-        gen_printf(gen, "{}", type_to_foreign_name(results[0].type))
-    } else {
-        gen_printf(gen, "{}", gen_multiresult_str(gen, results))
-    }
-}
-
-gen_proc_signature :: proc(gen: ^Generator, op: ^Op_Code) {
-    variant := op.variant.(Op_Proc_Decl)
-    gen_printf(gen, "SK_STATIC ")
-    gen_result_type(gen, variant.results)
-    gen_printf(gen, " {}(", variant.foreign_name)
-
-    for child, index in variant.arguments {
-        gen_printf(gen, "{} ", type_to_foreign_name(child.type))
-        gen_register(gen, child.register)
-
-        if index < len(variant.arguments)-1 {
-            gen_print(gen, ", ")
-        }
-    }
-    gen_print(gen, ")")
-}
-
-gen_op :: proc(gen: ^Generator, op: ^Op_Code) {
-    switch variant in op.variant {
-    case Op_Identifier:
-        assert(false, "Compiler Bug: Identifier should have been evaluated in checker")
-
-    case Op_Constant:
-        gen_op_push_constant(gen, op)
-    case Op_Plus:
-        gen_op_plus(gen, op)
-    case Op_Proc_Call:
-        gen_op_proc_call(gen, op)
-    case Op_Return:
-        gen_op_return(gen, op)
-
-    case Op_Proc_Decl: // skipped
-
-    case Op_Drop: // skipped
-    case Op_Type_Lit:    gen_op_type_lit   (gen, op)
-    case Op_Binary_Expr: gen_op_binary_expr(gen, op)
-    }
-}
-
-gen_op_push_constant :: proc(gen: ^Generator, op: ^Op_Code) {
-    variant := op.variant.(Op_Constant)
-    assert(op.register != nil)
-
-    gen_register(gen, op.register)
-    gen_printf(gen, " = {}", op.value)
-}
-
-gen_op_plus :: proc(gen: ^Generator, op: ^Op_Code) {
-    assert(op.register != nil)
-    variant := op.variant.(Op_Plus)
-
-    gen_register(gen, op.register)
-    gen_print(gen, " = ")
-    gen_register(gen, variant.lhs)
-    gen_print(gen, " + ")
-    gen_register(gen, variant.rhs)
-}
-
-gen_op_proc_call :: proc(gen: ^Generator, op: ^Op_Code) {
-    variant := op.variant.(Op_Proc_Call)
-
-    if len(variant.results) == 1 {
-        result := variant.results[0]
-        gen_register(gen, result.register)
-        gen_print(gen, " = ")
-    } else if len(variant.results) > 1 {
-        gen_printf(gen, "{} multi{} = ", gen_multiresult_str(gen, variant.results), op.ip)
-    }
-
-    gen_printf(gen, "{}(", variant.foreign_name)
-    for arg, index in variant.arguments {
-        gen_register(gen, arg.register)
-
-        if index < len(variant.arguments)-1 {
-            gen_print(gen, ", ")
-        }
-    }
-    gen_print(gen, ")")
-
-    if len(variant.results) > 1 {
-        gen_print(gen, ";\n")
-        for result, index in variant.results {
-            gen_indent(gen)
-            gen_register(gen, result.register)
-            gen_printf(gen, " = multi{}.{}{}", op.ip, MULTI_RESULT_PREFIX, index)
-            if index < len(variant.results)-1 {
-                gen_print(gen, ";\n")
-            }
-        }
-    }
-}
-
-gen_op_type_lit :: proc(gen: ^Generator, op: ^Op_Code) {
-
-}
-
-gen_op_binary_expr :: proc(gen: ^Generator, op: ^Op_Code) {
-    assert(op.register != nil)
-    variant := op.variant.(Op_Binary_Expr)
-
-    gen_register(gen, op.register)
-    gen_print(gen, " = ")
-    gen_register(gen, variant.lhs)
-    gen_printf(gen, " {} ", variant.op)
-    gen_register(gen, variant.rhs)
-}
-
-gen_op_proc_decl :: proc(gen: ^Generator, op: ^Op_Code) {
-    variant := op.variant.(Op_Proc_Decl)
-
-    gen.source = &gen.defs
-    gen_proc_signature(gen, op)
-    gen_printf(gen, ";\n")
-
-    gen.source = &gen.code
-    gen_proc_signature(gen, op)
-    gen_printf(gen, "\n")
-
-    gen_begin_scope(gen)
-
-    for key, array in variant.registers {
-        gen_indent(gen)
-        gen_printf(gen, "{} ", type_to_foreign_name(key))
-
-        for &reg, index in array {
-            gen_register(gen, &reg)
-
-            if index < len(array)-1 {
-                gen_print(gen, ", ")
-            }
-
-            if (index + 1) % 10 == 0 {
-                gen_print(gen, "\n")
-                gen_indent(gen)
-                gen_print(gen, "    ")
-            }
-        }
-
-        gen_print(gen, ";\n")
-    }
-
-    for child in variant.body {
-        #partial switch _ in child.variant {
-        case Op_Proc_Decl, Op_Drop: // skipped
-        case:
-            gen_indent(gen)
-            gen_op(gen, child)
-            gen_print(gen, ";\n")
-        }
-    }
-
-    gen_end_scope(gen)
-}
-
-gen_op_return :: proc(gen: ^Generator, op: ^Op_Code) {
-    variant := op.variant.(Op_Return)
-
-    gen_print(gen, "return")
-
-    if len(variant.results) == 0 do return
-
-    gen_print(gen, " ")
-
-    if len(variant.results) == 1 {
-        result := variant.results[0]
-
-        gen_print(gen, "(")
-        gen_result_type(gen, variant.results)
-        gen_print(gen, ")")
-        gen_register(gen, result.register)
-    } else {
-        gen_print(gen, "(")
-        gen_result_type(gen, variant.results)
-        gen_print(gen, ")")
-        gen_print(gen, "{")
-        for result, index in variant.results {
-            gen_printf(gen, ".{}{}=", MULTI_RESULT_PREFIX, index)
-            gen_register(gen, result.register)
-            if index < len(variant.results)-1 {
-                gen_print(gen, ", ")
-            }
-        }
-        gen_print(gen, "}")
-    }
-}
-
-gen_procs_recursive :: proc(gen: ^Generator, op: ^Op_Code) {
-    if proc_op, is_proc_decl := op.variant.(Op_Proc_Decl); is_proc_decl {
-        gen_op_proc_decl(gen, op)
-
-        for child in proc_op.body {
-            gen_procs_recursive(gen, child)
-        }
-    }
+    gen_printf(gen, "r%d", reg.index)
 }
 
 gen_bootstrap :: proc(gen: ^Generator) {
@@ -296,24 +119,38 @@ gen_bootstrap :: proc(gen: ^Generator) {
     gen_print(gen, "#define SK_EXPORT extern __declspec(dllexport)\n")
     gen_print(gen, "#define SK_INLINE static inline\n")
     gen_print(gen, "#define SK_STATIC static\n")
+    gen_print(gen, "#define SK_TRUE  1\n")
+    gen_print(gen, "#define SK_FALSE 0\n")
     gen_print(gen, "\n")
 
     gen_print(gen, "// Stanczyk Builtin Types\n")
-    gen_print(gen, "typedef int64_t s64;\n")
+    gen_print(gen, "typedef int64_t  s64;\n")
+    gen_print(gen, "typedef int32_t  s32;\n")
+    gen_print(gen, "typedef int16_t  s16;\n")
+    gen_print(gen, "typedef int8_t   s8;\n")
+    gen_print(gen, "typedef uint64_t u64;\n")
+    gen_print(gen, "typedef uint32_t u32;\n")
+    gen_print(gen, "typedef uint16_t u16;\n")
+    gen_print(gen, "typedef uint8_t  u8;\n")
+    gen_print(gen, "typedef int8_t   b8;\n")
+    gen_print(gen, "typedef double   f64;\n")
+    gen_print(gen, "typedef float    f32;\n")
+    gen_print(gen, "\n")
+
+    // string type
+    gen_print(gen, "typedef struct string {\n")
+    gen_print(gen, "\tu8* data;\n")
+    gen_print(gen, "\ts64 length;\n")
+    gen_print(gen, "} string;\n")
 
     gen.source = &gen.multi
     gen_print(gen, "// Stanczyk Multireturn types\n")
 
     gen.source = &gen.sk_code
     gen_print(gen, "// Stanczyk Internal Procedures\n")
-    gen_print(gen, "static void internal_print(s64 n);\n")
-    gen_print(gen, "\n")
-    gen_print(gen, "static void internal_print(s64 n)\n")
-    gen_begin_scope(gen)
-    gen_indent(gen)
-    gen_print(gen, "printf(\"%lli\\n\", n);\n")
-    gen_end_scope(gen)
-
+    gen_print(gen, "SK_STATIC void print_s64(s64 n) { printf(\"%lli\\n\", n); }\n")
+    gen_print(gen, "SK_STATIC void print_u64(u64 n) { printf(\"%llu\\n\", n); }\n")
+    gen_print(gen, "SK_STATIC void print_f64(f64 n) { printf(\"%g\\n\", n); }\n")
 
     gen.source = &gen.defs
     gen_print(gen, "// User Definitions\n")
@@ -333,11 +170,194 @@ gen_program :: proc() {
 
     gen_bootstrap(gen)
 
-    for op in program_bytecode {
-        gen_procs_recursive(gen, op)
+    for procedure in bytecode {
+        gen_procedure(gen, procedure)
     }
 
     write_file(gen)
+}
+
+gen_procedure :: proc(gen: ^Generator, procedure: ^Procedure) {
+    _gen_proc_header_line :: proc(gen: ^Generator, procedure: ^Procedure) {
+        type_string := "void"
+
+        if len(procedure.results) == 1 {
+            type_string = procedure.results[0].type.foreign_name
+        } else if len(procedure.results) > 1 {
+            type_string = gen_multiresult_string(gen, procedure.results)
+        }
+
+        gen_printf(gen, "SK_STATIC {} {}(", type_string, procedure.foreign_name)
+
+        for arg, index in procedure.arguments {
+            gen_printf(gen, "{} arg{}", arg.type.foreign_name, index)
+            if index < len(procedure.arguments)-1 {
+                gen_print(gen, ", ")
+            }
+        }
+
+        gen_print(gen, ")")
+    }
+
+    gen.source = &gen.defs
+    _gen_proc_header_line(gen, procedure)
+    gen_print(gen, ";\n")
+
+    gen.source = &gen.code
+    _gen_proc_header_line(gen, procedure)
+    gen_begin_scope(gen)
+
+    registers_copy := slice.clone(procedure.registers[:], context.temp_allocator)
+    slice.stable_sort_by(registers_copy[:], proc(i, j: ^Register) -> bool {
+        return i.type != j.type
+    })
+
+    gen_indent(gen)
+    last_type := registers_copy[0].type
+    gen_printf(gen, "{} ", last_type.foreign_name)
+
+    for reg, index in registers_copy {
+        if last_type != reg.type {
+            gen_printf(gen, ";\n")
+            gen_indent(gen)
+            gen_printf(gen, "{} ", reg.type.foreign_name)
+            last_type = reg.type
+        }
+
+        gen_printf(gen, "r{}", reg.index)
+
+        if index < len(registers_copy)-1 && registers_copy[index + 1].type == last_type {
+            gen_print(gen, ", ")
+        }
+    }
+    gen_print(gen, ";\n")
+
+    for ins in procedure.code {
+        gen_instruction(gen, procedure, ins)
+    }
+
+    gen_end_scope(gen)
+}
+
+gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instruction) {
+    gen_printf(
+        gen, "_ip{}:;\t// {}\n", ins.offset, reflect.union_variant_type_info(ins.variant),
+    )
+
+    switch v in ins.variant {
+    case BINARY_ADD:
+        gen_indent(gen)
+        gen_register(gen, ins.register)
+        gen_printf(gen, " = r{} + r{};\n", v.lhs, v.rhs)
+
+    case BINARY_MINUS:
+        gen_indent(gen)
+        gen_register(gen, ins.register)
+        gen_printf(gen, " = r{} - r{};\n", v.lhs, v.rhs)
+
+    case BINARY_MULTIPLY:
+        gen_indent(gen)
+        gen_register(gen, ins.register)
+        gen_printf(gen, " = r{} * r{};\n", v.lhs, v.rhs)
+
+    case BINARY_MODULO:
+        gen_indent(gen)
+        gen_register(gen, ins.register)
+        gen_printf(gen, " = r{} %% r{};\n", v.lhs, v.rhs)
+
+    case BINARY_SLASH:
+        gen_indent(gen)
+        gen_register(gen, ins.register)
+        gen_printf(gen, " = r{} / r{};\n", v.lhs, v.rhs)
+
+    case CAST:
+
+    case DROP:
+
+    case DUP:
+
+    case IDENTIFIER:
+
+    case INVOKE_PROC:
+        gen_indent(gen)
+        has_multiresults := len(v.results) > 1
+
+        if has_multiresults {
+            type := gen_multiresult_string(gen, v.results)
+            gen_printf(gen, "{} sk_result{}", type, ins.offset)
+            gen_print(gen, " = ")
+        } else if len(v.results) == 1 {
+            gen_register(gen, v.results[0])
+            gen_print(gen, " = ")
+        }
+
+        gen_printf(gen, "{}(", v.procedure.foreign_name)
+        for value, index in v.arguments {
+            gen_register(gen, value)
+
+            if index < len(v.arguments)-1 {
+                gen_print(gen, ", ")
+            }
+        }
+        gen_print(gen, ");\n")
+
+        if has_multiresults {
+            for result, index in v.results {
+                gen_indent(gen)
+                gen_register(gen, result)
+                gen_printf(gen, " = sk_result{}.p{};\n", ins.offset, index)
+            }
+        }
+
+    case PRINT:
+        gen_indent(gen)
+        gen_printf(gen, "print_{}(", v.param.type.foreign_name)
+        gen_register(gen, v.param)
+        gen_print(gen, ");\n")
+
+    case PUSH_ARG:
+        gen_indent(gen)
+        gen_register(gen, ins.register)
+        gen_printf(gen, " = arg{};\n", v.value)
+
+    case PUSH_FLOAT:
+        gen_indent(gen)
+        gen_register(gen, ins.register)
+        gen_printf(gen, " = {};\n", v.value)
+
+    case PUSH_INT:
+        gen_indent(gen)
+        gen_register(gen, ins.register)
+        gen_printf(gen, " = {};\n", v.value)
+
+    case PUSH_TYPE:
+
+    case PUSH_UINT:
+        gen_indent(gen)
+        gen_register(gen, ins.register)
+        gen_printf(gen, " = {};\n", v.value)
+
+    case RETURN:
+        gen_indent(gen)
+        gen_print(gen, "return;\n")
+
+    case RETURN_VALUE:
+        gen_indent(gen)
+        gen_printf(gen, "return r{};\n", v.value)
+
+    case RETURN_VALUES:
+        type := gen_multiresult_string(gen, v.value)
+        gen_indent(gen)
+        gen_printf(gen, "return ({}){{", type)
+        for arg, index in v.value {
+            gen_printf(gen, ".p{}=", index)
+            gen_register(gen, arg)
+            if index < len(v.value)-1 {
+                gen_print(gen, ", ")
+            }
+        }
+        gen_print(gen, "};\n")
+    }
 }
 
 write_file :: proc(gen: ^Generator) {

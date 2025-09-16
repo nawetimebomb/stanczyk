@@ -4,6 +4,34 @@ import "core:fmt"
 import "core:os/os2"
 import "core:strings"
 
+// Parser Errors
+FAILED_TO_PARSE_TYPE :: "Failed to parse this as a valid type"
+
+IMPERATIVE_EXPR_GLOBAL :: "Attemp to use an imperative expression while in global scope."
+
+INVALID_TOKEN :: "We found an invalid token '{}'. This might just be a compiler bug, please report at " + GIT_URL + "."
+
+MAIN_PROC_TYPE_NOT_EMPTY :: "Entry point procedure must have no arguments."
+
+UNEXPECTED_TOKEN_PROC_TYPE :: "'{}' is not a type."
+
+// Checker Errors
+MISMATCHED_NUMBER_ARGS :: "Not enough values to call '{}'; Expected {}, but got {}."
+
+MISMATCHED_TYPES_ARG :: "Mismatched type to call '{}'; Expected '{}', but got '{}'."
+
+MISMATCHED_NUMBER_RESULTS :: "Expected {} result(s) in procedure '{}', but got {} instead."
+
+MISMATCHED_TYPES_BINARY_EXPR :: "Mismatched types in binary expression '{}' vs '{}'."
+
+MISMATCHED_TYPES_RESULT :: "Mismatched types in procedure '{}' results; Expected '{}', but got '{}' instead."
+
+STACK_EMPTY :: "There are not enough stack values to make this operation."
+
+STACK_EMPTY_EXPECT :: "There are not enough stack values to make this operation. Expected {}, but got {} instead."
+
+UNDEFINED_IDENTIFIER :: "We could not find the meaning of identifier '{}'."
+
 Fatal_Error_Kind :: enum u8 {
     None      = 0,
     Compiler  = 1,
@@ -13,13 +41,14 @@ Fatal_Error_Kind :: enum u8 {
 }
 
 Compiler_Error :: struct {
-    message: string,
-    token:   Token,
+    message:     string,
+    token:       Token,
 }
 
-CYAN  :: "\e[0;96m"
-RED   :: "\e[1;91m"
-RESET :: "\e[0m"
+CYAN       :: "\e[0;96m"
+CYAN_BOLD  :: "\e[1;96m"
+RED        :: "\e[1;91m"
+RESET      :: "\e[0m"
 
 print_cyan :: proc(format: string, args: ..any) {
     message := fmt.tprintf(format, ..args)
@@ -55,36 +84,36 @@ report_all_errors :: proc() {
             "\e[1m{}({}:{})\e[1;91m Error:\e[0m {}",
             fullpath, token.l0, token.c0, error.message,
         )
-        fmt.eprint("\e[0;96m")
-        if token.l0 > 1 {
-            line_index := max(token.l0-2, 0)
-            count_of_chars := 0
-            for line_index > 0 && count_of_chars == 0 {
-                start := line_starts[line_index]
-                end := line_starts[line_index+1] - 1
-                count_of_chars = end - start
-                if count_of_chars == 0 do line_index -= 1
-            }
-            line_index = max(line_index, 0)
+
+
+        line_index := max(token.l0-2, 0)
+        count_of_chars := 0
+        for line_index > 0 && count_of_chars == 0 {
             start := line_starts[line_index]
-            text := source[start:token.start]
-            token_start_index := token.start - start
+            end := line_starts[line_index+1] - 1
+            count_of_chars = end - start
+            if count_of_chars == 0 do line_index -= 1
+        }
+        line_index = max(line_index, 0)
+        start := line_starts[line_index]
+        text := source[start:token.end]
 
-            fmt.eprintf("\t{} | \t", line_number_to_string(line_index + 1))
-            for r, index in text {
-                fmt.eprint(r)
-
-                if r == '\n' {
-                    line_index += 1
-                    fmt.eprintf("\t{} | \t", line_number_to_string(line_index + 1))
-                }
+        fmt.eprint(CYAN)
+        fmt.eprintf("\t{} | \t", line_number_to_string(line_index + 1))
+        for r, index in text {
+            offset := index + start
+            if error.token.start <= offset && offset <= error.token.end {
+                fmt.eprint(RED)
+            } else {
+                fmt.eprint(CYAN)
             }
 
-            error_red(source[token.start:token.end])
-        } else {
-            curr_line := source[:token.start]
-            fmt.eprintf("\t{} | \t{}", line_number_to_string(token.l0), curr_line)
-            error_red(source[token.start:token.end])
+            fmt.eprint(r)
+
+            if r == '\n' {
+                line_index += 1
+                fmt.eprintf("\t{} | \t", line_number_to_string(line_index + 1))
+            }
         }
 
         fmt.eprint("\e[0m\n")

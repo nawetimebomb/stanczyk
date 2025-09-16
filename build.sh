@@ -10,6 +10,7 @@ if [ "$?" == 0 ]; then
 
     if [ "$?" == 0 ]; then
        echo -e "\nProgram result:\n"
+       # cat sandbox/test.c
        ./sandbox/test
     fi
   fi

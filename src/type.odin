@@ -1,11 +1,19 @@
 package main
 
 Type :: struct {
-    size:    int,
-    name:    string,
+    size_in_bytes: int,
+    name:          string,
+    foreign_name:  string,
     variant: union {
+        Type_Alias,
         Type_Basic,
+        Type_Procedure,
+        Type_Struct,
     },
+}
+
+Type_Alias :: struct {
+    derived: ^Type,
 }
 
 Type_Basic :: struct {
@@ -13,7 +21,16 @@ Type_Basic :: struct {
     kind: Type_Basic_Kind,
 }
 
-Type_Id :: struct {}
+Type_Procedure :: struct {
+    arguments: []^Type,
+    results:   []^Type,
+}
+
+Type_Struct :: struct {
+    names:        []string,
+    types:        []^Type,
+    fields_count: int,
+}
 
 Type_Basic_Kind :: enum {
     Bool,
@@ -24,51 +41,58 @@ Type_Basic_Kind :: enum {
     Uint,
 }
 
-BASIC_TYPES := []Type{
-    {name = "bool",   size = 1, variant = Type_Basic{kind=.Bool}},
-    {name = "char",   size = 1, variant = Type_Basic{kind=.Char}},
-    {name = "float",  size = 8, variant = Type_Basic{kind=.Float}},
-    {name = "int",    size = 8, variant = Type_Basic{kind=.Int}},
-    {name = "string", size = 8, variant = Type_Basic{kind=.String}},
-    {name = "uint",   size = 8, variant = Type_Basic{kind=.Uint}},
+BASIC_TYPES := [Type_Basic_Kind]Type{
+    .Bool = {
+        name          = "bool",
+        foreign_name  = "b8",
+        size_in_bytes = 1,
+        variant       = Type_Basic{kind=.Bool},
+    },
+
+    .Char = {
+        name          = "char",
+        foreign_name  = "u8",
+        size_in_bytes = 1,
+        variant       = Type_Basic{kind=.Char},
+    },
+
+    .Float = {
+        name          = "float",
+        foreign_name  = "f64",
+        size_in_bytes = 8,
+        variant = Type_Basic{kind=.Float},
+    },
+
+    .Int = {
+        name          = "int",
+        foreign_name  = "s64",
+        size_in_bytes = 8,
+        variant       = Type_Basic{kind=.Int},
+    },
+
+    .String = {
+        name          = "string",
+        foreign_name  = "string",
+        size_in_bytes = 8,
+        variant       = Type_Basic{kind=.String},
+    },
+
+    .Uint = {
+        name          = "uint",
+        foreign_name  = "u64",
+        size_in_bytes = 8,
+        variant       = Type_Basic{kind=.Uint},
+    },
 }
 
-types_are_equal :: proc(t1, t2: ^Type) -> bool {
-    switch variant in t1.variant {
-    case Type_Basic:
-        t2v, ok := t2.variant.(Type_Basic)
-        return ok && variant.kind == t2v.kind
-    }
+type_bool   := &BASIC_TYPES[.Bool]
+type_char   := &BASIC_TYPES[.Char]
+type_float  := &BASIC_TYPES[.Float]
+type_int    := &BASIC_TYPES[.Int]
+type_string := &BASIC_TYPES[.String]
+type_uint   := &BASIC_TYPES[.Uint]
 
-    return false
-}
-
-type_to_string :: proc(t: ^Type) -> string {
-    assert(t != nil)
-    switch variant in t.variant {
-    case Type_Basic:
-        switch variant.kind {
-        case .Bool:   return "bool"
-        case .Char:   return "char"
-        case .Float:  return "float"
-        case .Int:    return "int"
-        case .String: return "string"
-        case .Uint:   return "uint"
-        }
-    }
-
-    return "unreachable"
-}
-
-type_to_foreign_name :: proc(t: ^Type) -> string {
-    if t == nil do return "TODO"
-    #partial switch variant in t.variant {
-    case Type_Basic:
-        #partial switch variant.kind {
-        case .Int:    return "s64"
-        case .String: return "string"
-        }
-    }
-
-    return "TODO"
+register_global_type :: proc(type: ^Type) {
+    compiler.types[type.name] = type
+    create_entity(type.name, Entity_Type{type})
 }

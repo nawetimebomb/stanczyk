@@ -14,10 +14,7 @@ NAME_ABBREV     :: "skc"
 NAME_FULL       :: "The Stańczyk Compiler"
 VERSION_MAJOR   :: "0"
 VERSION_MINOR   :: "7"
-
-ARGUMENT_PREFIX     :: "a"
-REGISTER_PREFIX     :: "r"
-MULTI_RESULT_PREFIX :: "p"
+GIT_URL         :: "https://github.com/nawetimebomb/stanczyk"
 
 File_Info :: struct {
     short_name:  string,
@@ -34,10 +31,12 @@ Compiler :: struct {
     current_scope:     ^Scope,
     global_scope:      ^Scope,
     proc_scope:        ^Scope,
+    curr_proc:         ^Procedure,
 
-    basic_types:       [Type_Basic_Kind]^Type,
+    types:             map[string]^Type,
 
     parser:            ^Parser,
+    checker:           ^Checker,
     current_ip:        int,
     lines_parsed:      int,
 }
@@ -47,10 +46,11 @@ working_dir:       string
 output_filename:   string
 
 source_files:      [dynamic]File_Info
-program_bytecode:  [dynamic]^Op_Code
+bytecode:          [dynamic]^Procedure
 
 // Defaults
-switch_debug := true
+switch_debug  := true
+switch_silent := false
 
 compiler: Compiler
 
@@ -104,17 +104,25 @@ main :: proc() {
     extension := filepath.ext(input_filename)
     output_filename = fmt.aprintf("{}", input_filename[:len(input_filename)-len(extension)])
 
+    if len(os.args) > 2 {
+        options := os.args[2:]
+
+        for s in options {
+            switch s {
+            case "-silent": switch_silent = true
+            }
+        }
+    }
 
     compiler.global_scope = create_scope()
     push_scope(compiler.global_scope)
 
-    for &t in BASIC_TYPES {
-        create_entity(t.name, nil, Entity_Type{&t})
-        v := t.variant.(Type_Basic)
-        compiler.basic_types[v.kind] = &t
-    }
-
-    register_builtin_print_entity()
+    register_global_type(type_bool)
+    register_global_type(type_char)
+    register_global_type(type_float)
+    register_global_type(type_int)
+    register_global_type(type_string)
+    register_global_type(type_uint)
 
     accumulator := time.tick_now()
     add_source_file(working_dir, os.args[1])
@@ -131,15 +139,19 @@ main :: proc() {
     gen_program()
     codegen_time := time.duration_seconds(time.tick_lap_time(&accumulator))
 
-    libc.system(fmt.ctprintf("gcc {0}.c -o {0}", output_filename))
+    //debug_print_bytecode()
+
+    libc.system(fmt.ctprintf("gcc {0}.c -o {0} -ggdb", output_filename))
     compile_time := time.duration_seconds(time.tick_lap_time(&accumulator))
     alloc_amount := tracking_allocator.current_memory_allocated
 
-    fmt.printf("\tLines processed.............{}\n",     compiler.lines_parsed)
-    fmt.printf("\tCompiler Front-end..........%.6fs\n",  frontend_time)
-    fmt.printf("\tCode generation.............%.6fs\n",  codegen_time)
-    fmt.printf("\tCompiler Back-end...........%.6fs\n",  compile_time)
-    fmt.printf("\tMemory used.................%.5fmb\n", (f64(alloc_amount)/1024.)/1024.)
+    if !switch_silent {
+        fmt.printf("\tLines processed.............{}\n",     compiler.lines_parsed)
+        fmt.printf("\tCompiler Front-end..........%.6fs\n",  frontend_time)
+        fmt.printf("\tCode generation.............%.6fs\n",  codegen_time)
+        fmt.printf("\tCompiler Back-end...........%.6fs\n",  compile_time)
+        fmt.printf("\tMemory used.................%.5fmb\n", (f64(alloc_amount)/1024.)/1024.)
+    }
 }
 
 add_source_file :: proc(directory, filename: string) {

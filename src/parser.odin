@@ -4,30 +4,20 @@ import "core:fmt"
 import "core:strconv"
 import "core:strings"
 
-PARSER_IDENTIFIER_IN_FILE_SCOPE :: "We found an attempt to use an identifier statement at file scope, this is not allowed."
-PARSER_OPERATOR_IN_FILE_SCOPE   :: "We found an operator in file scope."
-PARSER_VALUE_IN_FILE_SCOPE      :: "We found an attempt to stack a value from file scope, this is not allowed."
-PARSER_FOREIGN_MISPLACED        :: "#foreign can only be used in procedures with no bodies."
-PARSER_UNEXPECTED_TOKEN :: "Unexpected token {}."
-PARSER_UNEXPECTED_EOF   :: "Unexpected end of file found."
-PARSER_UNEXPECTED_TOKEN_IN_PROC_SIGNATURE :: "Unexpected token {} while parsing procedure signature."
-PARSER_INVALID_NUMBER   :: "Found an invalid number."
-PARSER_COMPILER_ERROR   :: "Compiler error"
-
 Parser :: struct {
-    file_info:         ^File_Info,
+    file_info:  ^File_Info,
 
-    prev_token:        Token,
-    curr_token:        Token,
-    lexer:             Lexer,
+    prev_token: Token,
+    curr_token: Token,
+    lexer:      Lexer,
 }
 
 parser_error :: proc(token: Token, format: string, args: ..any) {
     compiler.error_reported = true
     message := fmt.aprintf(format, ..args)
     append(&compiler.errors, Compiler_Error{
-        message = message,
-        token   = token,
+        message      = message,
+        token        = token,
     })
 }
 
@@ -41,10 +31,6 @@ parser_fatal_error :: proc() {
         errors_count > 1 ? "errors" : "error",
         compiler.parser.file_info.fullpath,
     )
-}
-
-is_eof :: proc() -> bool {
-    return compiler.parser.prev_token.kind == .EOF
 }
 
 create_foreign_name :: proc(parts: []string) -> string {
@@ -76,23 +62,20 @@ create_foreign_name :: proc(parts: []string) -> string {
     return strings.to_string(foreign_name_builder)
 }
 
-create_foreign_proc_name :: proc(token: Token) -> string {
+create_foreign_name_from_token :: proc(token: Token) -> string {
     filename := token.file_info.short_name
     stanczyk_name := token.text
     foreign_name: string
 
     if compiler.current_scope != compiler.global_scope {
         parts := make([dynamic]string, context.temp_allocator)
-        s := compiler.current_scope
+        curr_proc := compiler.curr_proc
 
         append(&parts, filename)
 
-        for s.op_code != nil || s != compiler.global_scope {
-            if proc_scope, ok := s.op_code.variant.(Op_Proc_Decl); ok {
-                append(&parts, proc_scope.name.text)
-            }
-
-            s = s.parent
+        for curr_proc != nil {
+            append(&parts, curr_proc.name)
+            curr_proc = curr_proc.parent
         }
 
         append(&parts, stanczyk_name)
@@ -110,60 +93,40 @@ create_foreign_proc_name :: proc(token: Token) -> string {
     return foreign_name
 }
 
-create_op_code :: proc(token: Token) -> ^Op_Code {
-    op := new(Op_Code)
-    op.token = token
-    op.ip = compiler.current_ip
-    compiler.current_ip += 1
-    return op
+add_to_registers :: proc(type: ^Type) -> ^Register {
+    result := new(Register)
+    result.index = len(compiler.curr_proc.registers)
+    result.type = type
+    append(&compiler.curr_proc.registers, result)
+    return result
 }
 
-write_op_code :: proc(chunk: ^[dynamic]^Op_Code, op: ^Op_Code) {
-    append(chunk, op)
+write_chunk :: proc(token: Token, variant: Instruction_Variant) {
+    result := new(Instruction)
+    result.token    = token
+    result.offset   = len(compiler.curr_proc.code)
+    result.variant  = variant
+    append(&compiler.curr_proc.code, result)
 }
 
-create_scope :: proc(op_code: ^Op_Code = nil) -> ^Scope {
-    new_scope := new(Scope)
-    new_scope.stack = new(Stack)
-    new_scope.op_code = op_code
-    return new_scope
+make_procedure :: proc(token: Token) -> ^Procedure {
+    result := new(Procedure)
+    result.token        = token
+    result.name         = token.text
+    result.foreign_name = create_foreign_name_from_token(token)
+    result.is_global    = is_in_global_scope()
+    result.file_info    = token.file_info
+    result.entity       = create_entity(result.name, Entity_Procedure{ procedure = result })
+    result.scope        = create_scope()
+    result.registers    = make([dynamic]^Register)
+    result.code         = make([dynamic]^Instruction)
+    return result
 }
 
-push_proc :: proc(proc_scope: ^Scope) {
-    assert(proc_scope != nil)
-    push_scope(proc_scope)
-    compiler.proc_scope = proc_scope
-}
-
-pop_proc :: proc() {
-    is_scope_proc :: proc(scope: ^Scope) -> bool {
-        if scope.op_code != nil {
-            _, is_proc := scope.op_code.variant.(Op_Proc_Decl)
-            return is_proc
-        }
-
-        return false
-    }
-
-    pop_scope()
-
-    if is_scope_proc(compiler.current_scope) {
-        compiler.proc_scope = compiler.current_scope
-    } else {
-        compiler.proc_scope = nil
-    }
-}
-
-push_scope :: proc(new_scope: ^Scope) {
-    assert(new_scope != nil)
-    new_scope.parent = compiler.current_scope
-    compiler.current_scope = new_scope
-}
-
-pop_scope :: proc() {
-    old_scope := compiler.current_scope
-    compiler.current_scope = old_scope.parent
-    stack_reset(old_scope.stack)
+stanczyk_number_to_c_number :: proc(s: string) -> string {
+    b := s[len(s)-1]
+    if b != '.' && !(b >= '0' && b <= '9') do return s[:len(s)-1]
+    return s
 }
 
 allow :: proc(kind: Token_Kind) -> bool {
@@ -174,15 +137,19 @@ allow :: proc(kind: Token_Kind) -> bool {
     return false
 }
 
-expect :: proc(kind: Token_Kind) -> (token: Token) {
-    token = next()
+peek :: proc(kind: Token_Kind) -> bool {
+    if compiler.parser.curr_token.kind == kind {
+        return true
+    }
+    return false
+}
 
-    if token.kind != kind {
-        parser_error(token, "Expected {}, got {}", kind, token.kind)
-        for {
-            token := next()
-            if token.kind == .EOF || token.kind == .Semicolon do break
-        }
+expect :: proc(kind: Token_Kind) -> (result: Token) {
+    position_token := compiler.parser.prev_token
+    result = next()
+
+    if result.kind != kind {
+        parser_error(position_token, "Expected {}, got {}", kind, result.kind)
     }
 
     return
@@ -195,6 +162,23 @@ next :: proc() -> Token {
     return compiler.parser.prev_token
 }
 
+can_continue_parsing :: proc() -> bool {
+    result := !compiler.error_reported && !peek(.EOF)
+
+    if !result {
+        // skip to the end of the procedure or the end of file, whatever is first.
+        for !peek(.Semicolon) && !peek(.EOF) {
+            next()
+        }
+    }
+
+    return result
+}
+
+is_in_global_scope :: proc() -> bool {
+    return compiler.current_scope == compiler.global_scope
+}
+
 parse_file :: proc(file_info: ^File_Info) {
     compiler.parser = new(Parser)
     compiler.parser.file_info = file_info
@@ -202,15 +186,9 @@ parse_file :: proc(file_info: ^File_Info) {
     init_lexer()
     next()
 
-    main_loop: for !is_eof() {
-        if allow(.EOF) {
-            break main_loop
-        }
-
+    for !allow(.EOF) {
         compiler.error_reported = false
-        op := parse_expression()
-        if op == nil do break
-        write_op_code(&program_bytecode, op)
+        parse_expression_in_global_scope()
     }
 
     if len(compiler.errors) > 0 {
@@ -222,257 +200,240 @@ parse_file :: proc(file_info: ^File_Info) {
     free(compiler.parser)
 }
 
-parse_expression :: proc() -> ^Op_Code {
+parse_expression_in_global_scope :: proc() {
     token := next()
 
-    switch token.kind {
-    case .Invalid:
-        parser_error(token, PARSER_UNEXPECTED_TOKEN, token.text)
-        return nil
+    #partial switch token.kind {
+    case .Proc: parse_proc_declaration()
+    case .Type: parse_type_declaration()
+    case:       parser_error(token, IMPERATIVE_EXPR_GLOBAL)
+    }
+}
 
-    case .Dash_Dash_Dash:
-        parser_error(token, PARSER_UNEXPECTED_TOKEN, token.text)
-        return nil
+parse_proc_declaration :: proc() {
+    name_token := expect(.Identifier)
+    procedure := make_procedure(name_token)
 
-    case .EOF:
-        parser_error(token, PARSER_UNEXPECTED_EOF)
-        return nil
+    if allow(.Paren_Left) && !allow(.Paren_Right) {
+        arguments := make([dynamic]Parameter)
+        results   := make([dynamic]Parameter)
+        current_array := &arguments
 
-    case .Semicolon:
-        parser_error(token, PARSER_COMPILER_ERROR)
-        return nil
+        for can_continue_parsing() && !allow(.Paren_Right) {
+            token := next()
 
-    case .Paren_Left:
-        parser_error(token, PARSER_COMPILER_ERROR)
-        return nil
+            #partial switch token.kind {
+            case .Dash_Dash_Dash:
+                current_array = &results
 
-    case .Paren_Right:
-        parser_error(token, PARSER_COMPILER_ERROR)
-        return nil
+            case .Identifier:
+                name_token := token
+                type_token := token
 
+                if allow(.Colon) {
+                    type_token = compiler.parser.prev_token
+                }
+
+                append(current_array, Parameter{
+                    name_token = name_token,
+                    type_token = type_token,
+                    is_named   = name_token != type_token,
+                    type       = compiler.types[type_token.text],
+                })
+
+            case:
+                parser_error(token, UNEXPECTED_TOKEN_PROC_TYPE, token.text)
+                parser_fatal_error()
+            }
+        }
+
+        procedure.arguments = arguments[:]
+        procedure.results   = results[:]
+    }
+
+    if procedure.name == "main" && is_in_global_scope() {
+        if len(procedure.arguments) > 0 || len(procedure.results) > 0 {
+            parser_error(name_token, MAIN_PROC_TYPE_NOT_EMPTY)
+        }
+    }
+
+    push_procedure(procedure)
+
+    for arg, index in procedure.arguments {
+        if arg.is_named {
+            // TODO(nawe) push arguments, save bound arguments
+            unimplemented()
+        } else {
+            write_chunk(arg.type_token, PUSH_ARG{index})
+        }
+    }
+
+    for can_continue_parsing() && !peek(.Semicolon) {
+        parse_expression()
+    }
+
+    return_token := expect(.Semicolon)
+
+    if len(procedure.results) == 0 {
+        write_chunk(return_token, RETURN{})
+    } else if len(procedure.results) == 1 {
+        write_chunk(return_token, RETURN_VALUE{-1})
+    } else {
+        write_chunk(return_token, RETURN_VALUES{
+            value = make([]^Register, len(procedure.results)),
+        })
+    }
+
+    pop_procedure()
+
+    append(&bytecode, procedure)
+}
+
+parse_type_declaration :: proc() {
+    name_token := expect(.Identifier)
+    maybe_type_token := next()
+
+    #partial switch maybe_type_token.kind {
+    case .Proc:       unimplemented("Allow to define procedure types")
     case .Identifier:
-        return parse_identifier(token)
+        derived_type := compiler.types[maybe_type_token.text]
 
-    case .Integer:
-        return parse_integer(token)
+        if derived_type == nil {
+            matches := find_entity(maybe_type_token.text)
 
-    case .Unsigned_Integer:
-        unimplemented()
+            if len(matches) == 0 || len(matches) > 1 {
+                parser_error(maybe_type_token, FAILED_TO_PARSE_TYPE)
+                parser_fatal_error()
+            }
 
-    case .Float:
-        unimplemented()
+            entity := matches[0]
 
-    case .Hex:
-        unimplemented()
+            #partial switch v in entity.variant {
+            case Entity_Type: derived_type = v.type
+            case:
+                parser_error(maybe_type_token, FAILED_TO_PARSE_TYPE)
+                parser_fatal_error()
+            }
+        }
 
-    case .Binary:
-        unimplemented()
+        type := new(Type)
+        type.name = name_token.text
+        type.foreign_name = create_foreign_name_from_token(name_token)
+        type.variant = Type_Alias{
+            derived = derived_type,
+        }
 
-    case .Octal:
-        unimplemented()
-
-    case .String:
-        unimplemented()
-
-    case .Char:
-        unimplemented()
-
-    case .True:
-        unimplemented()
-
-    case .False:
-        unimplemented()
-
-    case .Brace_Left:
-        unimplemented()
-
-    case .Brace_Right:
-        unimplemented()
-
-    case .Bracket_Left:
-        unimplemented()
-
-    case .Bracket_Right:
-        unimplemented()
-
-    case .Minus:
-        return parse_binary_expr(token)
-
-    case .Plus:
-        op := create_op_code(token)
-        op.variant = Op_Plus{}
-        return op
-
-    case .Star:
-        return parse_binary_expr(token)
-
-    case .Slash:
-        return parse_binary_expr(token)
-
-    case .Percent:
-        return parse_binary_expr(token)
-
-    case .Using:
-        unimplemented()
-
-    case .Proc:
-        return parse_proc_decl(token)
-
-    case .Drop:
-        op := create_op_code(token)
-        op.variant = Op_Drop{}
-        return op
-
-    case .Foreign:
-        parse_foreign(token)
-
-    }
-
-    return nil
-}
-
-parse_binary_expr :: proc(token: Token) -> ^Op_Code {
-    if is_global_scope() {
-        parser_error(token, PARSER_OPERATOR_IN_FILE_SCOPE)
-    }
-
-    op := create_op_code(token)
-    op.variant = Op_Binary_Expr{op=token.text}
-    return op
-}
-
-parse_foreign :: proc(token: Token) {
-    if allow(.Identifier) {
-        //parser.current_context.proc_decl.foreign_lib = parser.prev_token
+        if is_in_global_scope() {
+            register_global_type(type)
+        } else {
+            create_entity(type.name, Entity_Type{type})
+        }
     }
 
     expect(.Semicolon)
 }
 
-parse_proc_decl :: proc(token: Token) -> ^Op_Code {
-    result := create_op_code(token)
-    proc_decl := Op_Proc_Decl{}
-    proc_decl.name = expect(.Identifier)
-    proc_decl.foreign_name = create_foreign_proc_name(proc_decl.name)
-    proc_decl.entity = create_entity(proc_decl.name.text, result, Entity_Procedure{})
-    proc_decl.scope  = create_scope(result)
+parse_expression :: proc() {
+    token := next()
 
-    push_proc(proc_decl.scope)
+    switch token.kind {
+    case .EOF:
+        assert(false, "Compiler Bug. EOF token should never be handled by this procedure.")
 
-    if allow(.Paren_Left) && !allow(.Paren_Right) {
-        parse_proc_signature(&proc_decl)
-    }
+    case .Dash_Dash_Dash:
+        assert(false, "Compiler Bug. This token should be handled as part of other procedures, like in proc declaration signature.")
 
-    proc_body_loop: for !has_error() {
-        if allow(.Semicolon) {
-            break proc_body_loop
-        }
+    case .Invalid:
+        parser_error(token, INVALID_TOKEN, token.text)
 
-        value := parse_expression()
-        write_op_code(&proc_decl.body, value)
-    }
+    case .Identifier:
+        matches := find_entity(token.text)
 
-    if has_error() {
-        for !allow(.Semicolon) && !allow(.EOF) do next()
-        return nil
-    }
+        if len(matches) == 0 {
+            write_chunk(token, IDENTIFIER{token.text})
+        } else if len(matches) == 1 {
+            entity := matches[0]
 
-    return_op := create_op_code(compiler.parser.prev_token)
-    return_op.variant = Op_Return{results=proc_decl.results[:]}
-    write_op_code(&proc_decl.body, return_op)
-
-    result.variant = proc_decl
-    pop_proc()
-    return result
-}
-
-parse_proc_signature :: proc(proc_decl: ^Op_Proc_Decl) {
-    arguments := make([dynamic]^Op_Code)
-    results := make([dynamic]^Op_Code)
-    IP := 0
-    maybe_has_results := false
-
-    proc_args: for {
-        token := next()
-
-        #partial switch token.kind {
-        case .Dash_Dash_Dash, .Paren_Right:
-            maybe_has_results = token.kind == .Dash_Dash_Dash
-            break proc_args
-        case .Identifier:
-            op := parse_identifier(token)
-            op.register = new_clone(Register{prefix=ARGUMENT_PREFIX, ip=IP, type=op.type})
-            append(&arguments, op)
-            IP += 1
-        case:
-            parser_error(token, PARSER_UNEXPECTED_TOKEN_IN_PROC_SIGNATURE, token.text)
-            return
-        }
-    }
-
-    if maybe_has_results {
-        proc_results: for {
-            token := next()
-
-            #partial switch token.kind {
-            case .Paren_Right:
-                break proc_results
-            case .Identifier:
-                append(&results, parse_identifier(token))
-            case:
-                parser_error(token, PARSER_UNEXPECTED_TOKEN_IN_PROC_SIGNATURE, token.text)
-                return
+            switch variant in entity.variant {
+            case Entity_Procedure:
+                write_chunk(token, INVOKE_PROC{
+                    procedure = variant.procedure,
+                })
+            case Entity_Type:
+                write_chunk(token, PUSH_TYPE{variant.type})
             }
+
+        } else {
+            unimplemented()
         }
+
+    case .Integer:
+        value, ok := strconv.parse_i64(stanczyk_number_to_c_number(token.text))
+        assert(ok, "Compiler Bug. This was an Int by the Lexer")
+        write_chunk(token, PUSH_INT{value})
+
+    case .Unsigned_Integer:
+        value, ok := strconv.parse_u64(stanczyk_number_to_c_number(token.text))
+        assert(ok, "Compiler Bug. This was an Uint by the Lexer")
+        write_chunk(token, PUSH_UINT{value})
+
+    case .Float:
+        value, ok := strconv.parse_f64(stanczyk_number_to_c_number(token.text))
+        assert(ok, "Compiler Bug. This was a Float by the Lexer")
+        write_chunk(token, PUSH_FLOAT{value})
+
+    case .Hex:
+    case .Binary:
+    case .Octal:
+    case .String:
+    case .Char:
+    case .True:
+    case .False:
+    case .Semicolon:
+    case .Brace_Left:
+    case .Brace_Right:
+    case .Bracket_Left:
+    case .Bracket_Right:
+    case .Paren_Left:
+    case .Paren_Right:
+
+    case .Minus:
+        write_chunk(token, BINARY_MINUS{})
+
+    case .Plus:
+        write_chunk(token, BINARY_ADD{})
+
+    case .Star:
+        write_chunk(token, BINARY_MULTIPLY{})
+
+    case .Slash:
+        write_chunk(token, BINARY_SLASH{})
+
+    case .Percent:
+        write_chunk(token, BINARY_MODULO{})
+
+    case .Colon:
+
+    case .Drop:
+        write_chunk(token, DROP{})
+
+    case .Dup:
+        write_chunk(token, DUP{})
+
+    case .Using:
+
+    case .Foreign:
+
+    case .Proc:
+        parse_proc_declaration()
+
+    case .Type:
+        parse_type_declaration()
+
+    case .Cast:
+        write_chunk(token, CAST{})
+
+    case .Print:
+        write_chunk(token, PRINT{})
     }
-
-    proc_decl.arguments = arguments[:]
-    proc_decl.results   = results[:]
-}
-
-parse_identifier :: proc(token: Token) -> ^Op_Code {
-    // not allowed in global scope
-    if is_global_scope() {
-        parser_error(token, PARSER_IDENTIFIER_IN_FILE_SCOPE)
-    }
-
-    matches := find_entity(token.text)
-    op := create_op_code(token)
-
-    if len(matches) == 1 {
-        entity := matches[0]
-
-        switch variant in entity.variant {
-        case Entity_Procedure:
-            proc_decl := entity.op_code.variant.(Op_Proc_Decl)
-            proc_call := Op_Proc_Call{}
-            proc_call.foreign_name = proc_decl.foreign_name
-            proc_call.entity = entity
-            op.variant = proc_call
-
-        case Entity_Type:
-            op.type = variant.type
-            op.variant = Op_Identifier{token}
-        }
-    } else {
-        op.variant = Op_Identifier{token}
-    }
-
-    return op
-}
-
-parse_integer :: proc(token: Token) -> ^Op_Code {
-    op := create_op_code(token)
-    value, ok := strconv.parse_i64(stanczyk_number_to_c_number(token.text))
-    if !ok do parser_error(token, PARSER_INVALID_NUMBER)
-    op.value = value
-    op.type  = compiler.basic_types[.Int]
-    op.variant = Op_Constant{}
-    return op
-}
-
-stanczyk_number_to_c_number :: proc(s: string) -> string {
-    b := s[len(s)-1]
-    if b != '.' && !(b >= '0' && b <= '9') do return s[:len(s)-1]
-    return s
 }

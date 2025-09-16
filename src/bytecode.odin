@@ -2,105 +2,272 @@ package main
 
 import "core:fmt"
 
-Value :: union {
-    bool,
-    f64,
-    i64,
-    u64,
-    string,
-    ^Type,
+Parameter :: struct {
+    is_named:   bool, // for named parameters only
+    name_token: Token,
+    type_token: Token,
+    type:       ^Type,
+}
+
+Procedure :: struct {
+    token:        Token,
+    name:         string,
+    foreign_name: string,
+    is_global:    bool,
+    file_info:    ^File_Info,
+    entity:       ^Entity,
+    scope:        ^Scope,
+    parent:       ^Procedure,
+
+    registers:    [dynamic]^Register,
+    arguments:    []Parameter,
+    results:      []Parameter,
+
+    code:         [dynamic]^Instruction,
 }
 
 Register :: struct {
-    prefix: string,
-    ip:     int,
-    type:   ^Type,
+    index: int,
+    type:  ^Type,
 }
 
-Binary :: struct {
-    lhs: ^Register,
-    rhs: ^Register,
-}
-
-Op_Code :: struct {
-    ip:        int,
-    register:  ^Register,
+Instruction :: struct {
+    register:  ^Register, // in case it has an associated register
+    offset:    int,
     token:     Token,
-
-    type:      ^Type,
-    value:     Value,
-    variant:   Op_Variant,
+    variant:   Instruction_Variant,
 }
 
-Op_Variant :: union {
-    // unsure what to do here, depends on type checking to
-    // figure out if this is proc call, a variable or the like.
-    Op_Identifier,
-
-    Op_Constant,
-    Op_Plus,
-    Op_Proc_Call,
-    Op_Return,
-
-    Op_Proc_Decl,
-
-    Op_Type_Lit,
-
-    Op_Drop,
-    Op_Binary_Expr,
+Instruction_Variant :: union {
+    BINARY_ADD,
+    BINARY_MINUS,
+    BINARY_MULTIPLY,
+    BINARY_MODULO,
+    BINARY_SLASH,
+    CAST,
+    DROP,
+    DUP,
+    IDENTIFIER,
+    INVOKE_PROC,
+    PRINT,
+    PUSH_ARG,
+    PUSH_FLOAT,
+    PUSH_INT,
+    PUSH_TYPE,
+    PUSH_UINT,
+    RETURN,
+    RETURN_VALUE,
+    RETURN_VALUES,
 }
 
-Op_Identifier :: struct {
-    value: Token,
+BINARY_ADD :: struct {
+    lhs: int, // index to the register stack
+    rhs: int,
 }
 
-
-
-Op_Constant :: struct {
-
+BINARY_MINUS :: struct {
+    lhs: int,
+    rhs: int,
 }
 
-Op_Plus :: struct {
-    using binary: Binary,
+BINARY_MULTIPLY :: struct {
+    lhs: int,
+    rhs: int,
 }
 
-Op_Proc_Call :: struct {
-    arguments:    []^Op_Code,
-    results:      []^Op_Code,
-    entity:       ^Entity,
-    foreign_name: string,
+BINARY_MODULO :: struct {
+    lhs: int,
+    rhs: int,
 }
 
-Op_Return :: struct {
-    results: []^Op_Code,
+BINARY_SLASH :: struct {
+    lhs: int,
+    rhs: int,
 }
 
-
-
-Op_Proc_Decl :: struct {
-    name:         Token,
-    foreign_name: string,
-    is_foreign:   bool,
-    foreign_lib:  Token,
-
-    scope:        ^Scope,
-    entity:       ^Entity,
-
-    registers:    map[^Type][dynamic]Register,
-    arguments:    []^Op_Code,
-    results:      []^Op_Code,
-    body:         [dynamic]^Op_Code,
-}
-
-Op_Type_Lit :: struct {}
-
-
-Op_Drop :: struct {
+CAST :: struct {
 
 }
 
-Op_Binary_Expr :: struct {
-    lhs: ^Register,
-    rhs: ^Register,
-    op:  string,
+DROP :: struct {
+
+}
+
+DUP :: struct {
+
+}
+
+IDENTIFIER :: struct {
+    value: string,
+}
+
+INVOKE_PROC :: struct {
+    arguments: []^Register,
+    results:   []^Register,
+    procedure: ^Procedure,
+}
+
+PRINT :: struct {
+    param: ^Register,
+}
+
+PUSH_ARG :: struct {
+    value: int,
+}
+
+PUSH_FLOAT :: struct {
+    value: f64,
+}
+
+PUSH_INT :: struct {
+    value: i64,
+}
+
+PUSH_TYPE :: struct {
+    value: ^Type,
+}
+
+PUSH_UINT :: struct {
+    value: u64,
+}
+
+RETURN :: struct {
+
+}
+
+RETURN_VALUE :: struct {
+    value: int,
+}
+
+RETURN_VALUES :: struct {
+    value: []^Register,
+}
+
+debug_print_bytecode :: proc() {
+    _print_params :: proc(params: []Parameter) {
+        for p, index in params {
+            if p.type != nil {
+                fmt.printf("{}", p.type.name)
+            } else {
+                fmt.printf("TBD({})", p.type_token.text)
+            }
+
+            if index < len(params)-1 {
+                fmt.printf(" ")
+            }
+        }
+    }
+
+    _signature :: proc(procedure: ^Procedure) {
+        _print_params(procedure.arguments)
+
+        if len(procedure.results) > 0 {
+            fmt.printf(" --- ")
+            _print_params(procedure.results)
+        }
+    }
+
+    _name :: proc(name: string) {
+        fmt.printf("%-16s", name)
+    }
+
+    _value :: proc(format: string, args: ..any) {
+        msg := fmt.tprintf(format, ..args)
+        fmt.printf("%-16s", msg)
+    }
+
+    for procedure in bytecode {
+        fmt.print(CYAN_BOLD)
+        fmt.print("===")
+        fmt.printf(" {}", procedure.name)
+        fmt.print(" (")
+        _signature(procedure)
+        fmt.printfln(") ===")
+        fmt.print(RESET)
+
+        for instruction, index in procedure.code {
+            fmt.printf("(%4d)\t", index)
+
+            switch v in instruction.variant {
+            case BINARY_ADD:
+                _name("BINARY_ADD")
+                _value("r{} + r{}", v.lhs, v.rhs)
+
+            case BINARY_MINUS:
+                _name("BINARY_MINUS")
+                _value("r{} - r{}", v.lhs, v.rhs)
+
+            case BINARY_MULTIPLY:
+                _name("BINARY_MULTIPLY")
+                _value("r{} * r{}", v.lhs, v.rhs)
+
+            case BINARY_MODULO:
+                _name("BINARY_MODULO")
+                _value("r{} % r{}", v.lhs, v.rhs)
+
+            case BINARY_SLASH:
+                _name("BINARY_SLASH")
+                _value("r{} / r{}", v.lhs, v.rhs)
+
+            case CAST:
+                _name("CAST")
+
+            case DROP:
+                _name("DROP")
+
+            case DUP:
+                _name("DUP")
+
+            case IDENTIFIER:
+                _name("IDENTIFIER")
+                _value("{}", v.value)
+
+            case INVOKE_PROC:
+                _name("INVOKE_PROC")
+                _value("{}({})", v.procedure.name, v.arguments)
+
+            case PRINT:
+                _name("PRINT")
+                _value("r{} (type: {})", v.param.index, v.param.type.name)
+
+            case PUSH_ARG:
+                _name("PUSH_ARG")
+                _value("arg{}", v.value)
+
+            case PUSH_FLOAT:
+                _name("PUSH_FLOAT")
+                _value("{}", v.value)
+
+            case PUSH_INT:
+                _name("PUSH_INT")
+                _value("{}", v.value)
+
+            case PUSH_TYPE:
+                _name("PUSH_TYPE")
+                _value("{}", v.value.name)
+
+            case PUSH_UINT:
+                _name("PUSH_UINT")
+                _value("{}", v.value)
+
+            case RETURN:
+                _name("RETURN")
+
+            case RETURN_VALUE:
+                _name("RETURN_VALUE")
+                _value("r{}", v.value)
+
+            case RETURN_VALUES:
+                _name("RETURN_VALUES")
+                _value("{}", v.value)
+            }
+
+            if instruction.register != nil {
+                fmt.printf("\t-> {}", instruction.register.index)
+            }
+            fmt.println()
+        }
+
+        fmt.println()
+    }
 }

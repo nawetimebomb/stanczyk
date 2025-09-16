@@ -3,39 +3,9 @@ package main
 import "core:fmt"
 import "core:strings"
 
-CHECKER_MISMATCHED_TYPE_PROC_ARGS :: "Mismatched types in procedure arguments. Expected {}, got {}."
-CHECKER_MISMATCHED_TYPE :: "Binary operation between different types is not allowed {} vs {}."
-CHECKER_MISSING_IDENTIFIER_DECLARATION :: "We could not find the meaning of identifier '{}'."
-CHECKER_NOT_ENOUGH_VALUES_IN_STACK :: "Not enough stack values to make this operation."
-CHECKER_NOT_A_NUMBER :: "We could not parse number."
-CHECKER_TYPES_NOT_ALLOWED_IN_OPERATION :: "The types of elements in the stack can not be used in the following operation ({} {} {})."
-
-Scope :: struct {
-    op_code:  ^Op_Code,
-    entities: [dynamic]^Entity,
-    stack:    ^Stack,
-    parent:   ^Scope,
-}
-
-Stack :: struct {
-    values: [dynamic]^Op_Code,
-}
-
-Entity :: struct {
-    op_code: ^Op_Code,
-    name:    string,
-    variant: Entity_Variant,
-}
-
-Entity_Variant :: union {
-    Entity_Procedure,
-    Entity_Type,
-}
-
-Entity_Procedure :: struct {}
-
-Entity_Type :: struct {
-    type: ^Type,
+Checker :: struct {
+    stack:     [dynamic]^Register,
+    procedure: ^Procedure,
 }
 
 checker_error :: proc(token: Token, format: string, args: ..any) {
@@ -56,82 +26,71 @@ checker_fatal_error :: proc() {
     )
 }
 
-stack_reset :: proc(stack: ^Stack) {
-    clear(&stack.values)
-}
-
-stack_push :: proc(stack: ^Stack, op: ^Op_Code) {
-    if op.register == nil {
-        op.register = add_register(op.type)
-    }
-
-    append(&stack.values, op)
-}
-
-stack_pop :: proc(stack: ^Stack, token: Token) -> ^Op_Code {
-    value, ok := pop_safe(&stack.values)
+pop_stack :: proc(ins: ^Instruction) -> ^Register {
+    result, ok := pop_safe(&compiler.checker.stack)
 
     if !ok {
-        checker_error(token, CHECKER_NOT_ENOUGH_VALUES_IN_STACK)
+        checker_error(ins.token, STACK_EMPTY)
         checker_fatal_error()
     }
 
-    return value
+    return result
 }
 
-add_register :: proc(type: ^Type, prefix := REGISTER_PREFIX) -> ^Register {
-    assert(compiler.proc_scope != nil)
-    proc_op := &compiler.proc_scope.op_code.variant.(Op_Proc_Decl)
-    IP := 0
+push_stack :: proc(type: ^Type) -> ^Register {
+    result := add_to_registers(type)
+    append(&compiler.checker.stack, result)
+    return result
+}
 
-    if _, exists := proc_op.registers[type]; exists {
-        IP = len(proc_op.registers[type])
-    } else {
-        proc_op.registers[type] = make([dynamic]Register)
+stack_is_valid_for_return :: proc(ins: ^Instruction) -> bool {
+    procedure := compiler.checker.procedure
+    stack := compiler.checker.stack
+
+    if len(stack) != len(procedure.results) {
+        checker_error(
+            ins.token, MISMATCHED_NUMBER_RESULTS,
+            len(procedure.results), procedure.name, len(stack),
+        )
+        return false
     }
 
-    append(&proc_op.registers[type], Register{prefix=prefix, ip=IP, type=type})
-    return &proc_op.registers[type][IP]
-}
+    for index in 0..<len(procedure.results) {
+        rt := procedure.results[index].type
+        st := stack[index].type
 
-create_entity :: proc(name: string, op: ^Op_Code, variant: Entity_Variant) -> ^Entity {
-    entity := new(Entity)
-    entity.op_code = op
-    entity.name    = name
-    entity.variant = variant
-
-    append(&compiler.current_scope.entities, entity)
-    return entity
-}
-
-find_entity :: proc(name: string, deep_search := true) -> []^Entity {
-    result := make([dynamic]^Entity, context.temp_allocator)
-    scope := compiler.current_scope
-
-    for scope != nil {
-        for ent in scope.entities {
-            if ent.name == name {
-                append(&result, ent)
-            }
+        if st != rt {
+            checker_error(
+                ins.token, MISMATCHED_TYPES_RESULT,
+                procedure.name, rt.name, st.name,
+            )
+            return false
         }
-
-        if !deep_search do break
-        scope = scope.parent
     }
 
-    return result[:]
+    return true
 }
+
+init_checker :: proc() {
+    compiler.checker = new(Checker)
+    compiler.checker.stack = make([dynamic]^Register, 0, 8)
+    compiler.checker.procedure = compiler.curr_proc
+}
+
+destroy_checker :: proc() {
+    delete(compiler.checker.stack)
+    free(compiler.checker)
+    compiler.checker = nil
+}
+
+
 
 check_program_bytecode :: proc() {
-    //for op in program_bytecode {
-    //    check_create_entities(op)
-    //}
-
     assert(compiler.current_scope == compiler.global_scope)
 
-    for op in program_bytecode {
+    for procedure in bytecode {
         compiler.error_reported = false
-        check_op(op)
+        check_procedure(procedure)
     }
 
     if len(compiler.errors) > 0 {
@@ -139,186 +98,227 @@ check_program_bytecode :: proc() {
     }
 }
 
-check_op :: proc(op: ^Op_Code) {
-    switch &variant in op.variant {
-    case Op_Identifier:
-        check_identifier(op)
+check_procedure :: proc(procedure: ^Procedure) {
+    _type_parameters :: proc(params: ^[]Parameter) {
+        for &p in params {
+            if p.type == nil {
+                p.type = compiler.types[p.type_token.text]
 
-    case Op_Constant:
-        stack_push(compiler.current_scope.stack, op)
-    case Op_Proc_Call:
-        check_op_proc_call(op)
-        // maybe not needed?
-    case Op_Plus:
-        v2 := stack_pop(compiler.current_scope.stack, op.token)
-        v1 := stack_pop(compiler.current_scope.stack, op.token)
-        op.type = v1.type
-
-        variant.lhs = v1.register
-        variant.rhs = v2.register
-        stack_push(compiler.current_scope.stack, op)
-
-    case Op_Return:
-        check_return(op)
-
-    case Op_Proc_Decl:
-        check_op_proc_decl(op)
-
-    case Op_Type_Lit:
-
-    case Op_Binary_Expr:
-        check_binary_expr(op)
-
-    case Op_Drop:
-        stack_pop(compiler.current_scope.stack, op.token)
-    }
-}
-
-check_binary_expr :: proc(op: ^Op_Code) {
-    binary_op := &op.variant.(Op_Binary_Expr)
-    v2 := stack_pop(compiler.current_scope.stack, op.token)
-    v1 := stack_pop(compiler.current_scope.stack, op.token)
-
-    op.type = v1.type
-    binary_op.lhs = v1.register
-    binary_op.rhs = v2.register
-
-    stack_push(compiler.current_scope.stack, op)
-}
-
-check_identifier :: proc(op: ^Op_Code) {
-    name := op.variant.(Op_Identifier).value.text
-    matches := find_entity(name, true)
-
-    if len(matches) == 0 {
-        checker_error(
-            op.token,
-            CHECKER_MISSING_IDENTIFIER_DECLARATION, name,
-        )
-        return
-    } else if len(matches) == 1 {
-        entity := matches[0]
-        stack := compiler.current_scope.stack
-
-        switch variant in entity.variant {
-        case Entity_Procedure:
-            proc_decl := entity.op_code.variant.(Op_Proc_Decl)
-            op.variant = Op_Proc_Call{
-                foreign_name = proc_decl.foreign_name,
-                entity = entity,
-            }
-            check_op_proc_call(op)
-        case Entity_Type: assert(false)
-        }
-    } else {
-        // TODO(nawe) handle multiple
-        assert(false)
-    }
-}
-
-check_op_proc_call :: proc(op: ^Op_Code) {
-    _stack_checks_failed :: proc(token: Token, stack: ^Stack, params: []^Op_Code) -> bool {
-        if len(stack.values) < len(params) {
-            checker_error(token, CHECKER_NOT_ENOUGH_VALUES_IN_STACK)
-            return true
-        }
-        stack_needed := stack.values[len(stack.values) - len(params):]
-
-        for index in 0..<len(stack_needed) {
-            stack_value := stack_needed[index]
-            arg_value := params[index]
-
-            if !types_are_equal(stack_value.type, arg_value.type) {
-                checker_error(
-                    token, CHECKER_MISMATCHED_TYPE_PROC_ARGS,
-                    type_to_string(arg_value.type), type_to_string(stack_value.type),
-                )
-                return true
+                if p.type == nil {
+                    checker_error(p.type_token, FAILED_TO_PARSE_TYPE)
+                    checker_fatal_error()
+                }
             }
         }
-
-        return false
     }
 
-    proc_call := &op.variant.(Op_Proc_Call)
-    stack := compiler.current_scope.stack
+    // make sure parameters and results are typed
+    _type_parameters(&procedure.arguments)
+    _type_parameters(&procedure.results)
 
-    #partial switch variant in proc_call.entity.variant {
-    case Entity_Procedure:
-        proc_decl := proc_call.entity.op_code.variant.(Op_Proc_Decl)
-
-        if len(proc_decl.arguments) > 0 {
-            arguments_for_call := make([dynamic]^Op_Code)
-
-            if _stack_checks_failed(op.token, stack, proc_decl.arguments) {
-                return
-            }
-
-            for index in 0..<len(proc_decl.arguments) {
-                v := stack_pop(stack, op.token)
-                inject_at(&arguments_for_call, 0, v)
-            }
-
-            proc_call.arguments = arguments_for_call[:]
+    push_procedure(procedure)
+    init_checker()
+    for instruction in procedure.code {
+        if compiler.error_reported {
+            break
         }
-
-        if len(proc_decl.results) > 0 {
-            results_from_call := make([dynamic]^Op_Code)
-
-            for result in proc_decl.results {
-                new_result := new_clone(result^)
-                new_result.register = nil
-                stack_push(stack, new_result)
-                append(&results_from_call, new_result)
-            }
-
-            proc_call.results = results_from_call[:]
-        }
+        check_instruction(procedure, instruction)
     }
+    destroy_checker()
+    pop_procedure()
 }
 
-check_op_proc_decl :: proc(op: ^Op_Code) {
-    proc_op := op.variant.(Op_Proc_Decl)
+check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
+    stack := compiler.checker.stack
 
-    push_proc(proc_op.scope)
-    for arg in proc_op.arguments {
-        stack_push(compiler.current_scope.stack, arg)
-    }
+    switch &v in ins.variant {
+    case BINARY_ADD:
+        if len(stack) < 2 {
+            checker_error(ins.token, STACK_EMPTY_EXPECT, 2, len(stack))
+            return
+        }
 
-    for child in proc_op.body {
-        if compiler.error_reported do break
-        check_op(child)
-    }
-    pop_proc()
-}
+        o2 := pop_stack(ins)
+        o1 := pop_stack(ins)
 
-check_return :: proc(op: ^Op_Code) {
-    return_op := op.variant.(Op_Return)
-    stack := compiler.current_scope.stack
+        if o1.type != o2.type {
+            checker_error(ins.token, MISMATCHED_TYPES_BINARY_EXPR, o1.type.name, o2.type.name)
+            return
+        }
 
-    if len(return_op.results) != len(stack.values) {
-        checker_error(
-            op.token,
-            "Mismatched number of results in procedure. Expected {} but got {}",
-            len(return_op.results), len(stack.values),
-        )
-        return
-    }
+        v.lhs = o1.index
+        v.rhs = o2.index
+        ins.register = push_stack(o1.type)
 
-    for index in 0..<len(stack.values) {
-        stack_value := stack.values[index]
-        result_value := return_op.results[index]
+    case BINARY_MINUS:
+        if len(stack) < 2 {
+            checker_error(ins.token, STACK_EMPTY_EXPECT, 2, len(stack))
+            return
+        }
 
-        if !types_are_equal(stack_value.type, result_value.type) {
+        o2 := pop_stack(ins)
+        o1 := pop_stack(ins)
+
+        if o1.type != o2.type {
+            checker_error(ins.token, MISMATCHED_TYPES_BINARY_EXPR, o1.type.name, o2.type.name)
+            return
+        }
+
+        v.lhs = o1.index
+        v.rhs = o2.index
+        ins.register = push_stack(o1.type)
+
+    case BINARY_MULTIPLY:
+        if len(stack) < 2 {
+            checker_error(ins.token, STACK_EMPTY_EXPECT, 2, len(stack))
+            return
+        }
+
+        o2 := pop_stack(ins)
+        o1 := pop_stack(ins)
+
+        if o1.type != o2.type {
+            checker_error(ins.token, MISMATCHED_TYPES_BINARY_EXPR, o1.type.name, o2.type.name)
+            return
+        }
+
+        v.lhs = o1.index
+        v.rhs = o2.index
+        ins.register = push_stack(o1.type)
+
+    case BINARY_MODULO:
+        if len(stack) < 2 {
+            checker_error(ins.token, STACK_EMPTY_EXPECT, 2, len(stack))
+            return
+        }
+
+        o2 := pop_stack(ins)
+        o1 := pop_stack(ins)
+
+        if o1.type != o2.type && (o1.type != type_int || o2.type != type_int) {
+            checker_error(ins.token, MISMATCHED_TYPES_BINARY_EXPR, o1.type.name, o2.type.name)
+            return
+        }
+
+        v.lhs = o1.index
+        v.rhs = o2.index
+        ins.register = push_stack(o1.type)
+
+    case BINARY_SLASH:
+        if len(stack) < 2 {
+            checker_error(ins.token, STACK_EMPTY_EXPECT, 2, len(stack))
+            return
+        }
+
+        o2 := pop_stack(ins)
+        o1 := pop_stack(ins)
+
+        if o1.type != o2.type {
+            checker_error(ins.token, MISMATCHED_TYPES_BINARY_EXPR, o1.type.name, o2.type.name)
+            return
+        }
+
+        v.lhs = o1.index
+        v.rhs = o2.index
+        ins.register = push_stack(o1.type)
+
+    case CAST:
+        unimplemented()
+
+    case DROP:
+        pop_stack(ins)
+
+    case DUP:
+
+    case IDENTIFIER:
+        matches := find_entity(v.value)
+
+        if len(matches) == 0 {
+            checker_error(ins.token, UNDEFINED_IDENTIFIER, v.value)
+            return
+        } else if len(matches) == 1 {
+            entity := matches[0]
+
+            switch variant in entity.variant {
+            case Entity_Procedure:
+                ins.variant = INVOKE_PROC{
+                    procedure = variant.procedure,
+                }
+            case Entity_Type:
+                ins.variant = PUSH_TYPE{variant.type}
+            }
+        } else {
+            unimplemented("polymorphism")
+        }
+
+        // Re-check this instruction after it changed meanings
+        check_instruction(this_proc, ins)
+
+    case INVOKE_PROC:
+        if len(stack) < len(v.procedure.arguments) {
             checker_error(
-                op.token,
-                "Mismatched type of results in procedure. Expected '{}' but got '{}'",
-                type_to_string(stack_value.type), type_to_string(result_value.type),
+                ins.token, MISMATCHED_NUMBER_ARGS,
+                v.procedure.name, len(v.procedure.arguments), len(stack),
             )
             return
         }
 
-        // set the register to the stack value register so we can return
-        result_value.register = stack_value.register
+        v.arguments = make([]^Register, len(v.procedure.arguments))
+        v.results   = make([]^Register, len(v.procedure.results))
+
+        for index := len(v.procedure.arguments)-1; index >= 0; index -= 1 {
+            arg := v.procedure.arguments[index]
+            stack_value := pop_stack(ins)
+
+            if arg.type != stack_value.type {
+                checker_error(
+                    ins.token, MISMATCHED_TYPES_ARG,
+                    v.procedure.name, arg.type.name, stack_value.type.name,
+                )
+                return
+            }
+
+            v.arguments[index] = stack_value
+        }
+
+        for index in 0..<len(v.procedure.results) {
+            v.results[index] = push_stack(v.procedure.results[index].type)
+        }
+
+    case PRINT:
+        if len(stack) == 0 {
+            checker_error(ins.token, STACK_EMPTY_EXPECT, 1, 0)
+            return
+        }
+        v.param = pop_stack(ins)
+
+    case PUSH_ARG:
+        ins.register = push_stack(this_proc.arguments[v.value].type)
+
+    case PUSH_FLOAT:
+        ins.register = push_stack(type_float)
+
+    case PUSH_INT:
+        ins.register = push_stack(type_int)
+
+    case PUSH_TYPE:
+
+    case PUSH_UINT:
+        ins.register = push_stack(type_uint)
+
+    case RETURN:
+        stack_is_valid_for_return(ins)
+
+    case RETURN_VALUE:
+        if stack_is_valid_for_return(ins) {
+            v.value = stack[0].index
+        }
+
+    case RETURN_VALUES:
+        if stack_is_valid_for_return(ins) {
+            for n in 0..<len(this_proc.results) {
+                v.value[n] = stack[n]
+            }
+        }
     }
 }
