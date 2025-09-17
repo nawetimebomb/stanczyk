@@ -6,11 +6,25 @@ Entity :: struct {
 }
 
 Entity_Variant :: union {
-    Entity_Procedure,
+    Entity_Const,
+    Entity_Proc,
     Entity_Type,
 }
 
-Entity_Procedure :: struct {
+Entity_Const :: struct {
+    type:  ^Type,
+    value: Value_Const,
+}
+
+Value_Const :: union {
+    bool,
+    f64,
+    i64,
+    string,
+    u64,
+}
+
+Entity_Proc :: struct {
     procedure: ^Procedure,
 }
 

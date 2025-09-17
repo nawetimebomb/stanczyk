@@ -116,13 +116,6 @@ gen_bootstrap :: proc(gen: ^Generator) {
     gen_print(gen, "#include <stdint.h>\n")
     gen_print(gen, "\n")
 
-    gen_print(gen, "#define SK_EXPORT extern __declspec(dllexport)\n")
-    gen_print(gen, "#define SK_INLINE static inline\n")
-    gen_print(gen, "#define SK_STATIC static\n")
-    gen_print(gen, "#define SK_TRUE  1\n")
-    gen_print(gen, "#define SK_FALSE 0\n")
-    gen_print(gen, "\n")
-
     gen_print(gen, "// Stanczyk Builtin Types\n")
     gen_print(gen, "typedef int64_t  s64;\n")
     gen_print(gen, "typedef int32_t  s32;\n")
@@ -137,6 +130,14 @@ gen_bootstrap :: proc(gen: ^Generator) {
     gen_print(gen, "typedef float    f32;\n")
     gen_print(gen, "\n")
 
+    gen_print(gen, "#define SK_EXPORT extern __declspec(dllexport)\n")
+    gen_print(gen, "#define SK_INLINE static inline\n")
+    gen_print(gen, "#define SK_STATIC static\n")
+    gen_print(gen, "#define STR_LIT(s) ((string){.data=(u8*)(\"\" s), .length=(sizeof(s)-1)})\n")
+    gen_print(gen, "#define SK_TRUE  1\n")
+    gen_print(gen, "#define SK_FALSE 0\n")
+    gen_print(gen, "\n")
+
     // string type
     gen_print(gen, "typedef struct string {\n")
     gen_print(gen, "\tu8* data;\n")
@@ -148,9 +149,12 @@ gen_bootstrap :: proc(gen: ^Generator) {
 
     gen.source = &gen.sk_code
     gen_print(gen, "// Stanczyk Internal Procedures\n")
-    gen_print(gen, "SK_STATIC void print_s64(s64 n) { printf(\"%lli\\n\", n); }\n")
-    gen_print(gen, "SK_STATIC void print_u64(u64 n) { printf(\"%llu\\n\", n); }\n")
-    gen_print(gen, "SK_STATIC void print_f64(f64 n) { printf(\"%g\\n\", n); }\n")
+    gen_print(gen, "SK_STATIC void print_b8(b8 v) { printf(\"%s\\n\", v == SK_TRUE ? \"true\" : \"false\"); }\n")
+    gen_print(gen, "SK_STATIC void print_u8(u8 v) { printf(\"%d\\n\", v); }\n")
+    gen_print(gen, "SK_STATIC void print_f64(f64 v) { printf(\"%g\\n\", v); }\n")
+    gen_print(gen, "SK_STATIC void print_s64(s64 v) { printf(\"%lli\\n\", v); }\n")
+    gen_print(gen, "SK_STATIC void print_u64(u64 v) { printf(\"%llu\\n\", v); }\n")
+    gen_print(gen, "SK_STATIC void print_string(string v) { printf(\"%s\\n\", v.data); }\n")
 
     gen.source = &gen.defs
     gen_print(gen, "// User Definitions\n")
@@ -320,6 +324,29 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
         gen_register(gen, ins.register)
         gen_printf(gen, " = arg{};\n", v.value)
 
+    case PUSH_BOOL:
+        gen_indent(gen)
+        gen_register(gen, ins.register)
+        gen_printf(gen, " = {};\n", v.value ? "SK_TRUE" : "SK_FALSE")
+
+    case PUSH_BYTE:
+        gen_indent(gen)
+        gen_register(gen, ins.register)
+        gen_printf(gen, " = {};\n", v.value)
+
+    case PUSH_CONST:
+        gen_indent(gen)
+        gen_register(gen, ins.register)
+        gen_print(gen, " = ")
+        switch value in v.const.value {
+        case bool:   gen_printf(gen, "{}", value ? "SK_TRUE" : "SK_FALSE")
+        case f64:    gen_printf(gen, "{}", value)
+        case i64:    gen_printf(gen, "{}", value)
+        case string: gen_printf(gen, "STR_LIT({})", value)
+        case u64:    gen_printf(gen, "{}", value)
+        }
+        gen_print(gen, ";\n")
+
     case PUSH_FLOAT:
         gen_indent(gen)
         gen_register(gen, ins.register)
@@ -329,6 +356,11 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
         gen_indent(gen)
         gen_register(gen, ins.register)
         gen_printf(gen, " = {};\n", v.value)
+
+    case PUSH_STRING:
+        gen_indent(gen)
+        gen_register(gen, ins.register)
+        gen_printf(gen, " = STR_LIT({});\n", v.value)
 
     case PUSH_TYPE:
 
@@ -343,7 +375,9 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
 
     case RETURN_VALUE:
         gen_indent(gen)
-        gen_printf(gen, "return r{};\n", v.value)
+        gen_print(gen, "return ")
+        gen_register(gen, v.value)
+        gen_print(gen, ";\n")
 
     case RETURN_VALUES:
         type := gen_multiresult_string(gen, v.value)

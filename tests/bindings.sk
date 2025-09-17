@@ -1,7 +1,5 @@
 var global "test global string" ;
 
-foreign proc printf like printf1 (string any) --- ;
-
 proc print-int (int)
   "%d\n" swap printf1
 ;

@@ -1,6 +1,3 @@
-foreign proc printf (string) --- ;
-foreign proc printf like printf1 (string int) --- ;
-
 proc print_proc (string)
   printf
 ;

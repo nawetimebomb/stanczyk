@@ -49,7 +49,7 @@ source_files:      [dynamic]File_Info
 bytecode:          [dynamic]^Procedure
 
 // Defaults
-switch_debug  := true
+switch_debug  := false
 switch_silent := false
 
 compiler: Compiler
@@ -110,6 +110,7 @@ main :: proc() {
         for s in options {
             switch s {
             case "-silent": switch_silent = true
+            case "-debug":  switch_debug  = true
             }
         }
     }
@@ -118,7 +119,7 @@ main :: proc() {
     push_scope(compiler.global_scope)
 
     register_global_type(type_bool)
-    register_global_type(type_char)
+    register_global_type(type_byte)
     register_global_type(type_float)
     register_global_type(type_int)
     register_global_type(type_string)
@@ -139,11 +140,13 @@ main :: proc() {
     gen_program()
     codegen_time := time.duration_seconds(time.tick_lap_time(&accumulator))
 
-    //debug_print_bytecode()
-
     libc.system(fmt.ctprintf("gcc {0}.c -o {0} -ggdb", output_filename))
     compile_time := time.duration_seconds(time.tick_lap_time(&accumulator))
     alloc_amount := tracking_allocator.current_memory_allocated
+
+    if !switch_debug {
+        _ = os2.remove(fmt.tprintf("{}.c", output_filename))
+    }
 
     if !switch_silent {
         fmt.printf("\tLines processed.............{}\n",     compiler.lines_parsed)

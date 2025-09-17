@@ -43,7 +43,7 @@ Token_Kind :: enum u8 {
     Binary           =  15,
     Octal            =  16,
     String           =  17,
-    Char             =  18,
+    Byte             =  18,
     True             =  19,
     False            =  20,
 
@@ -76,8 +76,9 @@ Token_Kind :: enum u8 {
     Foreign          = 101,
     Proc             = 120,
     Type             = 121,
-    Cast             = 122,
+    Const            = 122,
 
+    Cast             = 149,
     Print            = 150,
 }
 
@@ -96,9 +97,6 @@ init_lexer :: proc() {
     compiler.parser.lexer = lexer
 
     append(&file_info.line_starts, 0)
-}
-
-destroy_lexer :: proc(parser: ^Parser) {
 }
 
 get_next_token :: proc(l: ^Lexer) -> (token: Token) {
@@ -305,6 +303,32 @@ get_next_token :: proc(l: ^Lexer) -> (token: Token) {
     case '*':       token.kind = .Star;          advance(l)
     case '%':       token.kind = .Percent;       advance(l)
     case ':':       token.kind = .Colon;         advance(l)
+    case '\'':
+        escape_found := false
+        token.kind = .Byte
+        advance(l)
+        for !is_eof(l) {
+            if get_byte(l) == '\'' && !escape_found {
+                break
+            }
+            escape_found = !escape_found && get_byte(l) == '\\'
+            advance(l)
+        }
+
+        advance(l)
+    case '"':
+        escape_found := false
+        token.kind = .String
+        advance(l)
+        for !is_eof(l) {
+            if get_byte(l) == '"' && !escape_found {
+                break
+            }
+            escape_found = !escape_found && get_byte(l) == '\\'
+            advance(l)
+        }
+
+        advance(l)
     case:
         fast_forward(l)
         token.c1     = l.column
@@ -336,6 +360,7 @@ get_token_kind_from_string :: proc(s: string) -> (Token_Kind) {
 
     case "proc":   return .Proc
     case "type":   return .Type
+    case "const":  return .Const
     case "cast":   return .Cast
 
     case "print":  return .Print

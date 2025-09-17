@@ -51,8 +51,12 @@ Instruction_Variant :: union {
     INVOKE_PROC,
     PRINT,
     PUSH_ARG,
+    PUSH_BOOL,
+    PUSH_BYTE,
+    PUSH_CONST,
     PUSH_FLOAT,
     PUSH_INT,
+    PUSH_STRING,
     PUSH_TYPE,
     PUSH_UINT,
     RETURN,
@@ -115,12 +119,28 @@ PUSH_ARG :: struct {
     value: int,
 }
 
+PUSH_BOOL :: struct {
+    value: bool,
+}
+
+PUSH_BYTE :: struct {
+    value: u8,
+}
+
+PUSH_CONST :: struct {
+    const: Entity_Const,
+}
+
 PUSH_FLOAT :: struct {
     value: f64,
 }
 
 PUSH_INT :: struct {
     value: i64,
+}
+
+PUSH_STRING :: struct {
+    value: string,
 }
 
 PUSH_TYPE :: struct {
@@ -136,11 +156,25 @@ RETURN :: struct {
 }
 
 RETURN_VALUE :: struct {
-    value: int,
+    value: ^Register,
 }
 
 RETURN_VALUES :: struct {
     value: []^Register,
+}
+
+REGISTER :: proc(type: ^Type, ins: ^Instruction = nil) -> ^Register {
+    result := new(Register)
+    result.index = len(compiler.curr_proc.registers)
+    result.type = type
+    append(&compiler.curr_proc.registers, result)
+
+    if ins != nil {
+        assert(ins.register == nil)
+        ins.register = result
+    }
+
+    return result
 }
 
 debug_print_bytecode :: proc() {
@@ -234,12 +268,28 @@ debug_print_bytecode :: proc() {
                 _name("PUSH_ARG")
                 _value("arg{}", v.value)
 
+            case PUSH_BOOL:
+                _name("PUSH_BOOL")
+                _value("{}", v.value)
+
+            case PUSH_BYTE:
+                _name("PUSH_BYTE")
+                _value("{}", v.value)
+
+            case PUSH_CONST:
+                _name("PUSH_CONST")
+                _value("{}", v.const.value)
+
             case PUSH_FLOAT:
                 _name("PUSH_FLOAT")
                 _value("{}", v.value)
 
             case PUSH_INT:
                 _name("PUSH_INT")
+                _value("{}", v.value)
+
+            case PUSH_STRING:
+                _name("PUSH_STRING")
                 _value("{}", v.value)
 
             case PUSH_TYPE:

@@ -3,6 +3,7 @@ package main
 import "core:fmt"
 import "core:strconv"
 import "core:strings"
+import "core:unicode/utf8"
 
 Parser :: struct {
     file_info:  ^File_Info,
@@ -19,6 +20,16 @@ parser_error :: proc(token: Token, format: string, args: ..any) {
         message      = message,
         token        = token,
     })
+
+    token := compiler.parser.prev_token
+
+    loop: for {
+        #partial switch token.kind {
+        case .EOF, .Semicolon: break loop
+        }
+
+        token = next()
+    }
 }
 
 parser_fatal_error :: proc() {
@@ -93,14 +104,6 @@ create_foreign_name_from_token :: proc(token: Token) -> string {
     return foreign_name
 }
 
-add_to_registers :: proc(type: ^Type) -> ^Register {
-    result := new(Register)
-    result.index = len(compiler.curr_proc.registers)
-    result.type = type
-    append(&compiler.curr_proc.registers, result)
-    return result
-}
-
 write_chunk :: proc(token: Token, variant: Instruction_Variant) {
     result := new(Instruction)
     result.token    = token
@@ -116,7 +119,7 @@ make_procedure :: proc(token: Token) -> ^Procedure {
     result.foreign_name = create_foreign_name_from_token(token)
     result.is_global    = is_in_global_scope()
     result.file_info    = token.file_info
-    result.entity       = create_entity(result.name, Entity_Procedure{ procedure = result })
+    result.entity       = create_entity(result.name, Entity_Proc{ procedure = result })
     result.scope        = create_scope()
     result.registers    = make([dynamic]^Register)
     result.code         = make([dynamic]^Instruction)
@@ -204,10 +207,48 @@ parse_expression_in_global_scope :: proc() {
     token := next()
 
     #partial switch token.kind {
-    case .Proc: parse_proc_declaration()
-    case .Type: parse_type_declaration()
-    case:       parser_error(token, IMPERATIVE_EXPR_GLOBAL)
+    case .Const: parse_const_declaration()
+    case .Proc:  parse_proc_declaration()
+    case .Type:  parse_type_declaration()
+    case:        parser_error(token, IMPERATIVE_EXPR_GLOBAL)
     }
+}
+
+parse_const_declaration :: proc() {
+    name_token := expect(.Identifier)
+    const := Entity_Const{}
+    token := next()
+
+    #partial switch token.kind {
+    case .Identifier:
+        parser_error(token, INVALID_CONST_VALUE)
+        return
+
+    case .Integer:
+        value, ok := strconv.parse_i64(stanczyk_number_to_c_number(token.text))
+        assert(ok, "Compiler Bug. This was an Int by the Lexer")
+        const.type = type_int
+        const.value = value
+
+    case .String:
+        const.type = type_string
+        const.value = token.text
+
+    case .True:
+        const.type = type_bool
+        const.value = true
+
+    case .False:
+        const.type = type_bool
+        const.value = false
+
+    case:
+        unimplemented()
+    }
+
+    expect(.Semicolon)
+
+    create_entity(name_token.text, const)
 }
 
 parse_proc_declaration :: proc() {
@@ -277,7 +318,7 @@ parse_proc_declaration :: proc() {
     if len(procedure.results) == 0 {
         write_chunk(return_token, RETURN{})
     } else if len(procedure.results) == 1 {
-        write_chunk(return_token, RETURN_VALUE{-1})
+        write_chunk(return_token, RETURN_VALUE{})
     } else {
         write_chunk(return_token, RETURN_VALUES{
             value = make([]^Register, len(procedure.results)),
@@ -355,7 +396,11 @@ parse_expression :: proc() {
             entity := matches[0]
 
             switch variant in entity.variant {
-            case Entity_Procedure:
+            case Entity_Const:
+                write_chunk(token, PUSH_CONST{
+                    const = variant,
+                })
+            case Entity_Proc:
                 write_chunk(token, INVOKE_PROC{
                     procedure = variant.procedure,
                 })
@@ -386,9 +431,35 @@ parse_expression :: proc() {
     case .Binary:
     case .Octal:
     case .String:
-    case .Char:
+        write_chunk(token, PUSH_STRING{token.text})
+
+    case .Byte:
+        value: byte
+        bytes := token.text[1:len(token.text)-1]
+        if len(bytes) > 2 {
+            parser_error(token, INVALID_BYTE_LITERAL, token.text)
+            return
+        } else if len(bytes) == 2 {
+            if bytes[0] != '\\' {
+                parser_error(token, INVALID_BYTE_LITERAL, token.text)
+                return
+            }
+
+            switch bytes[1] {
+            case 'n': value = 10
+            }
+        } else {
+            value = bytes[0]
+        }
+
+        write_chunk(token, PUSH_BYTE{value})
+
     case .True:
+        write_chunk(token, PUSH_BOOL{true})
+
     case .False:
+        write_chunk(token, PUSH_BOOL{false})
+
     case .Semicolon:
     case .Brace_Left:
     case .Brace_Right:
@@ -429,6 +500,9 @@ parse_expression :: proc() {
 
     case .Type:
         parse_type_declaration()
+
+    case .Const:
+        parse_const_declaration()
 
     case .Cast:
         write_chunk(token, CAST{})

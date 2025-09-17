@@ -5,9 +5,17 @@ import "core:os/os2"
 import "core:strings"
 
 // Parser Errors
+CONST_BOOL_NO_MULTI_VALUE :: "Boolean constant declaration cannot have multiple values."
+
+CONST_MISMATCHED_TYPES :: "Mismatched types in const declaration '{}' vs '{}'."
+
 FAILED_TO_PARSE_TYPE :: "Failed to parse this as a valid type"
 
 IMPERATIVE_EXPR_GLOBAL :: "Attemp to use an imperative expression while in global scope."
+
+INVALID_BYTE_LITERAL :: "Invalid byte literal {}."
+
+INVALID_CONST_VALUE :: "This is not a valid constant value."
 
 INVALID_TOKEN :: "We found an invalid token '{}'. This might just be a compiler bug, please report at " + GIT_URL + "."
 
@@ -25,6 +33,8 @@ MISMATCHED_NUMBER_RESULTS :: "Expected {} result(s) in procedure '{}', but got {
 MISMATCHED_TYPES_BINARY_EXPR :: "Mismatched types in binary expression '{}' vs '{}'."
 
 MISMATCHED_TYPES_RESULT :: "Mismatched types in procedure '{}' results; Expected '{}', but got '{}' instead."
+
+MODULO_ONLY_INT :: "Modulo operator '%%' can only be used while operating with 'int'. Used '{}'."
 
 STACK_EMPTY :: "There are not enough stack values to make this operation."
 
@@ -61,14 +71,20 @@ error_red :: proc(format: string, args: ..any) {
 }
 
 fatalf :: proc(error: Fatal_Error_Kind, format: string, args: ..any) {
-    fmt.eprintln()
-    error_red("{} Error: ", error)
-    fmt.eprintfln(format, ..args)
-    fmt.eprintln()
+    if !switch_silent {
+        fmt.eprintln()
+        error_red("{} Error: ", error)
+        fmt.eprintfln(format, ..args)
+        fmt.eprintln()
+    }
     os2.exit(int(error))
 }
 
 report_all_errors :: proc() {
+    if switch_silent {
+        return
+    }
+
     line_number_to_string :: proc(number: int) -> string {
         number_str := fmt.tprintf("{}", number)
         return strings.right_justify(number_str, 4, " ")

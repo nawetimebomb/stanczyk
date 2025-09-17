@@ -37,10 +37,8 @@ pop_stack :: proc(ins: ^Instruction) -> ^Register {
     return result
 }
 
-push_stack :: proc(type: ^Type) -> ^Register {
-    result := add_to_registers(type)
-    append(&compiler.checker.stack, result)
-    return result
+push_stack :: proc(r: ^Register) {
+    append(&compiler.checker.stack, r)
 }
 
 stack_is_valid_for_return :: proc(ins: ^Instruction) -> bool {
@@ -148,7 +146,7 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
 
         v.lhs = o1.index
         v.rhs = o2.index
-        ins.register = push_stack(o1.type)
+        push_stack(REGISTER(o1.type, ins))
 
     case BINARY_MINUS:
         if len(stack) < 2 {
@@ -166,7 +164,7 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
 
         v.lhs = o1.index
         v.rhs = o2.index
-        ins.register = push_stack(o1.type)
+        push_stack(REGISTER(o1.type, ins))
 
     case BINARY_MULTIPLY:
         if len(stack) < 2 {
@@ -184,7 +182,7 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
 
         v.lhs = o1.index
         v.rhs = o2.index
-        ins.register = push_stack(o1.type)
+        push_stack(REGISTER(o1.type, ins))
 
     case BINARY_MODULO:
         if len(stack) < 2 {
@@ -195,14 +193,19 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
         o2 := pop_stack(ins)
         o1 := pop_stack(ins)
 
-        if o1.type != o2.type && (o1.type != type_int || o2.type != type_int) {
+        if o1.type != o2.type {
             checker_error(ins.token, MISMATCHED_TYPES_BINARY_EXPR, o1.type.name, o2.type.name)
+            return
+        }
+
+        if o1.type != type_int || o2.type != type_int {
+            checker_error(ins.token, MODULO_ONLY_INT, o1.type.name)
             return
         }
 
         v.lhs = o1.index
         v.rhs = o2.index
-        ins.register = push_stack(o1.type)
+        push_stack(REGISTER(o1.type, ins))
 
     case BINARY_SLASH:
         if len(stack) < 2 {
@@ -220,7 +223,7 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
 
         v.lhs = o1.index
         v.rhs = o2.index
-        ins.register = push_stack(o1.type)
+        push_stack(REGISTER(o1.type, ins))
 
     case CAST:
         unimplemented()
@@ -229,6 +232,13 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
         pop_stack(ins)
 
     case DUP:
+        if len(stack) == 0 {
+            checker_error(ins.token, STACK_EMPTY_EXPECT, 1, 0)
+            return
+        }
+        o1 := pop_stack(ins)
+        push_stack(o1)
+        push_stack(o1)
 
     case IDENTIFIER:
         matches := find_entity(v.value)
@@ -240,7 +250,9 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
             entity := matches[0]
 
             switch variant in entity.variant {
-            case Entity_Procedure:
+            case Entity_Const:
+
+            case Entity_Proc:
                 ins.variant = INVOKE_PROC{
                     procedure = variant.procedure,
                 }
@@ -282,7 +294,8 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
         }
 
         for index in 0..<len(v.procedure.results) {
-            v.results[index] = push_stack(v.procedure.results[index].type)
+            v.results[index] = REGISTER(v.procedure.results[index].type)
+            push_stack(v.results[index])
         }
 
     case PRINT:
@@ -293,25 +306,37 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
         v.param = pop_stack(ins)
 
     case PUSH_ARG:
-        ins.register = push_stack(this_proc.arguments[v.value].type)
+        push_stack(REGISTER(this_proc.arguments[v.value].type, ins))
+
+    case PUSH_BOOL:
+        push_stack(REGISTER(type_bool, ins))
+
+    case PUSH_BYTE:
+        push_stack(REGISTER(type_byte, ins))
+
+    case PUSH_CONST:
+        push_stack(REGISTER(v.const.type, ins))
 
     case PUSH_FLOAT:
-        ins.register = push_stack(type_float)
+        push_stack(REGISTER(type_float, ins))
 
     case PUSH_INT:
-        ins.register = push_stack(type_int)
+        push_stack(REGISTER(type_int, ins))
+
+    case PUSH_STRING:
+        push_stack(REGISTER(type_string, ins))
 
     case PUSH_TYPE:
 
     case PUSH_UINT:
-        ins.register = push_stack(type_uint)
+        push_stack(REGISTER(type_uint, ins))
 
     case RETURN:
         stack_is_valid_for_return(ins)
 
     case RETURN_VALUE:
         if stack_is_valid_for_return(ins) {
-            v.value = stack[0].index
+            v.value = stack[0]
         }
 
     case RETURN_VALUES:

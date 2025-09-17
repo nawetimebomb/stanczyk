@@ -34,7 +34,7 @@ Type_Struct :: struct {
 
 Type_Basic_Kind :: enum {
     Bool,
-    Char,
+    Byte,
     Float,
     Int,
     String,
@@ -49,11 +49,11 @@ BASIC_TYPES := [Type_Basic_Kind]Type{
         variant       = Type_Basic{kind=.Bool},
     },
 
-    .Char = {
-        name          = "char",
+    .Byte = {
+        name          = "byte",
         foreign_name  = "u8",
         size_in_bytes = 1,
-        variant       = Type_Basic{kind=.Char},
+        variant       = Type_Basic{kind=.Byte},
     },
 
     .Float = {
@@ -86,7 +86,7 @@ BASIC_TYPES := [Type_Basic_Kind]Type{
 }
 
 type_bool   := &BASIC_TYPES[.Bool]
-type_char   := &BASIC_TYPES[.Char]
+type_byte   := &BASIC_TYPES[.Byte]
 type_float  := &BASIC_TYPES[.Float]
 type_int    := &BASIC_TYPES[.Int]
 type_string := &BASIC_TYPES[.String]
