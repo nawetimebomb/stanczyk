@@ -107,7 +107,7 @@ gen_multiresult_string_from_types :: proc(gen: ^Generator, params: []^Type) -> s
 }
 
 gen_register :: proc(gen: ^Generator, reg: ^Register) {
-    gen_printf(gen, "r%d", reg.index)
+    gen_printf(gen, "r%2d", reg.index)
 }
 
 gen_bootstrap :: proc(gen: ^Generator) {
@@ -219,6 +219,7 @@ gen_procedure :: proc(gen: ^Generator, procedure: ^Procedure) {
     gen_indent(gen)
     last_type := registers_copy[0].type
     gen_printf(gen, "{} ", last_type.foreign_name)
+    count := 0
 
     for reg, index in registers_copy {
         if last_type != reg.type {
@@ -226,13 +227,21 @@ gen_procedure :: proc(gen: ^Generator, procedure: ^Procedure) {
             gen_indent(gen)
             gen_printf(gen, "{} ", reg.type.foreign_name)
             last_type = reg.type
+            count = 0
         }
 
-        gen_printf(gen, "r{}", reg.index)
+        gen_register(gen, reg)
 
         if index < len(registers_copy)-1 && registers_copy[index + 1].type == last_type {
             gen_print(gen, ", ")
+
+            if (count + 1) % 10 == 0 {
+                gen_print(gen, "\n")
+                gen_indent(gen)
+            }
         }
+
+        count += 1
     }
     gen_print(gen, ";\n")
 
@@ -252,27 +261,47 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
     case BINARY_ADD:
         gen_indent(gen)
         gen_register(gen, ins.register)
-        gen_printf(gen, " = r{} + r{};\n", v.lhs, v.rhs)
+        gen_print(gen, " = ")
+        gen_register(gen, v.lhs)
+        gen_print(gen, " + ")
+        gen_register(gen, v.rhs)
+        gen_print(gen, ";\n")
 
     case BINARY_MINUS:
         gen_indent(gen)
         gen_register(gen, ins.register)
-        gen_printf(gen, " = r{} - r{};\n", v.lhs, v.rhs)
+        gen_print(gen, " = ")
+        gen_register(gen, v.lhs)
+        gen_print(gen, " - ")
+        gen_register(gen, v.rhs)
+        gen_print(gen, ";\n")
 
     case BINARY_MULTIPLY:
         gen_indent(gen)
         gen_register(gen, ins.register)
-        gen_printf(gen, " = r{} * r{};\n", v.lhs, v.rhs)
+        gen_print(gen, " = ")
+        gen_register(gen, v.lhs)
+        gen_print(gen, " * ")
+        gen_register(gen, v.rhs)
+        gen_print(gen, ";\n")
 
     case BINARY_MODULO:
         gen_indent(gen)
         gen_register(gen, ins.register)
-        gen_printf(gen, " = r{} %% r{};\n", v.lhs, v.rhs)
+        gen_print(gen, " = ")
+        gen_register(gen, v.lhs)
+        gen_print(gen, " % ")
+        gen_register(gen, v.rhs)
+        gen_print(gen, ";\n")
 
     case BINARY_SLASH:
         gen_indent(gen)
         gen_register(gen, ins.register)
-        gen_printf(gen, " = r{} / r{};\n", v.lhs, v.rhs)
+        gen_print(gen, " = ")
+        gen_register(gen, v.lhs)
+        gen_print(gen, " / ")
+        gen_register(gen, v.rhs)
+        gen_print(gen, ";\n")
 
     case CAST:
 

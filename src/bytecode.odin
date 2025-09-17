@@ -65,28 +65,28 @@ Instruction_Variant :: union {
 }
 
 BINARY_ADD :: struct {
-    lhs: int, // index to the register stack
-    rhs: int,
+    lhs: ^Register, // index to the register stack
+    rhs: ^Register,
 }
 
 BINARY_MINUS :: struct {
-    lhs: int,
-    rhs: int,
+    lhs: ^Register,
+    rhs: ^Register,
 }
 
 BINARY_MULTIPLY :: struct {
-    lhs: int,
-    rhs: int,
+    lhs: ^Register,
+    rhs: ^Register,
 }
 
 BINARY_MODULO :: struct {
-    lhs: int,
-    rhs: int,
+    lhs: ^Register,
+    rhs: ^Register,
 }
 
 BINARY_SLASH :: struct {
-    lhs: int,
-    rhs: int,
+    lhs: ^Register,
+    rhs: ^Register,
 }
 
 CAST :: struct {

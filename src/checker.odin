@@ -136,17 +136,15 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
             return
         }
 
-        o2 := pop_stack(ins)
-        o1 := pop_stack(ins)
+        v.rhs = pop_stack(ins)
+        v.lhs = pop_stack(ins)
 
-        if o1.type != o2.type {
-            checker_error(ins.token, MISMATCHED_TYPES_BINARY_EXPR, o1.type.name, o2.type.name)
+        if v.lhs.type != v.rhs.type {
+            checker_error(ins.token, MISMATCHED_TYPES_BINARY_EXPR, v.lhs.type.name, v.rhs.type.name)
             return
         }
 
-        v.lhs = o1.index
-        v.rhs = o2.index
-        push_stack(REGISTER(o1.type, ins))
+        push_stack(REGISTER(v.lhs.type, ins))
 
     case BINARY_MINUS:
         if len(stack) < 2 {
@@ -154,17 +152,15 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
             return
         }
 
-        o2 := pop_stack(ins)
-        o1 := pop_stack(ins)
+        v.rhs = pop_stack(ins)
+        v.lhs = pop_stack(ins)
 
-        if o1.type != o2.type {
-            checker_error(ins.token, MISMATCHED_TYPES_BINARY_EXPR, o1.type.name, o2.type.name)
+        if v.lhs.type != v.rhs.type {
+            checker_error(ins.token, MISMATCHED_TYPES_BINARY_EXPR, v.lhs.type.name, v.rhs.type.name)
             return
         }
 
-        v.lhs = o1.index
-        v.rhs = o2.index
-        push_stack(REGISTER(o1.type, ins))
+        push_stack(REGISTER(v.lhs.type, ins))
 
     case BINARY_MULTIPLY:
         if len(stack) < 2 {
@@ -172,17 +168,15 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
             return
         }
 
-        o2 := pop_stack(ins)
-        o1 := pop_stack(ins)
+        v.rhs = pop_stack(ins)
+        v.lhs = pop_stack(ins)
 
-        if o1.type != o2.type {
-            checker_error(ins.token, MISMATCHED_TYPES_BINARY_EXPR, o1.type.name, o2.type.name)
+        if v.lhs.type != v.rhs.type {
+            checker_error(ins.token, MISMATCHED_TYPES_BINARY_EXPR, v.lhs.type.name, v.rhs.type.name)
             return
         }
 
-        v.lhs = o1.index
-        v.rhs = o2.index
-        push_stack(REGISTER(o1.type, ins))
+        push_stack(REGISTER(v.lhs.type, ins))
 
     case BINARY_MODULO:
         if len(stack) < 2 {
@@ -190,22 +184,20 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
             return
         }
 
-        o2 := pop_stack(ins)
-        o1 := pop_stack(ins)
+        v.rhs = pop_stack(ins)
+        v.lhs = pop_stack(ins)
 
-        if o1.type != o2.type {
-            checker_error(ins.token, MISMATCHED_TYPES_BINARY_EXPR, o1.type.name, o2.type.name)
+        if v.lhs.type != v.rhs.type {
+            checker_error(ins.token, MISMATCHED_TYPES_BINARY_EXPR, v.lhs.type.name, v.rhs.type.name)
             return
         }
 
-        if o1.type != type_int || o2.type != type_int {
-            checker_error(ins.token, MODULO_ONLY_INT, o1.type.name)
+        if v.lhs.type != type_int || v.rhs.type != type_int {
+            checker_error(ins.token, MODULO_ONLY_INT, v.lhs.type.name)
             return
         }
 
-        v.lhs = o1.index
-        v.rhs = o2.index
-        push_stack(REGISTER(o1.type, ins))
+        push_stack(REGISTER(v.lhs.type, ins))
 
     case BINARY_SLASH:
         if len(stack) < 2 {
@@ -213,17 +205,15 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
             return
         }
 
-        o2 := pop_stack(ins)
-        o1 := pop_stack(ins)
+        v.rhs = pop_stack(ins)
+        v.lhs = pop_stack(ins)
 
-        if o1.type != o2.type {
-            checker_error(ins.token, MISMATCHED_TYPES_BINARY_EXPR, o1.type.name, o2.type.name)
+        if v.lhs.type != v.rhs.type {
+            checker_error(ins.token, MISMATCHED_TYPES_BINARY_EXPR, v.lhs.type.name, v.rhs.type.name)
             return
         }
 
-        v.lhs = o1.index
-        v.rhs = o2.index
-        push_stack(REGISTER(o1.type, ins))
+        push_stack(REGISTER(v.lhs.type, ins))
 
     case CAST:
         unimplemented()
