@@ -309,6 +309,8 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
 
     case DUP:
 
+    case DUP_PREV:
+
     case IDENTIFIER:
 
     case INVOKE_PROC:
@@ -341,6 +343,10 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
                 gen_printf(gen, " = sk_result{}.p{};\n", ins.offset, index)
             }
         }
+
+    case NIP:
+
+    case OVER:
 
     case PRINT:
         gen_indent(gen)
@@ -420,6 +426,15 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
             }
         }
         gen_print(gen, "};\n")
+
+    case ROTATE_LEFT:
+
+    case ROTATE_RIGHT:
+
+    case SWAP:
+
+    case TUCK:
+
     }
 }
 

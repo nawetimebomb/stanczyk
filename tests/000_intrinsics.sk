@@ -1,0 +1,11 @@
+proc main
+  1 drop
+  1 dup print print
+  1 2 dup* print print print
+  1 2 nip print
+  1 2 over print print print
+  1 2 3 rot print print print
+  1 2 3 rot* print print print
+  1 2 swap print print
+  1 2 tuck print print print
+;

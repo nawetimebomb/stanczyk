@@ -48,7 +48,6 @@ Token_Kind :: enum u8 {
     False            =  20,
 
 
-
     // Single character tokens
     Semicolon        =  30,
     Brace_Left       =  31,
@@ -65,10 +64,17 @@ Token_Kind :: enum u8 {
     Colon            =  42,
     Dash_Dash_Dash   =  50,
 
+
     // Intrinsics
     Drop             =  60,
-    Dup              =  61,
-
+    Nip              =  61,
+    Dup              =  62,
+    Dup_Star         =  63,
+    Swap             =  64,
+    Rot              =  65,
+    Rot_Star         =  66,
+    Over             =  67,
+    Tuck             =  68,
 
 
     // Keywords
@@ -354,7 +360,14 @@ get_token_kind_from_string :: proc(s: string) -> (Token_Kind) {
     case "true":   return .True
 
     case "drop":   return .Drop
+    case "nip":    return .Nip
     case "dup":    return .Dup
+    case "dup*":   return .Dup_Star
+    case "swap":   return .Swap
+    case "rot":    return .Rot
+    case "rot*":   return .Rot_Star
+    case "over":   return .Over
+    case "tuck":   return .Tuck
 
     case "using":  return .Using
 

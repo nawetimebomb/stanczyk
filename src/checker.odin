@@ -230,6 +230,17 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
         push_stack(o1)
         push_stack(o1)
 
+    case DUP_PREV:
+        if len(stack) < 2 {
+            checker_error(ins.token, STACK_EMPTY_EXPECT, 2, len(stack))
+            return
+        }
+        o2 := pop_stack(ins)
+        o1 := pop_stack(ins)
+        push_stack(o1)
+        push_stack(o1)
+        push_stack(o2)
+
     case IDENTIFIER:
         matches := find_entity(v.value)
 
@@ -288,6 +299,27 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
             push_stack(v.results[index])
         }
 
+    case NIP:
+        if len(stack) < 2 {
+            checker_error(ins.token, STACK_EMPTY_EXPECT, 1, 0)
+            return
+        }
+        o2 := pop_stack(ins)
+        o1 := pop_stack(ins)
+        push_stack(o2)
+
+    case OVER:
+        if len(stack) < 2 {
+            checker_error(ins.token, STACK_EMPTY_EXPECT, 2, len(stack))
+            return
+        }
+
+        o2 := pop_stack(ins)
+        o1 := pop_stack(ins)
+        push_stack(o1)
+        push_stack(o2)
+        push_stack(o1)
+
     case PRINT:
         if len(stack) == 0 {
             checker_error(ins.token, STACK_EMPTY_EXPECT, 1, 0)
@@ -335,5 +367,54 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
                 v.value[n] = stack[n]
             }
         }
+
+    case ROTATE_LEFT:
+        if len(stack) < 3 {
+            checker_error(ins.token, STACK_EMPTY_EXPECT, 3, len(stack))
+            return
+        }
+
+        o3 := pop_stack(ins)
+        o2 := pop_stack(ins)
+        o1 := pop_stack(ins)
+        push_stack(o2)
+        push_stack(o3)
+        push_stack(o1)
+
+    case ROTATE_RIGHT:
+        if len(stack) < 3 {
+            checker_error(ins.token, STACK_EMPTY_EXPECT, 3, len(stack))
+            return
+        }
+
+        o3 := pop_stack(ins)
+        o2 := pop_stack(ins)
+        o1 := pop_stack(ins)
+        push_stack(o3)
+        push_stack(o1)
+        push_stack(o2)
+
+    case SWAP:
+        if len(stack) < 2 {
+            checker_error(ins.token, STACK_EMPTY_EXPECT, 2, len(stack))
+            return
+        }
+
+        o2 := pop_stack(ins)
+        o1 := pop_stack(ins)
+        push_stack(o2)
+        push_stack(o1)
+
+    case TUCK:
+        if len(stack) < 2 {
+            checker_error(ins.token, STACK_EMPTY_EXPECT, 2, len(stack))
+            return
+        }
+
+        o2 := pop_stack(ins)
+        o1 := pop_stack(ins)
+        push_stack(o2)
+        push_stack(o1)
+        push_stack(o2)
     }
 }

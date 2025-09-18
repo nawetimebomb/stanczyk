@@ -446,7 +446,15 @@ parse_expression :: proc() {
             }
 
             switch bytes[1] {
-            case 'n': value = 10
+            case 'a':  value = 7
+            case 'b':  value = 8
+            case 't':  value = 9
+            case 'n':  value = 10
+            case 'v':  value = 11
+            case 'f':  value = 12
+            case 'r':  value = 13
+            case 'e':  value = 27
+            case '\'': value = '\''
             }
         } else {
             value = bytes[0]
@@ -488,8 +496,29 @@ parse_expression :: proc() {
     case .Drop:
         write_chunk(token, DROP{})
 
+    case .Nip:
+        write_chunk(token, NIP{})
+
     case .Dup:
         write_chunk(token, DUP{})
+
+    case .Dup_Star:
+        write_chunk(token, DUP_PREV{})
+
+    case .Swap:
+        write_chunk(token, SWAP{})
+
+    case .Rot:
+        write_chunk(token, ROTATE_LEFT{})
+
+    case .Rot_Star:
+        write_chunk(token, ROTATE_RIGHT{})
+
+    case .Over:
+        write_chunk(token, OVER{})
+
+    case .Tuck:
+        write_chunk(token, TUCK{})
 
     case .Using:
 

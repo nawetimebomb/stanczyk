@@ -47,8 +47,11 @@ Instruction_Variant :: union {
     CAST,
     DROP,
     DUP,
+    DUP_PREV,
     IDENTIFIER,
     INVOKE_PROC,
+    NIP,
+    OVER,
     PRINT,
     PUSH_ARG,
     PUSH_BOOL,
@@ -62,6 +65,10 @@ Instruction_Variant :: union {
     RETURN,
     RETURN_VALUE,
     RETURN_VALUES,
+    ROTATE_LEFT,
+    ROTATE_RIGHT,
+    SWAP,
+    TUCK,
 }
 
 BINARY_ADD :: struct {
@@ -101,6 +108,10 @@ DUP :: struct {
 
 }
 
+DUP_PREV :: struct {
+
+}
+
 IDENTIFIER :: struct {
     value: string,
 }
@@ -109,6 +120,14 @@ INVOKE_PROC :: struct {
     arguments: []^Register,
     results:   []^Register,
     procedure: ^Procedure,
+}
+
+NIP :: struct {
+
+}
+
+OVER :: struct {
+
 }
 
 PRINT :: struct {
@@ -161,6 +180,22 @@ RETURN_VALUE :: struct {
 
 RETURN_VALUES :: struct {
     value: []^Register,
+}
+
+ROTATE_LEFT :: struct {
+
+}
+
+ROTATE_RIGHT :: struct {
+
+}
+
+SWAP :: struct {
+
+}
+
+TUCK :: struct {
+
 }
 
 REGISTER :: proc(type: ^Type, ins: ^Instruction = nil) -> ^Register {
@@ -252,6 +287,9 @@ debug_print_bytecode :: proc() {
             case DUP:
                 _name("DUP")
 
+            case DUP_PREV:
+                _name("DUP_PREV")
+
             case IDENTIFIER:
                 _name("IDENTIFIER")
                 _value("{}", v.value)
@@ -259,6 +297,12 @@ debug_print_bytecode :: proc() {
             case INVOKE_PROC:
                 _name("INVOKE_PROC")
                 _value("{}({})", v.procedure.name, v.arguments)
+
+            case NIP:
+                _name("NIP")
+
+            case OVER:
+                _name("OVER")
 
             case PRINT:
                 _name("PRINT")
@@ -310,6 +354,18 @@ debug_print_bytecode :: proc() {
             case RETURN_VALUES:
                 _name("RETURN_VALUES")
                 _value("{}", v.value)
+
+            case ROTATE_LEFT:
+                _name("ROTATE_LEFT")
+
+            case ROTATE_RIGHT:
+                _name("ROTATE_RIGHT")
+
+            case SWAP:
+                _name("SWAP")
+
+            case TUCK:
+                _name("TUCK")
             }
 
             if instruction.register != nil {
