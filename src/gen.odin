@@ -159,6 +159,16 @@ gen_bootstrap :: proc(gen: ^Generator) {
     gen.source = &gen.defs
     gen_print(gen, "// User Definitions\n")
 
+    for _, value in compiler.types {
+        switch v in value.variant {
+        case Type_Alias:
+            gen_printf(gen, "typedef {} {};\n", v.derived.foreign_name, value.foreign_name)
+        case Type_Procedure:
+        case Type_Basic:
+        case Type_Struct:
+        }
+    }
+
     gen.source = &gen.code
     gen_print(gen, "// User Code\n")
 

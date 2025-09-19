@@ -1,12 +1,20 @@
 #!/bin/bash
 
 BIN_NAME=skc
+COMMAND="$1"
 
 odin build src -use-separate-modules -out:$BIN_NAME -strict-style -vet-using-stmt -vet-using-param -vet-style -vet-semicolon -debug
 
 if [ "$?" == 0 ]; then
-  if [ ! -z "$1" ]; then
-    skc sandbox/test.sk
+    if [ "$COMMAND" == "test" ]; then
+        ./test.sh
+    fi
+fi
+
+
+if [ "$?" == 0 ]; then
+  if [ "$COMMAND" == "run" ]; then
+    skc sandbox/test.sk -debug
 
     if [ "$?" == 0 ]; then
        echo -e "\nProgram result:\n"
@@ -15,9 +23,3 @@ if [ "$?" == 0 ]; then
     fi
   fi
 fi
-
-#if [ "$?" == 0 ]; then
-#    if [ ! -z "$1" ]; then
-#        ./test.sh
-#    fi
-#fi
