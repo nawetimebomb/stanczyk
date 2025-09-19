@@ -46,6 +46,12 @@ Instruction_Variant :: union {
     BINARY_MODULO,
     BINARY_SLASH,
     CAST,
+    COMPARE_EQUAL,
+    COMPARE_NOT_EQUAL,
+    COMPARE_GREATER,
+    COMPARE_GREATER_EQUAL,
+    COMPARE_LESS,
+    COMPARE_LESS_EQUAL,
     DROP,
     DUP,
     DUP_PREV,
@@ -75,7 +81,7 @@ Instruction_Variant :: union {
 }
 
 BINARY_ADD :: struct {
-    lhs: ^Register, // index to the register stack
+    lhs: ^Register,
     rhs: ^Register,
 }
 
@@ -102,6 +108,37 @@ BINARY_SLASH :: struct {
 CAST :: struct {
 
 }
+
+COMPARE_EQUAL :: struct {
+    lhs: ^Register,
+    rhs: ^Register,
+}
+
+COMPARE_NOT_EQUAL :: struct {
+    lhs: ^Register,
+    rhs: ^Register,
+}
+
+COMPARE_GREATER :: struct {
+    lhs: ^Register,
+    rhs: ^Register,
+}
+
+COMPARE_GREATER_EQUAL :: struct {
+    lhs: ^Register,
+    rhs: ^Register,
+}
+
+COMPARE_LESS :: struct {
+    lhs: ^Register,
+    rhs: ^Register,
+}
+
+COMPARE_LESS_EQUAL :: struct {
+    lhs: ^Register,
+    rhs: ^Register,
+}
+
 
 DROP :: struct {
 
@@ -291,6 +328,24 @@ debug_print_bytecode :: proc() {
 
             case CAST:
                 _name("CAST")
+
+            case COMPARE_EQUAL:
+                _name("COMPARE_EQUAL")
+
+            case COMPARE_NOT_EQUAL:
+                _name("COMPARE_NOT_EQUAL")
+
+            case COMPARE_GREATER:
+                _name("COMPARE_GREATER")
+
+            case COMPARE_GREATER_EQUAL:
+                _name("COMPARE_GREATER_EQUAL")
+
+            case COMPARE_LESS:
+                _name("COMPARE_LESS")
+
+            case COMPARE_LESS_EQUAL:
+                _name("COMPARE_LESS_EQUAL")
 
             case DROP:
                 _name("DROP")

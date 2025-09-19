@@ -522,6 +522,27 @@ parse_expression :: proc() {
 
     case .Colon:
 
+    case .Exclaim:
+        unimplemented()
+
+    case .Equal:
+        write_chunk(token, COMPARE_EQUAL{})
+
+    case .Not_Equal:
+        write_chunk(token, COMPARE_NOT_EQUAL{})
+
+    case .Greater:
+        write_chunk(token, COMPARE_GREATER{})
+
+    case .Greater_Equal:
+        write_chunk(token, COMPARE_GREATER_EQUAL{})
+
+    case .Less:
+        write_chunk(token, COMPARE_LESS{})
+
+    case .Less_Equal:
+        write_chunk(token, COMPARE_LESS_EQUAL{})
+
     case .Drop:
         write_chunk(token, DROP{})
 

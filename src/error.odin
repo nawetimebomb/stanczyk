@@ -36,6 +36,8 @@ MISMATCHED_TYPES_BINARY_EXPR :: "Mismatched types in binary expression '{}' vs '
 
 MISMATCHED_TYPES_RESULT :: "Mismatched types in procedure '{}' results; Expected '{}', but got '{}' instead."
 
+MISMATCHED_MULTI :: "Mismatched type in operation '{}'; Expected {}, got '{}'."
+
 MODULO_ONLY_INT :: "Modulo operator '%%' can only be used while operating with 'int'. Used '{}'."
 
 STACK_EMPTY :: "There are not enough stack values to make this operation."

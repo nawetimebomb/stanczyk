@@ -156,6 +156,15 @@ gen_bootstrap :: proc(gen: ^Generator) {
     gen_print(gen, "SK_STATIC void print_u64(u64 v) { printf(\"%lu\\n\", v); }\n")
     gen_print(gen, "SK_STATIC void print_string(string v) { printf(\"%s\\n\", v.data); }\n")
 
+    // streq
+    gen_print(gen, "SK_STATIC b8 streq(string a, string b) {\n")
+    gen_print(gen, "\tif (a.length != b.length) return SK_FALSE;\n")
+    gen_print(gen, "\tfor (int i = 0; i < a.length; i += 1) {\n")
+    gen_print(gen, "\t\tif (a.data[i] != b.data[i]) return SK_FALSE;\n")
+    gen_print(gen, "\t}\n")
+    gen_print(gen, "\treturn SK_TRUE;\n")
+    gen_print(gen, "}\n")
+
     gen.source = &gen.defs
     gen_print(gen, "// User Definitions\n")
 
@@ -322,6 +331,78 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
         gen_print(gen, ";\n")
 
     case CAST:
+
+    case COMPARE_EQUAL:
+        gen_indent(gen)
+        gen_register(gen, ins.register)
+        gen_print(gen, " = ")
+
+        if type_is_string(v.lhs.type) {
+            gen_print(gen, "streq(")
+            gen_register(gen, v.lhs)
+            gen_print(gen, ", ")
+            gen_register(gen, v.rhs)
+            gen_print(gen, ");\n")
+        } else {
+            gen_register(gen, v.lhs)
+            gen_print(gen, " == ")
+            gen_register(gen, v.rhs)
+            gen_print(gen, ";\n")
+        }
+
+    case COMPARE_NOT_EQUAL:
+        gen_indent(gen)
+        gen_register(gen, ins.register)
+        gen_print(gen, " = ")
+
+        if type_is_string(v.lhs.type) {
+            gen_print(gen, "!streq(")
+            gen_register(gen, v.lhs)
+            gen_print(gen, ", ")
+            gen_register(gen, v.rhs)
+            gen_print(gen, ");\n")
+        } else {
+            gen_register(gen, v.lhs)
+            gen_print(gen, " != ")
+            gen_register(gen, v.rhs)
+            gen_print(gen, ";\n")
+        }
+
+    case COMPARE_GREATER:
+        gen_indent(gen)
+        gen_register(gen, ins.register)
+        gen_print(gen, " = ")
+        gen_register(gen, v.lhs)
+        gen_print(gen, " > ")
+        gen_register(gen, v.rhs)
+        gen_print(gen, ";\n")
+
+    case COMPARE_GREATER_EQUAL:
+        gen_indent(gen)
+        gen_register(gen, ins.register)
+        gen_print(gen, " = ")
+        gen_register(gen, v.lhs)
+        gen_print(gen, " >= ")
+        gen_register(gen, v.rhs)
+        gen_print(gen, ";\n")
+
+    case COMPARE_LESS:
+        gen_indent(gen)
+        gen_register(gen, ins.register)
+        gen_print(gen, " = ")
+        gen_register(gen, v.lhs)
+        gen_print(gen, " < ")
+        gen_register(gen, v.rhs)
+        gen_print(gen, ";\n")
+
+    case COMPARE_LESS_EQUAL:
+        gen_indent(gen)
+        gen_register(gen, ins.register)
+        gen_print(gen, " = ")
+        gen_register(gen, v.lhs)
+        gen_print(gen, " <= ")
+        gen_register(gen, v.rhs)
+        gen_print(gen, ";\n")
 
     case DROP:
 

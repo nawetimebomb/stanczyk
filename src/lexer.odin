@@ -48,7 +48,7 @@ Token_Kind :: enum u8 {
     False            =  20,
 
 
-    // Single character tokens
+    // Single(ish) character tokens
     Semicolon        =  30,
     Brace_Left       =  31,
     Brace_Right      =  32,
@@ -63,6 +63,13 @@ Token_Kind :: enum u8 {
     Percent          =  41,
     Colon            =  42,
     Dash_Dash_Dash   =  50,
+    Exclaim          =  51,
+    Equal            =  52,
+    Not_Equal        =  53,
+    Greater          =  54,
+    Greater_Equal    =  55,
+    Less             =  56,
+    Less_Equal       =  57,
 
 
     // Intrinsics
@@ -239,19 +246,6 @@ get_next_token :: proc(l: ^Lexer) -> (token: Token) {
         }
     }
 
-    tokenize_minus :: proc(l: ^Lexer, token: ^Token) {
-        token.kind = .Minus
-        advance(l)
-        if get_byte(l) == '-' && peek_byte(l, 1) == '-' {
-            token.kind = .Dash_Dash_Dash
-            advance(l, 2)
-        }
-    }
-
-    tokenize_slash :: proc(l: ^Lexer, token: ^Token) {
-
-    }
-
     maybe_is_a_keyword :: proc(token: ^Token) -> bool {
         kind := get_token_kind_from_string(token.text)
         if kind != .EOF {
@@ -297,7 +291,6 @@ get_next_token :: proc(l: ^Lexer) -> (token: Token) {
             for !is_eof(l) && get_byte(l) != '\n' do advance(l)
             return get_next_token(l)
         }
-    case '-':       tokenize_minus(l, &token)
     case '#':       tokenize_directive(l, &token)
     case '{':       token.kind = .Brace_Left;    advance(l)
     case '}':       token.kind = .Brace_Right;   advance(l)
@@ -310,6 +303,35 @@ get_next_token :: proc(l: ^Lexer) -> (token: Token) {
     case '*':       token.kind = .Star;          advance(l)
     case '%':       token.kind = .Percent;       advance(l)
     case ':':       token.kind = .Colon;         advance(l)
+    case '=':       token.kind = .Equal;         advance(l)
+    case '!':
+        token.kind = .Exclaim
+        advance(l)
+        if get_byte(l) == '=' {
+            token.kind = .Not_Equal
+            advance(l)
+        }
+    case '>':
+        token.kind = .Greater
+        advance(l)
+        if get_byte(l) == '=' {
+            token.kind = .Greater_Equal
+            advance(l)
+        }
+    case '<':
+        token.kind = .Less
+        advance(l)
+        if get_byte(l) == '=' {
+            token.kind = .Less_Equal
+            advance(l)
+        }
+    case '-':
+        token.kind = .Minus
+        advance(l)
+        if get_byte(l) == '-' && peek_byte(l, 1) == '-' {
+            token.kind = .Dash_Dash_Dash
+            advance(l, 2)
+        }
     case '\'':
         escape_found := false
         token.kind = .Byte

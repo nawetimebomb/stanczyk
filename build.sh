@@ -5,14 +5,16 @@ COMMAND="$1"
 
 odin build src -use-separate-modules -out:$BIN_NAME -strict-style -vet-using-stmt -vet-using-param -vet-style -vet-semicolon -debug
 
-if [ "$?" == 0 ]; then
+RESULT="$?"
+
+if [ "$RESULT" == 0 ]; then
     if [ "$COMMAND" == "test" ]; then
         ./test.sh
     fi
 fi
 
 
-if [ "$?" == 0 ]; then
+if [ "$RESULT" == 0 ]; then
   if [ "$COMMAND" == "run" ]; then
     skc sandbox/test.sk -debug
 

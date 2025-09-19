@@ -96,3 +96,57 @@ register_global_type :: proc(type: ^Type) {
     compiler.types[type.name] = type
     create_entity(make_token(type.name), Entity_Type{type})
 }
+
+type_one_of :: proc(type: ^Type, test_procs: ..proc(^Type) -> bool) -> bool {
+    for cb in test_procs {
+        if cb(type) {
+            return true
+        }
+    }
+
+    return false
+}
+
+type_is_string :: proc(type: ^Type) -> bool {
+    if type == type_string {
+        return true
+    }
+
+    #partial switch variant in type.variant {
+    case Type_Alias:
+        return type_is_string(variant.derived)
+    case Type_Basic:
+        return variant.kind == .String
+    }
+
+    return false
+}
+
+type_is_number :: proc(type: ^Type) -> bool {
+    #partial switch variant in type.variant {
+    case Type_Alias:
+        return type_is_number(variant.derived)
+    case Type_Basic:
+        #partial switch variant.kind {
+        case .Float, .Int, .Uint:
+            return true
+        }
+    }
+
+    return false
+}
+
+type_is_byte :: proc(type: ^Type) -> bool {
+    if type == type_byte {
+        return true
+    }
+
+    #partial switch variant in type.variant {
+    case Type_Alias:
+        return type_is_byte(variant.derived)
+    case Type_Basic:
+        return variant.kind == .Byte
+    }
+
+    return false
+}

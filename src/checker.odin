@@ -218,6 +218,150 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
     case CAST:
         unimplemented()
 
+    case COMPARE_EQUAL:
+        if len(stack) < 2 {
+            checker_error(ins.token, STACK_EMPTY_EXPECT, 2, len(stack))
+            return
+        }
+
+        v.rhs = pop_stack(ins)
+        v.lhs = pop_stack(ins)
+
+        if v.lhs.type != v.rhs.type {
+            checker_error(ins.token, MISMATCHED_TYPES_BINARY_EXPR, v.lhs.type.name, v.rhs.type.name)
+            return
+        }
+
+        if !type_one_of(v.lhs.type, type_is_string, type_is_number, type_is_byte) {
+            checker_error(
+                ins.token, MISMATCHED_MULTI,
+                "=", "float, int, uint, byte or string", v.lhs.type.name,
+            )
+            return
+        }
+
+        push_stack(REGISTER(type_bool, ins))
+
+    case COMPARE_NOT_EQUAL:
+        if len(stack) < 2 {
+            checker_error(ins.token, STACK_EMPTY_EXPECT, 2, len(stack))
+            return
+        }
+
+        v.rhs = pop_stack(ins)
+        v.lhs = pop_stack(ins)
+
+        if v.lhs.type != v.rhs.type {
+            checker_error(ins.token, MISMATCHED_TYPES_BINARY_EXPR, v.lhs.type.name, v.rhs.type.name)
+            return
+        }
+
+        if !type_one_of(v.lhs.type, type_is_string, type_is_number, type_is_byte) {
+            checker_error(
+                ins.token, MISMATCHED_MULTI,
+                "!=", "float, int, uint, byte or string", v.lhs.type.name,
+            )
+            return
+        }
+
+        push_stack(REGISTER(type_bool, ins))
+
+    case COMPARE_GREATER:
+        if len(stack) < 2 {
+            checker_error(ins.token, STACK_EMPTY_EXPECT, 2, len(stack))
+            return
+        }
+
+        v.rhs = pop_stack(ins)
+        v.lhs = pop_stack(ins)
+
+        if v.lhs.type != v.rhs.type {
+            checker_error(ins.token, MISMATCHED_TYPES_BINARY_EXPR, v.lhs.type.name, v.rhs.type.name)
+            return
+        }
+
+        if !type_one_of(v.lhs.type, type_is_number, type_is_byte) {
+            checker_error(
+                ins.token, MISMATCHED_MULTI,
+                ">", "float, int, uint, byte", v.lhs.type.name,
+            )
+            return
+        }
+
+        push_stack(REGISTER(type_bool, ins))
+
+    case COMPARE_GREATER_EQUAL:
+        if len(stack) < 2 {
+            checker_error(ins.token, STACK_EMPTY_EXPECT, 2, len(stack))
+            return
+        }
+
+        v.rhs = pop_stack(ins)
+        v.lhs = pop_stack(ins)
+
+        if v.lhs.type != v.rhs.type {
+            checker_error(ins.token, MISMATCHED_TYPES_BINARY_EXPR, v.lhs.type.name, v.rhs.type.name)
+            return
+        }
+
+        if !type_one_of(v.lhs.type, type_is_number, type_is_byte) {
+            checker_error(
+                ins.token, MISMATCHED_MULTI,
+                ">=", "float, int, uint, byte", v.lhs.type.name,
+            )
+            return
+        }
+
+        push_stack(REGISTER(type_bool, ins))
+
+    case COMPARE_LESS:
+        if len(stack) < 2 {
+            checker_error(ins.token, STACK_EMPTY_EXPECT, 2, len(stack))
+            return
+        }
+
+        v.rhs = pop_stack(ins)
+        v.lhs = pop_stack(ins)
+
+        if v.lhs.type != v.rhs.type {
+            checker_error(ins.token, MISMATCHED_TYPES_BINARY_EXPR, v.lhs.type.name, v.rhs.type.name)
+            return
+        }
+
+        if !type_one_of(v.lhs.type, type_is_number, type_is_byte) {
+            checker_error(
+                ins.token, MISMATCHED_MULTI,
+                "<", "float, int, uint, byte", v.lhs.type.name,
+            )
+            return
+        }
+
+        push_stack(REGISTER(type_bool, ins))
+
+    case COMPARE_LESS_EQUAL:
+        if len(stack) < 2 {
+            checker_error(ins.token, STACK_EMPTY_EXPECT, 2, len(stack))
+            return
+        }
+
+        v.rhs = pop_stack(ins)
+        v.lhs = pop_stack(ins)
+
+        if v.lhs.type != v.rhs.type {
+            checker_error(ins.token, MISMATCHED_TYPES_BINARY_EXPR, v.lhs.type.name, v.rhs.type.name)
+            return
+        }
+
+        if !type_one_of(v.lhs.type, type_is_number, type_is_byte) {
+            checker_error(
+                ins.token, MISMATCHED_MULTI,
+                "<=", "float, int, uint, byte", v.lhs.type.name,
+            )
+            return
+        }
+
+        push_stack(REGISTER(type_bool, ins))
+
     case DROP:
         pop_stack(ins)
 
