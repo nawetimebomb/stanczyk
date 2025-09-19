@@ -23,6 +23,8 @@ MAIN_PROC_TYPE_NOT_EMPTY :: "Entry point procedure must have no arguments."
 
 UNEXPECTED_TOKEN_PROC_TYPE :: "'{}' is not a type."
 
+UNEXPECTED_TOKEN_LET_BIND :: "'{}' is not an identifier."
+
 // Checker Errors
 MISMATCHED_NUMBER_ARGS :: "Not enough values to call '{}'; Expected {}, but got {}."
 
@@ -41,6 +43,11 @@ STACK_EMPTY :: "There are not enough stack values to make this operation."
 STACK_EMPTY_EXPECT :: "There are not enough stack values to make this operation. Expected {}, but got {} instead."
 
 UNDEFINED_IDENTIFIER :: "We could not find the meaning of identifier '{}'."
+
+// Entity Errors
+REDECLARATION_FOUND :: "Redeclaration of '{}' not allowed in this scope."
+
+REDECLARATION_OF_MAIN :: "A symbol named 'main' was already declared at {}({}:{})."
 
 Fatal_Error_Kind :: enum u8 {
     None      = 0,

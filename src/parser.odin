@@ -119,10 +119,15 @@ make_procedure :: proc(token: Token) -> ^Procedure {
     result.foreign_name = create_foreign_name_from_token(token)
     result.is_global    = is_in_global_scope()
     result.file_info    = token.file_info
-    result.entity       = create_entity(result.name, Entity_Proc{ procedure = result })
+    result.entity       = create_entity(token, Entity_Proc{ procedure = result })
     result.scope        = create_scope()
     result.registers    = make([dynamic]^Register)
     result.code         = make([dynamic]^Instruction)
+
+    if result.name == "main" {
+        compiler.main_found_at = &result.token
+    }
+
     return result
 }
 
@@ -248,7 +253,7 @@ parse_const_declaration :: proc() {
 
     expect(.Semicolon)
 
-    create_entity(name_token.text, const)
+    create_entity(name_token, const)
 }
 
 parse_proc_declaration :: proc() {
@@ -367,11 +372,33 @@ parse_type_declaration :: proc() {
         if is_in_global_scope() {
             register_global_type(type)
         } else {
-            create_entity(type.name, Entity_Type{type})
+            create_entity(name_token, Entity_Type{type})
         }
     }
 
     expect(.Semicolon)
+}
+
+parse_let_declaration :: proc() {
+    bindings := make([dynamic]Token, context.temp_allocator)
+
+    for can_continue_parsing() && !peek(.Semicolon) {
+        token := next()
+
+        #partial switch token.kind {
+        case .Identifier:
+            append(&bindings, token)
+
+        case:
+            parser_error(token, UNEXPECTED_TOKEN_LET_BIND, token.text)
+        }
+    }
+
+    expect(.Semicolon)
+
+    #reverse for token in bindings {
+        write_chunk(token, STORE_BIND{token})
+    }
 }
 
 parse_expression :: proc() {
@@ -396,6 +423,8 @@ parse_expression :: proc() {
             entity := matches[0]
 
             switch variant in entity.variant {
+            case Entity_Binding:
+                write_chunk(token, IDENTIFIER{token.text})
             case Entity_Const:
                 write_chunk(token, PUSH_CONST{
                     const = variant,
@@ -532,6 +561,9 @@ parse_expression :: proc() {
 
     case .Const:
         parse_const_declaration()
+
+    case .Let:
+        parse_let_declaration()
 
     case .Cast:
         write_chunk(token, CAST{})

@@ -251,21 +251,26 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
             entity := matches[0]
 
             switch variant in entity.variant {
-            case Entity_Const:
+            case Entity_Binding:
+                ins.variant = PUSH_BIND{variant.value}
+
+            case Entity_Const: // Constants will never be identifier here
+                assert(false)
 
             case Entity_Proc:
                 ins.variant = INVOKE_PROC{
                     procedure = variant.procedure,
                 }
+
             case Entity_Type:
                 ins.variant = PUSH_TYPE{variant.type}
             }
+
+            // Re-check this instruction after it changed meanings
+            check_instruction(this_proc, ins)
         } else {
             unimplemented("polymorphism")
         }
-
-        // Re-check this instruction after it changed meanings
-        check_instruction(this_proc, ins)
 
     case INVOKE_PROC:
         if len(stack) < len(v.procedure.arguments) {
@@ -330,6 +335,9 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
     case PUSH_ARG:
         push_stack(REGISTER(this_proc.arguments[v.value].type, ins))
 
+    case PUSH_BIND:
+        push_stack(v.value)
+
     case PUSH_BOOL:
         push_stack(REGISTER(type_bool, ins))
 
@@ -349,6 +357,7 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
         push_stack(REGISTER(type_string, ins))
 
     case PUSH_TYPE:
+        unimplemented()
 
     case PUSH_UINT:
         push_stack(REGISTER(type_uint, ins))
@@ -393,6 +402,14 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
         push_stack(o3)
         push_stack(o1)
         push_stack(o2)
+
+    case STORE_BIND:
+        if len(stack) == 0 {
+            checker_error(ins.token, STACK_EMPTY_EXPECT, 1, 0)
+            return
+        }
+
+        create_entity(v.token, Entity_Binding{value = pop_stack(ins)})
 
     case SWAP:
         if len(stack) < 2 {

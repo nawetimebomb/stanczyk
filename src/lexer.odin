@@ -83,6 +83,7 @@ Token_Kind :: enum u8 {
     Proc             = 120,
     Type             = 121,
     Const            = 122,
+    Let              = 123,
 
     Cast             = 149,
     Print            = 150,
@@ -374,8 +375,9 @@ get_token_kind_from_string :: proc(s: string) -> (Token_Kind) {
     case "proc":   return .Proc
     case "type":   return .Type
     case "const":  return .Const
-    case "cast":   return .Cast
+    case "let":    return .Let
 
+    case "cast":   return .Cast
     case "print":  return .Print
     }
 

@@ -27,8 +27,9 @@ Procedure :: struct {
 }
 
 Register :: struct {
-    index: int,
-    type:  ^Type,
+    index:   int,
+    mutable: bool,
+    type:    ^Type,
 }
 
 Instruction :: struct {
@@ -54,6 +55,7 @@ Instruction_Variant :: union {
     OVER,
     PRINT,
     PUSH_ARG,
+    PUSH_BIND,
     PUSH_BOOL,
     PUSH_BYTE,
     PUSH_CONST,
@@ -67,6 +69,7 @@ Instruction_Variant :: union {
     RETURN_VALUES,
     ROTATE_LEFT,
     ROTATE_RIGHT,
+    STORE_BIND,
     SWAP,
     TUCK,
 }
@@ -138,6 +141,10 @@ PUSH_ARG :: struct {
     value: int,
 }
 
+PUSH_BIND :: struct {
+    value: ^Register,
+}
+
 PUSH_BOOL :: struct {
     value: bool,
 }
@@ -188,6 +195,10 @@ ROTATE_LEFT :: struct {
 
 ROTATE_RIGHT :: struct {
 
+}
+
+STORE_BIND :: struct {
+    token: Token,
 }
 
 SWAP :: struct {
@@ -312,6 +323,10 @@ debug_print_bytecode :: proc() {
                 _name("PUSH_ARG")
                 _value("arg{}", v.value)
 
+            case PUSH_BIND:
+                _name("PUSH_BIND")
+                _value("{}", v.value.index)
+
             case PUSH_BOOL:
                 _name("PUSH_BOOL")
                 _value("{}", v.value)
@@ -360,6 +375,10 @@ debug_print_bytecode :: proc() {
 
             case ROTATE_RIGHT:
                 _name("ROTATE_RIGHT")
+
+            case STORE_BIND:
+                _name("STORE_BIND")
+                _value("{}", v.token.text)
 
             case SWAP:
                 _name("SWAP")

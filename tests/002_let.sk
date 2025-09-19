@@ -1,0 +1,8 @@
+proc main
+  13 15
+  let x y ;
+  x print
+  y print
+  x let z ;
+  z print
+;

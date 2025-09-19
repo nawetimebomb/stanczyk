@@ -253,6 +253,14 @@ gen_procedure :: proc(gen: ^Generator, procedure: ^Procedure) {
 }
 
 gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instruction) {
+    _string_value :: proc(s: string) -> string {
+        // removes the starting " and ending " if exists
+        if strings.starts_with(s, "\"") && strings.ends_with(s, "\"") {
+            return s[1:len(s)-1]
+        }
+        return s
+    }
+
     gen_printf(
         gen, "_ip{}:;\t// {}\n", ins.offset, reflect.union_variant_type_info(ins.variant),
     )
@@ -359,6 +367,8 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
         gen_register(gen, ins.register)
         gen_printf(gen, " = arg{};\n", v.value)
 
+    case PUSH_BIND:
+
     case PUSH_BOOL:
         gen_indent(gen)
         gen_register(gen, ins.register)
@@ -369,6 +379,7 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
         gen_register(gen, ins.register)
         gen_printf(gen, " = {};\n", v.value)
 
+
     case PUSH_CONST:
         gen_indent(gen)
         gen_register(gen, ins.register)
@@ -377,7 +388,7 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
         case bool:   gen_printf(gen, "{}", value ? "SK_TRUE" : "SK_FALSE")
         case f64:    gen_printf(gen, "{}", value)
         case i64:    gen_printf(gen, "{}", value)
-        case string: gen_printf(gen, "STR_LIT({})", value)
+        case string: gen_printf(gen, "STR_LIT(\"{}\")", _string_value(value))
         case u64:    gen_printf(gen, "{}", value)
         }
         gen_print(gen, ";\n")
@@ -395,7 +406,7 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
     case PUSH_STRING:
         gen_indent(gen)
         gen_register(gen, ins.register)
-        gen_printf(gen, " = STR_LIT({});\n", v.value)
+        gen_printf(gen, " = STR_LIT(\"{}\");\n", _string_value(v.value))
 
     case PUSH_TYPE:
 
@@ -430,6 +441,8 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
     case ROTATE_LEFT:
 
     case ROTATE_RIGHT:
+
+    case STORE_BIND:
 
     case SWAP:
 

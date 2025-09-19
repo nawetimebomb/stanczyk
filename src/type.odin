@@ -94,5 +94,5 @@ type_uint   := &BASIC_TYPES[.Uint]
 
 register_global_type :: proc(type: ^Type) {
     compiler.types[type.name] = type
-    create_entity(type.name, Entity_Type{type})
+    create_entity(make_token(type.name), Entity_Type{type})
 }

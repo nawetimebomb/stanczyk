@@ -39,6 +39,7 @@ Compiler :: struct {
     checker:           ^Checker,
     current_ip:        int,
     lines_parsed:      int,
+    main_found_at:     ^Token,
 }
 
 compiler_dir:      string
@@ -125,6 +126,8 @@ main :: proc() {
     register_global_type(type_string)
     register_global_type(type_uint)
 
+    register_global_const_entities()
+
     accumulator := time.tick_now()
     add_source_file(working_dir, os.args[1])
     for &file_info in source_files {
@@ -136,6 +139,8 @@ main :: proc() {
 
     check_program_bytecode()
     frontend_time := time.duration_seconds(time.tick_lap_time(&accumulator))
+
+    free_all(context.temp_allocator)
 
     gen_program()
     codegen_time := time.duration_seconds(time.tick_lap_time(&accumulator))
