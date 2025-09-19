@@ -152,8 +152,8 @@ gen_bootstrap :: proc(gen: ^Generator) {
     gen_print(gen, "SK_STATIC void print_b8(b8 v) { printf(\"%s\\n\", v == SK_TRUE ? \"true\" : \"false\"); }\n")
     gen_print(gen, "SK_STATIC void print_u8(u8 v) { printf(\"%d\\n\", v); }\n")
     gen_print(gen, "SK_STATIC void print_f64(f64 v) { printf(\"%g\\n\", v); }\n")
-    gen_print(gen, "SK_STATIC void print_s64(s64 v) { printf(\"%lli\\n\", v); }\n")
-    gen_print(gen, "SK_STATIC void print_u64(u64 v) { printf(\"%llu\\n\", v); }\n")
+    gen_print(gen, "SK_STATIC void print_s64(s64 v) { printf(\"%li\\n\", v); }\n")
+    gen_print(gen, "SK_STATIC void print_u64(u64 v) { printf(\"%lu\\n\", v); }\n")
     gen_print(gen, "SK_STATIC void print_string(string v) { printf(\"%s\\n\", v.data); }\n")
 
     gen.source = &gen.defs
