@@ -43,6 +43,7 @@ Value_Const :: union {
     i64,
     string,
     u64,
+    u8,
 }
 
 register_global_const_entities :: proc() {

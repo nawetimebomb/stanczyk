@@ -481,6 +481,7 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
         case i64:    gen_printf(gen, "{}", value)
         case string: gen_printf(gen, "STR_LIT(\"{}\")", _string_value(value))
         case u64:    gen_printf(gen, "{}", value)
+        case u8:     gen_printf(gen, "{}", value)
         }
         gen_print(gen, ";\n")
 

@@ -1,0 +1,21 @@
+const a 10 ;
+const b 3.14 ;
+const c "Stańczyk" ;
+const d '\n' ;
+const e 42u ;
+const f true ;
+const g false ;
+
+proc main
+  const x "Local Scope Constant" ;
+
+  a print
+  b print
+  c print
+  d print
+  e print
+  f print
+  g print
+
+  x print
+;

@@ -1,0 +1,8 @@
+10
+3.14
+Stańczyk
+10
+42
+true
+false
+Local Scope Constant

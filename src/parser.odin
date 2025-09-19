@@ -137,6 +137,37 @@ stanczyk_number_to_c_number :: proc(s: string) -> string {
     return s
 }
 
+parse_byte_value :: proc(token: Token) -> byte {
+    result: byte
+    bytes := token.text[1:len(token.text)-1]
+
+    if len(bytes) > 2 {
+        parser_error(token, INVALID_BYTE_LITERAL, token.text)
+        return 0
+    } else if len(bytes) == 2 {
+        if bytes[0] != '\\' {
+            parser_error(token, INVALID_BYTE_LITERAL, token.text)
+            return 0
+        }
+
+        switch bytes[1] {
+        case 'a':  result = 7
+        case 'b':  result = 8
+        case 't':  result = 9
+        case 'n':  result = 10
+        case 'v':  result = 11
+        case 'f':  result = 12
+        case 'r':  result = 13
+        case 'e':  result = 27
+        case '\'': result = '\''
+        }
+    } else {
+        result = bytes[0]
+    }
+
+    return result
+}
+
 allow :: proc(kind: Token_Kind) -> bool {
     if compiler.parser.curr_token.kind == kind {
         next()
@@ -229,6 +260,10 @@ parse_const_declaration :: proc() {
         parser_error(token, INVALID_CONST_VALUE)
         return
 
+    case .Byte:
+        const.type = type_byte
+        const.value = parse_byte_value(token)
+
     case .Integer:
         value, ok := strconv.parse_i64(stanczyk_number_to_c_number(token.text))
         assert(ok, "Compiler Bug. This was an Int by the Lexer")
@@ -246,6 +281,18 @@ parse_const_declaration :: proc() {
     case .False:
         const.type = type_bool
         const.value = false
+
+    case .Float:
+        value, ok := strconv.parse_f64(stanczyk_number_to_c_number(token.text))
+        assert(ok, "Compiler Bug. This was an Int by the Lexer")
+        const.type = type_float
+        const.value = value
+
+    case .Unsigned_Integer:
+        value, ok := strconv.parse_u64(stanczyk_number_to_c_number(token.text))
+        assert(ok, "Compiler Bug. This was an Int by the Lexer")
+        const.type = type_uint
+        const.value = value
 
     case:
         unimplemented()
@@ -463,33 +510,7 @@ parse_expression :: proc() {
         write_chunk(token, PUSH_STRING{token.text})
 
     case .Byte:
-        value: byte
-        bytes := token.text[1:len(token.text)-1]
-        if len(bytes) > 2 {
-            parser_error(token, INVALID_BYTE_LITERAL, token.text)
-            return
-        } else if len(bytes) == 2 {
-            if bytes[0] != '\\' {
-                parser_error(token, INVALID_BYTE_LITERAL, token.text)
-                return
-            }
-
-            switch bytes[1] {
-            case 'a':  value = 7
-            case 'b':  value = 8
-            case 't':  value = 9
-            case 'n':  value = 10
-            case 'v':  value = 11
-            case 'f':  value = 12
-            case 'r':  value = 13
-            case 'e':  value = 27
-            case '\'': value = '\''
-            }
-        } else {
-            value = bytes[0]
-        }
-
-        write_chunk(token, PUSH_BYTE{value})
+        write_chunk(token, PUSH_BYTE{parse_byte_value(token)})
 
     case .True:
         write_chunk(token, PUSH_BOOL{true})
