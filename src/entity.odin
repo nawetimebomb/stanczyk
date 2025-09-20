@@ -24,7 +24,7 @@ Entity_Binding :: struct {
 
 Entity_Const :: struct {
     type:  ^Type,
-    value: Value_Const,
+    value: Constant_Value,
 }
 
 Entity_Proc :: struct {
@@ -52,7 +52,7 @@ Scope_Kind :: enum u8 {
     Var_Decl,
 }
 
-Value_Const :: union {
+Constant_Value :: union {
     bool,
     f64,
     i64,

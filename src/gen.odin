@@ -110,6 +110,25 @@ gen_register :: proc(gen: ^Generator, reg: ^Register) {
     gen_printf(gen, "{}r%2d", reg.is_global ? "G_" : "", reg.index)
 }
 
+gen_value :: proc(gen: ^Generator, value: Constant_Value) {
+    _string_value :: proc(s: string) -> string {
+        // removes the starting " and ending " if exists
+        if strings.starts_with(s, "\"") && strings.ends_with(s, "\"") {
+            return s[1:len(s)-1]
+        }
+        return s
+    }
+
+    switch v in value {
+    case bool:   gen_printf(gen, "{}", v ? "SK_TRUE" : "SK_FALSE")
+    case f64:    gen_printf(gen, "{}", v)
+    case i64:    gen_printf(gen, "{}", v)
+    case string: gen_printf(gen, "STR_LIT(\"{}\")", _string_value(v))
+    case u64:    gen_printf(gen, "{}", v)
+    case u8:     gen_printf(gen, "{}", v)
+    }
+}
+
 gen_bootstrap :: proc(gen: ^Generator) {
     gen.source = &gen.head
     gen_print(gen, "#include <stdio.h>\n")
@@ -277,17 +296,10 @@ gen_procedure :: proc(gen: ^Generator, procedure: ^Procedure) {
     }
 
     gen_end_scope(gen)
+    gen_print(gen, "\n")
 }
 
 gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instruction) {
-    _string_value :: proc(s: string) -> string {
-        // removes the starting " and ending " if exists
-        if strings.starts_with(s, "\"") && strings.ends_with(s, "\"") {
-            return s[1:len(s)-1]
-        }
-        return s
-    }
-
     gen_ip_label :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instruction) {
         if this_proc == compiler.global_proc {
             return
@@ -494,46 +506,49 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
         gen_ip_label(gen, this_proc, ins)
         gen_indent(gen)
         gen_register(gen, ins.register)
-        gen_printf(gen, " = {};\n", v.value ? "SK_TRUE" : "SK_FALSE")
+        gen_print(gen, " = ")
+        gen_value(gen, v.value)
+        gen_print(gen, ";\n")
 
     case PUSH_BYTE:
         gen_ip_label(gen, this_proc, ins)
         gen_indent(gen)
         gen_register(gen, ins.register)
-        gen_printf(gen, " = {};\n", v.value)
+        gen_print(gen, " = ")
+        gen_value(gen, v.value)
+        gen_print(gen, ";\n")
 
     case PUSH_CONST:
         gen_ip_label(gen, this_proc, ins)
         gen_indent(gen)
         gen_register(gen, ins.register)
         gen_print(gen, " = ")
-        switch value in v.const.value {
-        case bool:   gen_printf(gen, "{}", value ? "SK_TRUE" : "SK_FALSE")
-        case f64:    gen_printf(gen, "{}", value)
-        case i64:    gen_printf(gen, "{}", value)
-        case string: gen_printf(gen, "STR_LIT(\"{}\")", _string_value(value))
-        case u64:    gen_printf(gen, "{}", value)
-        case u8:     gen_printf(gen, "{}", value)
-        }
+        gen_value(gen, v.const.value)
         gen_print(gen, ";\n")
 
     case PUSH_FLOAT:
         gen_ip_label(gen, this_proc, ins)
         gen_indent(gen)
         gen_register(gen, ins.register)
-        gen_printf(gen, " = {};\n", v.value)
+        gen_print(gen, " = ")
+        gen_value(gen, v.value)
+        gen_print(gen, ";\n")
 
     case PUSH_INT:
         gen_ip_label(gen, this_proc, ins)
         gen_indent(gen)
         gen_register(gen, ins.register)
-        gen_printf(gen, " = {};\n", v.value)
+        gen_print(gen, " = ")
+        gen_value(gen, v.value)
+        gen_print(gen, ";\n")
 
     case PUSH_STRING:
         gen_ip_label(gen, this_proc, ins)
         gen_indent(gen)
         gen_register(gen, ins.register)
-        gen_printf(gen, " = STR_LIT(\"{}\");\n", _string_value(v.value))
+        gen_print(gen, " = ")
+        gen_value(gen, v.value)
+        gen_print(gen, ";\n")
 
     case PUSH_TYPE:
 
@@ -541,7 +556,9 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
         gen_ip_label(gen, this_proc, ins)
         gen_indent(gen)
         gen_register(gen, ins.register)
-        gen_printf(gen, " = {};\n", v.value)
+        gen_print(gen, " = ")
+        gen_value(gen, v.value)
+        gen_print(gen, ";\n")
 
     case RETURN:
         gen_ip_label(gen, this_proc, ins)

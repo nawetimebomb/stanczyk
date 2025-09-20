@@ -256,6 +256,7 @@ get_next_token :: proc(l: ^Lexer) -> (token: Token) {
         token.text   = string(l.data[token.start:token.end])
 
         kind := get_token_kind_from_string(token.text)
+
         if kind != .Invalid {
             token.kind = kind
         }
