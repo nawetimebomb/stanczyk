@@ -27,9 +27,10 @@ Procedure :: struct {
 }
 
 Register :: struct {
-    index:   int,
-    mutable: bool,
-    type:    ^Type,
+    index:     int,
+    mutable:   bool,
+    type:      ^Type,
+    is_global: bool,
 }
 
 Instruction :: struct {
@@ -265,6 +266,7 @@ REGISTER :: proc(type: ^Type, ins: ^Instruction = nil) -> ^Register {
     result := new(Register)
     result.index = len(compiler.current_proc.registers)
     result.type = type
+    result.is_global = is_in_global_scope()
     append(&compiler.current_proc.registers, result)
 
     if ins != nil {

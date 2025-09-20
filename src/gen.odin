@@ -107,7 +107,7 @@ gen_multiresult_string_from_types :: proc(gen: ^Generator, params: []^Type) -> s
 }
 
 gen_register :: proc(gen: ^Generator, reg: ^Register) {
-    gen_printf(gen, "r%2d", reg.index)
+    gen_printf(gen, "{}r%2d", reg.is_global ? "G_" : "", reg.index)
 }
 
 gen_bootstrap :: proc(gen: ^Generator) {
@@ -167,7 +167,6 @@ gen_bootstrap :: proc(gen: ^Generator) {
 
     gen.source = &gen.defs
     gen_print(gen, "// User Definitions\n")
-
     for _, value in compiler.types {
         switch v in value.variant {
         case Type_Alias:
@@ -177,6 +176,13 @@ gen_bootstrap :: proc(gen: ^Generator) {
         case Type_Struct:
         }
     }
+
+    for reg in compiler.global_proc.registers {
+        gen_printf(gen, "{} ", reg.type.foreign_name)
+        gen_register(gen, reg)
+        gen_print(gen, ";\n")
+    }
+    gen_print(gen, "\n")
 
     gen.source = &gen.code
     gen_print(gen, "// User Code\n")
@@ -230,39 +236,41 @@ gen_procedure :: proc(gen: ^Generator, procedure: ^Procedure) {
     _gen_proc_header_line(gen, procedure)
     gen_begin_scope(gen)
 
-    registers_copy := slice.clone(procedure.registers[:], context.temp_allocator)
-    slice.stable_sort_by(registers_copy[:], proc(i, j: ^Register) -> bool {
-        return i.type != j.type
-    })
+    if len(procedure.registers) > 0 {
+        registers_copy := slice.clone(procedure.registers[:], context.temp_allocator)
+        slice.stable_sort_by(registers_copy[:], proc(i, j: ^Register) -> bool {
+            return i.type != j.type
+        })
 
-    gen_indent(gen)
-    last_type := registers_copy[0].type
-    gen_printf(gen, "{} ", last_type.foreign_name)
-    count := 0
+        gen_indent(gen)
+        last_type := registers_copy[0].type
+        gen_printf(gen, "{} ", last_type.foreign_name)
+        count := 0
 
-    for reg, index in registers_copy {
-        if last_type != reg.type {
-            gen_printf(gen, ";\n")
-            gen_indent(gen)
-            gen_printf(gen, "{} ", reg.type.foreign_name)
-            last_type = reg.type
-            count = 0
-        }
-
-        gen_register(gen, reg)
-
-        if index < len(registers_copy)-1 && registers_copy[index + 1].type == last_type {
-            gen_print(gen, ", ")
-
-            if (count + 1) % 10 == 0 {
-                gen_print(gen, "\n")
+        for reg, index in registers_copy {
+            if last_type != reg.type {
+                gen_printf(gen, ";\n")
                 gen_indent(gen)
+                gen_printf(gen, "{} ", reg.type.foreign_name)
+                last_type = reg.type
+                count = 0
             }
-        }
 
-        count += 1
+            gen_register(gen, reg)
+
+            if index < len(registers_copy)-1 && registers_copy[index + 1].type == last_type {
+                gen_print(gen, ", ")
+
+                if (count + 1) % 10 == 0 {
+                    gen_print(gen, "\n")
+                    gen_indent(gen)
+                }
+            }
+
+            count += 1
+        }
+        gen_print(gen, ";\n")
     }
-    gen_print(gen, ";\n")
 
     for ins in procedure.code {
         gen_instruction(gen, procedure, ins)
@@ -280,12 +288,17 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
         return s
     }
 
-    gen_printf(
-        gen, "_ip{}:;\t// {}\n", ins.offset, reflect.union_variant_type_info(ins.variant),
-    )
+    gen_ip_label :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instruction) {
+        if this_proc == compiler.global_proc {
+            return
+        }
+
+        gen_printf(gen, "_ip{}:\n", ins.offset)
+    }
 
     switch v in ins.variant {
     case BINARY_ADD:
+        gen_ip_label(gen, this_proc, ins)
         gen_indent(gen)
         gen_register(gen, ins.register)
         gen_print(gen, " = ")
@@ -295,6 +308,7 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
         gen_print(gen, ";\n")
 
     case BINARY_MINUS:
+        gen_ip_label(gen, this_proc, ins)
         gen_indent(gen)
         gen_register(gen, ins.register)
         gen_print(gen, " = ")
@@ -304,6 +318,7 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
         gen_print(gen, ";\n")
 
     case BINARY_MULTIPLY:
+        gen_ip_label(gen, this_proc, ins)
         gen_indent(gen)
         gen_register(gen, ins.register)
         gen_print(gen, " = ")
@@ -313,6 +328,7 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
         gen_print(gen, ";\n")
 
     case BINARY_MODULO:
+        gen_ip_label(gen, this_proc, ins)
         gen_indent(gen)
         gen_register(gen, ins.register)
         gen_print(gen, " = ")
@@ -322,6 +338,7 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
         gen_print(gen, ";\n")
 
     case BINARY_SLASH:
+        gen_ip_label(gen, this_proc, ins)
         gen_indent(gen)
         gen_register(gen, ins.register)
         gen_print(gen, " = ")
@@ -333,6 +350,7 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
     case CAST:
 
     case COMPARE_EQUAL:
+        gen_ip_label(gen, this_proc, ins)
         gen_indent(gen)
         gen_register(gen, ins.register)
         gen_print(gen, " = ")
@@ -351,6 +369,7 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
         }
 
     case COMPARE_NOT_EQUAL:
+        gen_ip_label(gen, this_proc, ins)
         gen_indent(gen)
         gen_register(gen, ins.register)
         gen_print(gen, " = ")
@@ -369,6 +388,7 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
         }
 
     case COMPARE_GREATER:
+        gen_ip_label(gen, this_proc, ins)
         gen_indent(gen)
         gen_register(gen, ins.register)
         gen_print(gen, " = ")
@@ -378,6 +398,7 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
         gen_print(gen, ";\n")
 
     case COMPARE_GREATER_EQUAL:
+        gen_ip_label(gen, this_proc, ins)
         gen_indent(gen)
         gen_register(gen, ins.register)
         gen_print(gen, " = ")
@@ -387,6 +408,7 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
         gen_print(gen, ";\n")
 
     case COMPARE_LESS:
+        gen_ip_label(gen, this_proc, ins)
         gen_indent(gen)
         gen_register(gen, ins.register)
         gen_print(gen, " = ")
@@ -396,6 +418,7 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
         gen_print(gen, ";\n")
 
     case COMPARE_LESS_EQUAL:
+        gen_ip_label(gen, this_proc, ins)
         gen_indent(gen)
         gen_register(gen, ins.register)
         gen_print(gen, " = ")
@@ -417,6 +440,7 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
     case IDENTIFIER:
 
     case INVOKE_PROC:
+        gen_ip_label(gen, this_proc, ins)
         gen_indent(gen)
         has_multiresults := len(v.results) > 1
 
@@ -452,12 +476,14 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
     case OVER:
 
     case PRINT:
+        gen_ip_label(gen, this_proc, ins)
         gen_indent(gen)
         gen_printf(gen, "print_{}(", v.param.type.foreign_name)
         gen_register(gen, v.param)
         gen_print(gen, ");\n")
 
     case PUSH_ARG:
+        gen_ip_label(gen, this_proc, ins)
         gen_indent(gen)
         gen_register(gen, ins.register)
         gen_printf(gen, " = arg{};\n", v.value)
@@ -465,17 +491,19 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
     case PUSH_BIND:
 
     case PUSH_BOOL:
+        gen_ip_label(gen, this_proc, ins)
         gen_indent(gen)
         gen_register(gen, ins.register)
         gen_printf(gen, " = {};\n", v.value ? "SK_TRUE" : "SK_FALSE")
 
     case PUSH_BYTE:
+        gen_ip_label(gen, this_proc, ins)
         gen_indent(gen)
         gen_register(gen, ins.register)
         gen_printf(gen, " = {};\n", v.value)
 
-
     case PUSH_CONST:
+        gen_ip_label(gen, this_proc, ins)
         gen_indent(gen)
         gen_register(gen, ins.register)
         gen_print(gen, " = ")
@@ -490,16 +518,19 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
         gen_print(gen, ";\n")
 
     case PUSH_FLOAT:
+        gen_ip_label(gen, this_proc, ins)
         gen_indent(gen)
         gen_register(gen, ins.register)
         gen_printf(gen, " = {};\n", v.value)
 
     case PUSH_INT:
+        gen_ip_label(gen, this_proc, ins)
         gen_indent(gen)
         gen_register(gen, ins.register)
         gen_printf(gen, " = {};\n", v.value)
 
     case PUSH_STRING:
+        gen_ip_label(gen, this_proc, ins)
         gen_indent(gen)
         gen_register(gen, ins.register)
         gen_printf(gen, " = STR_LIT(\"{}\");\n", _string_value(v.value))
@@ -507,15 +538,18 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
     case PUSH_TYPE:
 
     case PUSH_UINT:
+        gen_ip_label(gen, this_proc, ins)
         gen_indent(gen)
         gen_register(gen, ins.register)
         gen_printf(gen, " = {};\n", v.value)
 
     case RETURN:
+        gen_ip_label(gen, this_proc, ins)
         gen_indent(gen)
         gen_print(gen, "return;\n")
 
     case RETURN_VALUE:
+        gen_ip_label(gen, this_proc, ins)
         gen_indent(gen)
         gen_print(gen, "return ")
         gen_register(gen, v.value)
@@ -523,6 +557,8 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
 
     case RETURN_VALUES:
         type := gen_multiresult_string(gen, v.value)
+
+        gen_ip_label(gen, this_proc, ins)
         gen_indent(gen)
         gen_printf(gen, "return ({}){{", type)
         for arg, index in v.value {
@@ -541,6 +577,7 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
     case STORE_BIND:
 
     case STORE_VAR:
+        gen_ip_label(gen, this_proc, ins)
         gen_indent(gen)
         gen_register(gen, v.lvalue)
         gen_print(gen, " = ")
@@ -569,6 +606,12 @@ write_file :: proc(gen: ^Generator) {
     gen.source = &result
     gen_print(gen, "int main(int argc, const char *argv)")
     gen_begin_scope(gen)
+
+    for ins in compiler.global_proc.code {
+        gen_instruction(gen, compiler.global_proc, ins)
+    }
+
+    gen_print(gen, "\n")
     gen_indent(gen)
     gen_print(gen, "stanczyk__main();\n")
     gen_indent(gen)

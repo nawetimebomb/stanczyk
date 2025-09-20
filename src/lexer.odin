@@ -63,13 +63,12 @@ Token_Kind :: enum u8 {
     Percent          =  41,
     Colon            =  42,
     Dash_Dash_Dash   =  50,
-    Exclaim          =  51,
-    Equal            =  52,
-    Not_Equal        =  53,
-    Greater          =  54,
-    Greater_Equal    =  55,
-    Less             =  56,
-    Less_Equal       =  57,
+    Equal            =  51,
+    Not_Equal        =  52,
+    Greater          =  53,
+    Greater_Equal    =  54,
+    Less             =  55,
+    Less_Equal       =  56,
 
 
     // Intrinsics
@@ -248,14 +247,18 @@ get_next_token :: proc(l: ^Lexer) -> (token: Token) {
         }
     }
 
-    maybe_is_a_keyword :: proc(token: ^Token) -> bool {
-        kind := get_token_kind_from_string(token.text)
-        if kind != .EOF {
-            token.kind = kind
-            return true
-        }
+    tokenize_identifier :: proc(l: ^Lexer, token: ^Token) {
+        fast_forward(l)
+        token.c1     = l.column
+        token.l1     = l.line
+        token.end    = l.offset
+        token.kind   = .Identifier
+        token.text   = string(l.data[token.start:token.end])
 
-        return false
+        kind := get_token_kind_from_string(token.text)
+        if kind != .Invalid {
+            token.kind = kind
+        }
     }
 
 
@@ -307,11 +310,12 @@ get_next_token :: proc(l: ^Lexer) -> (token: Token) {
     case ':':       token.kind = .Colon;         advance(l)
     case '=':       token.kind = .Equal;         advance(l)
     case '!':
-        token.kind = .Exclaim
         advance(l)
         if get_byte(l) == '=' {
             token.kind = .Not_Equal
             advance(l)
+        } else {
+            tokenize_identifier(l, &token)
         }
     case '>':
         token.kind = .Greater
@@ -361,14 +365,7 @@ get_next_token :: proc(l: ^Lexer) -> (token: Token) {
 
         advance(l)
     case:
-        fast_forward(l)
-        token.c1     = l.column
-        token.l1     = l.line
-        token.end    = l.offset
-        token.kind   = .Identifier
-        token.text   = string(l.data[token.start:token.end])
-
-        maybe_is_a_keyword(&token)
+        tokenize_identifier(l, &token)
     }
 
     token.c1     = l.column
@@ -407,5 +404,5 @@ get_token_kind_from_string :: proc(s: string) -> (Token_Kind) {
     case "print":  return .Print
     }
 
-    return .EOF
+    return .Invalid
 }

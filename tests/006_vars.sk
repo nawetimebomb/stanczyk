@@ -1,0 +1,27 @@
+var global 13 ;
+var global_string "Rocks!" ;
+
+proc main
+  var x 13 ;
+  var y true ;
+  var z "Stańczyk" ;
+  x print
+  y print
+  z print
+  0 x set
+  false y set
+  "Rocks!" z set
+  x print
+  y print
+  z print
+
+  2 x set
+  global print
+  global x * print
+
+  z test-with-global print
+;
+
+proc test-with-global (string --- bool)
+  global_string =
+;

@@ -29,8 +29,8 @@ Compiler :: struct {
     error_reported:   bool,
 
     current_scope:    ^Scope,
-    global_scope:     ^Scope,
     current_proc:     ^Procedure,
+    global_proc:      ^Procedure,
 
     types:            map[string]^Type,
 
@@ -44,8 +44,8 @@ compiler_dir:      string
 working_dir:       string
 output_filename:   string
 
-source_files:      [dynamic]File_Info
-bytecode:          [dynamic]^Procedure
+source_files: [dynamic]File_Info
+bytecode:     [dynamic]^Procedure
 
 // Defaults
 switch_debug  := false
@@ -114,8 +114,11 @@ main :: proc() {
         }
     }
 
-    compiler.global_scope = create_scope(.Global)
-    push_scope(compiler.global_scope)
+    global_proc := new(Procedure)
+    global_proc.is_global = true
+    global_proc.scope = create_scope(.Global)
+    push_procedure(global_proc)
+    compiler.global_proc = global_proc
 
     register_global_type(type_bool)
     register_global_type(type_byte)
@@ -190,10 +193,6 @@ load_entire_file :: proc(file_info: ^File_Info) {
     }
 
     file_info.source = strings.clone(string(data))
-}
-
-is_global_scope :: proc() -> bool {
-    return compiler.current_scope == compiler.global_scope
 }
 
 has_error :: #force_inline proc() -> bool {

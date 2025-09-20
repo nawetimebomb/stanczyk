@@ -47,7 +47,6 @@ parser_fatal_error :: proc() {
 create_foreign_name :: proc(parts: []string) -> string {
     VALID :: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
-    is_global_scope := compiler.current_scope == compiler.global_scope
     foreign_name_builder := strings.builder_make()
 
     for part, part_index in parts {
@@ -75,13 +74,13 @@ create_foreign_name_from_token :: proc(token: Token) -> string {
     stanczyk_name := token.text
     foreign_name: string
 
-    if compiler.current_scope != compiler.global_scope {
+    if compiler.current_proc != compiler.global_proc {
         parts := make([dynamic]string, context.temp_allocator)
         curr_proc := compiler.current_proc
 
         append(&parts, filename_prefixed)
 
-        for curr_proc != nil {
+        for !curr_proc.is_global {
             append(&parts, curr_proc.name)
             curr_proc = curr_proc.parent
         }
@@ -114,7 +113,6 @@ make_procedure :: proc(token: Token) -> ^Procedure {
     result.token        = token
     result.name         = token.text
     result.foreign_name = create_foreign_name_from_token(token)
-    result.is_global    = is_in_global_scope()
     result.file_info    = token.file_info
     result.entity       = create_entity(token, Entity_Proc{ procedure = result })
     result.scope        = create_scope(.Procedure)
@@ -212,7 +210,7 @@ can_continue_parsing :: proc() -> bool {
 }
 
 is_in_global_scope :: proc() -> bool {
-    return compiler.current_scope == compiler.global_scope
+    return compiler.current_proc == compiler.global_proc
 }
 
 parse_const_declaration :: proc() {
@@ -295,7 +293,7 @@ parse_let_declaration :: proc() {
     }
 }
 
-parse_local_var_declaration :: proc() {
+parse_var_declaration :: proc() {
     name_token := expect(.Identifier)
 
     write_chunk(name_token, DECLARE_VAR_START{name_token})
@@ -471,6 +469,7 @@ parse_expression_in_global_scope :: proc() {
     case .Const: parse_const_declaration()
     case .Proc:  parse_proc_declaration()
     case .Type:  parse_type_declaration()
+    case .Var:   parse_var_declaration()
     case:        parser_error(token, IMPERATIVE_EXPR_GLOBAL)
     }
 }
@@ -545,8 +544,6 @@ parse_expression :: proc() {
         write_chunk(token, BINARY_MODULO{})
 
     case .Colon:
-
-    case .Exclaim:
         unimplemented()
 
     case .Equal:
@@ -611,7 +608,7 @@ parse_expression :: proc() {
         parse_let_declaration()
 
     case .Var:
-        parse_local_var_declaration()
+        parse_var_declaration()
 
     case .Set:
         write_chunk(token, STORE_VAR{})

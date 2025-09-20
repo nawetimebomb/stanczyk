@@ -104,7 +104,14 @@ can_this_proc_be_called :: proc(token: Token, procedure: ^Procedure, report_erro
 
 
 check_program_bytecode :: proc() {
-    assert(compiler.current_scope == compiler.global_scope)
+    assert(compiler.current_proc == compiler.global_proc)
+
+    for instruction in compiler.global_proc.code {
+        if compiler.error_reported {
+            break
+        }
+        check_instruction(compiler.global_proc, instruction)
+    }
 
     for procedure in bytecode {
         compiler.error_reported = false

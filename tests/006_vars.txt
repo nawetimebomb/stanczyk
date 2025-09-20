@@ -4,3 +4,6 @@ Stańczyk
 0
 false
 Rocks!
+13
+26
+true
