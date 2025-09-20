@@ -66,6 +66,11 @@ register_global_const_entities :: proc() {
         make_token("OS_NAME"),
         Entity_Const{type_string, reflect.enum_string(ODIN_OS)},
     )
+
+    create_entity(
+        make_token("SK_DEBUG"),
+        Entity_Const{type_bool, switch_debug},
+    )
 }
 
 create_entity :: proc(token: Token, variant: Entity_Variant) -> ^Entity {

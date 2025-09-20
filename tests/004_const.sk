@@ -18,4 +18,10 @@ proc main
   g print
 
   x print
+
+  OS_DARWIN  print
+  OS_LINUX   print
+  OS_WINDOWS print
+  OS_NAME    print
+  SK_DEBUG   print
 ;

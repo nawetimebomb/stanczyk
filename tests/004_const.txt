@@ -6,3 +6,8 @@ Stańczyk
 true
 false
 Local Scope Constant
+false
+true
+false
+Linux
+false
