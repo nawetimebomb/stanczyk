@@ -25,21 +25,21 @@ File_Info :: struct {
 }
 
 Compiler :: struct {
-    errors:            [dynamic]Compiler_Error,
-    error_reported:    bool,
+    errors:           [dynamic]Compiler_Error,
+    error_reported:   bool,
 
-    current_scope:     ^Scope,
-    global_scope:      ^Scope,
-    proc_scope:        ^Scope,
-    curr_proc:         ^Procedure,
+    current_scope:    ^Scope,
+    global_scope:     ^Scope,
+    proc_scope:       ^Scope,
+    curr_proc:        ^Procedure,
 
-    types:             map[string]^Type,
+    types:            map[string]^Type,
 
-    parser:            ^Parser,
-    checker:           ^Checker,
-    current_ip:        int,
-    lines_parsed:      int,
-    main_found_at:     ^Token,
+    foreign_name_uid: int,
+    parser:           ^Parser,
+    checker:          ^Checker,
+    lines_parsed:     int,
+    main_found_at:    ^Token,
 }
 
 compiler_dir:      string

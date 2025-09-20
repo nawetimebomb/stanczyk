@@ -45,23 +45,17 @@ parser_fatal_error :: proc() {
 }
 
 create_foreign_name :: proc(parts: []string) -> string {
-    VALID :: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
+    VALID :: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
     is_global_scope := compiler.current_scope == compiler.global_scope
     foreign_name_builder := strings.builder_make()
 
     for part, part_index in parts {
-        snake_name := strings.to_snake_case(part)
-
-        for r, index in snake_name {
+        for r, index in part {
             if strings.contains_rune(VALID, r) {
                 strings.write_rune(&foreign_name_builder, r)
             } else {
-                if index == 0 {
-                    strings.write_rune(&foreign_name_builder, '_')
-                }
-
-                strings.write_int(&foreign_name_builder, int(r))
+                strings.write_rune(&foreign_name_builder, '_')
             }
         }
 
@@ -70,11 +64,14 @@ create_foreign_name :: proc(parts: []string) -> string {
         }
     }
 
+    strings.write_int(&foreign_name_builder, compiler.foreign_name_uid)
+    compiler.foreign_name_uid += 1
+
     return strings.to_string(foreign_name_builder)
 }
 
 create_foreign_name_from_token :: proc(token: Token) -> string {
-    filename := token.file_info.short_name
+    filename_prefixed := fmt.tprintf("F{}", token.file_info.short_name)
     stanczyk_name := token.text
     foreign_name: string
 
@@ -82,7 +79,7 @@ create_foreign_name_from_token :: proc(token: Token) -> string {
         parts := make([dynamic]string, context.temp_allocator)
         curr_proc := compiler.curr_proc
 
-        append(&parts, filename)
+        append(&parts, filename_prefixed)
 
         for curr_proc != nil {
             append(&parts, curr_proc.name)
@@ -97,7 +94,7 @@ create_foreign_name_from_token :: proc(token: Token) -> string {
         if stanczyk_name == "main" {
             foreign_name = strings.clone("stanczyk__main")
         } else {
-            foreign_name = create_foreign_name({filename, stanczyk_name})
+            foreign_name = create_foreign_name({filename_prefixed, stanczyk_name})
         }
     }
 
@@ -485,7 +482,9 @@ parse_expression :: proc() {
             }
 
         } else {
-            unimplemented()
+            // NOTE(nawe) can't do anything here because we need to know about the stack
+            // in order to tests all cases of polymorphism.
+            write_chunk(token, IDENTIFIER{token.text})
         }
 
     case .Integer:

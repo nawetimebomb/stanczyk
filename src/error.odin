@@ -40,6 +40,8 @@ MISMATCHED_MULTI :: "Mismatched type in operation '{}'; Expected {}, got '{}'."
 
 MODULO_ONLY_INT :: "Modulo operator '%%' can only be used while operating with 'int'. Used '{}'."
 
+NO_MATCHING_POLY_PROC :: "No matching polymorphic procedure was found."
+
 STACK_EMPTY :: "There are not enough stack values to make this operation."
 
 STACK_EMPTY_EXPECT :: "There are not enough stack values to make this operation. Expected {}, but got {} instead."

@@ -1,6 +1,7 @@
 package main
 
 import "core:fmt"
+import "core:slice"
 import "core:strings"
 
 Checker :: struct {
@@ -62,6 +63,38 @@ stack_is_valid_for_return :: proc(ins: ^Instruction) -> bool {
                 ins.token, MISMATCHED_TYPES_RESULT,
                 procedure.name, rt.name, st.name,
             )
+            return false
+        }
+    }
+
+    return true
+}
+
+can_this_proc_be_called :: proc(token: Token, procedure: ^Procedure, report_error := true) -> bool {
+    stack_copy := slice.clone_to_dynamic(compiler.checker.stack[:], context.temp_allocator)
+
+    if len(stack_copy) < len(procedure.arguments) {
+        if report_error {
+            checker_error(
+                token, MISMATCHED_NUMBER_ARGS,
+                procedure.name, len(procedure.arguments), len(stack_copy),
+            )
+        }
+        return false
+    }
+
+    for index := len(procedure.arguments)-1; index >= 0; index -= 1 {
+        arg := procedure.arguments[index]
+        stack_value := pop(&stack_copy)
+
+        // TODO(nawe) better check for this
+        if arg.type != stack_value.type {
+            if report_error {
+                checker_error(
+                    token, MISMATCHED_TYPES_ARG,
+                    procedure.name, arg.type.name, stack_value.type.name,
+                )
+            }
             return false
         }
     }
@@ -232,14 +265,6 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
             return
         }
 
-        if !type_one_of(v.lhs.type, type_is_string, type_is_number, type_is_byte) {
-            checker_error(
-                ins.token, MISMATCHED_MULTI,
-                "=", "float, int, uint, byte or string", v.lhs.type.name,
-            )
-            return
-        }
-
         push_stack(REGISTER(type_bool, ins))
 
     case COMPARE_NOT_EQUAL:
@@ -253,14 +278,6 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
 
         if v.lhs.type != v.rhs.type {
             checker_error(ins.token, MISMATCHED_TYPES_BINARY_EXPR, v.lhs.type.name, v.rhs.type.name)
-            return
-        }
-
-        if !type_one_of(v.lhs.type, type_is_string, type_is_number, type_is_byte) {
-            checker_error(
-                ins.token, MISMATCHED_MULTI,
-                "!=", "float, int, uint, byte or string", v.lhs.type.name,
-            )
             return
         }
 
@@ -398,30 +415,40 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
             case Entity_Binding:
                 ins.variant = PUSH_BIND{variant.value}
 
-            case Entity_Const: // Constants will never be identifier here
-                assert(false)
+            case Entity_Const:
+                ins.variant = PUSH_CONST{variant}
 
             case Entity_Proc:
-                ins.variant = INVOKE_PROC{
-                    procedure = variant.procedure,
-                }
+                ins.variant = INVOKE_PROC{procedure = variant.procedure}
 
             case Entity_Type:
                 ins.variant = PUSH_TYPE{variant.type}
             }
-
-            // Re-check this instruction after it changed meanings
-            check_instruction(this_proc, ins)
         } else {
-            unimplemented("polymorphism")
+            // NOTE(nawe) these are always procedures, so we just need to know
+            // if we can call them with the current stack status
+            found := false
+
+            for entity in matches {
+                variant := entity.variant.(Entity_Proc)
+
+                if can_this_proc_be_called(ins.token, variant.procedure, report_error = false) {
+                    ins.variant = INVOKE_PROC{procedure = variant.procedure}
+                    found = true
+                }
+            }
+
+            if !found {
+                checker_error(ins.token, NO_MATCHING_POLY_PROC)
+                return
+            }
         }
 
+        // Re-check this instruction after it changed meanings
+        check_instruction(this_proc, ins)
+
     case INVOKE_PROC:
-        if len(stack) < len(v.procedure.arguments) {
-            checker_error(
-                ins.token, MISMATCHED_NUMBER_ARGS,
-                v.procedure.name, len(v.procedure.arguments), len(stack),
-            )
+        if !can_this_proc_be_called(ins.token, v.procedure) {
             return
         }
 
@@ -430,17 +457,7 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
 
         for index := len(v.procedure.arguments)-1; index >= 0; index -= 1 {
             arg := v.procedure.arguments[index]
-            stack_value := pop_stack(ins)
-
-            if arg.type != stack_value.type {
-                checker_error(
-                    ins.token, MISMATCHED_TYPES_ARG,
-                    v.procedure.name, arg.type.name, stack_value.type.name,
-                )
-                return
-            }
-
-            v.arguments[index] = stack_value
+            v.arguments[index] = pop_stack(ins)
         }
 
         for index in 0..<len(v.procedure.results) {

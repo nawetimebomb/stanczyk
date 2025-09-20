@@ -1,0 +1,22 @@
+proc main
+  "Test" "Test" poly-test print
+  13 13 poly-test print
+  '\n' 'a' poly-test print
+  true false poly-test print
+;
+
+proc poly-test (string string --- bool)
+  =
+;
+
+proc poly-test (int int --- int)
+  +
+;
+
+proc poly-test (byte byte --- bool)
+  <
+;
+
+proc poly-test (bool bool --- bool)
+  !=
+;
