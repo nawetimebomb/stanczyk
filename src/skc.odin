@@ -30,14 +30,12 @@ Compiler :: struct {
 
     current_scope:    ^Scope,
     global_scope:     ^Scope,
-    proc_scope:       ^Scope,
-    curr_proc:        ^Procedure,
+    current_proc:     ^Procedure,
 
     types:            map[string]^Type,
 
     foreign_name_uid: int,
     parser:           ^Parser,
-    checker:          ^Checker,
     lines_parsed:     int,
     main_found_at:    ^Token,
 }
@@ -116,7 +114,7 @@ main :: proc() {
         }
     }
 
-    compiler.global_scope = create_scope()
+    compiler.global_scope = create_scope(.Global)
     push_scope(compiler.global_scope)
 
     register_global_type(type_bool)

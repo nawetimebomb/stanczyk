@@ -4,11 +4,6 @@ import "core:fmt"
 import "core:slice"
 import "core:strings"
 
-Checker :: struct {
-    stack:     [dynamic]^Register,
-    procedure: ^Procedure,
-}
-
 checker_error :: proc(token: Token, format: string, args: ..any) {
     compiler.error_reported = true
     message := fmt.aprintf(format, ..args)
@@ -27,8 +22,12 @@ checker_fatal_error :: proc() {
     )
 }
 
+get_current_stack :: proc() -> ^Stack {
+    return compiler.current_scope.stack
+}
+
 pop_stack :: proc(ins: ^Instruction) -> ^Register {
-    result, ok := pop_safe(&compiler.checker.stack)
+    result, ok := pop_safe(get_current_stack())
 
     if !ok {
         checker_error(ins.token, STACK_EMPTY)
@@ -39,12 +38,12 @@ pop_stack :: proc(ins: ^Instruction) -> ^Register {
 }
 
 push_stack :: proc(r: ^Register) {
-    append(&compiler.checker.stack, r)
+    append(get_current_stack(), r)
 }
 
 stack_is_valid_for_return :: proc(ins: ^Instruction) -> bool {
-    procedure := compiler.checker.procedure
-    stack := compiler.checker.stack
+    procedure := compiler.current_proc
+    stack := get_current_stack()
 
     if len(stack) != len(procedure.results) {
         checker_error(
@@ -71,7 +70,7 @@ stack_is_valid_for_return :: proc(ins: ^Instruction) -> bool {
 }
 
 can_this_proc_be_called :: proc(token: Token, procedure: ^Procedure, report_error := true) -> bool {
-    stack_copy := slice.clone_to_dynamic(compiler.checker.stack[:], context.temp_allocator)
+    stack_copy := slice.clone_to_dynamic(get_current_stack()[:], context.temp_allocator)
 
     if len(stack_copy) < len(procedure.arguments) {
         if report_error {
@@ -100,18 +99,6 @@ can_this_proc_be_called :: proc(token: Token, procedure: ^Procedure, report_erro
     }
 
     return true
-}
-
-init_checker :: proc() {
-    compiler.checker = new(Checker)
-    compiler.checker.stack = make([dynamic]^Register, 0, 8)
-    compiler.checker.procedure = compiler.curr_proc
-}
-
-destroy_checker :: proc() {
-    delete(compiler.checker.stack)
-    free(compiler.checker)
-    compiler.checker = nil
 }
 
 
@@ -148,19 +135,17 @@ check_procedure :: proc(procedure: ^Procedure) {
     _type_parameters(&procedure.results)
 
     push_procedure(procedure)
-    init_checker()
     for instruction in procedure.code {
         if compiler.error_reported {
             break
         }
         check_instruction(procedure, instruction)
     }
-    destroy_checker()
     pop_procedure()
 }
 
 check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
-    stack := compiler.checker.stack
+    stack := get_current_stack()
 
     switch &v in ins.variant {
     case BINARY_ADD:
@@ -379,6 +364,21 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
 
         push_stack(REGISTER(type_bool, ins))
 
+    case DECLARE_VAR_END:
+        if len(stack) != 1 {
+            checker_error(ins.token, VAR_DECL_MULTI_VALUE, len(stack))
+            return
+        }
+
+        o1 := pop_stack(ins)
+        o1.mutable = true
+        pop_scope()
+        create_entity(v.token, Entity_Var{o1})
+
+    case DECLARE_VAR_START:
+        var_decl_scope := create_scope(.Var_Decl)
+        push_scope(var_decl_scope)
+
     case DROP:
         pop_stack(ins)
 
@@ -423,6 +423,10 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
 
             case Entity_Type:
                 ins.variant = PUSH_TYPE{variant.type}
+
+            case Entity_Var:
+                push_stack(variant.value)
+                return
             }
         } else {
             // NOTE(nawe) these are always procedures, so we just need to know
@@ -571,6 +575,28 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
         }
 
         create_entity(v.token, Entity_Binding{value = pop_stack(ins)})
+
+    case STORE_VAR:
+        if len(stack) < 2 {
+            checker_error(ins.token, STACK_EMPTY_EXPECT, 2, len(stack))
+            return
+        }
+
+        o2 := pop_stack(ins)
+        o1 := pop_stack(ins)
+
+        if o1.type != o2.type {
+            checker_error(ins.token, MISMATCHED_TYPES_IN_VAR, o1.type.name, o2.type.name)
+            return
+        }
+
+        if !o2.mutable {
+            checker_error(ins.token, NOT_A_MUTABLE_VAR)
+            return
+        }
+
+        v.lvalue = o2
+        v.rvalue = o1
 
     case SWAP:
         if len(stack) < 2 {

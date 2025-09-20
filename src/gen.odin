@@ -404,6 +404,10 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
         gen_register(gen, v.rhs)
         gen_print(gen, ";\n")
 
+    case DECLARE_VAR_END:
+
+    case DECLARE_VAR_START:
+
     case DROP:
 
     case DUP:
@@ -535,6 +539,13 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
     case ROTATE_RIGHT:
 
     case STORE_BIND:
+
+    case STORE_VAR:
+        gen_indent(gen)
+        gen_register(gen, v.lvalue)
+        gen_print(gen, " = ")
+        gen_register(gen, v.rvalue)
+        gen_print(gen, ";\n")
 
     case SWAP:
 

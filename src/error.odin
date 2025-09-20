@@ -9,6 +9,8 @@ CONST_BOOL_NO_MULTI_VALUE :: "Boolean constant declaration cannot have multiple 
 
 CONST_MISMATCHED_TYPES :: "Mismatched types in const declaration '{}' vs '{}'."
 
+EMPTY_LET_DECL :: "Empty let declarations are not allowed."
+
 FAILED_TO_PARSE_TYPE :: "Failed to parse this as a valid type"
 
 IMPERATIVE_EXPR_GLOBAL :: "Attemp to use an imperative expression while in global scope."
@@ -16,6 +18,8 @@ IMPERATIVE_EXPR_GLOBAL :: "Attemp to use an imperative expression while in globa
 INVALID_BYTE_LITERAL :: "Invalid byte literal {}."
 
 INVALID_CONST_VALUE :: "This is not a valid constant value."
+
+INVALID_TOKEN_VAR_BODY :: "Invalid token '{}' in var declaration."
 
 INVALID_TOKEN :: "We found an invalid token '{}'. This might just be a compiler bug, please report at " + GIT_URL + "."
 
@@ -36,17 +40,23 @@ MISMATCHED_TYPES_BINARY_EXPR :: "Mismatched types in binary expression '{}' vs '
 
 MISMATCHED_TYPES_RESULT :: "Mismatched types in procedure '{}' results; Expected '{}', but got '{}' instead."
 
+MISMATCHED_TYPES_IN_VAR :: "Cannot convert '{}' to '{}' during set operation."
+
 MISMATCHED_MULTI :: "Mismatched type in operation '{}'; Expected {}, got '{}'."
 
 MODULO_ONLY_INT :: "Modulo operator '%%' can only be used while operating with 'int'. Used '{}'."
 
 NO_MATCHING_POLY_PROC :: "No matching polymorphic procedure was found."
 
+NOT_A_MUTABLE_VAR :: "Element in stack was not a mutable var."
+
 STACK_EMPTY :: "There are not enough stack values to make this operation."
 
 STACK_EMPTY_EXPECT :: "There are not enough stack values to make this operation. Expected {}, but got {} instead."
 
 UNDEFINED_IDENTIFIER :: "We could not find the meaning of identifier '{}'."
+
+VAR_DECL_MULTI_VALUE :: "Only one value should be stored in a var declaration, you've got {} here."
 
 // Entity Errors
 REDECLARATION_FOUND :: "Redeclaration of '{}' not allowed in this scope."

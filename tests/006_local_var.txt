@@ -1,0 +1,6 @@
+13
+true
+Stańczyk
+0
+false
+Rocks!

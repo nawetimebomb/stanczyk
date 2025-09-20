@@ -52,6 +52,8 @@ Instruction_Variant :: union {
     COMPARE_GREATER_EQUAL,
     COMPARE_LESS,
     COMPARE_LESS_EQUAL,
+    DECLARE_VAR_END,
+    DECLARE_VAR_START,
     DROP,
     DUP,
     DUP_PREV,
@@ -76,6 +78,7 @@ Instruction_Variant :: union {
     ROTATE_LEFT,
     ROTATE_RIGHT,
     STORE_BIND,
+    STORE_VAR,
     SWAP,
     TUCK,
 }
@@ -139,6 +142,13 @@ COMPARE_LESS_EQUAL :: struct {
     rhs: ^Register,
 }
 
+DECLARE_VAR_END :: struct {
+    token: Token,
+}
+
+DECLARE_VAR_START :: struct {
+    token: Token,
+}
 
 DROP :: struct {
 
@@ -238,6 +248,11 @@ STORE_BIND :: struct {
     token: Token,
 }
 
+STORE_VAR :: struct {
+    lvalue: ^Register, // the register with the mutable variable
+    rvalue: ^Register, // the value side
+}
+
 SWAP :: struct {
 
 }
@@ -248,9 +263,9 @@ TUCK :: struct {
 
 REGISTER :: proc(type: ^Type, ins: ^Instruction = nil) -> ^Register {
     result := new(Register)
-    result.index = len(compiler.curr_proc.registers)
+    result.index = len(compiler.current_proc.registers)
     result.type = type
-    append(&compiler.curr_proc.registers, result)
+    append(&compiler.current_proc.registers, result)
 
     if ins != nil {
         assert(ins.register == nil)
@@ -347,6 +362,14 @@ debug_print_bytecode :: proc() {
             case COMPARE_LESS_EQUAL:
                 _name("COMPARE_LESS_EQUAL")
 
+            case DECLARE_VAR_END:
+                _name("DECLARE_VAR_END")
+                _value("{}", v.token.text)
+
+            case DECLARE_VAR_START:
+                _name("DECLARE_VAR_START")
+                _value("{}", v.token.text)
+
             case DROP:
                 _name("DROP")
 
@@ -434,6 +457,9 @@ debug_print_bytecode :: proc() {
             case STORE_BIND:
                 _name("STORE_BIND")
                 _value("{}", v.token.text)
+
+            case STORE_VAR:
+                _name("STORE_VAR")
 
             case SWAP:
                 _name("SWAP")

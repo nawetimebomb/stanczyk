@@ -91,6 +91,8 @@ Token_Kind :: enum u8 {
     Type             = 121,
     Const            = 122,
     Let              = 123,
+    Var              = 124,
+    Set              = 125,
 
     Cast             = 149,
     Print            = 150,
@@ -133,7 +135,7 @@ get_next_token :: proc(l: ^Lexer) -> (token: Token) {
     fast_forward :: proc(l: ^Lexer) {
         loop: for !is_eof(l) {
             switch get_byte(l) {
-            case 0, ' ', '\t', '\r', '\n', '(', ')', ';', '.': break loop
+            case 0, ' ', '\t', '\r', '\n', '(', ')', ':', ';', '.': break loop
             case: advance(l)
             }
         }
@@ -398,6 +400,8 @@ get_token_kind_from_string :: proc(s: string) -> (Token_Kind) {
     case "type":   return .Type
     case "const":  return .Const
     case "let":    return .Let
+    case "var":    return .Var
+    case "set":    return .Set
 
     case "cast":   return .Cast
     case "print":  return .Print

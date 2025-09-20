@@ -77,7 +77,7 @@ create_foreign_name_from_token :: proc(token: Token) -> string {
 
     if compiler.current_scope != compiler.global_scope {
         parts := make([dynamic]string, context.temp_allocator)
-        curr_proc := compiler.curr_proc
+        curr_proc := compiler.current_proc
 
         append(&parts, filename_prefixed)
 
@@ -104,9 +104,9 @@ create_foreign_name_from_token :: proc(token: Token) -> string {
 write_chunk :: proc(token: Token, variant: Instruction_Variant) {
     result := new(Instruction)
     result.token    = token
-    result.offset   = len(compiler.curr_proc.code)
+    result.offset   = len(compiler.current_proc.code)
     result.variant  = variant
-    append(&compiler.curr_proc.code, result)
+    append(&compiler.current_proc.code, result)
 }
 
 make_procedure :: proc(token: Token) -> ^Procedure {
@@ -117,7 +117,7 @@ make_procedure :: proc(token: Token) -> ^Procedure {
     result.is_global    = is_in_global_scope()
     result.file_info    = token.file_info
     result.entity       = create_entity(token, Entity_Proc{ procedure = result })
-    result.scope        = create_scope()
+    result.scope        = create_scope(.Procedure)
     result.registers    = make([dynamic]^Register)
     result.code         = make([dynamic]^Instruction)
 
@@ -173,7 +173,7 @@ allow :: proc(kind: Token_Kind) -> bool {
     return false
 }
 
-peek :: proc(kind: Token_Kind) -> bool {
+check :: proc(kind: Token_Kind) -> bool {
     if compiler.parser.curr_token.kind == kind {
         return true
     }
@@ -199,11 +199,11 @@ next :: proc() -> Token {
 }
 
 can_continue_parsing :: proc() -> bool {
-    result := !compiler.error_reported && !peek(.EOF)
+    result := !compiler.error_reported && !check(.EOF)
 
     if !result {
         // skip to the end of the procedure or the end of file, whatever is first.
-        for !peek(.Semicolon) && !peek(.EOF) {
+        for !check(.Semicolon) && !check(.EOF) {
             next()
         }
     }
@@ -213,38 +213,6 @@ can_continue_parsing :: proc() -> bool {
 
 is_in_global_scope :: proc() -> bool {
     return compiler.current_scope == compiler.global_scope
-}
-
-parse_file :: proc(file_info: ^File_Info) {
-    compiler.parser = new(Parser)
-    compiler.parser.file_info = file_info
-
-    init_lexer()
-    next()
-
-    for !allow(.EOF) {
-        compiler.error_reported = false
-        parse_expression_in_global_scope()
-    }
-
-    if len(compiler.errors) > 0 {
-        parser_fatal_error()
-    }
-
-    compiler.lines_parsed += compiler.parser.lexer.line
-
-    free(compiler.parser)
-}
-
-parse_expression_in_global_scope :: proc() {
-    token := next()
-
-    #partial switch token.kind {
-    case .Const: parse_const_declaration()
-    case .Proc:  parse_proc_declaration()
-    case .Type:  parse_type_declaration()
-    case:        parser_error(token, IMPERATIVE_EXPR_GLOBAL)
-    }
 }
 
 parse_const_declaration :: proc() {
@@ -300,6 +268,57 @@ parse_const_declaration :: proc() {
     create_entity(name_token, const)
 }
 
+parse_let_declaration :: proc() {
+    bindings := make([dynamic]Token, context.temp_allocator)
+
+    for can_continue_parsing() && !check(.Semicolon) {
+        token := next()
+
+        #partial switch token.kind {
+        case .Identifier:
+            append(&bindings, token)
+
+        case:
+            parser_error(token, UNEXPECTED_TOKEN_LET_BIND, token.text)
+        }
+    }
+
+    end_token := expect(.Semicolon)
+
+    if len(bindings) == 0 {
+        parser_error(end_token, EMPTY_LET_DECL)
+        return
+    }
+
+    #reverse for token in bindings {
+        write_chunk(token, STORE_BIND{token})
+    }
+}
+
+parse_local_var_declaration :: proc() {
+    name_token := expect(.Identifier)
+
+    write_chunk(name_token, DECLARE_VAR_START{name_token})
+
+    for can_continue_parsing() && !check(.Semicolon) {
+        next_token := compiler.parser.curr_token
+
+        #partial switch next_token.kind {
+        case .Identifier, .Integer, .Unsigned_Integer, .Float, .Hex, .Binary, .Octal, .String,
+            .Byte, .True, .False, .Minus, .Plus, .Star, .Percent, .Equal, .Not_Equal, .Greater,
+            .Greater_Equal, .Less, .Less_Equal:
+            parse_expression()
+        case:
+            parser_error(next_token, INVALID_TOKEN_VAR_BODY, next_token.text)
+            return
+        }
+
+    }
+
+    end_token := expect(.Semicolon)
+    write_chunk(end_token, DECLARE_VAR_END{name_token})
+}
+
 parse_proc_declaration :: proc() {
     name_token := expect(.Identifier)
     procedure := make_procedure(name_token)
@@ -321,7 +340,7 @@ parse_proc_declaration :: proc() {
                 type_token := token
 
                 if allow(.Colon) {
-                    type_token = compiler.parser.prev_token
+                    type_token = expect(.Identifier)
                 }
 
                 append(current_array, Parameter{
@@ -350,15 +369,14 @@ parse_proc_declaration :: proc() {
     push_procedure(procedure)
 
     for arg, index in procedure.arguments {
+        write_chunk(arg.type_token, PUSH_ARG{index})
+
         if arg.is_named {
-            // TODO(nawe) push arguments, save bound arguments
-            unimplemented()
-        } else {
-            write_chunk(arg.type_token, PUSH_ARG{index})
+            write_chunk(arg.name_token, STORE_BIND{arg.name_token})
         }
     }
 
-    for can_continue_parsing() && !peek(.Semicolon) {
+    for can_continue_parsing() && !check(.Semicolon) {
         parse_expression()
     }
 
@@ -423,25 +441,37 @@ parse_type_declaration :: proc() {
     expect(.Semicolon)
 }
 
-parse_let_declaration :: proc() {
-    bindings := make([dynamic]Token, context.temp_allocator)
 
-    for can_continue_parsing() && !peek(.Semicolon) {
-        token := next()
 
-        #partial switch token.kind {
-        case .Identifier:
-            append(&bindings, token)
+parse_file :: proc(file_info: ^File_Info) {
+    compiler.parser = new(Parser)
+    compiler.parser.file_info = file_info
 
-        case:
-            parser_error(token, UNEXPECTED_TOKEN_LET_BIND, token.text)
-        }
+    init_lexer()
+    next()
+
+    for !allow(.EOF) {
+        compiler.error_reported = false
+        parse_expression_in_global_scope()
     }
 
-    expect(.Semicolon)
+    if len(compiler.errors) > 0 {
+        parser_fatal_error()
+    }
 
-    #reverse for token in bindings {
-        write_chunk(token, STORE_BIND{token})
+    compiler.lines_parsed += compiler.parser.lexer.line
+
+    free(compiler.parser)
+}
+
+parse_expression_in_global_scope :: proc() {
+    token := next()
+
+    #partial switch token.kind {
+    case .Const: parse_const_declaration()
+    case .Proc:  parse_proc_declaration()
+    case .Type:  parse_type_declaration()
+    case:        parser_error(token, IMPERATIVE_EXPR_GLOBAL)
     }
 }
 
@@ -459,33 +489,7 @@ parse_expression :: proc() {
         parser_error(token, INVALID_TOKEN, token.text)
 
     case .Identifier:
-        matches := find_entity(token.text)
-
-        if len(matches) == 0 {
-            write_chunk(token, IDENTIFIER{token.text})
-        } else if len(matches) == 1 {
-            entity := matches[0]
-
-            switch variant in entity.variant {
-            case Entity_Binding:
-                write_chunk(token, IDENTIFIER{token.text})
-            case Entity_Const:
-                write_chunk(token, PUSH_CONST{
-                    const = variant,
-                })
-            case Entity_Proc:
-                write_chunk(token, INVOKE_PROC{
-                    procedure = variant.procedure,
-                })
-            case Entity_Type:
-                write_chunk(token, PUSH_TYPE{variant.type})
-            }
-
-        } else {
-            // NOTE(nawe) can't do anything here because we need to know about the stack
-            // in order to tests all cases of polymorphism.
-            write_chunk(token, IDENTIFIER{token.text})
-        }
+        write_chunk(token, IDENTIFIER{token.text})
 
     case .Integer:
         value, ok := strconv.parse_i64(stanczyk_number_to_c_number(token.text))
@@ -605,6 +609,12 @@ parse_expression :: proc() {
 
     case .Let:
         parse_let_declaration()
+
+    case .Var:
+        parse_local_var_declaration()
+
+    case .Set:
+        write_chunk(token, STORE_VAR{})
 
     case .Cast:
         write_chunk(token, CAST{})

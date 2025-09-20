@@ -2,6 +2,8 @@ package main
 
 import "core:reflect"
 
+Stack :: distinct [dynamic]^Register
+
 Entity :: struct {
     name:    string,
     token:   Token,
@@ -13,6 +15,7 @@ Entity_Variant :: union {
     Entity_Const,
     Entity_Proc,
     Entity_Type,
+    Entity_Var,
 }
 
 Entity_Binding :: struct {
@@ -32,9 +35,21 @@ Entity_Type :: struct {
     type: ^Type,
 }
 
+Entity_Var :: struct {
+    value: ^Register,
+}
+
 Scope :: struct {
     entities: [dynamic]^Entity,
     parent:   ^Scope,
+    kind:     Scope_Kind,
+    stack:    ^Stack,
+}
+
+Scope_Kind :: enum u8 {
+    Global,
+    Procedure,
+    Var_Decl,
 }
 
 Value_Const :: union {
@@ -130,13 +145,27 @@ find_entity :: proc(name: string) -> []^Entity {
     return results[:]
 }
 
-create_scope :: proc() -> ^Scope {
+create_scope :: proc(kind: Scope_Kind) -> ^Scope {
     new_scope := new(Scope)
+    switch kind {
+    case .Global:
+    case .Procedure:
+        new_scope.stack = new(Stack)
+    case .Var_Decl:
+        new_scope.stack = new(Stack, context.temp_allocator)
+    }
     return new_scope
 }
 
 push_scope :: proc(new_scope: ^Scope) {
     assert(new_scope != nil)
+
+    switch new_scope.kind {
+    case .Global:
+    case .Procedure:
+    case .Var_Decl:
+    }
+
     new_scope.parent = compiler.current_scope
     compiler.current_scope = new_scope
 }
@@ -144,15 +173,22 @@ push_scope :: proc(new_scope: ^Scope) {
 pop_scope :: proc() {
     old_scope := compiler.current_scope
     compiler.current_scope = old_scope.parent
+
+    switch old_scope.kind {
+    case .Global:
+    case .Procedure:
+    case .Var_Decl:
+        free(old_scope.stack)
+    }
 }
 
 push_procedure :: proc(procedure: ^Procedure) {
-    procedure.parent = compiler.curr_proc
-    compiler.curr_proc = procedure
+    procedure.parent = compiler.current_proc
+    compiler.current_proc = procedure
     push_scope(procedure.scope)
 }
 
 pop_procedure :: proc() {
-    compiler.curr_proc = compiler.curr_proc.parent
+    compiler.current_proc = compiler.current_proc.parent
     pop_scope()
 }
