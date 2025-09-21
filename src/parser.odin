@@ -116,7 +116,6 @@ make_procedure :: proc(token: Token) -> ^Procedure {
     result.file_info    = token.file_info
     result.entity       = create_entity(token, Entity_Proc{ procedure = result })
     result.scope        = create_scope(.Procedure)
-    result.registers    = make([dynamic]^Register)
     result.code         = make([dynamic]^Instruction)
 
     if result.name == "main" {
@@ -378,6 +377,12 @@ parse_proc_declaration :: proc() {
         parse_expression()
     }
 
+    // NOTE(nawe) exit early if it cannot be parsed anymore
+    if !can_continue_parsing() {
+        pop_procedure()
+        return
+    }
+
     return_token := expect(.Semicolon)
 
     if len(procedure.results) == 0 {
@@ -612,6 +617,33 @@ parse_expression :: proc() {
 
     case .Set:
         write_chunk(token, STORE_VAR{})
+
+    case .If:
+        if_scope := create_scope(.If, len(compiler.current_proc.code))
+        write_chunk(token, IF_FALSE_JUMP{jump_offset=-1, local_scope=if_scope})
+        push_scope(if_scope)
+
+    case .Else:
+        old_scope := pop_scope()
+
+        if old_scope.kind != .If {
+            parser_error(token, UNATTACHED_TO_IF, "else")
+            return
+        }
+
+        else_scope := create_scope(.If_Else, len(compiler.current_proc.code))
+        write_chunk(token, IF_ELSE_JUMP{jump_offset=-1, local_scope=else_scope})
+        push_scope(else_scope)
+
+    case .Fi:
+        old_scope := pop_scope()
+
+        if old_scope.kind != .If && old_scope.kind != .If_Else {
+            parser_error(token, UNATTACHED_TO_IF, "fi")
+            return
+        }
+
+        write_chunk(token, IF_END{})
 
     case .Cast:
         write_chunk(token, CAST{})

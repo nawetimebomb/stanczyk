@@ -92,6 +92,9 @@ Token_Kind :: enum u8 {
     Let              = 123,
     Var              = 124,
     Set              = 125,
+    If               = 126,
+    Else             = 127,
+    Fi               = 128,
 
     Cast             = 149,
     Print            = 150,
@@ -400,6 +403,9 @@ get_token_kind_from_string :: proc(s: string) -> (Token_Kind) {
     case "let":    return .Let
     case "var":    return .Var
     case "set":    return .Set
+    case "if":     return .If
+    case "else":   return .Else
+    case "fi":     return .Fi
 
     case "cast":   return .Cast
     case "print":  return .Print

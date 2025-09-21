@@ -196,12 +196,18 @@ gen_bootstrap :: proc(gen: ^Generator) {
         }
     }
 
-    for reg in compiler.global_proc.registers {
-        gen_printf(gen, "{} ", reg.type.foreign_name)
-        gen_register(gen, reg)
-        gen_print(gen, ";\n")
+    non_nil_registers := slice.filter(compiler.global_proc.registers[:], proc(r: ^Register) -> bool {
+        return r != nil
+    })
+
+    if len(non_nil_registers) > 0 {
+        for reg in non_nil_registers {
+            gen_printf(gen, "{} ", reg.type.foreign_name)
+            gen_register(gen, reg)
+            gen_print(gen, ";\n")
+        }
+        gen_print(gen, "\n")
     }
-    gen_print(gen, "\n")
 
     gen.source = &gen.code
     gen_print(gen, "// User Code\n")
@@ -255,18 +261,25 @@ gen_procedure :: proc(gen: ^Generator, procedure: ^Procedure) {
     _gen_proc_header_line(gen, procedure)
     gen_begin_scope(gen)
 
-    if len(procedure.registers) > 0 {
-        registers_copy := slice.clone(procedure.registers[:], context.temp_allocator)
-        slice.stable_sort_by(registers_copy[:], proc(i, j: ^Register) -> bool {
+    non_nil_registers := slice.filter(procedure.registers[:], proc(r: ^Register) -> bool {
+        return r != nil
+    })
+
+    if len(non_nil_registers) > 0 {
+        registers := non_nil_registers
+        //registers := slice.unique_proc(non_nil_registers[:], proc(i, j: ^Register) -> bool {
+        //    return  i.index == j.index
+        //})
+        slice.stable_sort_by(registers[:], proc(i, j: ^Register) -> bool {
             return i.type != j.type
         })
 
         gen_indent(gen)
-        last_type := registers_copy[0].type
+        last_type := registers[0].type
         gen_printf(gen, "{} ", last_type.foreign_name)
         count := 0
 
-        for reg, index in registers_copy {
+        for reg, index in registers {
             if last_type != reg.type {
                 gen_printf(gen, ";\n")
                 gen_indent(gen)
@@ -277,7 +290,7 @@ gen_procedure :: proc(gen: ^Generator, procedure: ^Procedure) {
 
             gen_register(gen, reg)
 
-            if index < len(registers_copy)-1 && registers_copy[index + 1].type == last_type {
+            if index < len(registers)-1 && registers[index + 1].type == last_type {
                 gen_print(gen, ", ")
 
                 if (count + 1) % 10 == 0 {
@@ -305,7 +318,7 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
             return
         }
 
-        gen_printf(gen, "_ip{}:\n", ins.offset)
+        gen_printf(gen, "_ip{}: // {}\n", ins.offset, ins.token.text)
     }
 
     switch v in ins.variant {
@@ -451,6 +464,23 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
 
     case IDENTIFIER:
 
+    case IF_ELSE_JUMP:
+        assert(v.jump_offset != -1)
+        gen_indent(gen)
+        gen_printf(gen, "goto _ip{};\n", v.jump_offset)
+        gen_ip_label(gen, this_proc, ins)
+
+    case IF_END:
+        gen_ip_label(gen, this_proc, ins)
+
+    case IF_FALSE_JUMP:
+        assert(v.jump_offset != -1)
+        gen_ip_label(gen, this_proc, ins)
+        gen_indent(gen)
+        gen_print(gen, "if (!")
+        gen_register(gen, v.test_value)
+        gen_printf(gen, ") goto _ip{};\n", v.jump_offset)
+
     case INVOKE_PROC:
         gen_ip_label(gen, this_proc, ins)
         gen_indent(gen)
@@ -551,6 +581,7 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
         gen_print(gen, ";\n")
 
     case PUSH_TYPE:
+        unimplemented()
 
     case PUSH_UINT:
         gen_ip_label(gen, this_proc, ins)
@@ -624,11 +655,13 @@ write_file :: proc(gen: ^Generator) {
     gen_print(gen, "int main(int argc, const char *argv)")
     gen_begin_scope(gen)
 
-    for ins in compiler.global_proc.code {
-        gen_instruction(gen, compiler.global_proc, ins)
+    if len(compiler.global_proc.code) > 0 {
+        for ins in compiler.global_proc.code {
+            gen_instruction(gen, compiler.global_proc, ins)
+        }
+        gen_print(gen, "\n")
     }
 
-    gen_print(gen, "\n")
     gen_indent(gen)
     gen_print(gen, "stanczyk__main();\n")
     gen_indent(gen)

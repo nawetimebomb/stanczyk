@@ -25,6 +25,8 @@ INVALID_TOKEN :: "We found an invalid token '{}'. This might just be a compiler 
 
 MAIN_PROC_TYPE_NOT_EMPTY :: "Entry point procedure must have no arguments."
 
+UNATTACHED_TO_IF :: "'{}' statement unattached to 'if' statement."
+
 UNEXPECTED_TOKEN_PROC_TYPE :: "'{}' is not a type."
 
 UNEXPECTED_TOKEN_LET_BIND :: "'{}' is not an identifier."
@@ -53,6 +55,10 @@ NOT_A_MUTABLE_VAR :: "Element in stack was not a mutable var."
 STACK_EMPTY :: "There are not enough stack values to make this operation."
 
 STACK_EMPTY_EXPECT :: "There are not enough stack values to make this operation. Expected {}, but got {} instead."
+
+STACK_COMP_CHANGED :: "Stack composition cannot be changed inside '{}' statement. Value #{} was '{}' and now is '{}'."
+
+STACK_SIZE_CHANGED :: "Stack size cannot be changed inside '{}' statement."
 
 UNDEFINED_IDENTIFIER :: "We could not find the meaning of identifier '{}'."
 

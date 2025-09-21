@@ -19,7 +19,7 @@ Procedure :: struct {
     scope:        ^Scope,
     parent:       ^Procedure,
 
-    registers:    [dynamic]^Register,
+    registers:    [400]^Register,
     arguments:    []Parameter,
     results:      []Parameter,
 
@@ -27,10 +27,10 @@ Procedure :: struct {
 }
 
 Register :: struct {
-    index:     int,
-    mutable:   bool,
-    type:      ^Type,
-    is_global: bool,
+    index:       int,
+    mutable:     bool,
+    type:        ^Type,
+    is_global:   bool,
 }
 
 Instruction :: struct {
@@ -59,6 +59,9 @@ Instruction_Variant :: union {
     DUP,
     DUP_PREV,
     IDENTIFIER,
+    IF_ELSE_JUMP,
+    IF_END,
+    IF_FALSE_JUMP,
     INVOKE_PROC,
     NIP,
     OVER,
@@ -156,7 +159,7 @@ DROP :: struct {
 }
 
 DUP :: struct {
-
+    value: ^Register,
 }
 
 DUP_PREV :: struct {
@@ -165,6 +168,21 @@ DUP_PREV :: struct {
 
 IDENTIFIER :: struct {
     value: string,
+}
+
+IF_ELSE_JUMP :: struct {
+    jump_offset: int,
+    local_scope: ^Scope,
+}
+
+IF_END :: struct {
+
+}
+
+IF_FALSE_JUMP :: struct {
+    jump_offset: int,
+    test_value:  ^Register,
+    local_scope: ^Scope,
 }
 
 INVOKE_PROC :: struct {
@@ -264,10 +282,17 @@ TUCK :: struct {
 
 REGISTER :: proc(type: ^Type, ins: ^Instruction = nil) -> ^Register {
     result := new(Register)
-    result.index = len(compiler.current_proc.registers)
     result.type = type
     result.is_global = is_in_global_scope()
-    append(&compiler.current_proc.registers, result)
+
+    for reg, index in compiler.current_proc.registers {
+        if reg == nil {
+            result.index = index
+            break
+        }
+    }
+
+    compiler.current_proc.registers[result.index] = result
 
     if ins != nil {
         assert(ins.register == nil)
@@ -377,6 +402,7 @@ debug_print_bytecode :: proc() {
 
             case DUP:
                 _name("DUP")
+                _value("{}", v.value.index)
 
             case DUP_PREV:
                 _name("DUP_PREV")
@@ -384,6 +410,17 @@ debug_print_bytecode :: proc() {
             case IDENTIFIER:
                 _name("IDENTIFIER")
                 _value("{}", v.value)
+
+            case IF_ELSE_JUMP:
+                _name("IF_ELSE_JUMP")
+                _value("{}", v.jump_offset)
+
+            case IF_END:
+                _name("IF_END")
+
+            case IF_FALSE_JUMP:
+                _name("IF_FALSE_JUMP")
+                _value("{}", v.jump_offset)
 
             case INVOKE_PROC:
                 _name("INVOKE_PROC")

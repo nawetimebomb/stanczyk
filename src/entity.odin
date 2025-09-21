@@ -1,6 +1,8 @@
 package main
 
+import "core:fmt"
 import "core:reflect"
+import "core:slice"
 
 Stack :: distinct [dynamic]^Register
 
@@ -40,16 +42,19 @@ Entity_Var :: struct {
 }
 
 Scope :: struct {
-    entities: [dynamic]^Entity,
-    parent:   ^Scope,
-    kind:     Scope_Kind,
-    stack:    ^Stack,
+    entities:      [dynamic]^Entity,
+    parent:        ^Scope,
+    kind:          Scope_Kind,
+    stack:         ^Stack,
+    update_offset: int,
 }
 
 Scope_Kind :: enum u8 {
     Global,
     Procedure,
     Var_Decl,
+    If,
+    If_Else,
 }
 
 Constant_Value :: union {
@@ -145,14 +150,19 @@ find_entity :: proc(name: string) -> []^Entity {
     return results[:]
 }
 
-create_scope :: proc(kind: Scope_Kind) -> ^Scope {
+create_scope :: proc(kind: Scope_Kind, offset := -1) -> ^Scope {
     new_scope := new(Scope)
+    new_scope.kind = kind
+    new_scope.update_offset = offset
+
     switch kind {
     case .Global:
     case .Procedure:
-        new_scope.stack = new(Stack)
     case .Var_Decl:
-        new_scope.stack = new(Stack, context.temp_allocator)
+    case .If:
+        assert(offset != -1)
+    case .If_Else:
+        assert(offset != -1)
     }
     return new_scope
 }
@@ -163,23 +173,31 @@ push_scope :: proc(new_scope: ^Scope) {
     switch new_scope.kind {
     case .Global:
     case .Procedure:
+        if new_scope.stack == nil {
+            new_scope.stack = new(Stack)
+        }
     case .Var_Decl:
+        new_scope.stack = new(Stack, context.temp_allocator)
+    case .If:
+        new_scope.stack = new(Stack, context.temp_allocator)
+        for v in compiler.current_scope.stack {
+            append(new_scope.stack, v)
+        }
+    case .If_Else:
+        new_scope.stack = new(Stack, context.temp_allocator)
+        for v in compiler.current_scope.stack {
+            append(new_scope.stack, v)
+        }
     }
 
     new_scope.parent = compiler.current_scope
     compiler.current_scope = new_scope
 }
 
-pop_scope :: proc() {
+pop_scope :: proc() -> ^Scope {
     old_scope := compiler.current_scope
     compiler.current_scope = old_scope.parent
-
-    switch old_scope.kind {
-    case .Global:
-    case .Procedure:
-    case .Var_Decl:
-        free(old_scope.stack)
-    }
+    return old_scope
 }
 
 push_procedure :: proc(procedure: ^Procedure) {
@@ -191,4 +209,23 @@ push_procedure :: proc(procedure: ^Procedure) {
 pop_procedure :: proc() {
     compiler.current_proc = compiler.current_proc.parent
     pop_scope()
+}
+
+are_stacks_equals :: proc(t: Token, a, b: ^Stack, name: string) -> bool {
+    if len(a) != len(b) {
+        checker_error(t, STACK_SIZE_CHANGED, name)
+        return false
+    }
+
+    for i in 0..<len(a) {
+        if a[i].type != b[i].type {
+            checker_error(
+                t, STACK_COMP_CHANGED, name, i + 1,
+                a[i].type.name, b[i].type.name,
+            )
+            return false
+        }
+    }
+
+    return true
 }

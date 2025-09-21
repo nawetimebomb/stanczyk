@@ -458,6 +458,90 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
         // Re-check this instruction after it changed meanings
         check_instruction(this_proc, ins)
 
+    case IF_ELSE_JUMP:
+        if_scope := pop_scope()
+        scope_opener_ins := this_proc.code[if_scope.update_offset]
+
+        #partial switch &variant in scope_opener_ins.variant {
+        case IF_FALSE_JUMP:
+            variant.jump_offset = ins.offset
+        case:
+            assert(false, "Compiler Bug. Parser should have made sure that this case doesn't occur.")
+        }
+
+        push_scope(v.local_scope)
+        clear(compiler.current_scope.parent.stack)
+        for v in if_scope.stack {
+            append(compiler.current_scope.parent.stack, v)
+        }
+
+    case IF_END:
+        // This is a pretty complex section so it's worth some documentation, maybe at some
+        // point I would like to work on @Robustness for the whole thing here.
+        if_scope := pop_scope()
+        scope_opener_ins := this_proc.code[if_scope.update_offset]
+
+        #partial switch &variant in scope_opener_ins.variant {
+        case IF_FALSE_JUMP:
+            variant.jump_offset = ins.offset
+        case IF_ELSE_JUMP:
+            variant.jump_offset = ins.offset
+        case:
+            assert(false, "Compiler Bug. Parser should have made sure that this case doesn't occur.")
+        }
+
+        current_stack := compiler.current_scope.stack
+
+        // We need to make sure the registers are aligned after exiting both if and
+        // else statements. That means, we need to make sure the registers used are
+        // the same ones, so, if we notice that the value doesn't match the one from
+        // the stack in the conditional scope, we replace it and clean up the space used.
+        #partial switch if_scope.kind {
+        case .If:
+            if !are_stacks_equals(ins.token, current_stack, if_scope.stack, "if") {
+                return
+            }
+
+            for &v, i in if_scope.stack {
+                if v != current_stack[i] {
+                    index := v.index
+                    compiler.current_proc.registers[index] = nil
+                    v.index = current_stack[i].index
+                }
+            }
+
+        case .If_Else:
+            if !are_stacks_equals(ins.token, current_stack, if_scope.stack, "else") {
+                return
+            }
+
+            for &v, i in if_scope.stack {
+                if v != current_stack[i] {
+                    index := v.index
+                    compiler.current_proc.registers[index] = nil
+                    v.index = current_stack[i].index
+                }
+            }
+
+        case:
+            assert(false, "Compiler Bug. Parser should have made sure that this case doesn't occur.")
+        }
+
+    case IF_FALSE_JUMP:
+        if len(stack) == 0 {
+            checker_error(ins.token, STACK_EMPTY_EXPECT, 1, 0)
+            return
+        }
+
+        v.test_value = pop_stack(ins)
+
+        if !type_is_boolean(v.test_value.type) {
+            checker_error(ins.token, MISMATCHED_MULTI, "'bool'", v.test_value.type.name)
+            return
+        }
+
+        push_scope(v.local_scope)
+
     case INVOKE_PROC:
         if !can_this_proc_be_called(ins.token, v.procedure) {
             return
