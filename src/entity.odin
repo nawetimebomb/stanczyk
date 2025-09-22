@@ -4,7 +4,7 @@ import "core:fmt"
 import "core:reflect"
 import "core:slice"
 
-Stack :: distinct [dynamic]^Register
+Stack :: distinct [dynamic]^Type
 
 Entity :: struct {
     name:    string,
@@ -21,7 +21,8 @@ Entity_Variant :: union {
 }
 
 Entity_Binding :: struct {
-    value: ^Register,
+    offset: int,
+    type:   ^Type,
 }
 
 Entity_Const :: struct {
@@ -38,7 +39,8 @@ Entity_Type :: struct {
 }
 
 Entity_Var :: struct {
-    value: ^Register,
+    offset: int,
+    type:   ^Type,
 }
 
 Scope :: struct {
@@ -173,20 +175,18 @@ push_scope :: proc(new_scope: ^Scope) {
     switch new_scope.kind {
     case .Global:
     case .Procedure:
-        if new_scope.stack == nil {
-            new_scope.stack = new(Stack)
-        }
+        new_scope.stack = new(Stack, context.temp_allocator)
     case .Var_Decl:
         new_scope.stack = new(Stack, context.temp_allocator)
     case .If:
         new_scope.stack = new(Stack, context.temp_allocator)
-        for v in compiler.current_scope.stack {
-            append(new_scope.stack, v)
+        for s in compiler.current_scope.stack {
+            append(new_scope.stack, s)
         }
     case .If_Else:
         new_scope.stack = new(Stack, context.temp_allocator)
-        for v in compiler.current_scope.stack {
-            append(new_scope.stack, v)
+        for s in compiler.current_scope.stack {
+            append(new_scope.stack, s)
         }
     }
 
@@ -218,10 +218,10 @@ are_stacks_equals :: proc(t: Token, a, b: ^Stack, name: string) -> bool {
     }
 
     for i in 0..<len(a) {
-        if a[i].type != b[i].type {
+        if a[i] != b[i] {
             checker_error(
                 t, STACK_COMP_CHANGED, name, i + 1,
-                a[i].type.name, b[i].type.name,
+                a[i].name, b[i].name,
             )
             return false
         }

@@ -365,13 +365,13 @@ parse_proc_declaration :: proc() {
 
     push_procedure(procedure)
 
-    for arg, index in procedure.arguments {
-        write_chunk(arg.type_token, PUSH_ARG{index})
+    //for arg, index in procedure.arguments {
+    //    write_chunk(arg.type_token, PUSH_ARG{index})
 
-        if arg.is_named {
-            write_chunk(arg.name_token, STORE_BIND{arg.name_token})
-        }
-    }
+    //    if arg.is_named {
+    //        write_chunk(arg.name_token, STORE_BIND{arg.name_token})
+    //    }
+    //}
 
     for can_continue_parsing() && !check(.Semicolon) {
         parse_expression()
@@ -390,9 +390,7 @@ parse_proc_declaration :: proc() {
     } else if len(procedure.results) == 1 {
         write_chunk(return_token, RETURN_VALUE{})
     } else {
-        write_chunk(return_token, RETURN_VALUES{
-            value = make([]^Register, len(procedure.results)),
-        })
+        write_chunk(return_token, RETURN_VALUES{})
     }
 
     pop_procedure()
@@ -543,7 +541,7 @@ parse_expression :: proc() {
         write_chunk(token, BINARY_MULTIPLY{})
 
     case .Slash:
-        write_chunk(token, BINARY_SLASH{})
+        write_chunk(token, BINARY_DIVIDE{})
 
     case .Percent:
         write_chunk(token, BINARY_MODULO{})

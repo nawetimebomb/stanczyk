@@ -50,20 +50,8 @@ gen_end_scope :: proc(gen: ^Generator, visible := true) {
 }
 
 gen_multiresult_string :: proc{
-    gen_multiresult_string_from_registers,
     gen_multiresult_string_from_params,
     gen_multiresult_string_from_types,
-}
-
-gen_multiresult_string_from_registers :: proc(gen: ^Generator, params: []^Register) -> string {
-    types_array := make([]^Type, len(params), context.temp_allocator)
-
-    for param, index in params {
-        types_array[index] = param.type
-    }
-
-    result := gen_multiresult_string_from_types(gen, types_array)
-    return result
 }
 
 gen_multiresult_string_from_params :: proc(gen: ^Generator, params: []Parameter) -> string {
@@ -104,10 +92,6 @@ gen_multiresult_string_from_types :: proc(gen: ^Generator, params: []^Type) -> s
     }
 
     return gen.multi_results[index]
-}
-
-gen_register :: proc(gen: ^Generator, reg: ^Register) {
-    gen_printf(gen, "{}r%2d", reg.is_global ? "G_" : "", reg.index)
 }
 
 gen_value :: proc(gen: ^Generator, value: Constant_Value) {
@@ -196,19 +180,6 @@ gen_bootstrap :: proc(gen: ^Generator) {
         }
     }
 
-    non_nil_registers := slice.filter(compiler.global_proc.registers[:], proc(r: ^Register) -> bool {
-        return r != nil
-    })
-
-    if len(non_nil_registers) > 0 {
-        for reg in non_nil_registers {
-            gen_printf(gen, "{} ", reg.type.foreign_name)
-            gen_register(gen, reg)
-            gen_print(gen, ";\n")
-        }
-        gen_print(gen, "\n")
-    }
-
     gen.source = &gen.code
     gen_print(gen, "// User Code\n")
 
@@ -261,49 +232,6 @@ gen_procedure :: proc(gen: ^Generator, procedure: ^Procedure) {
     _gen_proc_header_line(gen, procedure)
     gen_begin_scope(gen)
 
-    non_nil_registers := slice.filter(procedure.registers[:], proc(r: ^Register) -> bool {
-        return r != nil
-    })
-
-    if len(non_nil_registers) > 0 {
-        registers := non_nil_registers
-        //registers := slice.unique_proc(non_nil_registers[:], proc(i, j: ^Register) -> bool {
-        //    return  i.index == j.index
-        //})
-        slice.stable_sort_by(registers[:], proc(i, j: ^Register) -> bool {
-            return i.type != j.type
-        })
-
-        gen_indent(gen)
-        last_type := registers[0].type
-        gen_printf(gen, "{} ", last_type.foreign_name)
-        count := 0
-
-        for reg, index in registers {
-            if last_type != reg.type {
-                gen_printf(gen, ";\n")
-                gen_indent(gen)
-                gen_printf(gen, "{} ", reg.type.foreign_name)
-                last_type = reg.type
-                count = 0
-            }
-
-            gen_register(gen, reg)
-
-            if index < len(registers)-1 && registers[index + 1].type == last_type {
-                gen_print(gen, ", ")
-
-                if (count + 1) % 10 == 0 {
-                    gen_print(gen, "\n")
-                    gen_indent(gen)
-                }
-            }
-
-            count += 1
-        }
-        gen_print(gen, ";\n")
-    }
-
     for ins in procedure.code {
         gen_instruction(gen, procedure, ins)
     }
@@ -312,7 +240,9 @@ gen_procedure :: proc(gen: ^Generator, procedure: ^Procedure) {
     gen_print(gen, "\n")
 }
 
+
 gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instruction) {
+    /*
     gen_ip_label :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instruction) {
         if this_proc == compiler.global_proc {
             return
@@ -637,6 +567,7 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
     case TUCK:
 
     }
+    */
 }
 
 write_file :: proc(gen: ^Generator) {

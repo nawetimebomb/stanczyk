@@ -143,8 +143,10 @@ main :: proc() {
 
     free_all(context.temp_allocator)
 
-    gen_program()
+    //gen_program()
     codegen_time := time.duration_seconds(time.tick_lap_time(&accumulator))
+
+    debug_print_bytecode()
 
     libc.system(fmt.ctprintf("gcc {0}.c -o {0} -ggdb", output_filename))
     compile_time := time.duration_seconds(time.tick_lap_time(&accumulator))

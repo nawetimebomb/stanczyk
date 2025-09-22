@@ -26,19 +26,13 @@ get_current_stack :: proc() -> ^Stack {
     return compiler.current_scope.stack
 }
 
-pop_stack :: proc(ins: ^Instruction) -> ^Register {
-    result, ok := pop_safe(get_current_stack())
-
-    if !ok {
-        checker_error(ins.token, STACK_EMPTY)
-        checker_fatal_error()
-    }
-
+pop_stack :: proc() -> ^Type {
+    result := pop(get_current_stack())
     return result
 }
 
-push_stack :: proc(r: ^Register) {
-    append(get_current_stack(), r)
+push_stack :: proc(t: ^Type) {
+    append(get_current_stack(), t)
 }
 
 stack_is_valid_for_return :: proc(ins: ^Instruction) -> bool {
@@ -55,7 +49,7 @@ stack_is_valid_for_return :: proc(ins: ^Instruction) -> bool {
 
     for index in 0..<len(procedure.results) {
         rt := procedure.results[index].type
-        st := stack[index].type
+        st := stack[index]
 
         if st != rt {
             checker_error(
@@ -83,15 +77,15 @@ can_this_proc_be_called :: proc(token: Token, procedure: ^Procedure, report_erro
     }
 
     for index := len(procedure.arguments)-1; index >= 0; index -= 1 {
-        arg := procedure.arguments[index]
-        stack_value := pop(&stack_copy)
+        arg_type := procedure.arguments[index].type
+        stack_value_type := pop(&stack_copy)
 
         // TODO(nawe) better check for this
-        if arg.type != stack_value.type {
+        if arg_type != stack_value_type {
             if report_error {
                 checker_error(
                     token, MISMATCHED_TYPES_ARG,
-                    procedure.name, arg.type.name, stack_value.type.name,
+                    procedure.name, arg_type.name, stack_value_type.name,
                 )
             }
             return false
@@ -142,6 +136,11 @@ check_procedure :: proc(procedure: ^Procedure) {
     _type_parameters(&procedure.results)
 
     push_procedure(procedure)
+
+    for arg in procedure.arguments {
+        push_stack(arg.type)
+    }
+
     for instruction in procedure.code {
         if compiler.error_reported {
             break
@@ -161,15 +160,33 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
             return
         }
 
-        v.rhs = pop_stack(ins)
-        v.lhs = pop_stack(ins)
+        rhs := pop_stack()
+        lhs := pop_stack()
+        v.type = lhs
 
-        if v.lhs.type != v.rhs.type {
-            checker_error(ins.token, MISMATCHED_TYPES_BINARY_EXPR, v.lhs.type.name, v.rhs.type.name)
+        if lhs != rhs {
+            checker_error(ins.token, MISMATCHED_TYPES_BINARY_EXPR, lhs.name, rhs.name)
             return
         }
 
-        push_stack(REGISTER(v.lhs.type, ins))
+        push_stack(v.type)
+
+    case BINARY_DIVIDE:
+        if len(stack) < 2 {
+            checker_error(ins.token, STACK_EMPTY_EXPECT, 2, len(stack))
+            return
+        }
+
+        rhs := pop_stack()
+        lhs := pop_stack()
+        v.type = lhs
+
+        if lhs != rhs {
+            checker_error(ins.token, MISMATCHED_TYPES_BINARY_EXPR, lhs.name, rhs.name)
+            return
+        }
+
+        push_stack(v.type)
 
     case BINARY_MINUS:
         if len(stack) < 2 {
@@ -177,15 +194,16 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
             return
         }
 
-        v.rhs = pop_stack(ins)
-        v.lhs = pop_stack(ins)
+        rhs := pop_stack()
+        lhs := pop_stack()
+        v.type = lhs
 
-        if v.lhs.type != v.rhs.type {
-            checker_error(ins.token, MISMATCHED_TYPES_BINARY_EXPR, v.lhs.type.name, v.rhs.type.name)
+        if lhs != rhs {
+            checker_error(ins.token, MISMATCHED_TYPES_BINARY_EXPR, lhs.name, rhs.name)
             return
         }
 
-        push_stack(REGISTER(v.lhs.type, ins))
+        push_stack(v.type)
 
     case BINARY_MULTIPLY:
         if len(stack) < 2 {
@@ -193,15 +211,16 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
             return
         }
 
-        v.rhs = pop_stack(ins)
-        v.lhs = pop_stack(ins)
+        rhs := pop_stack()
+        lhs := pop_stack()
+        v.type = lhs
 
-        if v.lhs.type != v.rhs.type {
-            checker_error(ins.token, MISMATCHED_TYPES_BINARY_EXPR, v.lhs.type.name, v.rhs.type.name)
+        if lhs != rhs {
+            checker_error(ins.token, MISMATCHED_TYPES_BINARY_EXPR, lhs.name, rhs.name)
             return
         }
 
-        push_stack(REGISTER(v.lhs.type, ins))
+        push_stack(v.type)
 
     case BINARY_MODULO:
         if len(stack) < 2 {
@@ -209,36 +228,22 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
             return
         }
 
-        v.rhs = pop_stack(ins)
-        v.lhs = pop_stack(ins)
+        rhs := pop_stack()
+        lhs := pop_stack()
+        v.type = lhs
 
-        if v.lhs.type != v.rhs.type {
-            checker_error(ins.token, MISMATCHED_TYPES_BINARY_EXPR, v.lhs.type.name, v.rhs.type.name)
+        if lhs != rhs {
+            checker_error(ins.token, MISMATCHED_TYPES_BINARY_EXPR, lhs.name, rhs.name)
             return
         }
 
-        if v.lhs.type != type_int || v.rhs.type != type_int {
-            checker_error(ins.token, MODULO_ONLY_INT, v.lhs.type.name)
+        // TODO(nawe) support other types of values at some point
+        if lhs != type_int || rhs != type_int {
+            checker_error(ins.token, MODULO_ONLY_INT, lhs.name)
             return
         }
 
-        push_stack(REGISTER(v.lhs.type, ins))
-
-    case BINARY_SLASH:
-        if len(stack) < 2 {
-            checker_error(ins.token, STACK_EMPTY_EXPECT, 2, len(stack))
-            return
-        }
-
-        v.rhs = pop_stack(ins)
-        v.lhs = pop_stack(ins)
-
-        if v.lhs.type != v.rhs.type {
-            checker_error(ins.token, MISMATCHED_TYPES_BINARY_EXPR, v.lhs.type.name, v.rhs.type.name)
-            return
-        }
-
-        push_stack(REGISTER(v.lhs.type, ins))
+        push_stack(v.type)
 
     case CAST:
         unimplemented()
@@ -249,15 +254,16 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
             return
         }
 
-        v.rhs = pop_stack(ins)
-        v.lhs = pop_stack(ins)
+        rhs := pop_stack()
+        lhs := pop_stack()
+        v.type = lhs
 
-        if v.lhs.type != v.rhs.type {
-            checker_error(ins.token, MISMATCHED_TYPES_BINARY_EXPR, v.lhs.type.name, v.rhs.type.name)
+        if lhs != rhs {
+            checker_error(ins.token, MISMATCHED_TYPES_BINARY_EXPR, lhs.name, rhs.name)
             return
         }
 
-        push_stack(REGISTER(type_bool, ins))
+        push_stack(type_bool)
 
     case COMPARE_NOT_EQUAL:
         if len(stack) < 2 {
@@ -265,15 +271,16 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
             return
         }
 
-        v.rhs = pop_stack(ins)
-        v.lhs = pop_stack(ins)
+        rhs := pop_stack()
+        lhs := pop_stack()
+        v.type = lhs
 
-        if v.lhs.type != v.rhs.type {
-            checker_error(ins.token, MISMATCHED_TYPES_BINARY_EXPR, v.lhs.type.name, v.rhs.type.name)
+        if lhs != rhs {
+            checker_error(ins.token, MISMATCHED_TYPES_BINARY_EXPR, lhs.name, rhs.name)
             return
         }
 
-        push_stack(REGISTER(type_bool, ins))
+        push_stack(type_bool)
 
     case COMPARE_GREATER:
         if len(stack) < 2 {
@@ -281,23 +288,24 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
             return
         }
 
-        v.rhs = pop_stack(ins)
-        v.lhs = pop_stack(ins)
+        rhs := pop_stack()
+        lhs := pop_stack()
+        v.type = lhs
 
-        if v.lhs.type != v.rhs.type {
-            checker_error(ins.token, MISMATCHED_TYPES_BINARY_EXPR, v.lhs.type.name, v.rhs.type.name)
+        if lhs != rhs {
+            checker_error(ins.token, MISMATCHED_TYPES_BINARY_EXPR, lhs.name, rhs.name)
             return
         }
 
-        if !type_one_of(v.lhs.type, type_is_number, type_is_byte) {
+        if !type_one_of(lhs, type_is_number, type_is_byte) {
             checker_error(
                 ins.token, MISMATCHED_MULTI,
-                ">", "float, int, uint, byte", v.lhs.type.name,
+                ">", "float, int, uint, byte", lhs.name,
             )
             return
         }
 
-        push_stack(REGISTER(type_bool, ins))
+        push_stack(type_bool)
 
     case COMPARE_GREATER_EQUAL:
         if len(stack) < 2 {
@@ -305,23 +313,24 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
             return
         }
 
-        v.rhs = pop_stack(ins)
-        v.lhs = pop_stack(ins)
+        rhs := pop_stack()
+        lhs := pop_stack()
+        v.type = lhs
 
-        if v.lhs.type != v.rhs.type {
-            checker_error(ins.token, MISMATCHED_TYPES_BINARY_EXPR, v.lhs.type.name, v.rhs.type.name)
+        if lhs != rhs {
+            checker_error(ins.token, MISMATCHED_TYPES_BINARY_EXPR, lhs.name, rhs.name)
             return
         }
 
-        if !type_one_of(v.lhs.type, type_is_number, type_is_byte) {
+        if !type_one_of(lhs, type_is_number, type_is_byte) {
             checker_error(
                 ins.token, MISMATCHED_MULTI,
-                ">=", "float, int, uint, byte", v.lhs.type.name,
+                ">=", "float, int, uint, byte", lhs.name,
             )
             return
         }
 
-        push_stack(REGISTER(type_bool, ins))
+        push_stack(type_bool)
 
     case COMPARE_LESS:
         if len(stack) < 2 {
@@ -329,23 +338,24 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
             return
         }
 
-        v.rhs = pop_stack(ins)
-        v.lhs = pop_stack(ins)
+        rhs := pop_stack()
+        lhs := pop_stack()
+        v.type = lhs
 
-        if v.lhs.type != v.rhs.type {
-            checker_error(ins.token, MISMATCHED_TYPES_BINARY_EXPR, v.lhs.type.name, v.rhs.type.name)
+        if lhs != rhs {
+            checker_error(ins.token, MISMATCHED_TYPES_BINARY_EXPR, lhs.name, rhs.name)
             return
         }
 
-        if !type_one_of(v.lhs.type, type_is_number, type_is_byte) {
+        if !type_one_of(lhs, type_is_number, type_is_byte) {
             checker_error(
                 ins.token, MISMATCHED_MULTI,
-                "<", "float, int, uint, byte", v.lhs.type.name,
+                "<", "float, int, uint, byte", lhs.name,
             )
             return
         }
 
-        push_stack(REGISTER(type_bool, ins))
+        push_stack(type_bool)
 
     case COMPARE_LESS_EQUAL:
         if len(stack) < 2 {
@@ -353,23 +363,24 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
             return
         }
 
-        v.rhs = pop_stack(ins)
-        v.lhs = pop_stack(ins)
+        rhs := pop_stack()
+        lhs := pop_stack()
+        v.type = lhs
 
-        if v.lhs.type != v.rhs.type {
-            checker_error(ins.token, MISMATCHED_TYPES_BINARY_EXPR, v.lhs.type.name, v.rhs.type.name)
+        if lhs != rhs {
+            checker_error(ins.token, MISMATCHED_TYPES_BINARY_EXPR, lhs.name, rhs.name)
             return
         }
 
-        if !type_one_of(v.lhs.type, type_is_number, type_is_byte) {
+        if !type_one_of(lhs, type_is_number, type_is_byte) {
             checker_error(
                 ins.token, MISMATCHED_MULTI,
-                "<=", "float, int, uint, byte", v.lhs.type.name,
+                "<=", "float, int, uint, byte", lhs.name,
             )
             return
         }
 
-        push_stack(REGISTER(type_bool, ins))
+        push_stack(type_bool)
 
     case DECLARE_VAR_END:
         if len(stack) != 1 {
@@ -377,37 +388,37 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
             return
         }
 
-        o1 := pop_stack(ins)
-        o1.mutable = true
+        type := pop_stack()
         pop_scope()
-        create_entity(v.token, Entity_Var{o1})
+        create_entity(v.token, Entity_Var{offset=this_proc.local_offset, type=type})
+        this_proc.local_offset += type.size_in_bytes
 
     case DECLARE_VAR_START:
         var_decl_scope := create_scope(.Var_Decl)
         push_scope(var_decl_scope)
 
     case DROP:
-        pop_stack(ins)
+        pop_stack()
 
     case DUP:
         if len(stack) == 0 {
             checker_error(ins.token, STACK_EMPTY_EXPECT, 1, 0)
             return
         }
-        o1 := pop_stack(ins)
-        push_stack(o1)
-        push_stack(o1)
+        type := pop_stack()
+        push_stack(type)
+        push_stack(type)
 
     case DUP_PREV:
         if len(stack) < 2 {
             checker_error(ins.token, STACK_EMPTY_EXPECT, 2, len(stack))
             return
         }
-        o2 := pop_stack(ins)
-        o1 := pop_stack(ins)
-        push_stack(o1)
-        push_stack(o1)
-        push_stack(o2)
+        type2 := pop_stack()
+        type1 := pop_stack()
+        push_stack(type1)
+        push_stack(type1)
+        push_stack(type2)
 
     case IDENTIFIER:
         matches := find_entity(v.value)
@@ -420,19 +431,19 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
 
             switch variant in entity.variant {
             case Entity_Binding:
-                ins.variant = PUSH_BIND{variant.value}
+                ins.variant = PUSH_BIND{variant.offset, variant.type}
 
             case Entity_Const:
                 ins.variant = PUSH_CONST{variant}
 
             case Entity_Proc:
-                ins.variant = INVOKE_PROC{procedure = variant.procedure}
+                ins.variant = INVOKE_PROC{procedure=variant.procedure}
 
             case Entity_Type:
                 ins.variant = PUSH_TYPE{variant.type}
 
             case Entity_Var:
-                push_stack(variant.value)
+                push_stack(variant.type)
                 return
             }
         } else {
@@ -444,7 +455,7 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
                 variant := entity.variant.(Entity_Proc)
 
                 if can_this_proc_be_called(ins.token, variant.procedure, report_error = false) {
-                    ins.variant = INVOKE_PROC{procedure = variant.procedure}
+                    ins.variant = INVOKE_PROC{procedure=variant.procedure}
                     found = true
                 }
             }
@@ -459,104 +470,26 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
         check_instruction(this_proc, ins)
 
     case IF_ELSE_JUMP:
-        if_scope := pop_scope()
-        scope_opener_ins := this_proc.code[if_scope.update_offset]
-
-        #partial switch &variant in scope_opener_ins.variant {
-        case IF_FALSE_JUMP:
-            variant.jump_offset = ins.offset
-        case:
-            assert(false, "Compiler Bug. Parser should have made sure that this case doesn't occur.")
-        }
-
-        push_scope(v.local_scope)
-        clear(compiler.current_scope.parent.stack)
-        for v in if_scope.stack {
-            append(compiler.current_scope.parent.stack, v)
-        }
 
     case IF_END:
-        // This is a pretty complex section so it's worth some documentation, maybe at some
-        // point I would like to work on @Robustness for the whole thing here.
-        if_scope := pop_scope()
-        scope_opener_ins := this_proc.code[if_scope.update_offset]
-
-        #partial switch &variant in scope_opener_ins.variant {
-        case IF_FALSE_JUMP:
-            variant.jump_offset = ins.offset
-        case IF_ELSE_JUMP:
-            variant.jump_offset = ins.offset
-        case:
-            assert(false, "Compiler Bug. Parser should have made sure that this case doesn't occur.")
-        }
-
-        current_stack := compiler.current_scope.stack
-
-        // We need to make sure the registers are aligned after exiting both if and
-        // else statements. That means, we need to make sure the registers used are
-        // the same ones, so, if we notice that the value doesn't match the one from
-        // the stack in the conditional scope, we replace it and clean up the space used.
-        #partial switch if_scope.kind {
-        case .If:
-            if !are_stacks_equals(ins.token, current_stack, if_scope.stack, "if") {
-                return
-            }
-
-            for &v, i in if_scope.stack {
-                if v != current_stack[i] {
-                    index := v.index
-                    compiler.current_proc.registers[index] = nil
-                    v.index = current_stack[i].index
-                }
-            }
-
-        case .If_Else:
-            if !are_stacks_equals(ins.token, current_stack, if_scope.stack, "else") {
-                return
-            }
-
-            for &v, i in if_scope.stack {
-                if v != current_stack[i] {
-                    index := v.index
-                    compiler.current_proc.registers[index] = nil
-                    v.index = current_stack[i].index
-                }
-            }
-
-        case:
-            assert(false, "Compiler Bug. Parser should have made sure that this case doesn't occur.")
-        }
 
     case IF_FALSE_JUMP:
-        if len(stack) == 0 {
-            checker_error(ins.token, STACK_EMPTY_EXPECT, 1, 0)
-            return
-        }
-
-        v.test_value = pop_stack(ins)
-
-        if !type_is_boolean(v.test_value.type) {
-            checker_error(ins.token, MISMATCHED_MULTI, "'bool'", v.test_value.type.name)
-            return
-        }
-
-        push_scope(v.local_scope)
 
     case INVOKE_PROC:
         if !can_this_proc_be_called(ins.token, v.procedure) {
             return
         }
 
-        v.arguments = make([]^Register, len(v.procedure.arguments))
-        v.results   = make([]^Register, len(v.procedure.results))
+        v.arguments = make([]^Type, len(v.procedure.arguments))
+        v.results   = make([]^Type, len(v.procedure.results))
 
         for index := len(v.procedure.arguments)-1; index >= 0; index -= 1 {
             arg := v.procedure.arguments[index]
-            v.arguments[index] = pop_stack(ins)
+            v.arguments[index] = pop_stack()
         }
 
         for index in 0..<len(v.procedure.results) {
-            v.results[index] = REGISTER(v.procedure.results[index].type)
+            v.results[index] = v.procedure.results[index].type
             push_stack(v.results[index])
         }
 
@@ -565,9 +498,10 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
             checker_error(ins.token, STACK_EMPTY_EXPECT, 1, 0)
             return
         }
-        o2 := pop_stack(ins)
-        o1 := pop_stack(ins)
-        push_stack(o2)
+
+        type2 := pop_stack()
+        type1 := pop_stack()
+        push_stack(type2)
 
     case OVER:
         if len(stack) < 2 {
@@ -575,63 +509,55 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
             return
         }
 
-        o2 := pop_stack(ins)
-        o1 := pop_stack(ins)
-        push_stack(o1)
-        push_stack(o2)
-        push_stack(o1)
+        type2 := pop_stack()
+        type1 := pop_stack()
+        push_stack(type1)
+        push_stack(type2)
+        push_stack(type1)
 
     case PRINT:
         if len(stack) == 0 {
             checker_error(ins.token, STACK_EMPTY_EXPECT, 1, 0)
             return
         }
-        v.param = pop_stack(ins)
-
-    case PUSH_ARG:
-        push_stack(REGISTER(this_proc.arguments[v.value].type, ins))
+        v.type = pop_stack()
 
     case PUSH_BIND:
-        push_stack(v.value)
+        push_stack(v.type)
 
     case PUSH_BOOL:
-        push_stack(REGISTER(type_bool, ins))
+        push_stack(type_bool)
 
     case PUSH_BYTE:
-        push_stack(REGISTER(type_byte, ins))
+        push_stack(type_byte)
 
     case PUSH_CONST:
-        push_stack(REGISTER(v.const.type, ins))
+        push_stack(v.const.type)
 
     case PUSH_FLOAT:
-        push_stack(REGISTER(type_float, ins))
+        push_stack(type_float)
+        unimplemented()
 
     case PUSH_INT:
-        push_stack(REGISTER(type_int, ins))
+        push_stack(type_int)
 
     case PUSH_STRING:
-        push_stack(REGISTER(type_string, ins))
+        push_stack(type_string)
 
     case PUSH_TYPE:
         unimplemented()
 
     case PUSH_UINT:
-        push_stack(REGISTER(type_uint, ins))
+        push_stack(type_uint)
 
     case RETURN:
         stack_is_valid_for_return(ins)
 
     case RETURN_VALUE:
-        if stack_is_valid_for_return(ins) {
-            v.value = stack[0]
-        }
+        stack_is_valid_for_return(ins)
 
     case RETURN_VALUES:
-        if stack_is_valid_for_return(ins) {
-            for n in 0..<len(this_proc.results) {
-                v.value[n] = stack[n]
-            }
-        }
+        stack_is_valid_for_return(ins)
 
     case ROTATE_LEFT:
         if len(stack) < 3 {
@@ -639,12 +565,12 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
             return
         }
 
-        o3 := pop_stack(ins)
-        o2 := pop_stack(ins)
-        o1 := pop_stack(ins)
-        push_stack(o2)
-        push_stack(o3)
-        push_stack(o1)
+        type3 := pop_stack()
+        type2 := pop_stack()
+        type1 := pop_stack()
+        push_stack(type2)
+        push_stack(type3)
+        push_stack(type1)
 
     case ROTATE_RIGHT:
         if len(stack) < 3 {
@@ -652,12 +578,12 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
             return
         }
 
-        o3 := pop_stack(ins)
-        o2 := pop_stack(ins)
-        o1 := pop_stack(ins)
-        push_stack(o3)
-        push_stack(o1)
-        push_stack(o2)
+        type3 := pop_stack()
+        type2 := pop_stack()
+        type1 := pop_stack()
+        push_stack(type3)
+        push_stack(type1)
+        push_stack(type2)
 
     case STORE_BIND:
         if len(stack) == 0 {
@@ -665,7 +591,9 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
             return
         }
 
-        create_entity(v.token, Entity_Binding{value = pop_stack(ins)})
+        type := pop_stack()
+        create_entity(v.token, Entity_Binding{offset=this_proc.local_offset, type=type})
+        this_proc.local_offset += type.size_in_bytes
 
     case STORE_VAR:
         if len(stack) < 2 {
@@ -673,21 +601,19 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
             return
         }
 
-        o2 := pop_stack(ins)
-        o1 := pop_stack(ins)
+        type2 := pop_stack()
+        type1 := pop_stack()
 
-        if o1.type != o2.type {
-            checker_error(ins.token, MISMATCHED_TYPES_IN_VAR, o1.type.name, o2.type.name)
+        if type1 != type2 {
+            checker_error(ins.token, MISMATCHED_TYPES_IN_VAR, type1.name, type2.name)
             return
         }
 
-        if !o2.mutable {
-            checker_error(ins.token, NOT_A_MUTABLE_VAR)
-            return
-        }
-
-        v.lvalue = o2
-        v.rvalue = o1
+        // TODO(nawe) improve this by making sure it is a variable
+        //if .mutable {
+        //    checker_error(ins.token, NOT_A_MUTABLE_VAR)
+        //    return
+        //}
 
     case SWAP:
         if len(stack) < 2 {
@@ -695,10 +621,10 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
             return
         }
 
-        o2 := pop_stack(ins)
-        o1 := pop_stack(ins)
-        push_stack(o2)
-        push_stack(o1)
+        type2 := pop_stack()
+        type1 := pop_stack()
+        push_stack(type2)
+        push_stack(type1)
 
     case TUCK:
         if len(stack) < 2 {
@@ -706,10 +632,10 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
             return
         }
 
-        o2 := pop_stack(ins)
-        o1 := pop_stack(ins)
-        push_stack(o2)
-        push_stack(o1)
-        push_stack(o2)
+        type2 := pop_stack()
+        type1 := pop_stack()
+        push_stack(type2)
+        push_stack(type1)
+        push_stack(type2)
     }
 }

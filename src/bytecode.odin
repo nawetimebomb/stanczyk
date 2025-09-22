@@ -19,22 +19,15 @@ Procedure :: struct {
     scope:        ^Scope,
     parent:       ^Procedure,
 
-    registers:    [400]^Register,
+    local_offset: int,
+
     arguments:    []Parameter,
     results:      []Parameter,
 
     code:         [dynamic]^Instruction,
 }
 
-Register :: struct {
-    index:       int,
-    mutable:     bool,
-    type:        ^Type,
-    is_global:   bool,
-}
-
 Instruction :: struct {
-    register:  ^Register, // in case it has an associated register
     offset:    int,
     token:     Token,
     variant:   Instruction_Variant,
@@ -42,10 +35,10 @@ Instruction :: struct {
 
 Instruction_Variant :: union {
     BINARY_ADD,
+    BINARY_DIVIDE,
     BINARY_MINUS,
     BINARY_MULTIPLY,
     BINARY_MODULO,
-    BINARY_SLASH,
     CAST,
     COMPARE_EQUAL,
     COMPARE_NOT_EQUAL,
@@ -66,7 +59,6 @@ Instruction_Variant :: union {
     NIP,
     OVER,
     PRINT,
-    PUSH_ARG,
     PUSH_BIND,
     PUSH_BOOL,
     PUSH_BYTE,
@@ -88,28 +80,23 @@ Instruction_Variant :: union {
 }
 
 BINARY_ADD :: struct {
-    lhs: ^Register,
-    rhs: ^Register,
+    type: ^Type,
+}
+
+BINARY_DIVIDE :: struct {
+    type: ^Type,
 }
 
 BINARY_MINUS :: struct {
-    lhs: ^Register,
-    rhs: ^Register,
+    type: ^Type,
 }
 
 BINARY_MULTIPLY :: struct {
-    lhs: ^Register,
-    rhs: ^Register,
+    type: ^Type,
 }
 
 BINARY_MODULO :: struct {
-    lhs: ^Register,
-    rhs: ^Register,
-}
-
-BINARY_SLASH :: struct {
-    lhs: ^Register,
-    rhs: ^Register,
+    type: ^Type,
 }
 
 CAST :: struct {
@@ -117,33 +104,27 @@ CAST :: struct {
 }
 
 COMPARE_EQUAL :: struct {
-    lhs: ^Register,
-    rhs: ^Register,
+    type: ^Type,
 }
 
 COMPARE_NOT_EQUAL :: struct {
-    lhs: ^Register,
-    rhs: ^Register,
+    type: ^Type,
 }
 
 COMPARE_GREATER :: struct {
-    lhs: ^Register,
-    rhs: ^Register,
+    type: ^Type,
 }
 
 COMPARE_GREATER_EQUAL :: struct {
-    lhs: ^Register,
-    rhs: ^Register,
+    type: ^Type,
 }
 
 COMPARE_LESS :: struct {
-    lhs: ^Register,
-    rhs: ^Register,
+    type: ^Type,
 }
 
 COMPARE_LESS_EQUAL :: struct {
-    lhs: ^Register,
-    rhs: ^Register,
+    type: ^Type,
 }
 
 DECLARE_VAR_END :: struct {
@@ -159,7 +140,7 @@ DROP :: struct {
 }
 
 DUP :: struct {
-    value: ^Register,
+
 }
 
 DUP_PREV :: struct {
@@ -181,13 +162,12 @@ IF_END :: struct {
 
 IF_FALSE_JUMP :: struct {
     jump_offset: int,
-    test_value:  ^Register,
     local_scope: ^Scope,
 }
 
 INVOKE_PROC :: struct {
-    arguments: []^Register,
-    results:   []^Register,
+    arguments: []^Type,
+    results:   []^Type,
     procedure: ^Procedure,
 }
 
@@ -200,15 +180,12 @@ OVER :: struct {
 }
 
 PRINT :: struct {
-    param: ^Register,
-}
-
-PUSH_ARG :: struct {
-    value: int,
+    type: ^Type,
 }
 
 PUSH_BIND :: struct {
-    value: ^Register,
+    offset: int,
+    type:   ^Type,
 }
 
 PUSH_BOOL :: struct {
@@ -248,11 +225,11 @@ RETURN :: struct {
 }
 
 RETURN_VALUE :: struct {
-    value: ^Register,
+
 }
 
 RETURN_VALUES :: struct {
-    value: []^Register,
+
 }
 
 ROTATE_LEFT :: struct {
@@ -268,8 +245,7 @@ STORE_BIND :: struct {
 }
 
 STORE_VAR :: struct {
-    lvalue: ^Register, // the register with the mutable variable
-    rvalue: ^Register, // the value side
+    offset: int,
 }
 
 SWAP :: struct {
@@ -278,28 +254,6 @@ SWAP :: struct {
 
 TUCK :: struct {
 
-}
-
-REGISTER :: proc(type: ^Type, ins: ^Instruction = nil) -> ^Register {
-    result := new(Register)
-    result.type = type
-    result.is_global = is_in_global_scope()
-
-    for reg, index in compiler.current_proc.registers {
-        if reg == nil {
-            result.index = index
-            break
-        }
-    }
-
-    compiler.current_proc.registers[result.index] = result
-
-    if ins != nil {
-        assert(ins.register == nil)
-        ins.register = result
-    }
-
-    return result
 }
 
 debug_print_bytecode :: proc() {
@@ -350,44 +304,50 @@ debug_print_bytecode :: proc() {
             switch v in instruction.variant {
             case BINARY_ADD:
                 _name("BINARY_ADD")
-                _value("r{} + r{}", v.lhs, v.rhs)
+                _value("({})", v.type.name)
+
+            case BINARY_DIVIDE:
+                _name("BINARY_DIVIDE")
+                _value("({})", v.type.name)
 
             case BINARY_MINUS:
                 _name("BINARY_MINUS")
-                _value("r{} - r{}", v.lhs, v.rhs)
+                _value("({})", v.type.name)
 
             case BINARY_MULTIPLY:
                 _name("BINARY_MULTIPLY")
-                _value("r{} * r{}", v.lhs, v.rhs)
+                _value("({})", v.type.name)
 
             case BINARY_MODULO:
                 _name("BINARY_MODULO")
-                _value("r{} % r{}", v.lhs, v.rhs)
-
-            case BINARY_SLASH:
-                _name("BINARY_SLASH")
-                _value("r{} / r{}", v.lhs, v.rhs)
+                _value("({})", v.type.name)
 
             case CAST:
                 _name("CAST")
 
             case COMPARE_EQUAL:
                 _name("COMPARE_EQUAL")
+                _value("({})", v.type.name)
 
             case COMPARE_NOT_EQUAL:
                 _name("COMPARE_NOT_EQUAL")
+                _value("({})", v.type.name)
 
             case COMPARE_GREATER:
                 _name("COMPARE_GREATER")
+                _value("({})", v.type.name)
 
             case COMPARE_GREATER_EQUAL:
                 _name("COMPARE_GREATER_EQUAL")
+                _value("({})", v.type.name)
 
             case COMPARE_LESS:
                 _name("COMPARE_LESS")
+                _value("({})", v.type.name)
 
             case COMPARE_LESS_EQUAL:
                 _name("COMPARE_LESS_EQUAL")
+                _value("({})", v.type.name)
 
             case DECLARE_VAR_END:
                 _name("DECLARE_VAR_END")
@@ -402,7 +362,6 @@ debug_print_bytecode :: proc() {
 
             case DUP:
                 _name("DUP")
-                _value("{}", v.value.index)
 
             case DUP_PREV:
                 _name("DUP_PREV")
@@ -424,7 +383,7 @@ debug_print_bytecode :: proc() {
 
             case INVOKE_PROC:
                 _name("INVOKE_PROC")
-                _value("{}({})", v.procedure.name, v.arguments)
+                _value("{}", v.procedure.name)
 
             case NIP:
                 _name("NIP")
@@ -434,15 +393,11 @@ debug_print_bytecode :: proc() {
 
             case PRINT:
                 _name("PRINT")
-                _value("r{} (type: {})", v.param.index, v.param.type.name)
-
-            case PUSH_ARG:
-                _name("PUSH_ARG")
-                _value("arg{}", v.value)
+                _value("({})", v.type.name)
 
             case PUSH_BIND:
                 _name("PUSH_BIND")
-                _value("{}", v.value.index)
+                _value("{} ({})", v.offset, v.type.name)
 
             case PUSH_BOOL:
                 _name("PUSH_BOOL")
@@ -481,11 +436,9 @@ debug_print_bytecode :: proc() {
 
             case RETURN_VALUE:
                 _name("RETURN_VALUE")
-                _value("r{}", v.value)
 
             case RETURN_VALUES:
                 _name("RETURN_VALUES")
-                _value("{}", v.value)
 
             case ROTATE_LEFT:
                 _name("ROTATE_LEFT")
@@ -507,9 +460,6 @@ debug_print_bytecode :: proc() {
                 _name("TUCK")
             }
 
-            if instruction.register != nil {
-                fmt.printf("\t-> {}", instruction.register.index)
-            }
             fmt.println()
         }
 
