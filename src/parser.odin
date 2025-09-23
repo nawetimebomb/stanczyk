@@ -44,62 +44,6 @@ parser_fatal_error :: proc() {
     )
 }
 
-create_foreign_name :: proc(parts: []string) -> string {
-    VALID :: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-
-    foreign_name_builder := strings.builder_make()
-
-    for part, part_index in parts {
-        for r, index in part {
-            if strings.contains_rune(VALID, r) {
-                strings.write_rune(&foreign_name_builder, r)
-            } else {
-                strings.write_rune(&foreign_name_builder, '_')
-            }
-        }
-
-        if part_index < len(parts)-1 {
-            strings.write_string(&foreign_name_builder, "__")
-        }
-    }
-
-    strings.write_int(&foreign_name_builder, compiler.foreign_name_uid)
-    compiler.foreign_name_uid += 1
-
-    return strings.to_string(foreign_name_builder)
-}
-
-create_foreign_name_from_token :: proc(token: Token) -> string {
-    filename_prefixed := fmt.tprintf("F{}", token.file_info.short_name)
-    stanczyk_name := token.text
-    foreign_name: string
-
-    if compiler.current_proc != compiler.global_proc {
-        parts := make([dynamic]string, context.temp_allocator)
-        curr_proc := compiler.current_proc
-
-        append(&parts, filename_prefixed)
-
-        for !curr_proc.is_global {
-            append(&parts, curr_proc.name)
-            curr_proc = curr_proc.parent
-        }
-
-        append(&parts, stanczyk_name)
-
-        foreign_name = create_foreign_name(parts[:])
-
-    } else {
-        if stanczyk_name == "main" {
-            foreign_name = strings.clone("stanczyk__main")
-        } else {
-            foreign_name = create_foreign_name({filename_prefixed, stanczyk_name})
-        }
-    }
-
-    return foreign_name
-}
-
 write_chunk :: proc(token: Token, variant: Instruction_Variant) {
     result := new(Instruction)
     result.token    = token
@@ -113,7 +57,6 @@ make_procedure :: proc(token: Token) -> ^Procedure {
     result.token        = token
     result.name         = token.text
     result.id           = compiler.foreign_name_uid
-    result.foreign_name = create_foreign_name_from_token(token)
     result.file_info    = token.file_info
     result.entity       = create_entity(token, Entity_Proc{ procedure = result })
     result.scope        = create_scope(.Procedure)
@@ -123,6 +66,8 @@ make_procedure :: proc(token: Token) -> ^Procedure {
         compiler.main_found_at = &result.token
         compiler.main_proc_uid = result.id
     }
+
+    compiler.foreign_name_uid += 1
 
     return result
 }
@@ -431,7 +376,6 @@ parse_type_declaration :: proc() {
 
         type := new(Type)
         type.name = name_token.text
-        type.foreign_name = create_foreign_name_from_token(name_token)
         type.variant = Type_Alias{
             derived = derived_type,
         }

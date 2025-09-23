@@ -3,7 +3,6 @@ package main
 Type :: struct {
     size_in_bytes: int,
     name:          string,
-    foreign_name:  string,
     variant: union {
         Type_Alias,
         Type_Basic,
@@ -43,42 +42,36 @@ Type_Basic_Kind :: enum {
 BASIC_TYPES := [Type_Basic_Kind]Type{
     .Bool = {
         name          = "bool",
-        foreign_name  = "b8",
         size_in_bytes = 8, // alignment
         variant       = Type_Basic{kind=.Bool},
     },
 
     .Byte = {
         name          = "byte",
-        foreign_name  = "u8",
         size_in_bytes = 8,
         variant       = Type_Basic{kind=.Byte},
     },
 
     .Float = {
         name          = "float",
-        foreign_name  = "f64",
         size_in_bytes = 8,
-        variant = Type_Basic{kind=.Float},
+        variant       = Type_Basic{kind=.Float},
     },
 
     .Int = {
         name          = "int",
-        foreign_name  = "s64",
         size_in_bytes = 8,
         variant       = Type_Basic{kind=.Int},
     },
 
     .String = {
         name          = "string",
-        foreign_name  = "string",
         size_in_bytes = 8,
         variant       = Type_Basic{kind=.String},
     },
 
     .Uint = {
         name          = "uint",
-        foreign_name  = "u64",
         size_in_bytes = 8,
         variant       = Type_Basic{kind=.Uint},
     },

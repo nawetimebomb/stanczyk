@@ -6,6 +6,7 @@ Constant_Table :: [dynamic]Constant
 
 Constant :: struct {
     index: int,
+    token: Token,
     type:  ^Type,
     value: Constant_Value,
 }
@@ -30,7 +31,6 @@ Procedure :: struct {
     token:            Token,
     id:               int,
     name:             string,
-    foreign_name:     string,
     is_global:        bool,
     file_info:        ^File_Info,
     entity:           ^Entity,

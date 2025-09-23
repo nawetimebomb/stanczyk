@@ -67,7 +67,7 @@ gen_bootstrap :: proc(gen: ^Generator) {
 
         switch v in const.value {
         case bool:
-            gen_printf(gen, "db {}\n", v ? 1 : 0)
+            gen_printf(gen, "dq {}\n", v ? 1 : 0)
 
         case f64:
             gen_printf(gen, "dq {}\n", v)
@@ -79,7 +79,7 @@ gen_bootstrap :: proc(gen: ^Generator) {
             gen_printf(gen, "dq {}\n", v)
 
         case byte:
-            gen_printf(gen, "db {}\n", v)
+            gen_printf(gen, "dq {}\n", v)
 
         case string:
             gen_print(gen, "db ")
@@ -111,7 +111,7 @@ gen_bootstrap :: proc(gen: ^Generator) {
                     gen_printf(gen, "{},", int(char))
                 }
             }
-            gen_print(gen, "0\n")
+            gen_printf(gen, "0 ; {}\n", v)
         }
     }
 
@@ -381,7 +381,7 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
         gen_printf(gen, "    push    {}\n", v.value ? "SK_TRUE" : "SK_FALSE")
 
     case PUSH_BYTE:
-        gen_printf(gen, "    push    [CONST{}]\n", v.index)
+        gen_printf(gen, "    push    qword [CONST{}]\n", v.index)
 
     case PUSH_CONST:
         if v.const.type == type_bool {
@@ -390,15 +390,15 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
             if v.const.type == type_string {
                 gen_printf(gen, "    push    CONST{}\n", v.const.index)
             } else {
-                gen_printf(gen, "    push    [CONST{}]\n", v.const.index)
+                gen_printf(gen, "    push    qword [CONST{}]\n", v.const.index)
             }
         }
 
     case PUSH_FLOAT:
-        gen_printf(gen, "    push    [CONST{}]\n", v.index)
+        gen_printf(gen, "    push    qword [CONST{}]\n", v.index)
 
     case PUSH_INT:
-        gen_printf(gen, "    push    [CONST{}]\n", v.index)
+        gen_printf(gen, "    push    qword [CONST{}]\n", v.index)
 
     case PUSH_STRING:
         gen_printf(gen, "    push    CONST{}\n", v.index)
@@ -406,7 +406,7 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
     case PUSH_TYPE:
 
     case PUSH_UINT:
-        gen_printf(gen, "    push    [CONST{}]\n", v.index)
+        gen_printf(gen, "    push    qword [CONST{}]\n", v.index)
 
     case RETURN:
         gen_print (gen, "    mov     rax, rsp\n")
