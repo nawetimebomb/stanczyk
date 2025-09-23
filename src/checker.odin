@@ -390,8 +390,8 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
 
         type := pop_stack()
         pop_scope()
-        create_entity(v.token, Entity_Var{offset=this_proc.local_offset, type=type})
-        this_proc.local_offset += type.size_in_bytes
+        create_entity(v.token, Entity_Var{offset=this_proc.stack_frame_size, type=type})
+        this_proc.stack_frame_size += type.size_in_bytes
 
     case DECLARE_VAR_START:
         var_decl_scope := create_scope(.Var_Decl)
@@ -536,7 +536,6 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
 
     case PUSH_FLOAT:
         push_stack(type_float)
-        unimplemented()
 
     case PUSH_INT:
         push_stack(type_int)
@@ -592,8 +591,9 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
         }
 
         type := pop_stack()
-        create_entity(v.token, Entity_Binding{offset=this_proc.local_offset, type=type})
-        this_proc.local_offset += type.size_in_bytes
+        v.offset = this_proc.stack_frame_size
+        create_entity(v.token, Entity_Binding{offset=this_proc.stack_frame_size, type=type})
+        this_proc.stack_frame_size += type.size_in_bytes
 
     case STORE_VAR:
         if len(stack) < 2 {

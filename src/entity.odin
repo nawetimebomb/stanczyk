@@ -26,6 +26,7 @@ Entity_Binding :: struct {
 }
 
 Entity_Const :: struct {
+    index: int,
     type:  ^Type,
     value: Constant_Value,
 }
@@ -59,39 +60,50 @@ Scope_Kind :: enum u8 {
     If_Else,
 }
 
-Constant_Value :: union {
-    bool,
-    f64,
-    i64,
-    string,
-    u64,
-    u8,
-}
-
 register_global_const_entities :: proc() {
     create_entity(
         make_token("OS_DARWIN"),
-        Entity_Const{type_bool, ODIN_OS == .Darwin},
+        Entity_Const{
+            add_to_constants(ODIN_OS == .Darwin),
+            type_bool,
+            ODIN_OS == .Darwin,
+        },
     )
 
     create_entity(
         make_token("OS_LINUX"),
-        Entity_Const{type_bool, ODIN_OS == .Linux},
+        Entity_Const{
+            add_to_constants(ODIN_OS == .Linux),
+            type_bool,
+            ODIN_OS == .Linux,
+        },
     )
 
     create_entity(
         make_token("OS_WINDOWS"),
-        Entity_Const{type_bool, ODIN_OS == .Windows},
+        Entity_Const{
+            add_to_constants(ODIN_OS == .Windows),
+            type_bool,
+            ODIN_OS == .Windows,
+        },
     )
 
     create_entity(
         make_token("OS_NAME"),
-        Entity_Const{type_string, reflect.enum_string(ODIN_OS)},
+        Entity_Const{
+            add_to_constants(reflect.enum_string(ODIN_OS)),
+            type_string,
+            reflect.enum_string(ODIN_OS),
+        },
     )
 
     create_entity(
         make_token("SK_DEBUG"),
-        Entity_Const{type_bool, switch_debug},
+        Entity_Const{
+            add_to_constants(switch_debug),
+            type_bool,
+            switch_debug,
+        },
     )
 }
 

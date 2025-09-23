@@ -112,6 +112,7 @@ make_procedure :: proc(token: Token) -> ^Procedure {
     result := new(Procedure)
     result.token        = token
     result.name         = token.text
+    result.id           = compiler.foreign_name_uid
     result.foreign_name = create_foreign_name_from_token(token)
     result.file_info    = token.file_info
     result.entity       = create_entity(token, Entity_Proc{ procedure = result })
@@ -120,6 +121,7 @@ make_procedure :: proc(token: Token) -> ^Procedure {
 
     if result.name == "main" {
         compiler.main_found_at = &result.token
+        compiler.main_proc_uid = result.id
     }
 
     return result
@@ -234,7 +236,7 @@ parse_const_declaration :: proc() {
 
     case .String:
         const.type = type_string
-        const.value = token.text
+        const.value = token.text[1:len(token.text)-1]
 
     case .True:
         const.type = type_bool
@@ -262,6 +264,8 @@ parse_const_declaration :: proc() {
 
     expect(.Semicolon)
 
+    const.index = add_to_constants(const.value)
+
     create_entity(name_token, const)
 }
 
@@ -288,7 +292,7 @@ parse_let_declaration :: proc() {
     }
 
     #reverse for token in bindings {
-        write_chunk(token, STORE_BIND{token})
+        write_chunk(token, STORE_BIND{token=token})
     }
 }
 
@@ -496,26 +500,31 @@ parse_expression :: proc() {
     case .Integer:
         value, ok := strconv.parse_i64(stanczyk_number_to_c_number(token.text))
         assert(ok, "Compiler Bug. This was an Int by the Lexer")
-        write_chunk(token, PUSH_INT{value})
+        index := add_to_constants(value)
+        write_chunk(token, PUSH_INT{index})
 
     case .Unsigned_Integer:
         value, ok := strconv.parse_u64(stanczyk_number_to_c_number(token.text))
         assert(ok, "Compiler Bug. This was an Uint by the Lexer")
-        write_chunk(token, PUSH_UINT{value})
+        index := add_to_constants(value)
+        write_chunk(token, PUSH_UINT{index})
 
     case .Float:
         value, ok := strconv.parse_f64(stanczyk_number_to_c_number(token.text))
         assert(ok, "Compiler Bug. This was a Float by the Lexer")
-        write_chunk(token, PUSH_FLOAT{value})
+        index := add_to_constants(value)
+        write_chunk(token, PUSH_FLOAT{index})
 
     case .Hex:
     case .Binary:
     case .Octal:
     case .String:
-        write_chunk(token, PUSH_STRING{token.text})
+        index := add_to_constants(token.text[1:len(token.text)-1])
+        write_chunk(token, PUSH_STRING{index=index})
 
     case .Byte:
-        write_chunk(token, PUSH_BYTE{parse_byte_value(token)})
+        index := add_to_constants(parse_byte_value(token))
+        write_chunk(token, PUSH_BYTE{index})
 
     case .True:
         write_chunk(token, PUSH_BOOL{true})

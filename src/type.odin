@@ -44,14 +44,14 @@ BASIC_TYPES := [Type_Basic_Kind]Type{
     .Bool = {
         name          = "bool",
         foreign_name  = "b8",
-        size_in_bytes = 1,
+        size_in_bytes = 8, // alignment
         variant       = Type_Basic{kind=.Bool},
     },
 
     .Byte = {
         name          = "byte",
         foreign_name  = "u8",
-        size_in_bytes = 1,
+        size_in_bytes = 8,
         variant       = Type_Basic{kind=.Byte},
     },
 

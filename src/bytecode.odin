@@ -2,6 +2,23 @@ package main
 
 import "core:fmt"
 
+Constant_Table :: [dynamic]Constant
+
+Constant :: struct {
+    index: int,
+    type:  ^Type,
+    value: Constant_Value,
+}
+
+Constant_Value :: union {
+    bool,
+    f64,
+    i64,
+    string,
+    u64,
+    u8,
+}
+
 Parameter :: struct {
     is_named:   bool, // for named parameters only
     name_token: Token,
@@ -10,21 +27,22 @@ Parameter :: struct {
 }
 
 Procedure :: struct {
-    token:        Token,
-    name:         string,
-    foreign_name: string,
-    is_global:    bool,
-    file_info:    ^File_Info,
-    entity:       ^Entity,
-    scope:        ^Scope,
-    parent:       ^Procedure,
+    token:            Token,
+    id:               int,
+    name:             string,
+    foreign_name:     string,
+    is_global:        bool,
+    file_info:        ^File_Info,
+    entity:           ^Entity,
+    scope:            ^Scope,
+    parent:           ^Procedure,
 
-    local_offset: int,
+    stack_frame_size: int,
 
-    arguments:    []Parameter,
-    results:      []Parameter,
+    arguments:        []Parameter,
+    results:          []Parameter,
 
-    code:         [dynamic]^Instruction,
+    code:             [dynamic]^Instruction,
 }
 
 Instruction :: struct {
@@ -193,7 +211,7 @@ PUSH_BOOL :: struct {
 }
 
 PUSH_BYTE :: struct {
-    value: u8,
+    index: int,
 }
 
 PUSH_CONST :: struct {
@@ -201,15 +219,15 @@ PUSH_CONST :: struct {
 }
 
 PUSH_FLOAT :: struct {
-    value: f64,
+    index: int,
 }
 
 PUSH_INT :: struct {
-    value: i64,
+    index: int,
 }
 
 PUSH_STRING :: struct {
-    value: string,
+    index: int,
 }
 
 PUSH_TYPE :: struct {
@@ -217,7 +235,7 @@ PUSH_TYPE :: struct {
 }
 
 PUSH_UINT :: struct {
-    value: u64,
+    index: int,
 }
 
 RETURN :: struct {
@@ -241,7 +259,8 @@ ROTATE_RIGHT :: struct {
 }
 
 STORE_BIND :: struct {
-    token: Token,
+    offset: int,
+    token:  Token,
 }
 
 STORE_VAR :: struct {
@@ -254,6 +273,16 @@ SWAP :: struct {
 
 TUCK :: struct {
 
+}
+
+add_to_constants :: proc(value: Constant_Value) -> int {
+    index := len(compiler.constants_table)
+    append(&compiler.constants_table, Constant{
+        index = index,
+        type  = type_int,
+        value = value,
+    })
+    return index
 }
 
 debug_print_bytecode :: proc() {
@@ -405,7 +434,7 @@ debug_print_bytecode :: proc() {
 
             case PUSH_BYTE:
                 _name("PUSH_BYTE")
-                _value("{}", v.value)
+                _value("{}", v.index)
 
             case PUSH_CONST:
                 _name("PUSH_CONST")
@@ -413,15 +442,15 @@ debug_print_bytecode :: proc() {
 
             case PUSH_FLOAT:
                 _name("PUSH_FLOAT")
-                _value("{}", v.value)
+                _value("{}", v.index)
 
             case PUSH_INT:
                 _name("PUSH_INT")
-                _value("{}", v.value)
+                _value("{}", v.index)
 
             case PUSH_STRING:
                 _name("PUSH_STRING")
-                _value("{}", v.value)
+                _value("{}", v.index)
 
             case PUSH_TYPE:
                 _name("PUSH_TYPE")
@@ -429,7 +458,7 @@ debug_print_bytecode :: proc() {
 
             case PUSH_UINT:
                 _name("PUSH_UINT")
-                _value("{}", v.value)
+                _value("{}", v.index)
 
             case RETURN:
                 _name("RETURN")

@@ -34,15 +34,18 @@ Compiler :: struct {
 
     types:            map[string]^Type,
 
+    constants_table:  [dynamic]Constant,
+    mem_size:         uint,
+    main_proc_uid:    int,
     foreign_name_uid: int,
     parser:           ^Parser,
     lines_parsed:     int,
     main_found_at:    ^Token,
 }
 
-compiler_dir:      string
-working_dir:       string
-output_filename:   string
+compiler_dir:    string
+working_dir:     string
+output_filename: string
 
 source_files: [dynamic]File_Info
 bytecode:     [dynamic]^Procedure
@@ -143,17 +146,22 @@ main :: proc() {
 
     free_all(context.temp_allocator)
 
-    //gen_program()
+    gen_program()
     codegen_time := time.duration_seconds(time.tick_lap_time(&accumulator))
 
-    debug_print_bytecode()
+    if switch_debug {
+        debug_print_bytecode()
+    }
 
-    libc.system(fmt.ctprintf("gcc {0}.c -o {0} -ggdb", output_filename))
+    libc.system(fmt.ctprintf("{0}/thirdparty/fasm2 {1}.asm {1}.o -n", compiler_dir, output_filename))
+    libc.system(fmt.ctprintf("gcc -nostartfiles {0}.o -o {0} -ggdb", output_filename))
     compile_time := time.duration_seconds(time.tick_lap_time(&accumulator))
     alloc_amount := tracking_allocator.current_memory_allocated
 
+    _ = os2.remove(fmt.tprintf("{}.o", output_filename))
+
     if !switch_debug {
-        _ = os2.remove(fmt.tprintf("{}.c", output_filename))
+        os2.remove(fmt.tprintf("{}.asm", output_filename))
     }
 
     if !switch_silent {
