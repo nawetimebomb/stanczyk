@@ -69,6 +69,7 @@ Token_Kind :: enum u8 {
     Greater_Equal    =  54,
     Less             =  55,
     Less_Equal       =  56,
+    Backtick         =  57,
 
 
     // Intrinsics
@@ -313,6 +314,7 @@ get_next_token :: proc(l: ^Lexer) -> (token: Token) {
     case '%':       token.kind = .Percent;       advance(l)
     case ':':       token.kind = .Colon;         advance(l)
     case '=':       token.kind = .Equal;         advance(l)
+    case '`':       token.kind = .Backtick;      advance(l)
     case '!':
         advance(l)
         if get_byte(l) == '=' {

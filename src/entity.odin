@@ -7,9 +7,10 @@ import "core:slice"
 Stack :: distinct [dynamic]^Type
 
 Entity :: struct {
-    name:    string,
-    token:   Token,
-    variant: Entity_Variant,
+    is_global: bool,
+    name:      string,
+    token:     Token,
+    variant:   Entity_Variant,
 }
 
 Entity_Variant :: union {
@@ -109,9 +110,10 @@ register_global_const_entities :: proc() {
 
 create_entity :: proc(token: Token, variant: Entity_Variant) -> ^Entity {
     entity := new(Entity)
-    entity.name    = token.text
-    entity.token   = token
-    entity.variant = variant
+    entity.is_global = is_in_global_scope()
+    entity.name      = token.text
+    entity.token     = token
+    entity.variant   = variant
 
     found: ^Entity
 
@@ -183,20 +185,17 @@ create_scope :: proc(kind: Scope_Kind, offset := -1) -> ^Scope {
 
 push_scope :: proc(new_scope: ^Scope) {
     assert(new_scope != nil)
+    new_scope.stack = new(Stack, context.temp_allocator)
 
     switch new_scope.kind {
     case .Global:
     case .Procedure:
-        new_scope.stack = new(Stack, context.temp_allocator)
     case .Var_Decl:
-        new_scope.stack = new(Stack, context.temp_allocator)
     case .If:
-        new_scope.stack = new(Stack, context.temp_allocator)
         for s in compiler.current_scope.stack {
             append(new_scope.stack, s)
         }
     case .If_Else:
-        new_scope.stack = new(Stack, context.temp_allocator)
         for s in compiler.current_scope.stack {
             append(new_scope.stack, s)
         }

@@ -382,21 +382,6 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
 
         push_stack(type_bool)
 
-    case DECLARE_VAR_END:
-        if len(stack) != 1 {
-            checker_error(ins.token, VAR_DECL_MULTI_VALUE, len(stack))
-            return
-        }
-
-        type := pop_stack()
-        pop_scope()
-        create_entity(v.token, Entity_Var{offset=this_proc.stack_frame_size, type=type})
-        this_proc.stack_frame_size += type.size_in_bytes
-
-    case DECLARE_VAR_START:
-        var_decl_scope := create_scope(.Var_Decl)
-        push_scope(var_decl_scope)
-
     case DROP:
         pop_stack()
 
@@ -443,8 +428,8 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
                 ins.variant = PUSH_TYPE{variant.type}
 
             case Entity_Var:
-                push_stack(variant.type)
-                return
+
+                ins.variant = PUSH_VAR_LOCAL{variant.offset, variant.type}
             }
         } else {
             // NOTE(nawe) these are always procedures, so we just need to know
@@ -540,6 +525,9 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
     case PUSH_INT:
         push_stack(type_int)
 
+    case PUSH_QUOTED:
+        fmt.printfln("QUOTED {}", v.token)
+
     case PUSH_STRING:
         push_stack(type_string)
 
@@ -548,6 +536,12 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
 
     case PUSH_UINT:
         push_stack(type_uint)
+
+    case PUSH_VAR_GLOBAL:
+        push_stack(v.type)
+
+    case PUSH_VAR_LOCAL:
+        push_stack(v.type)
 
     case RETURN:
         stack_is_valid_for_return(ins)
@@ -595,25 +589,27 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
         create_entity(v.token, Entity_Binding{offset=this_proc.stack_frame_size, type=type})
         this_proc.stack_frame_size += type.size_in_bytes
 
-    case STORE_VAR:
-        if len(stack) < 2 {
-            checker_error(ins.token, STACK_EMPTY_EXPECT, 2, len(stack))
+    case STORE_VAR_GLOBAL:
+        if len(stack) == 0 {
+            checker_error(ins.token, STACK_EMPTY_EXPECT, 1, 0)
             return
         }
 
-        type2 := pop_stack()
-        type1 := pop_stack()
+        type := pop_stack()
+        v.offset = this_proc.stack_frame_size
+        create_entity(v.token, Entity_Var{offset=this_proc.stack_frame_size, type=type})
+        this_proc.stack_frame_size += type.size_in_bytes
 
-        if type1 != type2 {
-            checker_error(ins.token, MISMATCHED_TYPES_IN_VAR, type1.name, type2.name)
+    case STORE_VAR_LOCAL:
+        if len(stack) == 0 {
+            checker_error(ins.token, STACK_EMPTY_EXPECT, 1, 0)
             return
         }
 
-        // TODO(nawe) improve this by making sure it is a variable
-        //if .mutable {
-        //    checker_error(ins.token, NOT_A_MUTABLE_VAR)
-        //    return
-        //}
+        type := pop_stack()
+        v.offset = this_proc.stack_frame_size
+        create_entity(v.token, Entity_Var{offset=this_proc.stack_frame_size, type=type})
+        this_proc.stack_frame_size += type.size_in_bytes
 
     case SWAP:
         if len(stack) < 2 {

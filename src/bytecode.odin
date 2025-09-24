@@ -13,11 +13,11 @@ Constant :: struct {
 
 Constant_Value :: union {
     bool,
+    byte,
     f64,
     i64,
     string,
     u64,
-    u8,
 }
 
 Parameter :: struct {
@@ -64,8 +64,6 @@ Instruction_Variant :: union {
     COMPARE_GREATER_EQUAL,
     COMPARE_LESS,
     COMPARE_LESS_EQUAL,
-    DECLARE_VAR_END,
-    DECLARE_VAR_START,
     DROP,
     DUP,
     DUP_PREV,
@@ -83,16 +81,20 @@ Instruction_Variant :: union {
     PUSH_CONST,
     PUSH_FLOAT,
     PUSH_INT,
+    PUSH_QUOTED,
     PUSH_STRING,
     PUSH_TYPE,
     PUSH_UINT,
+    PUSH_VAR_GLOBAL,
+    PUSH_VAR_LOCAL,
     RETURN,
     RETURN_VALUE,
     RETURN_VALUES,
     ROTATE_LEFT,
     ROTATE_RIGHT,
     STORE_BIND,
-    STORE_VAR,
+    STORE_VAR_GLOBAL,
+    STORE_VAR_LOCAL,
     SWAP,
     TUCK,
 }
@@ -143,14 +145,6 @@ COMPARE_LESS :: struct {
 
 COMPARE_LESS_EQUAL :: struct {
     type: ^Type,
-}
-
-DECLARE_VAR_END :: struct {
-    token: Token,
-}
-
-DECLARE_VAR_START :: struct {
-    token: Token,
 }
 
 DROP :: struct {
@@ -211,7 +205,7 @@ PUSH_BOOL :: struct {
 }
 
 PUSH_BYTE :: struct {
-    index: int,
+    value: byte,
 }
 
 PUSH_CONST :: struct {
@@ -223,7 +217,11 @@ PUSH_FLOAT :: struct {
 }
 
 PUSH_INT :: struct {
-    index: int,
+    value: i64,
+}
+
+PUSH_QUOTED :: struct {
+    token: Token,
 }
 
 PUSH_STRING :: struct {
@@ -235,7 +233,17 @@ PUSH_TYPE :: struct {
 }
 
 PUSH_UINT :: struct {
-    index: int,
+    value: u64,
+}
+
+PUSH_VAR_GLOBAL :: struct {
+    offset: int,
+    type:   ^Type,
+}
+
+PUSH_VAR_LOCAL :: struct {
+    offset: int,
+    type:   ^Type,
 }
 
 RETURN :: struct {
@@ -263,8 +271,14 @@ STORE_BIND :: struct {
     token:  Token,
 }
 
-STORE_VAR :: struct {
+STORE_VAR_GLOBAL :: struct {
     offset: int,
+    token:  Token,
+}
+
+STORE_VAR_LOCAL :: struct {
+    offset: int,
+    token:  Token,
 }
 
 SWAP :: struct {
@@ -310,7 +324,7 @@ debug_print_bytecode :: proc() {
     }
 
     _name :: proc(name: string) {
-        fmt.printf("%-16s", name)
+        fmt.printf("%-20s", name)
     }
 
     _value :: proc(format: string, args: ..any) {
@@ -378,14 +392,6 @@ debug_print_bytecode :: proc() {
                 _name("COMPARE_LESS_EQUAL")
                 _value("({})", v.type.name)
 
-            case DECLARE_VAR_END:
-                _name("DECLARE_VAR_END")
-                _value("{}", v.token.text)
-
-            case DECLARE_VAR_START:
-                _name("DECLARE_VAR_START")
-                _value("{}", v.token.text)
-
             case DROP:
                 _name("DROP")
 
@@ -434,7 +440,7 @@ debug_print_bytecode :: proc() {
 
             case PUSH_BYTE:
                 _name("PUSH_BYTE")
-                _value("{}", v.index)
+                _value("{}", v.value)
 
             case PUSH_CONST:
                 _name("PUSH_CONST")
@@ -446,7 +452,11 @@ debug_print_bytecode :: proc() {
 
             case PUSH_INT:
                 _name("PUSH_INT")
-                _value("{}", v.index)
+                _value("{}", v.value)
+
+            case PUSH_QUOTED:
+                _name("PUSH_QUOTED")
+                _value("{}", v.token)
 
             case PUSH_STRING:
                 _name("PUSH_STRING")
@@ -458,7 +468,15 @@ debug_print_bytecode :: proc() {
 
             case PUSH_UINT:
                 _name("PUSH_UINT")
-                _value("{}", v.index)
+                _value("{}", v.value)
+
+            case PUSH_VAR_GLOBAL:
+                _name("PUSH_VAR_GLOBAL")
+                _value("{}", v.offset)
+
+            case PUSH_VAR_LOCAL:
+                _name("PUSH_VAR_LOCAL")
+                _value("{}", v.offset)
 
             case RETURN:
                 _name("RETURN")
@@ -479,8 +497,13 @@ debug_print_bytecode :: proc() {
                 _name("STORE_BIND")
                 _value("{}", v.token.text)
 
-            case STORE_VAR:
-                _name("STORE_VAR")
+            case STORE_VAR_GLOBAL:
+                _name("STORE_VAR_GLOBAL")
+                _value("{}", v.offset)
+
+            case STORE_VAR_LOCAL:
+                _name("STORE_VAR_LOCAL")
+                _value("{}", v.offset)
 
             case SWAP:
                 _name("SWAP")

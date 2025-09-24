@@ -35,7 +35,6 @@ Compiler :: struct {
     types:            map[string]^Type,
 
     constants_table:  [dynamic]Constant,
-    mem_size:         uint,
     main_proc_uid:    int,
     foreign_name_uid: int,
     parser:           ^Parser,

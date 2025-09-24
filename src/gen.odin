@@ -50,7 +50,8 @@ gen_bootstrap :: proc(gen: ^Generator) {
     gen_print (gen, "ret_stack_ptr:      rq 1\n")
     gen_print (gen, "ret_stack:          rb 65535\n")
     gen_print (gen, "ret_stack_ptr_end:\n")
-    gen_printf(gen, "stanczyk_static:    rb {}\n", compiler.mem_size)
+    gen_printf(gen, "stanczyk_static:    rb {}\n", compiler.global_proc.stack_frame_size)
+    gen_print (gen, "TEMP_QWORD          dq 0\n")
     gen_print (gen, "EMPTY_STRING:       db 0\n")
     gen_print (gen, "FORMAT_BOOL:        db \"%s\",10,0\n")
     gen_print (gen, "FORMAT_FLOAT:       db \"%g\",10,0\n")
@@ -69,16 +70,16 @@ gen_bootstrap :: proc(gen: ^Generator) {
         case bool:
             gen_printf(gen, "dq {}\n", v ? 1 : 0)
 
-        case f64:
+        case byte:
             gen_printf(gen, "dq {}\n", v)
+
+        case f64:
+            gen_printf(gen, "dq %f\n", v)
 
         case i64:
             gen_printf(gen, "dq {}\n", v)
 
         case u64:
-            gen_printf(gen, "dq {}\n", v)
-
-        case byte:
             gen_printf(gen, "dq {}\n", v)
 
         case string:
@@ -121,7 +122,9 @@ gen_bootstrap :: proc(gen: ^Generator) {
     gen_print (gen, "    mov     [args_ptr], rsp\n")
     gen_print (gen, "    mov     rax, ret_stack_ptr_end\n")
 
-    // TODO(nawe) global code here
+    for ins in compiler.global_proc.code {
+        gen_instruction(gen, compiler.global_proc, ins)
+    }
 
     gen_print (gen, ".stanczyk_user_program:\n")
     gen_print (gen, "    mov     [ret_stack_ptr], rax\n")
@@ -167,35 +170,73 @@ gen_procedure :: proc(gen: ^Generator, procedure: ^Procedure) {
     }
 }
 
-
 gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instruction) {
     gen_printf(gen, ".ip{}:\n", ins.offset)
     switch v in ins.variant {
     case BINARY_ADD:
-        // TODO(nawe) support types
-        gen_print (gen, "    pop     rbx\n")
-        gen_print (gen, "    pop     rax\n")
-        gen_print (gen, "    add     rax, rbx\n")
-        gen_print (gen, "    push    rax\n")
+        if v.type == type_float {
+            gen_print (gen, "    pop     rbx\n")
+            gen_print (gen, "    pop     rax\n")
+            gen_print (gen, "    movq    xmm0, rax\n")
+            gen_print (gen, "    movq    xmm1, rbx\n")
+            gen_print (gen, "    addsd   xmm0, xmm1\n")
+            gen_print (gen, "    movsd   [TEMP_QWORD], xmm0\n")
+            gen_print (gen, "    push    qword [TEMP_QWORD]\n")
+        } else {
+            gen_print (gen, "    pop     rbx\n")
+            gen_print (gen, "    pop     rax\n")
+            gen_print (gen, "    add     rax, rbx\n")
+            gen_print (gen, "    push    rax\n")
+        }
 
     case BINARY_DIVIDE:
-        gen_print (gen, "    xor     rdx, rdx\n")
-        gen_print (gen, "    pop     rbx\n")
-        gen_print (gen, "    pop     rax\n")
-        gen_print (gen, "    div     rbx\n")
-        gen_print (gen, "    push    rax\n")
+        if v.type == type_float {
+            gen_print (gen, "    pop     rbx\n")
+            gen_print (gen, "    pop     rax\n")
+            gen_print (gen, "    movq    xmm0, rax\n")
+            gen_print (gen, "    movq    xmm1, rbx\n")
+            gen_print (gen, "    divsd   xmm0, xmm1\n")
+            gen_print (gen, "    movsd   [TEMP_QWORD], xmm0\n")
+            gen_print (gen, "    push    qword [TEMP_QWORD]\n")
+        } else {
+            gen_print (gen, "    xor     rdx, rdx\n")
+            gen_print (gen, "    pop     rbx\n")
+            gen_print (gen, "    pop     rax\n")
+            gen_print (gen, "    div     rbx\n")
+            gen_print (gen, "    push    rax\n")
+        }
 
     case BINARY_MINUS:
-        gen_print (gen, "    pop     rbx\n")
-        gen_print (gen, "    pop     rax\n")
-        gen_print (gen, "    sub     rax, rbx\n")
-        gen_print (gen, "    push    rax\n")
+        if v.type == type_float {
+            gen_print (gen, "    pop     rbx\n")
+            gen_print (gen, "    pop     rax\n")
+            gen_print (gen, "    movq    xmm0, rax\n")
+            gen_print (gen, "    movq    xmm1, rbx\n")
+            gen_print (gen, "    subsd   xmm0, xmm1\n")
+            gen_print (gen, "    movsd   [TEMP_QWORD], xmm0\n")
+            gen_print (gen, "    push    qword [TEMP_QWORD]\n")
+        } else {
+            gen_print (gen, "    pop     rbx\n")
+            gen_print (gen, "    pop     rax\n")
+            gen_print (gen, "    sub     rax, rbx\n")
+            gen_print (gen, "    push    rax\n")
+        }
 
     case BINARY_MULTIPLY:
-        gen_print (gen, "    pop     rbx\n")
-        gen_print (gen, "    pop     rax\n")
-        gen_print (gen, "    mul     rbx\n")
-        gen_print (gen, "    push    rax\n")
+        if v.type == type_float {
+            gen_print (gen, "    pop     rbx\n")
+            gen_print (gen, "    pop     rax\n")
+            gen_print (gen, "    movq    xmm0, rax\n")
+            gen_print (gen, "    movq    xmm1, rbx\n")
+            gen_print (gen, "    mulsd   xmm0, xmm1\n")
+            gen_print (gen, "    movsd   [TEMP_QWORD], xmm0\n")
+            gen_print (gen, "    push    qword [TEMP_QWORD]\n")
+        } else {
+            gen_print (gen, "    pop     rbx\n")
+            gen_print (gen, "    pop     rax\n")
+            gen_print (gen, "    mul     rbx\n")
+            gen_print (gen, "    push    rax\n")
+        }
 
     case BINARY_MODULO:
         gen_print (gen, "    xor     rdx, rdx\n")
@@ -283,10 +324,6 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
         gen_print (gen, "    cmp     rax, rbx\n")
         gen_print (gen, "    cmovle  rcx, rdx\n")
         gen_print (gen, "    push    rcx\n")
-
-    case DECLARE_VAR_END:
-
-    case DECLARE_VAR_START:
 
     case DROP:
         gen_print (gen, "    pop     rax\n")
@@ -381,24 +418,26 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
         gen_printf(gen, "    push    {}\n", v.value ? "SK_TRUE" : "SK_FALSE")
 
     case PUSH_BYTE:
-        gen_printf(gen, "    push    qword [CONST{}]\n", v.index)
+        gen_printf(gen, "    push    {}\n", v.value)
 
     case PUSH_CONST:
-        if v.const.type == type_bool {
-            gen_printf(gen, "    push    {}\n", v.const.value.(bool) ? "SK_TRUE" : "SK_FALSE")
-        } else {
-            if v.const.type == type_string {
-                gen_printf(gen, "    push    CONST{}\n", v.const.index)
-            } else {
-                gen_printf(gen, "    push    qword [CONST{}]\n", v.const.index)
-            }
+        switch value in v.const.value {
+        case bool:   gen_printf(gen, "    push    {}\n", value ? "SK_TRUE" : "SK_FALSE")
+        case f64:    gen_printf(gen, "    push    qword [CONST{}]\n", v.const.index)
+        case i64:    gen_printf(gen, "    push    {}\n", value)
+        case string: gen_printf(gen, "    push    CONST{}\n", v.const.index)
+        case u64:    gen_printf(gen, "    push    {}\n", value)
+        case byte:   gen_printf(gen, "    push    {}\n", value)
         }
 
     case PUSH_FLOAT:
         gen_printf(gen, "    push    qword [CONST{}]\n", v.index)
 
     case PUSH_INT:
-        gen_printf(gen, "    push    qword [CONST{}]\n", v.index)
+        gen_printf(gen, "    push    {}\n", v.value)
+
+    case PUSH_QUOTED:
+
 
     case PUSH_STRING:
         gen_printf(gen, "    push    CONST{}\n", v.index)
@@ -406,7 +445,17 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
     case PUSH_TYPE:
 
     case PUSH_UINT:
-        gen_printf(gen, "    push    qword [CONST{}]\n", v.index)
+        gen_printf(gen, "    push    {}\n", v.value)
+
+    case PUSH_VAR_GLOBAL:
+        gen_print (gen, "    mov     rax, stanczyk_static\n")
+        gen_printf(gen, "    add     rax, {}\n", v.offset)
+        gen_print (gen, "    push    qword [rax]\n")
+
+    case PUSH_VAR_LOCAL:
+        gen_print (gen, "    mov     rax, [ret_stack_ptr]\n")
+        gen_printf(gen, "    add     rax, {}\n", v.offset)
+        gen_print (gen, "    push    qword [rax]\n")
 
     case RETURN:
         gen_print (gen, "    mov     rax, rsp\n")
@@ -447,7 +496,16 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
         gen_print (gen, "    pop     rbx\n")
         gen_printf(gen, "    mov     [rax+{}], rbx\n", v.offset)
 
-    case STORE_VAR:
+    case STORE_VAR_GLOBAL:
+        gen_print (gen, "    mov     rax, stanczyk_static\n")
+        gen_printf(gen, "    add     rax, {}\n", v.offset)
+        gen_print (gen, "    pop     rbx\n")
+        gen_print (gen, "    mov     qword [rax], rbx\n")
+
+    case STORE_VAR_LOCAL:
+        gen_print (gen, "    mov     rax, [ret_stack_ptr]\n")
+        gen_print (gen, "    pop     rbx\n")
+        gen_printf(gen, "    mov     [rax+{}], rbx\n", v.offset)
 
     case SWAP:
         gen_print (gen, "    pop     rbx\n")

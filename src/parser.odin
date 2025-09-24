@@ -180,8 +180,10 @@ parse_const_declaration :: proc() {
         const.value = value
 
     case .String:
+        value := token.text[1:len(token.text)-1]
+        const.index = add_to_constants(value)
         const.type = type_string
-        const.value = token.text[1:len(token.text)-1]
+        const.value = value
 
     case .True:
         const.type = type_bool
@@ -194,8 +196,10 @@ parse_const_declaration :: proc() {
     case .Float:
         value, ok := strconv.parse_f64(stanczyk_number_to_c_number(token.text))
         assert(ok, "Compiler Bug. This was an Int by the Lexer")
+        const.index = add_to_constants(value)
         const.type = type_float
         const.value = value
+
 
     case .Unsigned_Integer:
         value, ok := strconv.parse_u64(stanczyk_number_to_c_number(token.text))
@@ -208,8 +212,6 @@ parse_const_declaration :: proc() {
     }
 
     expect(.Semicolon)
-
-    const.index = add_to_constants(const.value)
 
     create_entity(name_token, const)
 }
@@ -244,8 +246,6 @@ parse_let_declaration :: proc() {
 parse_var_declaration :: proc() {
     name_token := expect(.Identifier)
 
-    write_chunk(name_token, DECLARE_VAR_START{name_token})
-
     for can_continue_parsing() && !check(.Semicolon) {
         next_token := compiler.parser.curr_token
 
@@ -262,7 +262,11 @@ parse_var_declaration :: proc() {
     }
 
     end_token := expect(.Semicolon)
-    write_chunk(end_token, DECLARE_VAR_END{name_token})
+    if is_in_global_scope() {
+        write_chunk(end_token, STORE_VAR_GLOBAL{token=name_token})
+    } else {
+        write_chunk(end_token, STORE_VAR_LOCAL{token=name_token})
+    }
 }
 
 parse_proc_declaration :: proc() {
@@ -444,14 +448,12 @@ parse_expression :: proc() {
     case .Integer:
         value, ok := strconv.parse_i64(stanczyk_number_to_c_number(token.text))
         assert(ok, "Compiler Bug. This was an Int by the Lexer")
-        index := add_to_constants(value)
-        write_chunk(token, PUSH_INT{index})
+        write_chunk(token, PUSH_INT{value})
 
     case .Unsigned_Integer:
         value, ok := strconv.parse_u64(stanczyk_number_to_c_number(token.text))
         assert(ok, "Compiler Bug. This was an Uint by the Lexer")
-        index := add_to_constants(value)
-        write_chunk(token, PUSH_UINT{index})
+        write_chunk(token, PUSH_UINT{value})
 
     case .Float:
         value, ok := strconv.parse_f64(stanczyk_number_to_c_number(token.text))
@@ -467,8 +469,7 @@ parse_expression :: proc() {
         write_chunk(token, PUSH_STRING{index=index})
 
     case .Byte:
-        index := add_to_constants(parse_byte_value(token))
-        write_chunk(token, PUSH_BYTE{index})
+        write_chunk(token, PUSH_BYTE{parse_byte_value(token)})
 
     case .True:
         write_chunk(token, PUSH_BOOL{true})
@@ -520,6 +521,9 @@ parse_expression :: proc() {
     case .Less_Equal:
         write_chunk(token, COMPARE_LESS_EQUAL{})
 
+    case .Backtick:
+        write_chunk(token, PUSH_QUOTED{next()})
+
     case .Drop:
         write_chunk(token, DROP{})
 
@@ -567,7 +571,11 @@ parse_expression :: proc() {
         parse_var_declaration()
 
     case .Set:
-        write_chunk(token, STORE_VAR{})
+        if is_in_global_scope() {
+            write_chunk(token, STORE_VAR_GLOBAL{})
+        } else {
+            write_chunk(token, STORE_VAR_LOCAL{})
+        }
 
     case .If:
         if_scope := create_scope(.If, len(compiler.current_proc.code))
