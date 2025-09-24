@@ -153,7 +153,7 @@ main :: proc() {
     }
 
     libc.system(fmt.ctprintf("{0}/thirdparty/fasm {1}.asm {1}.o >> /dev/null", compiler_dir, output_filename))
-    libc.system(fmt.ctprintf("gcc -nostartfiles {0}.o -o {0} -ggdb", output_filename))
+    libc.system(fmt.ctprintf("gcc -nostartfiles -fPIE {0}.o -o {0} -ggdb", output_filename))
     compile_time := time.duration_seconds(time.tick_lap_time(&accumulator))
     alloc_amount := tracking_allocator.current_memory_allocated
 
