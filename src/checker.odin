@@ -478,6 +478,9 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
             push_stack(v.results[index])
         }
 
+    case MAKE_QUOTED:
+
+
     case NIP:
         if len(stack) < 2 {
             checker_error(ins.token, STACK_EMPTY_EXPECT, 1, 0)
@@ -524,9 +527,6 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
 
     case PUSH_INT:
         push_stack(type_int)
-
-    case PUSH_QUOTED:
-        fmt.printfln("QUOTED {}", v.token)
 
     case PUSH_STRING:
         push_stack(type_string)

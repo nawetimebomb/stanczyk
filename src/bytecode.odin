@@ -72,6 +72,7 @@ Instruction_Variant :: union {
     IF_END,
     IF_FALSE_JUMP,
     INVOKE_PROC,
+    MAKE_QUOTED,
     NIP,
     OVER,
     PRINT,
@@ -81,7 +82,6 @@ Instruction_Variant :: union {
     PUSH_CONST,
     PUSH_FLOAT,
     PUSH_INT,
-    PUSH_QUOTED,
     PUSH_STRING,
     PUSH_TYPE,
     PUSH_UINT,
@@ -183,6 +183,10 @@ INVOKE_PROC :: struct {
     procedure: ^Procedure,
 }
 
+MAKE_QUOTED :: struct {
+
+}
+
 NIP :: struct {
 
 }
@@ -218,10 +222,6 @@ PUSH_FLOAT :: struct {
 
 PUSH_INT :: struct {
     value: i64,
-}
-
-PUSH_QUOTED :: struct {
-    token: Token,
 }
 
 PUSH_STRING :: struct {
@@ -420,6 +420,9 @@ debug_print_bytecode :: proc() {
                 _name("INVOKE_PROC")
                 _value("{}", v.procedure.name)
 
+            case MAKE_QUOTED:
+                _name("MAKE_QUOTED")
+
             case NIP:
                 _name("NIP")
 
@@ -453,10 +456,6 @@ debug_print_bytecode :: proc() {
             case PUSH_INT:
                 _name("PUSH_INT")
                 _value("{}", v.value)
-
-            case PUSH_QUOTED:
-                _name("PUSH_QUOTED")
-                _value("{}", v.token)
 
             case PUSH_STRING:
                 _name("PUSH_STRING")

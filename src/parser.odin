@@ -522,7 +522,7 @@ parse_expression :: proc() {
         write_chunk(token, COMPARE_LESS_EQUAL{})
 
     case .Backtick:
-        write_chunk(token, PUSH_QUOTED{next()})
+        write_chunk(token, MAKE_QUOTED{})
 
     case .Drop:
         write_chunk(token, DROP{})
