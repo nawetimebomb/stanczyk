@@ -25,6 +25,8 @@ INVALID_TOKEN :: "We found an invalid token '{}'. This might just be a compiler 
 
 MAIN_PROC_TYPE_NOT_EMPTY :: "Entry point procedure must have no arguments."
 
+QUOTED_ELEMENT_IS_NOT_IDENTIFIER :: "Quoted element is not an identifier."
+
 UNATTACHED_TO_IF :: "'{}' statement unattached to 'if' statement."
 
 UNEXPECTED_TOKEN_PROC_TYPE :: "'{}' is not a type."

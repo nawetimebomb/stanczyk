@@ -47,6 +47,7 @@ Procedure :: struct {
 
 Instruction :: struct {
     offset:    int,
+    quoted:    bool,
     token:     Token,
     variant:   Instruction_Variant,
 }
@@ -72,7 +73,6 @@ Instruction_Variant :: union {
     IF_END,
     IF_FALSE_JUMP,
     INVOKE_PROC,
-    MAKE_QUOTED,
     NIP,
     OVER,
     PRINT,
@@ -92,6 +92,7 @@ Instruction_Variant :: union {
     RETURN_VALUES,
     ROTATE_LEFT,
     ROTATE_RIGHT,
+    SET,
     STORE_BIND,
     STORE_VAR_GLOBAL,
     STORE_VAR_LOCAL,
@@ -183,10 +184,6 @@ INVOKE_PROC :: struct {
     procedure: ^Procedure,
 }
 
-MAKE_QUOTED :: struct {
-
-}
-
 NIP :: struct {
 
 }
@@ -263,6 +260,10 @@ ROTATE_LEFT :: struct {
 }
 
 ROTATE_RIGHT :: struct {
+
+}
+
+SET :: struct {
 
 }
 
@@ -420,9 +421,6 @@ debug_print_bytecode :: proc() {
                 _name("INVOKE_PROC")
                 _value("{}", v.procedure.name)
 
-            case MAKE_QUOTED:
-                _name("MAKE_QUOTED")
-
             case NIP:
                 _name("NIP")
 
@@ -491,6 +489,9 @@ debug_print_bytecode :: proc() {
 
             case ROTATE_RIGHT:
                 _name("ROTATE_RIGHT")
+
+            case SET:
+                _name("SET")
 
             case STORE_BIND:
                 _name("STORE_BIND")

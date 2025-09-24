@@ -375,8 +375,6 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
         gen_print (gen, "    mov     [ret_stack_ptr], rsp\n")
         gen_print (gen, "    mov     rsp, rax\n")
 
-    case MAKE_QUOTED:
-
     case NIP:
         gen_printf(gen, ".ip{}:\n", ins.offset)
         gen_print (gen, "    pop     rbx\n")
@@ -483,13 +481,22 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
         gen_printf(gen, ".ip{}:\n", ins.offset)
         gen_print (gen, "    mov     rax, stanczyk_static\n")
         gen_printf(gen, "    add     rax, {}\n", v.offset)
-        gen_print (gen, "    push    qword [rax]\n")
+
+        if ins.quoted {
+            gen_print (gen, "    push    rax\n")
+        } else {
+            gen_print (gen, "    push    qword [rax]\n")
+        }
 
     case PUSH_VAR_LOCAL:
         gen_printf(gen, ".ip{}:\n", ins.offset)
         gen_print (gen, "    mov     rax, [ret_stack_ptr]\n")
         gen_printf(gen, "    add     rax, {}\n", v.offset)
-        gen_print (gen, "    push    qword [rax]\n")
+        if ins.quoted {
+            gen_print (gen, "    push    rax\n")
+        } else {
+            gen_print (gen, "    push    qword [rax]\n")
+        }
 
     case RETURN:
         gen_printf(gen, ".ip{}:\n", ins.offset)
@@ -530,6 +537,12 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
         gen_print (gen, "    push    rax\n")
         gen_print (gen, "    push    rbx\n")
 
+    case SET:
+        gen_printf(gen, ".ip{}:\n", ins.offset)
+        gen_print (gen, "    pop     rbx\n")
+        gen_print (gen, "    pop     rax\n")
+        gen_print (gen, "    mov     [rbx], rax\n")
+
     case STORE_BIND:
         gen_printf(gen, ".ip{}:\n", ins.offset)
         gen_print (gen, "    mov     rax, [ret_stack_ptr]\n")
@@ -539,9 +552,8 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
     case STORE_VAR_GLOBAL:
         gen_printf(gen, ".ip{}:\n", ins.offset)
         gen_print (gen, "    mov     rax, stanczyk_static\n")
-        gen_printf(gen, "    add     rax, {}\n", v.offset)
         gen_print (gen, "    pop     rbx\n")
-        gen_print (gen, "    mov     qword [rax], rbx\n")
+        gen_printf(gen, "    mov     [rax+{}], rbx\n", v.offset)
 
     case STORE_VAR_LOCAL:
         gen_printf(gen, ".ip{}:\n", ins.offset)

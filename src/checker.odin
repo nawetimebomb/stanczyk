@@ -428,8 +428,11 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
                 ins.variant = PUSH_TYPE{variant.type}
 
             case Entity_Var:
-
-                ins.variant = PUSH_VAR_LOCAL{variant.offset, variant.type}
+                if entity.is_global {
+                    ins.variant = PUSH_VAR_GLOBAL{variant.offset, variant.type}
+                } else {
+                    ins.variant = PUSH_VAR_LOCAL{variant.offset, variant.type}
+                }
             }
         } else {
             // NOTE(nawe) these are always procedures, so we just need to know
@@ -477,9 +480,6 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
             v.results[index] = v.procedure.results[index].type
             push_stack(v.results[index])
         }
-
-    case MAKE_QUOTED:
-
 
     case NIP:
         if len(stack) < 2 {
@@ -577,6 +577,20 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
         push_stack(type3)
         push_stack(type1)
         push_stack(type2)
+
+    case SET:
+        if len(stack) < 2 {
+            checker_error(ins.token, STACK_EMPTY_EXPECT, 2, len(stack))
+            return
+        }
+
+        type2 := pop_stack()
+        type1 := pop_stack()
+
+        if type1 != type2 {
+            checker_error(ins.token, MISMATCHED_TYPES_BINARY_EXPR, type1.name, type2.name)
+            return
+        }
 
     case STORE_BIND:
         if len(stack) == 0 {

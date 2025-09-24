@@ -522,7 +522,17 @@ parse_expression :: proc() {
         write_chunk(token, COMPARE_LESS_EQUAL{})
 
     case .Backtick:
-        write_chunk(token, MAKE_QUOTED{})
+        parse_expression()
+        this_proc := compiler.current_proc
+        ins := this_proc.code[len(this_proc.code)-1]
+        ins.quoted = true
+
+        _, is_ident := ins.variant.(IDENTIFIER)
+
+        if !is_ident {
+            parser_error(token, QUOTED_ELEMENT_IS_NOT_IDENTIFIER, ins.token.text)
+            return
+        }
 
     case .Drop:
         write_chunk(token, DROP{})
@@ -571,11 +581,7 @@ parse_expression :: proc() {
         parse_var_declaration()
 
     case .Set:
-        if is_in_global_scope() {
-            write_chunk(token, STORE_VAR_GLOBAL{})
-        } else {
-            write_chunk(token, STORE_VAR_LOCAL{})
-        }
+        write_chunk(token, SET{})
 
     case .If:
         if_scope := create_scope(.If, len(compiler.current_proc.code))
