@@ -65,45 +65,41 @@ register_global_const_entities :: proc() {
     create_entity(
         make_token("OS_DARWIN"),
         Entity_Const{
-            add_to_constants(ODIN_OS == .Darwin),
-            type_bool,
-            ODIN_OS == .Darwin,
+            type  = type_bool,
+            value = ODIN_OS == .Darwin,
         },
     )
 
     create_entity(
         make_token("OS_LINUX"),
         Entity_Const{
-            add_to_constants(ODIN_OS == .Linux),
-            type_bool,
-            ODIN_OS == .Linux,
+            type  = type_bool,
+            value = ODIN_OS == .Linux,
         },
     )
 
     create_entity(
         make_token("OS_WINDOWS"),
         Entity_Const{
-            add_to_constants(ODIN_OS == .Windows),
-            type_bool,
-            ODIN_OS == .Windows,
+            type  = type_bool,
+            value = ODIN_OS == .Windows,
         },
     )
 
     create_entity(
         make_token("OS_NAME"),
         Entity_Const{
-            add_to_constants(reflect.enum_string(ODIN_OS)),
-            type_string,
-            reflect.enum_string(ODIN_OS),
+            index = add_to_constants(reflect.enum_string(ODIN_OS)),
+            type  = type_string,
+            value = reflect.enum_string(ODIN_OS),
         },
     )
 
     create_entity(
         make_token("SK_DEBUG"),
         Entity_Const{
-            add_to_constants(switch_debug),
-            type_bool,
-            switch_debug,
+            type  = type_bool,
+            value = switch_debug,
         },
     )
 }
@@ -130,6 +126,7 @@ create_entity :: proc(token: Token, variant: Entity_Variant) -> ^Entity {
         line := main_token.l0
         column := main_token.c0
         checker_error(token, REDECLARATION_OF_MAIN, fullpath, line, column)
+        checker_fatal_error()
     }
 
     if found != nil {

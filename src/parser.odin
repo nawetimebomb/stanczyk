@@ -200,7 +200,6 @@ parse_const_declaration :: proc() {
         const.type = type_float
         const.value = value
 
-
     case .Unsigned_Integer:
         value, ok := strconv.parse_u64(stanczyk_number_to_c_number(token.text))
         assert(ok, "Compiler Bug. This was an Int by the Lexer")
