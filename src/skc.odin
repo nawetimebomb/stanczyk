@@ -36,7 +36,7 @@ Compiler :: struct {
 
     constants_table:  [dynamic]Constant,
     main_proc_uid:    int,
-    foreign_name_uid: int,
+    procedure_uid:    int,
     parser:           ^Parser,
     lines_parsed:     int,
     main_found_at:    ^Token,
@@ -119,6 +119,7 @@ main :: proc() {
     global_proc := new(Procedure)
     global_proc.is_global = true
     global_proc.scope = create_scope(.Global)
+    compiler.procedure_uid += 1
     push_procedure(global_proc)
     compiler.global_proc = global_proc
 

@@ -56,7 +56,7 @@ make_procedure :: proc(token: Token) -> ^Procedure {
     result := new(Procedure)
     result.token        = token
     result.name         = token.text
-    result.id           = compiler.foreign_name_uid
+    result.id           = compiler.procedure_uid
     result.file_info    = token.file_info
     result.entity       = create_entity(token, Entity_Proc{ procedure = result })
     result.scope        = create_scope(.Procedure)
@@ -67,7 +67,7 @@ make_procedure :: proc(token: Token) -> ^Procedure {
         compiler.main_proc_uid = result.id
     }
 
-    compiler.foreign_name_uid += 1
+    compiler.procedure_uid += 1
 
     return result
 }
