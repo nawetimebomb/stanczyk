@@ -22,8 +22,12 @@ checker_fatal_error :: proc() {
     )
 }
 
+get_last_snapshot :: proc() -> ^Stack {
+    return compiler.current_scope.stack_snapshots[len(compiler.current_scope.stack_snapshots)-1]
+}
+
 get_current_stack :: proc() -> ^Stack {
-    return compiler.current_scope.stack
+    return compiler.current_proc.stack
 }
 
 pop_stack :: proc() -> ^Type {
@@ -33,6 +37,17 @@ pop_stack :: proc() -> ^Type {
 
 push_stack :: proc(t: ^Type) {
     append(get_current_stack(), t)
+}
+
+snapshot_stack :: proc() {
+    stack := get_current_stack()
+    temp := new(Stack, context.temp_allocator)
+
+    for v in stack {
+        append(temp, v)
+    }
+
+    append(&compiler.current_scope.stack_snapshots, temp)
 }
 
 stack_is_valid_for_return :: proc(ins: ^Instruction) -> bool {
@@ -100,6 +115,7 @@ can_this_proc_be_called :: proc(token: Token, procedure: ^Procedure, report_erro
 check_program_bytecode :: proc() {
     assert(compiler.current_proc == compiler.global_proc)
 
+    compiler.global_proc.stack = new(Stack, context.temp_allocator)
     for instruction in compiler.global_proc.code {
         if compiler.error_reported {
             break
@@ -136,6 +152,7 @@ check_procedure :: proc(procedure: ^Procedure) {
     _type_parameters(&procedure.results)
 
     push_procedure(procedure)
+    procedure.stack = new(Stack, context.temp_allocator)
 
     for arg in procedure.arguments {
         push_stack(arg.type)
@@ -458,10 +475,38 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
         check_instruction(this_proc, ins)
 
     case IF_ELSE_JUMP:
+        last_snapshot := get_last_snapshot()
+        snapshot_stack()
+        clear(get_current_stack())
+        for x in last_snapshot {
+            push_stack(x)
+        }
 
     case IF_END:
+        scope := compiler.current_scope
+        snapshot_stack()
+
+        if scope.else_offset > 0 {
+            pop_scope(ins.token, .Stacks_Match)
+        } else {
+            pop_scope(ins.token, .Stack_Unchanged)
+        }
 
     case IF_FALSE_JUMP:
+        if len(stack) == 0 {
+            checker_error(ins.token, STACK_EMPTY_EXPECT, 1, 0)
+            return
+        }
+
+        condition := pop_stack()
+
+        if !type_is_boolean(condition) {
+            checker_error(ins.token, IF_STATEMENT_NO_BOOLEAN, condition.name)
+            return
+        }
+
+        push_scope(v.local_scope)
+        snapshot_stack()
 
     case INVOKE_PROC:
         if !can_this_proc_be_called(ins.token, v.procedure) {
@@ -480,6 +525,15 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
             v.results[index] = v.procedure.results[index].type
             push_stack(v.results[index])
         }
+
+    case LEN:
+        if len(stack) == 0 {
+            checker_error(ins.token, STACK_EMPTY_EXPECT, 1, 0)
+            return
+        }
+
+        v.type = pop_stack()
+        push_stack(type_int)
 
     case NIP:
         if len(stack) < 2 {

@@ -1,0 +1,26 @@
+proc main
+  true test-if  print
+  false test-if print
+
+  true test-if-else  print
+  false test-if-else print
+
+  true  "was true" "was false" inline-if-else print
+  false "was true" "was false" inline-if-else print
+;
+
+proc test-if (bool --- string)
+  "was false"
+
+  swap if
+    drop "was true"
+  fi
+;
+
+proc test-if-else (bool --- string)
+  if "was true" else "was false" fi
+;
+
+proc inline-if-else (bool string string --- string)
+  rot if drop else nip fi
+;

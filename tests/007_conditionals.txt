@@ -1,0 +1,6 @@
+was true
+was false
+was true
+was false
+was true
+was false

@@ -33,7 +33,11 @@ UNEXPECTED_TOKEN_PROC_TYPE :: "'{}' is not a type."
 
 UNEXPECTED_TOKEN_LET_BIND :: "'{}' is not an identifier."
 
+UNBALANCED_SCOPE :: "This procedure is not ending in the correct scope, maybe you forgot to end the scope for a conditional or loop statement?"
+
 // Checker Errors
+IF_STATEMENT_NO_BOOLEAN :: "Expected a boolean value to initiate 'if' statement. Got {} instead."
+
 MISMATCHED_NUMBER_ARGS :: "Not enough values to call '{}'; Expected {}, but got {}."
 
 MISMATCHED_TYPES_ARG :: "Mismatched type to call '{}'; Expected '{}', but got '{}'."
@@ -58,9 +62,9 @@ STACK_EMPTY :: "There are not enough stack values to make this operation."
 
 STACK_EMPTY_EXPECT :: "There are not enough stack values to make this operation. Expected {}, but got {} instead."
 
-STACK_COMP_CHANGED :: "Stack composition cannot be changed inside '{}' statement. Value #{} was '{}' and now is '{}'."
+STACK_COMP_CHANGED :: "Stack composition cannot be changed in current scope. Value #{} was '{}' and now is '{}'."
 
-STACK_SIZE_CHANGED :: "Stack size cannot be changed inside '{}' statement."
+STACK_SIZE_CHANGED :: "Stack size cannot be changed in current scope. The stack size was {} and now is {}."
 
 UNDEFINED_IDENTIFIER :: "We could not find the meaning of identifier '{}'."
 

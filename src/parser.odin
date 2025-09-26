@@ -345,6 +345,11 @@ parse_proc_declaration :: proc() {
         write_chunk(return_token, RETURN_VALUES{})
     }
 
+    if compiler.current_scope != compiler.current_proc.scope {
+        parser_error(return_token, UNBALANCED_SCOPE)
+        return
+    }
+
     pop_procedure()
 
     append(&bytecode, procedure)
@@ -464,7 +469,8 @@ parse_expression :: proc() {
     case .Binary:
     case .Octal:
     case .String:
-        index := add_to_constants(token.text[1:len(token.text)-1])
+        value := token.text[1:len(token.text)-1]
+        index := add_to_constants(value)
         write_chunk(token, PUSH_STRING{index=index})
 
     case .Byte:
@@ -582,32 +588,56 @@ parse_expression :: proc() {
     case .Set:
         write_chunk(token, SET{})
 
+    case .Len:
+        write_chunk(token, LEN{})
+
     case .If:
-        if_scope := create_scope(.If, len(compiler.current_proc.code))
+        if_scope := create_scope(.Branching)
+        if_scope.if_offset = len(compiler.current_proc.code)
         write_chunk(token, IF_FALSE_JUMP{jump_offset=-1, local_scope=if_scope})
         push_scope(if_scope)
 
     case .Else:
-        old_scope := pop_scope()
+        current_offset := len(compiler.current_proc.code)
+        scope := compiler.current_scope
+        scope.else_offset = current_offset
 
-        if old_scope.kind != .If {
+        start_ins, was_if := &compiler.current_proc.code[scope.if_offset].variant.(IF_FALSE_JUMP)
+
+        if scope.kind != .Branching || !was_if {
             parser_error(token, UNATTACHED_TO_IF, "else")
             return
         }
 
-        else_scope := create_scope(.If_Else, len(compiler.current_proc.code))
-        write_chunk(token, IF_ELSE_JUMP{jump_offset=-1, local_scope=else_scope})
-        push_scope(else_scope)
+        start_ins.jump_offset = current_offset
+        write_chunk(token, IF_ELSE_JUMP{jump_offset=-1})
 
     case .Fi:
-        old_scope := pop_scope()
+        old_scope := pop_scope(token)
+        current_offset := len(compiler.current_proc.code)
 
-        if old_scope.kind != .If && old_scope.kind != .If_Else {
+        write_chunk(token, IF_END{})
+
+        if old_scope.kind != .Branching {
             parser_error(token, UNATTACHED_TO_IF, "fi")
             return
         }
 
-        write_chunk(token, IF_END{})
+        if old_scope.else_offset > 0 {
+            start_ins, was_else := &compiler.current_proc.code[old_scope.else_offset].variant.(IF_ELSE_JUMP)
+            if !was_else {
+                parser_error(token, UNATTACHED_TO_IF, "fi")
+                return
+            }
+            start_ins.jump_offset = current_offset
+        } else {
+            start_ins, was_if := &compiler.current_proc.code[old_scope.if_offset].variant.(IF_FALSE_JUMP)
+            if !was_if {
+                parser_error(token, UNATTACHED_TO_IF, "fi")
+                return
+            }
+            start_ins.jump_offset = current_offset
+        }
 
     case .Cast:
         write_chunk(token, CAST{})

@@ -37,11 +37,12 @@ Procedure :: struct {
     scope:            ^Scope,
     parent:           ^Procedure,
 
-    stack_frame_size: int,
+    stack:            ^Stack,
 
     arguments:        []Parameter,
     results:          []Parameter,
 
+    stack_frame_size: int,
     code:             [dynamic]^Instruction,
 }
 
@@ -73,6 +74,7 @@ Instruction_Variant :: union {
     IF_END,
     IF_FALSE_JUMP,
     INVOKE_PROC,
+    LEN,
     NIP,
     OVER,
     PRINT,
@@ -166,7 +168,6 @@ IDENTIFIER :: struct {
 
 IF_ELSE_JUMP :: struct {
     jump_offset: int,
-    local_scope: ^Scope,
 }
 
 IF_END :: struct {
@@ -182,6 +183,10 @@ INVOKE_PROC :: struct {
     arguments: []^Type,
     results:   []^Type,
     procedure: ^Procedure,
+}
+
+LEN :: struct {
+    type: ^Type,
 }
 
 NIP :: struct {
@@ -291,10 +296,27 @@ TUCK :: struct {
 }
 
 add_to_constants :: proc(value: Constant_Value) -> int {
+    type: ^Type
     index := len(compiler.constants_table)
+
+    switch v in value {
+    case bool:
+        type = type_bool
+    case u8:
+        type = type_byte
+    case f64:
+        type = type_float
+    case i64:
+        type = type_int
+    case string:
+        type = type_string
+    case u64:
+        type = type_uint
+    }
+
     append(&compiler.constants_table, Constant{
         index = index,
-        type  = type_int,
+        type  = type,
         value = value,
     })
     return index
@@ -420,6 +442,10 @@ debug_print_bytecode :: proc() {
             case INVOKE_PROC:
                 _name("INVOKE_PROC")
                 _value("{}", v.procedure.name)
+
+            case LEN:
+                _name("LEN")
+                _value("{}", v.type.name)
 
             case NIP:
                 _name("NIP")

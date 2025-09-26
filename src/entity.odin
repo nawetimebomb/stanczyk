@@ -46,19 +46,24 @@ Entity_Var :: struct {
 }
 
 Scope :: struct {
-    entities:      [dynamic]^Entity,
-    parent:        ^Scope,
-    kind:          Scope_Kind,
-    stack:         ^Stack,
-    update_offset: int,
+    entities:         [dynamic]^Entity,
+    parent:           ^Scope,
+    kind:             Scope_Kind,
+    if_offset:        int,
+    else_offset:      int,
+    stack_snapshots:  [dynamic]^Stack,
 }
 
 Scope_Kind :: enum u8 {
     Global,
     Procedure,
-    Var_Decl,
-    If,
-    If_Else,
+    Branching,
+}
+
+Scope_Validation :: enum {
+    None,
+    Stack_Unchanged,
+    Stacks_Match,
 }
 
 register_global_const_entities :: proc() {
@@ -163,48 +168,70 @@ find_entity :: proc(name: string) -> []^Entity {
     return results[:]
 }
 
-create_scope :: proc(kind: Scope_Kind, offset := -1) -> ^Scope {
+create_scope :: proc(kind: Scope_Kind) -> ^Scope {
     new_scope := new(Scope)
     new_scope.kind = kind
-    new_scope.update_offset = offset
 
-    switch kind {
-    case .Global:
-    case .Procedure:
-    case .Var_Decl:
-    case .If:
-        assert(offset != -1)
-    case .If_Else:
-        assert(offset != -1)
-    }
     return new_scope
 }
 
 push_scope :: proc(new_scope: ^Scope) {
     assert(new_scope != nil)
-    new_scope.stack = new(Stack, context.temp_allocator)
-
-    switch new_scope.kind {
-    case .Global:
-    case .Procedure:
-    case .Var_Decl:
-    case .If:
-        for s in compiler.current_scope.stack {
-            append(new_scope.stack, s)
-        }
-    case .If_Else:
-        for s in compiler.current_scope.stack {
-            append(new_scope.stack, s)
-        }
-    }
 
     new_scope.parent = compiler.current_scope
     compiler.current_scope = new_scope
 }
 
-pop_scope :: proc() -> ^Scope {
+pop_scope :: proc(token: Token, validation: Scope_Validation = .None) -> ^Scope {
+    _stacks_invalid :: proc(token: Token, a, b: ^Stack) -> bool {
+        if len(a) != len(b) {
+            checker_error(token, STACK_SIZE_CHANGED, len(a), len(b))
+            return true
+        }
+
+        for i in 0..<len(a) {
+            if a[i] != b[i] {
+                checker_error(
+                    token, STACK_COMP_CHANGED, i + 1,
+                    a[i].name, b[i].name,
+                )
+                return true
+            }
+        }
+
+        return false
+    }
+
     old_scope := compiler.current_scope
     compiler.current_scope = old_scope.parent
+    this_proc := compiler.current_proc
+
+    switch validation {
+    case .None:
+    case .Stack_Unchanged:
+        stack_copies := &old_scope.stack_snapshots
+        assert(len(stack_copies) > 0)
+
+        for index := 0; index < len(stack_copies)-1; index += 1 {
+            a := stack_copies[index]
+            b := stack_copies[index+1]
+            if _stacks_invalid(token, a, b) {
+                break
+            }
+        }
+    case .Stacks_Match:
+        stack_copies := &old_scope.stack_snapshots
+        assert(len(stack_copies) > 1)
+
+        for index := 1; index < len(stack_copies)-1; index += 1 {
+            a := stack_copies[index]
+            b := stack_copies[index+1]
+            if _stacks_invalid(token, a, b) {
+                break
+            }
+        }
+    }
+
     return old_scope
 }
 
@@ -215,25 +242,7 @@ push_procedure :: proc(procedure: ^Procedure) {
 }
 
 pop_procedure :: proc() {
+    token := compiler.current_proc.token
     compiler.current_proc = compiler.current_proc.parent
-    pop_scope()
-}
-
-are_stacks_equals :: proc(t: Token, a, b: ^Stack, name: string) -> bool {
-    if len(a) != len(b) {
-        checker_error(t, STACK_SIZE_CHANGED, name)
-        return false
-    }
-
-    for i in 0..<len(a) {
-        if a[i] != b[i] {
-            checker_error(
-                t, STACK_COMP_CHANGED, name, i + 1,
-                a[i].name, b[i].name,
-            )
-            return false
-        }
-    }
-
-    return true
+    pop_scope(token)
 }
