@@ -114,7 +114,7 @@ echo -e $PURPLE'  ┃'
 echo -e $PURPLE'┃                                                                      ┃
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  The Stańczyk Programming Language  ━┛'
 
-if [ "$1" == "show" ]; then
+if [ "$1" == "show" ] && [ "$ERRORS" != "" ]; then
     echo -e "${RESET}"
     echo -e "Errors:"
     echo -e "${ERRORS}"

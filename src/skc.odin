@@ -154,7 +154,7 @@ main :: proc() {
     }
 
     libc.system(fmt.ctprintf("nasm -f elf64 {0}.asm -o {0}.o", output_filename))
-    libc.system(fmt.ctprintf("gcc -nostartfiles {0}.o -o {0} -ggdb -no-pie", output_filename))
+    libc.system(fmt.ctprintf("gcc -nostartfiles {0}.o -o {0} -ggdb", output_filename))
     compile_time := time.duration_seconds(time.tick_lap_time(&accumulator))
     alloc_amount := tracking_allocator.current_memory_allocated
 

@@ -166,8 +166,6 @@ get_next_token :: proc(l: ^Lexer) -> (token: Token) {
         }
 
         token.kind = .Integer
-        advance(l)
-        if is_eof(l) do return
 
         switch {
         case is_decimal_number_cont(l) || get_byte(l) == '_':
@@ -176,7 +174,6 @@ get_next_token :: proc(l: ^Lexer) -> (token: Token) {
 
             decimal_loop: for !is_eof(l) && is_decimal_number_cont(l) {
                 if get_byte(l) == '.' {
-
                     next_byte := peek_byte(l, 1)
                     if next_byte == 0 || next_byte == '.' {
                         // break if it's the range operator 'x..y' or EOF
@@ -294,6 +291,11 @@ get_next_token :: proc(l: ^Lexer) -> (token: Token) {
 
     switch l.data[l.offset] {
     case '0'..='9': tokenize_number(l, &token)
+    case '.':
+        next_byte := peek_byte(l, 1)
+        if next_byte >= '0' && next_byte <= '9' {
+            tokenize_number(l, &token)
+        }
     case '/':
         token.kind = .Slash
         advance(l)

@@ -14,4 +14,10 @@ proc main
   10 3 %               print // 10 % 3 = 1
   3 4 + 7 + 1 -        print // 3 + 4 + 7 - 1 = 13
   10 5 / 3 + 5 * 12 -  print // 10 / 5 + 3 * 5 - 12 = 13
+
+  // floating point
+  3.14 .00159 +        print
+  1.0  .5     -        print
+  3.14 2.0 *           print
+  4.0 1.5 /            print
 ;
