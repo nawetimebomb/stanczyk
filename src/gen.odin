@@ -38,6 +38,7 @@ gen_bootstrap :: proc(gen: ^Generator) {
     gen.source = &gen.data_segment
     gen_print (gen, "bits 64\n")
     gen_print (gen, "default rel\n")
+
     gen_print (gen, "section .bss\n")
     gen_print (gen, "args_ptr:           resb 64\n")
     gen_print (gen, "ret_stack_ptr:      resb 64\n")
@@ -48,7 +49,7 @@ gen_bootstrap :: proc(gen: ^Generator) {
     }
     gen_print (gen, "TEMP_QWORD:         resq 0\n")
 
-    gen_print (gen, "section .rodata\n")
+    gen_print (gen, "section .data\n")
     gen_print (gen, "EMPTY_STRING: db \"\",0\n")
     gen_print (gen, "FORMAT_BOOL:  db \"%s\",10,0\n")
     gen_print (gen, "FORMAT_FLOAT: db \"%g\",10,0\n")
