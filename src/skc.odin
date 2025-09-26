@@ -153,14 +153,15 @@ main :: proc() {
         debug_print_bytecode()
     }
 
-    libc.system(fmt.ctprintf("gcc {0}.S -o {0} -ggdb -no-pie", output_filename))
+    libc.system(fmt.ctprintf("nasm -f elf64 {0}.asm -o {0}.o", output_filename))
+    libc.system(fmt.ctprintf("gcc -nostartfiles {0}.o -o {0} -ggdb -no-pie", output_filename))
     compile_time := time.duration_seconds(time.tick_lap_time(&accumulator))
     alloc_amount := tracking_allocator.current_memory_allocated
 
     _ = os2.remove(fmt.tprintf("{}.o", output_filename))
 
     if !switch_debug {
-        os2.remove(fmt.tprintf("{}.S", output_filename))
+        os2.remove(fmt.tprintf("{}.asm", output_filename))
     }
 
     if !switch_silent {

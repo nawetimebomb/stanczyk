@@ -1,5 +1,5 @@
 const a 10 ;
-//const b 3.14 ;
+const b 3.14 ;
 const c "Stańczyk" ;
 const d 'a' ;
 const e 42u ;
@@ -10,7 +10,7 @@ proc main
   const x "Local Scope Constant" ;
 
   a print
-//  b print
+  b print
   c print
   d print
   e print
