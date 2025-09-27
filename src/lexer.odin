@@ -103,6 +103,8 @@ Token_Kind :: enum u8 {
     For_Star          = 131,
     In                = 132,
     Loop              = 133,
+    Continue          = 134,
+    Break             = 135,
 
     Cast              = 149,
     Print             = 150,
@@ -404,38 +406,39 @@ get_next_token :: proc(l: ^Lexer) -> (token: Token) {
 
 get_token_kind_from_string :: proc(s: string) -> (Token_Kind) {
     switch s {
-    case "false":  return .False
-    case "true":   return .True
+    case "false":    return .False
+    case "true":     return .True
 
-    case "drop":   return .Drop
-    case "nip":    return .Nip
-    case "dup":    return .Dup
-    case "dup*":   return .Dup_Star
-    case "swap":   return .Swap
-    case "rot":    return .Rot
-    case "rot*":   return .Rot_Star
-    case "over":   return .Over
-    case "tuck":   return .Tuck
+    case "drop":     return .Drop
+    case "nip":      return .Nip
+    case "dup":      return .Dup
+    case "dup*":     return .Dup_Star
+    case "swap":     return .Swap
+    case "rot":      return .Rot
+    case "rot*":     return .Rot_Star
+    case "over":     return .Over
+    case "tuck":     return .Tuck
 
-    case "using":  return .Using
+    case "using":    return .Using
+    case "proc":     return .Proc
+    case "type":     return .Type
+    case "const":    return .Const
+    case "let":      return .Let
+    case "var":      return .Var
+    case "set":      return .Set
+    case "len":      return .Len
+    case "if":       return .If
+    case "else":     return .Else
+    case "fi":       return .Fi
+    case "for":      return .For
+    case "for*":     return .For_Star
+    case "in":       return .In
+    case "loop":     return .Loop
+    case "continue": return .Continue
+    case "break":    return .Break
 
-    case "proc":   return .Proc
-    case "type":   return .Type
-    case "const":  return .Const
-    case "let":    return .Let
-    case "var":    return .Var
-    case "set":    return .Set
-    case "len":    return .Len
-    case "if":     return .If
-    case "else":   return .Else
-    case "fi":     return .Fi
-    case "for":    return .For
-    case "for*":   return .For_Star
-    case "in":     return .In
-    case "loop":   return .Loop
-
-    case "cast":   return .Cast
-    case "print":  return .Print
+    case "cast":     return .Cast
+    case "print":    return .Print
     }
 
     return .Invalid

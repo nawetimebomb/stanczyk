@@ -1,0 +1,17 @@
+proc main
+  0 10 ..< for
+    it 2 % 0 = if
+      continue
+    fi
+
+    it print
+  loop
+
+  0 10 ..< for
+    it 3 = if
+      break
+    fi
+
+    it print
+  loop
+;

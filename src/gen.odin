@@ -373,12 +373,61 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
         gen_print (gen, "    push    rax\n")
         gen_print (gen, "    push    rbx\n")
 
-    case FOR_LOOP_END:
+    case IDENTIFIER:
+
+    case IF_ELSE_JUMP:
+        gen_printf(gen, "    jmp     proc{}.ip{}.end\n", this_proc.id, v.id)
+        gen_ip_label(gen, this_proc, ins)
+        gen_printf(gen, "proc{}.ip{}.else:\n", this_proc.id, v.id)
+
+    case IF_END:
+        gen_ip_label(gen, this_proc, ins)
+        gen_printf(gen, "proc{}.ip{}.end:\n", this_proc.id, v.id)
+
+    case IF_FALSE_JUMP:
+        jump_to_else := v.scope.kind == .Branch_Else
+
+        gen_ip_label(gen, this_proc, ins)
+        gen_print  (gen, "    pop    rax\n")
+        gen_print  (gen, "    test   rax, rax\n")
+        gen_printf (
+            gen, "    jz     proc{}.ip{}.{}\n",  this_proc.id, v.id,
+            jump_to_else ? "else" : "end",
+        )
+
+    case INVOKE_PROC:
+        gen_ip_label(gen, this_proc, ins)
+        gen_print (gen, "    mov     rax, rsp\n")
+        gen_print (gen, "    mov     rsp, [ret_stack_ptr]\n")
+        gen_printf(gen, "    call    proc{} ; {}\n", v.procedure.id, v.procedure.name)
+        gen_print (gen, "    mov     [ret_stack_ptr], rsp\n")
+        gen_print (gen, "    mov     rsp, rax\n")
+
+    case LEN:
+        gen_ip_label(gen, this_proc, ins)
+
+        if v.type != type_string {
+            unimplemented()
+        }
+
+        gen_print (gen, "    pop     rax\n")
+        gen_print (gen, "    sub     eax, 4\n")
+        gen_print (gen, "    push    QWORD [rax]\n")
+
+    case LOOP_BREAK:
+        gen_ip_label(gen, this_proc, ins)
+        gen_printf(gen, "    jmp     proc{}.ip{}.end\n", this_proc.id, v.id)
+
+    case LOOP_CONTINUE:
+        gen_ip_label(gen, this_proc, ins)
+        gen_printf(gen, "    jmp     proc{}.ip{}.start\n", this_proc.id, v.id)
+
+    case LOOP_END:
         gen_ip_label(gen, this_proc, ins)
         gen_printf(gen, "    jmp     proc{}.ip{}.start\n", this_proc.id, v.id)
         gen_printf(gen, "proc{}.ip{}.end:\n", this_proc.id, v.id)
 
-    case FOR_LOOP_RANGE_START:
+    case LOOP_RANGE_START:
         limit_offset := v.offsets[0]
         index_offset := v.offsets[1]
         curr_value_offset := v.offsets[2]
@@ -423,47 +472,6 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
         }
         gen_print (gen, "    test    ecx, ecx\n")
         gen_printf(gen, "    jz      proc{}.ip{}.end\n", this_proc.id, v.id)
-
-    case IDENTIFIER:
-
-    case IF_ELSE_JUMP:
-        gen_printf(gen, "    jmp     proc{}.ip{}.end\n", this_proc.id, v.id)
-        gen_ip_label(gen, this_proc, ins)
-        gen_printf(gen, "proc{}.ip{}.else:\n", this_proc.id, v.id)
-
-    case IF_END:
-        gen_ip_label(gen, this_proc, ins)
-        gen_printf(gen, "proc{}.ip{}.end:\n", this_proc.id, v.id)
-
-    case IF_FALSE_JUMP:
-        jump_to_else := v.scope.kind == .Branch_Else
-
-        gen_ip_label(gen, this_proc, ins)
-        gen_print  (gen, "    pop    rax\n")
-        gen_print  (gen, "    test   rax, rax\n")
-        gen_printf (
-            gen, "    jz     proc{}.ip{}.{}\n",  this_proc.id, v.id,
-            jump_to_else ? "else" : "end",
-        )
-
-    case INVOKE_PROC:
-        gen_ip_label(gen, this_proc, ins)
-        gen_print (gen, "    mov     rax, rsp\n")
-        gen_print (gen, "    mov     rsp, [ret_stack_ptr]\n")
-        gen_printf(gen, "    call    proc{} ; {}\n", v.procedure.id, v.procedure.name)
-        gen_print (gen, "    mov     [ret_stack_ptr], rsp\n")
-        gen_print (gen, "    mov     rsp, rax\n")
-
-    case LEN:
-        gen_ip_label(gen, this_proc, ins)
-
-        if v.type != type_string {
-            unimplemented()
-        }
-
-        gen_print (gen, "    pop     rax\n")
-        gen_print (gen, "    sub     eax, 4\n")
-        gen_print (gen, "    push    QWORD [rax]\n")
 
     case NIP:
         gen_ip_label(gen, this_proc, ins)

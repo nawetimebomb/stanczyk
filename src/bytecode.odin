@@ -69,14 +69,16 @@ Instruction_Variant :: union {
     DROP,
     DUP,
     DUP_PREV,
-    FOR_LOOP_END,
-    FOR_LOOP_RANGE_START,
     IDENTIFIER,
     IF_ELSE_JUMP,
     IF_END,
     IF_FALSE_JUMP,
     INVOKE_PROC,
     LEN,
+    LOOP_BREAK,
+    LOOP_CONTINUE,
+    LOOP_END,
+    LOOP_RANGE_START,
     NIP,
     OVER,
     PRINT,
@@ -164,18 +166,6 @@ DUP_PREV :: struct {
 
 }
 
-FOR_LOOP_END :: struct {
-    id: int,
-}
-
-FOR_LOOP_RANGE_START :: struct {
-    id:      int,
-    offsets: [3]int,
-    tokens:  []Token,
-    dir:     enum { Dec, Inc },
-    scope:   ^Scope,
-}
-
 IDENTIFIER :: struct {
     value: string,
 }
@@ -201,6 +191,26 @@ INVOKE_PROC :: struct {
 
 LEN :: struct {
     type: ^Type,
+}
+
+LOOP_BREAK :: struct {
+    id: int,
+}
+
+LOOP_CONTINUE :: struct {
+    id: int,
+}
+
+LOOP_END :: struct {
+    id: int,
+}
+
+LOOP_RANGE_START :: struct {
+    id:      int,
+    offsets: [3]int,
+    tokens:  []Token,
+    dir:     enum { Dec, Inc },
+    scope:   ^Scope,
 }
 
 NIP :: struct {
@@ -438,14 +448,6 @@ debug_print_bytecode :: proc() {
             case DUP_PREV:
                 _name("DUP_PREV")
 
-            case FOR_LOOP_END:
-                _name("FOR_LOOP_END")
-                _value("{}", v.id)
-
-            case FOR_LOOP_RANGE_START:
-                _name("FOR_LOOP_RANGE_START")
-                _value("{} {}", v.dir, v.id)
-
             case IDENTIFIER:
                 _name("IDENTIFIER")
                 _value("{}", v.value)
@@ -469,6 +471,22 @@ debug_print_bytecode :: proc() {
             case LEN:
                 _name("LEN")
                 _value("{}", v.type.name)
+
+            case LOOP_BREAK:
+                _name("LOOP_BREAK")
+                _value("{}", v.id)
+
+            case LOOP_CONTINUE:
+                _name("LOOP_CONTINUE")
+                _value("{}", v.id)
+
+            case LOOP_END:
+                _name("LOOP_END")
+                _value("{}", v.id)
+
+            case LOOP_RANGE_START:
+                _name("LOOP_RANGE_START")
+                _value("{} {}", v.dir, v.id)
 
             case NIP:
                 _name("NIP")

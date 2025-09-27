@@ -160,6 +160,20 @@ is_in_global_scope :: proc() -> bool {
     return compiler.current_proc == compiler.global_proc
 }
 
+find_closest_loop_scope :: proc() -> ^Scope {
+    scope := compiler.current_scope
+
+    for scope != nil {
+        if scope.kind == .For_Loop {
+            break
+        }
+
+        scope = scope.parent
+    }
+
+    return scope
+}
+
 parse_const_declaration :: proc() {
     name_token := expect(.Identifier)
     const := Entity_Const{}
@@ -559,9 +573,9 @@ parse_expression :: proc() {
         }
 
         for_scope := create_scope(.For_Loop)
-        for_scope.scope_offset = len(compiler.current_proc.code)
-        write_chunk(token, FOR_LOOP_RANGE_START{
-            id     = for_scope.scope_offset,
+        for_scope.scope_id = len(compiler.current_proc.code)
+        write_chunk(token, LOOP_RANGE_START{
+            id     = for_scope.scope_id,
             tokens = slice.clone(bind_tokens[:]),
             dir    = token.kind == .Autorange_Less ? .Inc : .Dec,
             scope  = for_scope,
@@ -622,8 +636,8 @@ parse_expression :: proc() {
 
     case .If:
         if_scope := create_scope(.Branch_Then)
-        if_scope.scope_offset = len(compiler.current_proc.code)
-        write_chunk(token, IF_FALSE_JUMP{id=if_scope.scope_offset, scope=if_scope})
+        if_scope.scope_id = len(compiler.current_proc.code)
+        write_chunk(token, IF_FALSE_JUMP{id=if_scope.scope_id, scope=if_scope})
         push_scope(if_scope)
 
     case .Else:
@@ -635,7 +649,7 @@ parse_expression :: proc() {
         }
 
         scope.kind = .Branch_Else
-        write_chunk(token, IF_ELSE_JUMP{id=scope.scope_offset})
+        write_chunk(token, IF_ELSE_JUMP{id=scope.scope_id})
 
     case .Fi:
         scope := pop_scope(token)
@@ -647,7 +661,7 @@ parse_expression :: proc() {
             return
         }
 
-        write_chunk(token, IF_END{id=scope.scope_offset})
+        write_chunk(token, IF_END{id=scope.scope_id})
 
     case .For:
 
@@ -658,15 +672,33 @@ parse_expression :: proc() {
     case .Loop:
         scope := pop_scope(token)
 
-        #partial switch scope.kind {
-        case .For_Loop:
-
-        case:
+        if scope.kind != .For_Loop {
             parser_error(token, UNATTACHED_TO_LOOP, "loop")
             return
         }
 
-        write_chunk(token, FOR_LOOP_END{id=scope.scope_offset})
+        write_chunk(token, LOOP_END{id=scope.scope_id})
+
+    case .Continue:
+        scope := find_closest_loop_scope()
+
+
+        if scope == nil || scope.kind != .For_Loop {
+            parser_error(token, UNATTACHED_TO_LOOP, "continue")
+            return
+        }
+
+        write_chunk(token, LOOP_CONTINUE{id=scope.scope_id})
+
+    case .Break:
+        scope := find_closest_loop_scope()
+
+        if scope.kind != .For_Loop {
+            parser_error(token, UNATTACHED_TO_LOOP, "continue")
+            return
+        }
+
+        write_chunk(token, LOOP_BREAK{id=scope.scope_id})
 
     case .Cast:
         write_chunk(token, CAST{})

@@ -49,7 +49,7 @@ Scope :: struct {
     entities:         [dynamic]^Entity,
     parent:           ^Scope,
     kind:             Scope_Kind,
-    scope_offset:     int,
+    scope_id:         int,
     stack_snapshots:  [dynamic]^Stack,
 }
 
