@@ -69,6 +69,8 @@ Instruction_Variant :: union {
     DROP,
     DUP,
     DUP_PREV,
+    FOR_LOOP_END,
+    FOR_LOOP_RANGE_START,
     IDENTIFIER,
     IF_ELSE_JUMP,
     IF_END,
@@ -160,6 +162,18 @@ DUP :: struct {
 
 DUP_PREV :: struct {
 
+}
+
+FOR_LOOP_END :: struct {
+    jump_offset: int,
+}
+
+FOR_LOOP_RANGE_START :: struct {
+    offsets:     [3]int,
+    tokens:      []Token,
+    direction:   enum { Dec, Inc },
+    jump_offset: int,
+    local_scope: ^Scope,
 }
 
 IDENTIFIER :: struct {
@@ -423,6 +437,13 @@ debug_print_bytecode :: proc() {
 
             case DUP_PREV:
                 _name("DUP_PREV")
+
+            case FOR_LOOP_END:
+                _name("FOR_LOOP_END")
+
+            case FOR_LOOP_RANGE_START:
+                _name("FOR_LOOP_RANGE_START")
+                _value("{}", v.direction)
 
             case IDENTIFIER:
                 _name("IDENTIFIER")

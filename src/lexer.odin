@@ -31,75 +31,81 @@ Token :: struct {
 }
 
 Token_Kind :: enum u8 {
-    Invalid          =   0,
-    EOF              =   1,
+    Invalid           =   0,
+    EOF               =   1,
 
     // Basic Type Values
-    Identifier       =  10,
-    Integer          =  11,
-    Unsigned_Integer =  12,
-    Float            =  13,
-    Hex              =  14,
-    Binary           =  15,
-    Octal            =  16,
-    String           =  17,
-    Byte             =  18,
-    True             =  19,
-    False            =  20,
+    Identifier        =  10,
+    Integer           =  11,
+    Unsigned_Integer  =  12,
+    Float             =  13,
+    Hex               =  14,
+    Binary            =  15,
+    Octal             =  16,
+    String            =  17,
+    Byte              =  18,
+    True              =  19,
+    False             =  20,
 
 
     // Single(ish) character tokens
-    Semicolon        =  30,
-    Brace_Left       =  31,
-    Brace_Right      =  32,
-    Bracket_Left     =  33,
-    Bracket_Right    =  34,
-    Paren_Left       =  35,
-    Paren_Right      =  36,
-    Minus            =  37,
-    Plus             =  38,
-    Star             =  39,
-    Slash            =  40,
-    Percent          =  41,
-    Colon            =  42,
-    Dash_Dash_Dash   =  50,
-    Equal            =  51,
-    Not_Equal        =  52,
-    Greater          =  53,
-    Greater_Equal    =  54,
-    Less             =  55,
-    Less_Equal       =  56,
-    Backtick         =  57,
+    Semicolon         =  30,
+    Brace_Left        =  31,
+    Brace_Right       =  32,
+    Bracket_Left      =  33,
+    Bracket_Right     =  34,
+    Paren_Left        =  35,
+    Paren_Right       =  36,
+    Minus             =  37,
+    Plus              =  38,
+    Star              =  39,
+    Slash             =  40,
+    Percent           =  41,
+    Colon             =  42,
+    Dash_Dash_Dash    =  50,
+    Equal             =  51,
+    Not_Equal         =  52,
+    Greater           =  53,
+    Greater_Equal     =  54,
+    Less              =  55,
+    Less_Equal        =  56,
+    Backtick          =  57,
+    Autorange_Less    =  58,
+    Autorange_Greater =  59,
 
 
     // Intrinsics
-    Drop             =  60,
-    Nip              =  61,
-    Dup              =  62,
-    Dup_Star         =  63,
-    Swap             =  64,
-    Rot              =  65,
-    Rot_Star         =  66,
-    Over             =  67,
-    Tuck             =  68,
+    Drop              =  60,
+    Nip               =  61,
+    Dup               =  62,
+    Dup_Star          =  63,
+    Swap              =  64,
+    Rot               =  65,
+    Rot_Star          =  66,
+    Over              =  67,
+    Tuck              =  68,
 
 
     // Keywords
-    Using            = 100,
-    Foreign          = 101,
-    Proc             = 120,
-    Type             = 121,
-    Const            = 122,
-    Let              = 123,
-    Var              = 124,
-    Len              = 125,
-    Set              = 126,
-    If               = 127,
-    Else             = 128,
-    Fi               = 129,
+    Using             = 100,
+    Foreign           = 101,
+    Proc              = 120,
+    Type              = 121,
+    Const             = 122,
+    Let               = 123,
+    Var               = 124,
+    Len               = 125,
+    Set               = 126,
+    If                = 127,
+    Else              = 128,
+    Fi                = 129,
+    For               = 130,
+    For_Star          = 131,
+    In                = 132,
+    Loop              = 133,
 
-    Cast             = 149,
-    Print            = 150,
+    Cast              = 149,
+    Print             = 150,
 }
 
 init_lexer :: proc() {
@@ -296,6 +302,17 @@ get_next_token :: proc(l: ^Lexer) -> (token: Token) {
         next_byte := peek_byte(l, 1)
         if next_byte >= '0' && next_byte <= '9' {
             tokenize_number(l, &token)
+        } else if next_byte == '.' {
+            advance(l)
+            advance(l)
+
+            if get_byte(l) == '>' {
+                token.kind = .Autorange_Greater
+                advance(l)
+            } else if get_byte(l) == '<' {
+                token.kind = .Autorange_Less
+                advance(l)
+            }
         }
     case '/':
         token.kind = .Slash
@@ -412,6 +429,10 @@ get_token_kind_from_string :: proc(s: string) -> (Token_Kind) {
     case "if":     return .If
     case "else":   return .Else
     case "fi":     return .Fi
+    case "for":    return .For
+    case "for*":   return .For_Star
+    case "in":     return .In
+    case "loop":   return .Loop
 
     case "cast":   return .Cast
     case "print":  return .Print

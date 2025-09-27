@@ -3,6 +3,7 @@ package main
 import "core:fmt"
 import "core:strconv"
 import "core:strings"
+import "core:slice"
 import "core:unicode/utf8"
 
 Parser :: struct {
@@ -539,6 +540,34 @@ parse_expression :: proc() {
             return
         }
 
+    case .Autorange_Less, .Autorange_Greater:
+        if !check(.For) && !check(.For_Star) {
+            parser_error(token, FOR_STATEMENT_AFTER_AUTORANGE_REQUIRED)
+            return
+        }
+
+        bind_tokens := make([dynamic]Token, context.temp_allocator)
+
+        if allow(.For_Star) {
+            for can_continue_parsing() && !check(.In) && len(bind_tokens) < 3 {
+                append(&bind_tokens, next())
+            }
+
+            in_token := expect(.In)
+        } else {
+            expect(.For)
+        }
+
+        for_scope := create_scope(.For_Loop)
+        for_scope.for_offset = len(compiler.current_proc.code)
+        write_chunk(token, FOR_LOOP_RANGE_START{
+            tokens      = slice.clone(bind_tokens[:]),
+            direction   = token.kind == .Autorange_Less ? .Inc : .Dec,
+            jump_offset = -1,
+            local_scope = for_scope,
+        })
+        push_scope(for_scope)
+
     case .Drop:
         write_chunk(token, DROP{})
 
@@ -638,6 +667,28 @@ parse_expression :: proc() {
             }
             start_ins.jump_offset = current_offset
         }
+
+    case .For:
+
+    case .For_Star:
+
+    case .In:
+
+    case .Loop:
+        code := &compiler.current_proc.code
+        old_scope := pop_scope(token)
+        start_instruction := code[old_scope.for_offset]
+        current_offset := len(code)
+
+        #partial switch &variant in start_instruction.variant {
+        case FOR_LOOP_RANGE_START:
+            variant.jump_offset = current_offset
+        case:
+            parser_error(token, UNATTACHED_TO_LOOP, "loop")
+            return
+        }
+
+        write_chunk(token, FOR_LOOP_END{jump_offset=old_scope.for_offset})
 
     case .Cast:
         write_chunk(token, CAST{})

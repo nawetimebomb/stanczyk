@@ -1,0 +1,13 @@
+proc main
+  0 3 ..< for
+    it print
+  loop
+
+  1 3 ..< for* x idx in
+    x print idx print
+  loop
+
+  3 0 ..> for
+    it print index print limit print
+  loop
+;

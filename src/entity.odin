@@ -51,6 +51,7 @@ Scope :: struct {
     kind:             Scope_Kind,
     if_offset:        int,
     else_offset:      int,
+    for_offset:       int,
     stack_snapshots:  [dynamic]^Stack,
 }
 
@@ -58,6 +59,7 @@ Scope_Kind :: enum u8 {
     Global,
     Procedure,
     Branching,
+    For_Loop,
 }
 
 Scope_Validation :: enum {

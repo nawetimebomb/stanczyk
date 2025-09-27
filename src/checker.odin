@@ -422,6 +422,47 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
         push_stack(type1)
         push_stack(type2)
 
+    case FOR_LOOP_END:
+        snapshot_stack()
+        pop_scope(ins.token, .Stack_Unchanged)
+
+    case FOR_LOOP_RANGE_START:
+        push_scope(v.local_scope)
+
+        if len(stack) < 2 {
+            checker_error(ins.token, STACK_EMPTY_EXPECT, 2, len(stack))
+            return
+        }
+
+        type2 := pop_stack()
+        type1 := pop_stack()
+
+        if !type_is_integer(type1) || !type_is_integer(type2) {
+            checker_error(ins.token, AUTORANGE_LOOP_MISMATCHED_TYPES, type1.name, type2.name)
+            return
+        }
+
+        DEFAULT_BINDS :: [3]string{"limit", "index", "it"}
+        binds := DEFAULT_BINDS
+
+        if len(v.tokens) > 0 {
+            for token, index in v.tokens {
+                binds[2-index] = token.text
+            }
+        }
+
+        for bind, index in binds {
+            offset := this_proc.stack_frame_size
+            token := ins.token
+            token.text = bind
+            create_entity(token, Entity_Binding{offset=offset, type=type_int})
+
+            this_proc.stack_frame_size += type_int.size_in_bytes
+            v.offsets[index] = offset
+        }
+
+        snapshot_stack()
+
     case IDENTIFIER:
         matches := find_entity(v.value)
 
@@ -654,7 +695,7 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
 
         type := pop_stack()
         v.offset = this_proc.stack_frame_size
-        create_entity(v.token, Entity_Binding{offset=this_proc.stack_frame_size, type=type})
+        create_entity(v.token, Entity_Binding{offset=v.offset, type=type})
         this_proc.stack_frame_size += type.size_in_bytes
 
     case STORE_VAR_GLOBAL:

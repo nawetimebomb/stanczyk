@@ -13,6 +13,8 @@ EMPTY_LET_DECL :: "Empty let declarations are not allowed."
 
 FAILED_TO_PARSE_TYPE :: "Failed to parse this as a valid type"
 
+FOR_STATEMENT_AFTER_AUTORANGE_REQUIRED :: "Autorange expression needs to be followed by a 'for' statement."
+
 IMPERATIVE_EXPR_GLOBAL :: "Attemp to use an imperative expression while in global scope."
 
 INVALID_BYTE_LITERAL :: "Invalid byte literal {}."
@@ -29,13 +31,19 @@ QUOTED_ELEMENT_IS_NOT_IDENTIFIER :: "Quoted element is not an identifier."
 
 UNATTACHED_TO_IF :: "'{}' statement unattached to 'if' statement."
 
+UNATTACHED_TO_LOOP :: "'{}' statement unattached to 'for' statement."
+
 UNEXPECTED_TOKEN_PROC_TYPE :: "'{}' is not a type."
 
 UNEXPECTED_TOKEN_LET_BIND :: "'{}' is not an identifier."
 
 UNBALANCED_SCOPE :: "This procedure is not ending in the correct scope, maybe you forgot to end the scope for a conditional or loop statement?"
 
+UP_TO_MAX_BOUND_VALUES :: "Attempt to bind more values than the ones available in this context. The maximum is {} and correspond to {}."
+
 // Checker Errors
+AUTORANGE_LOOP_MISMATCHED_TYPES :: "Mismatched type in autorange loop; Expected {}, got {}."
+
 IF_STATEMENT_NO_BOOLEAN :: "Expected a boolean value to initiate 'if' statement. Got {} instead."
 
 MISMATCHED_NUMBER_ARGS :: "Not enough values to call '{}'; Expected {}, but got {}."

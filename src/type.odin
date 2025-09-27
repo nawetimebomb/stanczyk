@@ -133,6 +133,20 @@ type_is_string :: proc(type: ^Type) -> bool {
     return false
 }
 
+type_is_integer :: proc(type: ^Type) -> bool {
+    #partial switch variant in type.variant {
+    case Type_Alias:
+        return type_is_integer(variant.derived)
+    case Type_Basic:
+        #partial switch variant.kind {
+        case .Int:
+            return true
+        }
+    }
+
+    return false
+}
+
 type_is_number :: proc(type: ^Type) -> bool {
     #partial switch variant in type.variant {
     case Type_Alias:
