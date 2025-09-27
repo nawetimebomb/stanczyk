@@ -1,8 +1,0 @@
-main :: ( )
-  "- casting any positive number to boolean gives true" println
-  "  -- 1 " print 1 bool cast println
-  "  -- 1337 " print 1337 bool cast println
-  "- casting zero or negative numbers to boolean gives false" println
-  "  -- 0 " print 0 bool cast println
-  "  -- -13 " print -13 bool cast println
-;

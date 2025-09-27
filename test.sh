@@ -11,6 +11,7 @@ RED="\033[91m"
 GREEN="\033[92m"
 RESET="\033[0m"
 PURPLE="\033[95m"
+YELLOW="\033[3;93m"
 BOLD="\033[1m"
 
 ERRORS=""
@@ -109,7 +110,14 @@ else
 fi
 echo -e $PURPLE'┃                                                                      ┃
 ┃                                                                      ┃'
-printf "${PURPLE}┃${RESET}                     ${RCOLOR}${BOLD}TOTAL %2d :: Success %2d | Fails %2d | Skipped %2d ${RESET}" $TOTAL $SUCCESS $FAIL $SKIPPED
+printf "${PURPLE}┃${RESET}                     ${RCOLOR}${BOLD}TOTAL %2d :: Success %2d | Fails %2d | " $TOTAL $SUCCESS $FAIL
+
+if [[ "$SKIPPED" -gt 0 ]]; then
+    printf "${YELLOW}"
+fi
+
+printf "Skipped %2d " $SKIPPED
+
 echo -e $PURPLE'  ┃'
 echo -e $PURPLE'┃                                                                      ┃
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  The Stańczyk Programming Language  ━┛'
