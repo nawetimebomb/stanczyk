@@ -165,15 +165,15 @@ DUP_PREV :: struct {
 }
 
 FOR_LOOP_END :: struct {
-    jump_offset: int,
+    id: int,
 }
 
 FOR_LOOP_RANGE_START :: struct {
-    offsets:     [3]int,
-    tokens:      []Token,
-    direction:   enum { Dec, Inc },
-    jump_offset: int,
-    local_scope: ^Scope,
+    id:      int,
+    offsets: [3]int,
+    tokens:  []Token,
+    dir:     enum { Dec, Inc },
+    scope:   ^Scope,
 }
 
 IDENTIFIER :: struct {
@@ -181,16 +181,16 @@ IDENTIFIER :: struct {
 }
 
 IF_ELSE_JUMP :: struct {
-    jump_offset: int,
+    id: int,
 }
 
 IF_END :: struct {
-
+    id: int,
 }
 
 IF_FALSE_JUMP :: struct {
-    jump_offset: int,
-    local_scope: ^Scope,
+    id: int,
+    scope: ^Scope,
 }
 
 INVOKE_PROC :: struct {
@@ -440,10 +440,11 @@ debug_print_bytecode :: proc() {
 
             case FOR_LOOP_END:
                 _name("FOR_LOOP_END")
+                _value("{}", v.id)
 
             case FOR_LOOP_RANGE_START:
                 _name("FOR_LOOP_RANGE_START")
-                _value("{}", v.direction)
+                _value("{} {}", v.dir, v.id)
 
             case IDENTIFIER:
                 _name("IDENTIFIER")
@@ -451,14 +452,15 @@ debug_print_bytecode :: proc() {
 
             case IF_ELSE_JUMP:
                 _name("IF_ELSE_JUMP")
-                _value("{}", v.jump_offset)
+                _value("{}", v.id)
 
             case IF_END:
                 _name("IF_END")
+                _value("{}", v.id)
 
             case IF_FALSE_JUMP:
                 _name("IF_FALSE_JUMP")
-                _value("{}", v.jump_offset)
+                _value("{}", v.id)
 
             case INVOKE_PROC:
                 _name("INVOKE_PROC")

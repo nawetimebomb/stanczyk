@@ -374,22 +374,24 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
         gen_print (gen, "    push    rbx\n")
 
     case FOR_LOOP_END:
-        gen_printf(gen, "    jmp     proc{}.ip{}\n", this_proc.id, v.jump_offset)
         gen_ip_label(gen, this_proc, ins)
+        gen_printf(gen, "    jmp     proc{}.ip{}.start\n", this_proc.id, v.id)
+        gen_printf(gen, "proc{}.ip{}.end:\n", this_proc.id, v.id)
 
     case FOR_LOOP_RANGE_START:
         limit_offset := v.offsets[0]
         index_offset := v.offsets[1]
         curr_value_offset := v.offsets[2]
 
+        gen_ip_label(gen, this_proc, ins)
         gen_print (gen, "    mov     rax, [ret_stack_ptr]\n")
         gen_print (gen, "    pop     rbx\n")
         gen_printf(gen, "    mov     QWORD [rax+{}], rbx\n", limit_offset)
         gen_printf(gen, "    mov     QWORD [rax+{}], 0\n",   index_offset)
         gen_print (gen, "    pop     rbx\n")
         gen_printf(gen, "    mov     QWORD [rax+{}], rbx\n", curr_value_offset)
-        gen_printf(gen, "    jmp     proc{}.ip{}.start\n", this_proc.id, ins.offset)
-        gen_ip_label(gen, this_proc, ins)
+        gen_printf(gen, "    jmp     proc{}.ip{}.loop\n", this_proc.id, v.id)
+        gen_printf(gen, "proc{}.ip{}.start:\n", this_proc.id, v.id)
         gen_print (gen, "    mov     rax, [ret_stack_ptr]\n")
 
         // increment index
@@ -399,7 +401,7 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
 
         // increment initial value
         gen_printf(gen, "    mov     rbx, [rax+{}]\n", curr_value_offset)
-        if v.direction == .Inc {
+        if v.dir == .Inc {
             gen_print (gen, "    inc     ebx\n")
         } else {
             gen_print (gen, "    dec     ebx\n")
@@ -407,35 +409,42 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
         gen_printf(gen, "    mov     QWORD [rax+{}], rbx\n", curr_value_offset)
 
         // start loop
-        gen_printf(gen, "proc{}.ip{}.start:\n", this_proc.id, ins.offset)
+        gen_printf(gen, "proc{}.ip{}.loop:\n", this_proc.id, v.id)
         gen_print (gen, "    xor     ecx, ecx\n")
         gen_print (gen, "    mov     edx, 1\n")
         gen_print (gen, "    mov     rax, [ret_stack_ptr]\n")
         gen_printf(gen, "    mov     rdi, [rax+{}]\n", curr_value_offset) // value
         gen_printf(gen, "    mov     rsi, [rax+{}]\n", limit_offset) // limit
         gen_print (gen, "    cmp     rdi, rsi\n")
-        if v.direction == .Inc {
+        if v.dir == .Inc {
             gen_print (gen, "    cmovl   ecx, edx\n")
         } else {
             gen_print (gen, "    cmovg   ecx, edx\n")
         }
         gen_print (gen, "    test    ecx, ecx\n")
-        gen_printf(gen, "    jz      proc{}.ip{}\n", this_proc.id, v.jump_offset)
+        gen_printf(gen, "    jz      proc{}.ip{}.end\n", this_proc.id, v.id)
 
     case IDENTIFIER:
 
     case IF_ELSE_JUMP:
-        gen_printf(gen, "    jmp     proc{}.ip{}\n", this_proc.id, v.jump_offset)
+        gen_printf(gen, "    jmp     proc{}.ip{}.end\n", this_proc.id, v.id)
         gen_ip_label(gen, this_proc, ins)
+        gen_printf(gen, "proc{}.ip{}.else:\n", this_proc.id, v.id)
 
     case IF_END:
         gen_ip_label(gen, this_proc, ins)
+        gen_printf(gen, "proc{}.ip{}.end:\n", this_proc.id, v.id)
 
     case IF_FALSE_JUMP:
+        jump_to_else := v.scope.kind == .Branch_Else
+
         gen_ip_label(gen, this_proc, ins)
         gen_print  (gen, "    pop    rax\n")
         gen_print  (gen, "    test   rax, rax\n")
-        gen_printf (gen, "    jz     proc{}.ip{}\n", this_proc.id, v.jump_offset)
+        gen_printf (
+            gen, "    jz     proc{}.ip{}.{}\n",  this_proc.id, v.id,
+            jump_to_else ? "else" : "end",
+        )
 
     case INVOKE_PROC:
         gen_ip_label(gen, this_proc, ins)

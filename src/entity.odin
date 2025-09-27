@@ -49,16 +49,15 @@ Scope :: struct {
     entities:         [dynamic]^Entity,
     parent:           ^Scope,
     kind:             Scope_Kind,
-    if_offset:        int,
-    else_offset:      int,
-    for_offset:       int,
+    scope_offset:     int,
     stack_snapshots:  [dynamic]^Stack,
 }
 
 Scope_Kind :: enum u8 {
     Global,
     Procedure,
-    Branching,
+    Branch_Then,
+    Branch_Else,
     For_Loop,
 }
 

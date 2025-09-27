@@ -427,7 +427,7 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
         pop_scope(ins.token, .Stack_Unchanged)
 
     case FOR_LOOP_RANGE_START:
-        push_scope(v.local_scope)
+        push_scope(v.scope)
 
         if len(stack) < 2 {
             checker_error(ins.token, STACK_EMPTY_EXPECT, 2, len(stack))
@@ -527,10 +527,10 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
         scope := compiler.current_scope
         snapshot_stack()
 
-        if scope.else_offset > 0 {
-            pop_scope(ins.token, .Stacks_Match)
-        } else {
+        if scope.kind == .Branch_Then {
             pop_scope(ins.token, .Stack_Unchanged)
+        } else {
+            pop_scope(ins.token, .Stacks_Match)
         }
 
     case IF_FALSE_JUMP:
@@ -546,7 +546,7 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
             return
         }
 
-        push_scope(v.local_scope)
+        push_scope(v.scope)
         snapshot_stack()
 
     case INVOKE_PROC:
