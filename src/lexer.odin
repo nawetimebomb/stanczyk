@@ -42,10 +42,11 @@ Token_Kind :: enum u8 {
     Hex               =  14,
     Binary            =  15,
     Octal             =  16,
-    String            =  17,
-    Byte              =  18,
-    True              =  19,
-    False             =  20,
+    True              =  17,
+    False             =  18,
+    Byte              =  19,
+    String            =  20,
+    Format_String     =  21,
 
 
     // Single(ish) character tokens
@@ -69,7 +70,7 @@ Token_Kind :: enum u8 {
     Greater_Equal     =  54,
     Less              =  55,
     Less_Equal        =  56,
-    Backtick          =  57,
+    Quote             =  57,
     Autorange_Less    =  58,
     Autorange_Greater =  59,
 
@@ -272,6 +273,30 @@ get_next_token :: proc(l: ^Lexer) -> (token: Token) {
         }
     }
 
+    tokenize_string :: proc(l: ^Lexer, token: ^Token) {
+        if get_byte(l) == 'b' {
+            token.kind = .Byte
+            advance(l)
+        } else if get_byte(l) == 'f' {
+            token.kind = .Format_String
+            advance(l)
+        } else {
+            token.kind = .String
+        }
+
+        escape_found := false
+        advance(l)
+        for !is_eof(l) {
+            if get_byte(l) == '"' && !escape_found {
+                break
+            }
+            escape_found = !escape_found && get_byte(l) == '\\'
+            advance(l)
+        }
+
+        advance(l)
+    }
+
 
 
     eat_whitespace: for !is_eof(l) {
@@ -305,8 +330,7 @@ get_next_token :: proc(l: ^Lexer) -> (token: Token) {
         if next_byte >= '0' && next_byte <= '9' {
             tokenize_number(l, &token)
         } else if next_byte == '.' {
-            advance(l)
-            advance(l)
+            advance(l, 2)
 
             if get_byte(l) == '>' {
                 token.kind = .Autorange_Greater
@@ -336,7 +360,7 @@ get_next_token :: proc(l: ^Lexer) -> (token: Token) {
     case '%':       token.kind = .Percent;       advance(l)
     case ':':       token.kind = .Colon;         advance(l)
     case '=':       token.kind = .Equal;         advance(l)
-    case '`':       token.kind = .Backtick;      advance(l)
+    case '\'':      token.kind = .Quote;         advance(l)
     case '!':
         advance(l)
         if get_byte(l) == '=' {
@@ -362,36 +386,32 @@ get_next_token :: proc(l: ^Lexer) -> (token: Token) {
     case '-':
         token.kind = .Minus
         advance(l)
-        if get_byte(l) == '-' && peek_byte(l, 1) == '-' {
+        curr_byte := get_byte(l)
+
+        if curr_byte >= '0' && curr_byte <= '9' {
+            tokenize_number(l, &token)
+        } else if curr_byte == '-' && peek_byte(l, 1) == '-' {
             token.kind = .Dash_Dash_Dash
             advance(l, 2)
         }
-    case '\'':
-        escape_found := false
-        token.kind = .Byte
-        advance(l)
-        for !is_eof(l) {
-            if get_byte(l) == '\'' && !escape_found {
-                break
-            }
-            escape_found = !escape_found && get_byte(l) == '\\'
-            advance(l)
-        }
+    case 'f':
+        next_byte := peek_byte(l, 1)
 
-        advance(l)
+        if next_byte == '"' {
+            tokenize_string(l, &token)
+        } else {
+            tokenize_identifier(l, &token)
+        }
+    case 'b':
+        next_byte := peek_byte(l, 1)
+
+        if next_byte == '"' {
+            tokenize_string(l, &token)
+        } else {
+            tokenize_identifier(l, &token)
+        }
     case '"':
-        escape_found := false
-        token.kind = .String
-        advance(l)
-        for !is_eof(l) {
-            if get_byte(l) == '"' && !escape_found {
-                break
-            }
-            escape_found = !escape_found && get_byte(l) == '\\'
-            advance(l)
-        }
-
-        advance(l)
+        tokenize_string(l, &token)
     case:
         tokenize_identifier(l, &token)
     }

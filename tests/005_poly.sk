@@ -1,7 +1,7 @@
 proc main
   "Test" "Test" poly-test print
   13 13 poly-test print
-  '\n' 'a' poly-test print
+  b"\n" b"a" poly-test print
   true false poly-test print
 ;
 

@@ -116,7 +116,7 @@ gen_bootstrap :: proc(gen: ^Generator) {
         case string:
             as_bytes := string_to_bytes(v)
 
-            gen_printf(gen, "    dd {}\n", len(as_bytes))
+            gen_printf(gen, "    dq {}\n", len(as_bytes))
             gen_print (gen, "    db ")
             for b in as_bytes {
                 gen_printf(gen, "{},", b)
@@ -411,7 +411,7 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
         }
 
         gen_print (gen, "    pop     rax\n")
-        gen_print (gen, "    sub     eax, 4\n")
+        gen_print (gen, "    sub     rax, 8\n")
         gen_print (gen, "    push    QWORD [rax]\n")
 
     case LOOP_BREAK:
@@ -445,15 +445,15 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
 
         // increment index
         gen_printf(gen, "    mov     rbx, [rax+{}]\n", index_offset)
-        gen_print (gen, "    inc     ebx\n")
+        gen_print (gen, "    inc     rbx\n")
         gen_printf(gen, "    mov     QWORD [rax+{}], rbx\n", index_offset)
 
         // increment initial value
         gen_printf(gen, "    mov     rbx, [rax+{}]\n", curr_value_offset)
         if v.dir == .Inc {
-            gen_print (gen, "    inc     ebx\n")
+            gen_print (gen, "    inc     rbx\n")
         } else {
-            gen_print (gen, "    dec     ebx\n")
+            gen_print (gen, "    dec     rbx\n")
         }
         gen_printf(gen, "    mov     QWORD [rax+{}], rbx\n", curr_value_offset)
 
@@ -557,7 +557,7 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
             gen_printf(gen, "    push    {}\n", value)
         case string:
             gen_printf(gen, "    lea     rax, [CONST{}]\n", v.const.index)
-            gen_print (gen, "    add     rax, 4\n")
+            gen_print (gen, "    add     rax, 8\n")
             gen_print (gen, "    push    rax\n")
         case u64:
             gen_printf(gen, "    push    {}\n", value)
@@ -577,7 +577,7 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
     case PUSH_STRING:
         gen_ip_label(gen, this_proc, ins)
         gen_printf(gen, "    lea     rax, [CONST{}]\n", v.index)
-        gen_print (gen, "    add     rax, 4\n")
+        gen_print (gen, "    add     rax, 8\n")
         gen_print (gen, "    push    rax\n")
 
     case PUSH_TYPE:

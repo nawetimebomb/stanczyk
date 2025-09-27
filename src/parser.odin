@@ -74,14 +74,22 @@ make_procedure :: proc(token: Token) -> ^Procedure {
 }
 
 stanczyk_number_to_c_number :: proc(s: string) -> string {
+    if len(s) == 2 && s[0] == '-' {
+        return s
+    }
+
     b := s[len(s)-1]
-    if b != '.' && !(b >= '0' && b <= '9') do return s[:len(s)-1]
+
+    if b != '.' && !(b >= '0' && b <= '9') {
+        return s[:len(s)-1]
+    }
+
     return s
 }
 
 parse_byte_value :: proc(token: Token) -> byte {
     result: byte
-    bytes := token.text[1:len(token.text)-1]
+    bytes := token.text[2:len(token.text)-1]
 
     if len(bytes) > 2 {
         parser_error(token, INVALID_BYTE_LITERAL, token.text)
@@ -184,20 +192,10 @@ parse_const_declaration :: proc() {
         parser_error(token, INVALID_CONST_VALUE)
         return
 
-    case .Byte:
-        const.type = type_byte
-        const.value = parse_byte_value(token)
-
     case .Integer:
         value, ok := strconv.parse_i64(stanczyk_number_to_c_number(token.text))
         assert(ok, "Compiler Bug. This was an Int by the Lexer")
         const.type = type_int
-        const.value = value
-
-    case .String:
-        value := token.text[1:len(token.text)-1]
-        const.index = add_to_constants(value)
-        const.type = type_string
         const.value = value
 
     case .True:
@@ -220,6 +218,19 @@ parse_const_declaration :: proc() {
         assert(ok, "Compiler Bug. This was an Int by the Lexer")
         const.type = type_uint
         const.value = value
+
+    case .Byte:
+        const.type = type_byte
+        const.value = parse_byte_value(token)
+
+    case .String:
+        value := token.text[1:len(token.text)-1]
+        const.index = add_to_constants(value)
+        const.type = type_string
+        const.value = value
+
+    case .Format_String:
+        unimplemented()
 
     case:
         unimplemented()
@@ -265,8 +276,8 @@ parse_var_declaration :: proc() {
 
         #partial switch next_token.kind {
         case .Identifier, .Integer, .Unsigned_Integer, .Float, .Hex, .Binary, .Octal, .String,
-            .Byte, .True, .False, .Minus, .Plus, .Star, .Percent, .Equal, .Not_Equal, .Greater,
-            .Greater_Equal, .Less, .Less_Equal:
+            .Format_String, .Byte, .True, .False, .Minus, .Plus, .Star, .Percent, .Equal,
+            .Not_Equal,  .Greater, .Greater_Equal, .Less, .Less_Equal:
             parse_expression()
         case:
             parser_error(next_token, INVALID_TOKEN_VAR_BODY, next_token.text)
@@ -483,13 +494,17 @@ parse_expression :: proc() {
     case .Hex:
     case .Binary:
     case .Octal:
+
+    case .Byte:
+        write_chunk(token, PUSH_BYTE{parse_byte_value(token)})
+
     case .String:
         value := token.text[1:len(token.text)-1]
         index := add_to_constants(value)
         write_chunk(token, PUSH_STRING{index=index})
 
-    case .Byte:
-        write_chunk(token, PUSH_BYTE{parse_byte_value(token)})
+    case .Format_String:
+        unimplemented()
 
     case .True:
         write_chunk(token, PUSH_BOOL{true})
@@ -541,7 +556,7 @@ parse_expression :: proc() {
     case .Less_Equal:
         write_chunk(token, COMPARE_LESS_EQUAL{})
 
-    case .Backtick:
+    case .Quote:
         parse_expression()
         this_proc := compiler.current_proc
         ins := this_proc.code[len(this_proc.code)-1]
