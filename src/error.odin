@@ -44,6 +44,8 @@ UP_TO_MAX_BOUND_VALUES :: "Attempt to bind more values than the ones available i
 // Checker Errors
 AUTORANGE_LOOP_MISMATCHED_TYPES :: "Mismatched type in autorange loop; Expected {}, got {}."
 
+CANNOT_ITERATE_ON_TYPE :: "Cannot iterate on type {}."
+
 IF_STATEMENT_NO_BOOLEAN :: "Expected a boolean value to initiate 'if' statement. Got {} instead."
 
 MISMATCHED_NUMBER_ARGS :: "Not enough values to call '{}'; Expected {}, but got {}."

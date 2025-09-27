@@ -1,0 +1,9 @@
+proc main
+  "Stanczyk" for
+    it print
+  loop
+
+  "Rocks!" for* c idx in
+    c print idx print
+  loop
+;

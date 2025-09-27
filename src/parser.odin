@@ -589,7 +589,7 @@ parse_expression :: proc() {
 
         for_scope := create_scope(.For_Loop)
         for_scope.scope_id = len(compiler.current_proc.code)
-        write_chunk(token, LOOP_RANGE_START{
+        write_chunk(token, LOOP_RANGE{
             id     = for_scope.scope_id,
             tokens = slice.clone(bind_tokens[:]),
             dir    = token.kind == .Autorange_Less ? .Inc : .Dec,
@@ -679,8 +679,32 @@ parse_expression :: proc() {
         write_chunk(token, IF_END{id=scope.scope_id})
 
     case .For:
+        for_scope := create_scope(.For_Loop)
+        for_scope.scope_id = len(compiler.current_proc.code)
+        write_chunk(token, LOOP_ITERATE{
+            id    = for_scope.scope_id,
+            scope = for_scope,
+        })
+        push_scope(for_scope)
 
     case .For_Star:
+        for_scope := create_scope(.For_Loop)
+        for_scope.scope_id = len(compiler.current_proc.code)
+
+        bind_tokens := make([dynamic]Token, context.temp_allocator)
+
+        for can_continue_parsing() && !check(.In) && len(bind_tokens) < 3 {
+            append(&bind_tokens, next())
+        }
+
+        in_token := expect(.In)
+
+        write_chunk(token, LOOP_ITERATE{
+            id     = for_scope.scope_id,
+            tokens = slice.clone(bind_tokens[:]),
+            scope  = for_scope,
+        })
+        push_scope(for_scope)
 
     case .In:
 
@@ -696,7 +720,6 @@ parse_expression :: proc() {
 
     case .Continue:
         scope := find_closest_loop_scope()
-
 
         if scope == nil || scope.kind != .For_Loop {
             parser_error(token, UNATTACHED_TO_LOOP, "continue")

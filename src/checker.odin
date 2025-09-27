@@ -545,7 +545,46 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
         snapshot_stack()
         pop_scope(ins.token, .Stack_Unchanged)
 
-    case LOOP_RANGE_START:
+    case LOOP_ITERATE:
+        DEFAULT_BINDS :: [3]string{"iteratee", "index", "it"}
+
+        push_scope(v.scope)
+
+        if len(stack) == 0 {
+            checker_error(ins.token, STACK_EMPTY_EXPECT, 1, 0)
+            return
+        }
+
+        type := pop_stack()
+        bound_types: [3]^Type
+
+        switch {
+        case type_is_string(type):
+            v.kind = .String
+            bound_types = {type_string, type_int, type_byte}
+        case:
+            checker_error(ins.token, CANNOT_ITERATE_ON_TYPE, type.name)
+            return
+        }
+
+        binds := DEFAULT_BINDS
+        for token, index in v.tokens {
+            binds[2-index] = token.text
+        }
+
+        for bind, index in binds {
+            offset := this_proc.stack_frame_size
+            token := ins.token
+            token.text = bind
+            create_entity(token, Entity_Binding{offset=offset, type=bound_types[index]})
+
+            this_proc.stack_frame_size += type_int.size_in_bytes
+            v.offsets[index] = offset
+        }
+
+        snapshot_stack()
+
+    case LOOP_RANGE:
         push_scope(v.scope)
 
         if len(stack) < 2 {
@@ -563,12 +602,10 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
 
         DEFAULT_BINDS :: [3]string{"limit", "index", "it"}
         binds := DEFAULT_BINDS
-
-        if len(v.tokens) > 0 {
-            for token, index in v.tokens {
-                binds[2-index] = token.text
-            }
+        for token, index in v.tokens {
+            binds[2-index] = token.text
         }
+
 
         for bind, index in binds {
             offset := this_proc.stack_frame_size

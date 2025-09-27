@@ -86,6 +86,7 @@ gen_bootstrap :: proc(gen: ^Generator) {
     gen_print (gen, "section .rodata\n")
     gen_print (gen, "EMPTY_STRING: db \"\",0\n")
     gen_print (gen, "FORMAT_BOOL:  db \"%s\",10,0\n")
+    gen_print (gen, "FORMAT_BYTE:  db \"%c\",10,0\n")
     gen_print (gen, "FORMAT_FLOAT: db \"%g\",10,0\n")
     gen_print (gen, "FORMAT_INT:   db \"%d\",10,0\n")
     gen_print (gen, "FORMAT_UINT:  db \"%u\",10,0\n")
@@ -427,9 +428,45 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
         gen_printf(gen, "    jmp     proc{}.ip{}.start\n", this_proc.id, v.id)
         gen_printf(gen, "proc{}.ip{}.end:\n", this_proc.id, v.id)
 
-    case LOOP_RANGE_START:
-        limit_offset := v.offsets[0]
-        index_offset := v.offsets[1]
+    case LOOP_ITERATE:
+        iteratee_offset   := v.offsets[0]
+        index_offset      := v.offsets[1]
+        curr_value_offset := v.offsets[2]
+
+        gen_ip_label(gen, this_proc, ins)
+        gen_print (gen, "    mov     rax, [ret_stack_ptr]\n")
+        gen_print (gen, "    pop     rbx\n")
+        gen_printf(gen, "    mov     QWORD [rax+{}], rbx\n", iteratee_offset)
+        gen_printf(gen, "    mov     QWORD [rax+{}], 0\n",   index_offset)
+        gen_print (gen, "    xor     ecx, ecx\n")
+        gen_print (gen, "    mov     cl, [rbx]\n")
+        gen_printf(gen, "    mov     QWORD [rax+{}], rcx\n", curr_value_offset)
+        gen_printf(gen, "    jmp     proc{}.ip{}.loop\n", this_proc.id, v.id)
+
+        gen_printf(gen, "proc{}.ip{}.start:\n", this_proc.id, v.id)
+        gen_print (gen, "    mov     rax, [ret_stack_ptr]\n")
+
+        // increment index
+        gen_printf(gen, "    mov     rbx, [rax+{}]\n", index_offset)
+        gen_print (gen, "    inc     rbx\n")
+        gen_printf(gen, "    mov     QWORD [rax+{}], rbx\n", index_offset)
+
+        // increment byte
+        gen_printf(gen, "    mov     rdx, [rax+{}]\n", iteratee_offset)
+        gen_print (gen, "    xor     ecx, ecx\n")
+        gen_print (gen, "    mov     cl, [rdx+rbx]\n")
+        gen_printf(gen, "    mov     QWORD [rax+{}], rcx\n", curr_value_offset)
+
+        // start of loop
+        gen_printf(gen, "proc{}.ip{}.loop:\n", this_proc.id, v.id)
+        gen_print (gen, "    xor     ebx, ebx\n")
+        gen_printf(gen, "    mov     rbx, [rax+{}]\n", curr_value_offset)
+        gen_print (gen, "    test    rbx, rbx\n")
+        gen_printf(gen, "    jz      proc{}.ip{}.end\n", this_proc.id, v.id)
+
+    case LOOP_RANGE:
+        limit_offset      := v.offsets[0]
+        index_offset      := v.offsets[1]
         curr_value_offset := v.offsets[2]
 
         gen_ip_label(gen, this_proc, ins)
@@ -440,6 +477,7 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
         gen_print (gen, "    pop     rbx\n")
         gen_printf(gen, "    mov     QWORD [rax+{}], rbx\n", curr_value_offset)
         gen_printf(gen, "    jmp     proc{}.ip{}.loop\n", this_proc.id, v.id)
+
         gen_printf(gen, "proc{}.ip{}.start:\n", this_proc.id, v.id)
         gen_print (gen, "    mov     rax, [ret_stack_ptr]\n")
 
@@ -457,7 +495,7 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
         }
         gen_printf(gen, "    mov     QWORD [rax+{}], rbx\n", curr_value_offset)
 
-        // start loop
+        // start of loop
         gen_printf(gen, "proc{}.ip{}.loop:\n", this_proc.id, v.id)
         gen_print (gen, "    xor     ecx, ecx\n")
         gen_print (gen, "    mov     edx, 1\n")

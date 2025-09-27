@@ -78,7 +78,8 @@ Instruction_Variant :: union {
     LOOP_BREAK,
     LOOP_CONTINUE,
     LOOP_END,
-    LOOP_RANGE_START,
+    LOOP_ITERATE,
+    LOOP_RANGE,
     NIP,
     OVER,
     PRINT,
@@ -205,7 +206,15 @@ LOOP_END :: struct {
     id: int,
 }
 
-LOOP_RANGE_START :: struct {
+LOOP_ITERATE :: struct {
+    id:      int,
+    kind:    enum { Array, String, },
+    offsets: [3]int,
+    tokens:  []Token,
+    scope:   ^Scope,
+}
+
+LOOP_RANGE :: struct {
     id:      int,
     offsets: [3]int,
     tokens:  []Token,
@@ -484,8 +493,12 @@ debug_print_bytecode :: proc() {
                 _name("LOOP_END")
                 _value("{}", v.id)
 
-            case LOOP_RANGE_START:
-                _name("LOOP_RANGE_START")
+            case LOOP_ITERATE:
+                _name("LOOP_ITERATE")
+                _value("{} {}", v.kind, v.id)
+
+            case LOOP_RANGE:
+                _name("LOOP_RANGE")
                 _value("{} {}", v.dir, v.id)
 
             case NIP:
