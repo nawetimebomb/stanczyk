@@ -223,7 +223,7 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
             gen_print (gen, "    movsd   [TEMP_QWORD], xmm0\n")
             gen_print (gen, "    push    QWORD [TEMP_QWORD]\n")
         } else {
-            gen_print (gen, "    xor     rdx, rdx\n")
+            gen_print (gen, "    xor     edx, edx\n")
             gen_print (gen, "    pop     rbx\n")
             gen_print (gen, "    pop     rax\n")
             gen_print (gen, "    div     rbx\n")

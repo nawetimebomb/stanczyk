@@ -1,25 +1,22 @@
-using core.io ;
-
-fn factorial-recursive (int --- int)
-  let n in
-    n 2 < if 1 else n 1 - factorial-recursive n * fi
-  end
+proc factorial-recursive (int --- int)
+  let n ;
+  n 2 < if 1 else n 1 - factorial-recursive n * fi
 ;
 
-fn factorial-loop (int --- int)
-  dup 1 - 0 ..> for x in x * loop
+proc factorial-loop (int --- int)
+  dup 1 - 0 ..> for it * loop
 ;
 
 // This program runs recursive and loop-based functions to find the factorial of a number.
 // Usage:
-//   - <number> factorial-recursive println
-//   - <number> factorial-loop println
-fn main
-  const NUMBER int 5 ;
+//   - <number> factorial-recursive print
+//   - <number> factorial-loop print
+proc main
+  "Using recursive:" print
+  "Factorial of 5 is: " print
+  5 factorial-recursive print
 
-  "Using recursive:" println
-  "Factorial of " print NUMBER print " is: " print NUMBER factorial-recursive println
-  "" println
-  "Using loop:" println
-  "Factorial of " print NUMBER print " is: " print NUMBER factorial-loop println
+  "Using loop:" print
+  "Factorial of 5 is:" print
+  5 factorial-loop print
 ;

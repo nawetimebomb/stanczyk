@@ -1,0 +1,22 @@
+proc factorial-recursive (int --- int)
+  let n ;
+  n 2 < if 1 else n 1 - factorial-recursive n * fi
+;
+
+proc factorial-loop (int --- int)
+  dup 1 - 0 ..> for it * loop
+;
+
+proc main
+  1 factorial-recursive print
+  2 factorial-recursive print
+  3 factorial-recursive print
+  4 factorial-recursive print
+  5 factorial-recursive print
+
+  1 factorial-loop print
+  2 factorial-loop print
+  3 factorial-loop print
+  4 factorial-loop print
+  5 factorial-loop print
+;
