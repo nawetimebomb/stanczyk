@@ -738,6 +738,17 @@ parse_expression :: proc() {
 
         write_chunk(token, LOOP_BREAK{id=scope.scope_id})
 
+    case .Return:
+        this_proc := compiler.current_proc
+
+        if len(this_proc.results) == 0 {
+            write_chunk(token, RETURN{})
+        } else if len(this_proc.results) == 1 {
+            write_chunk(token, RETURN_VALUE{})
+        } else {
+            write_chunk(token, RETURN_VALUES{})
+        }
+
     case .Cast:
         write_chunk(token, CAST{})
 

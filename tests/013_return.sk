@@ -1,0 +1,37 @@
+proc main
+  3 plus-one-with-a-loop print
+  "Stanczyk" b"c" find-index print
+  "Stanczyk" b"k" find-index print
+  "Stanczyk" b"l" find-index print
+
+  3 count-to print
+;
+
+proc plus-one-with-a-loop (int --- int)
+  0 10 ..< for
+    dup it < if
+      drop it
+      return
+    fi
+  loop
+;
+
+proc find-index (string byte --- int)
+  let test-char ;
+
+  -1 swap for
+    it test-char = if
+      drop index return
+    fi
+  loop
+;
+
+proc count-to (int --- int)
+  0 10 ..< for
+    dup it = if
+      drop it
+      return
+    fi
+    it print
+  loop
+;

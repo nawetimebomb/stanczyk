@@ -34,6 +34,7 @@ Token_Kind :: enum u8 {
     Invalid           =   0,
     EOF               =   1,
 
+
     // Basic Type Values
     Identifier        =  10,
     Integer           =  11,
@@ -106,6 +107,7 @@ Token_Kind :: enum u8 {
     Loop              = 133,
     Continue          = 134,
     Break             = 135,
+    Return            = 136,
 
     Cast              = 149,
     Print             = 150,
@@ -456,6 +458,7 @@ get_token_kind_from_string :: proc(s: string) -> (Token_Kind) {
     case "loop":     return .Loop
     case "continue": return .Continue
     case "break":    return .Break
+    case "return":   return .Return
 
     case "cast":     return .Cast
     case "print":    return .Print
