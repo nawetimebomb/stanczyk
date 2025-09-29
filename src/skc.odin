@@ -32,7 +32,8 @@ Compiler :: struct {
     current_proc:     ^Procedure,
     global_proc:      ^Procedure,
 
-    types:            map[string]^Type,
+    types_by_name:    map[string]^Type,
+    types_array:      [dynamic]^Type,
 
     constants_table:  [dynamic]Constant,
     main_proc_uid:    int,

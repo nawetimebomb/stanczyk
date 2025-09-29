@@ -48,15 +48,17 @@ CANNOT_ITERATE_ON_TYPE :: "Cannot iterate on type {}."
 
 IF_STATEMENT_NO_BOOLEAN :: "Expected a boolean value to initiate 'if' statement. Got {} instead."
 
+MISMATCHED_POINTER_TYPE :: "This expression needs a pointer to {1} but got {0}."
+
 MISMATCHED_NUMBER_ARGS :: "Not enough values to call '{}'; Expected {}, but got {}."
 
-MISMATCHED_TYPES_ARG :: "Mismatched type to call '{}'; Expected '{}', but got '{}'."
+MISMATCHED_TYPES_ARG :: "Mismatched type to call '{}'; Expected {}, but got {}."
 
-MISMATCHED_NUMBER_RESULTS :: "Expected {} result(s) in procedure '{}', but got {} instead."
+MISMATCHED_NUMBER_RESULTS :: "Expected {} result(s) in procedure {}, but got {} instead."
 
 MISMATCHED_TYPES_BINARY_EXPR :: "Mismatched types in binary expression '{}' vs '{}'."
 
-MISMATCHED_TYPES_RESULT :: "Mismatched types in procedure '{}' results; Expected '{}', but got '{}' instead."
+MISMATCHED_TYPES_RESULT :: "Mismatched types in procedure '{}' results; Expected {}, but got {} instead."
 
 MISMATCHED_TYPES_IN_VAR :: "Cannot convert '{}' to '{}' during set operation."
 

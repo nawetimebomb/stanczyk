@@ -1,11 +1,15 @@
 package main
 
+import "core:fmt"
+
 Type :: struct {
     size_in_bytes: int,
     name:          string,
     variant: union {
         Type_Alias,
+        Type_Array,
         Type_Basic,
+        Type_Pointer,
         Type_Procedure,
         Type_Struct,
     },
@@ -15,8 +19,17 @@ Type_Alias :: struct {
     derived: ^Type,
 }
 
+Type_Array :: struct {
+    length: int,
+    type:   ^Type,
+}
+
 Type_Basic :: struct {
     kind: Type_Basic_Kind,
+}
+
+Type_Pointer :: struct {
+    type: ^Type,
 }
 
 Type_Procedure :: struct {
@@ -85,7 +98,8 @@ type_string := &BASIC_TYPES[.String]
 type_uint   := &BASIC_TYPES[.Uint]
 
 register_global_type :: proc(type: ^Type) {
-    compiler.types[type.name] = type
+    compiler.types_by_name[type.name] = type
+    append(&compiler.types_array, type)
     create_entity(make_token(type.name), Entity_Type{type})
 }
 
@@ -97,6 +111,24 @@ type_one_of :: proc(type: ^Type, test_procs: ..proc(^Type) -> bool) -> bool {
     }
 
     return false
+}
+
+type_pointer_to :: proc(type: ^Type) -> ^Type {
+    for t in compiler.types_array {
+        #partial switch v in t.variant {
+        case Type_Pointer:
+            if v.type == type {
+                return t
+            }
+        }
+    }
+
+    t := new(Type)
+    t.size_in_bytes = 8
+    t.name = fmt.aprintf("'{}", type.name)
+    t.variant = Type_Pointer{type}
+
+    return t
 }
 
 type_is_boolean :: proc(type: ^Type) -> bool {
@@ -174,4 +206,50 @@ type_is_byte :: proc(type: ^Type) -> bool {
     }
 
     return false
+}
+
+type_is_pointer_of :: proc(type: ^Type, of: ^Type) -> bool {
+    if variant, ok := type.variant.(Type_Pointer); ok {
+        if variant.type == of {
+            return true
+        }
+    }
+
+    return false
+}
+
+type_get_derived_type :: proc(type: ^Type) -> ^Type {
+    if variant, ok := type.variant.(Type_Alias); ok {
+        return type_get_derived_type(variant.derived)
+    }
+    return type
+}
+
+types_equal :: proc(test_a, test_b: ^Type) -> bool {
+    a := type_get_derived_type(test_a)
+    b := type_get_derived_type(test_b)
+
+    switch va in a.variant {
+    case Type_Alias:
+        unreachable()
+
+    case Type_Array:
+        unimplemented()
+
+    case Type_Basic:
+        vb := b.variant.(Type_Basic) or_return
+        if va.kind != vb.kind do return false
+
+    case Type_Pointer:
+        vb := b.variant.(Type_Pointer) or_return
+        if !types_equal(va.type, vb.type) do return false
+    case Type_Procedure:
+        unimplemented()
+
+    case Type_Struct:
+        unimplemented()
+
+    }
+
+    return true
 }

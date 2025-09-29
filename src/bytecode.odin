@@ -24,6 +24,7 @@ Parameter :: struct {
     is_named:   bool, // for named parameters only
     name_token: Token,
     type_token: Token,
+    quoted:     bool, // wants pointer
     type:       ^Type,
 }
 

@@ -182,6 +182,11 @@ find_closest_loop_scope :: proc() -> ^Scope {
     return scope
 }
 
+parse_array_literal :: proc() {
+    // This is something like: [1 2 3]
+
+}
+
 parse_const_declaration :: proc() {
     name_token := expect(.Identifier)
     const := Entity_Const{}
@@ -253,6 +258,7 @@ parse_let_declaration :: proc() {
 
         case:
             parser_error(token, UNEXPECTED_TOKEN_LET_BIND, token.text)
+            return
         }
     }
 
@@ -287,6 +293,7 @@ parse_var_declaration :: proc() {
     }
 
     end_token := expect(.Semicolon)
+
     if is_in_global_scope() {
         write_chunk(end_token, STORE_VAR_GLOBAL{token=name_token})
     } else {
@@ -304,6 +311,7 @@ parse_proc_declaration :: proc() {
         current_array := &arguments
 
         for can_continue_parsing() && !allow(.Paren_Right) {
+            was_quoted := allow(.Quote)
             token := next()
 
             #partial switch token.kind {
@@ -315,6 +323,12 @@ parse_proc_declaration :: proc() {
                 type_token := token
 
                 if allow(.Colon) {
+                    if was_quoted {
+                        parser_error(token, UNEXPECTED_TOKEN_PROC_TYPE, fmt.tprintf("'{}", token.text))
+                        return
+                    }
+
+                    was_quoted = allow(.Quote)
                     type_token = expect(.Identifier)
                 }
 
@@ -322,7 +336,8 @@ parse_proc_declaration :: proc() {
                     name_token = name_token,
                     type_token = type_token,
                     is_named   = name_token != type_token,
-                    type       = compiler.types[type_token.text],
+                    quoted     = was_quoted,
+                    type       = nil,
                 })
 
             case:
@@ -388,7 +403,7 @@ parse_type_declaration :: proc() {
     #partial switch maybe_type_token.kind {
     case .Proc:       unimplemented("Allow to define procedure types")
     case .Identifier:
-        derived_type := compiler.types[maybe_type_token.text]
+        derived_type := compiler.types_by_name[maybe_type_token.text]
 
         if derived_type == nil {
             matches := find_entity(maybe_type_token.text)
@@ -516,7 +531,10 @@ parse_expression :: proc() {
     case .Brace_Left:
     case .Brace_Right:
     case .Bracket_Left:
+        parse_array_literal()
+
     case .Bracket_Right:
+
     case .Paren_Left:
     case .Paren_Right:
 
@@ -557,15 +575,16 @@ parse_expression :: proc() {
         write_chunk(token, COMPARE_LESS_EQUAL{})
 
     case .Quote:
-        parse_expression()
         this_proc := compiler.current_proc
-        ins := this_proc.code[len(this_proc.code)-1]
+        current_ip := len(this_proc.code)
+        parse_expression()
+        ins := this_proc.code[current_ip]
         ins.quoted = true
-
-        _, is_ident := ins.variant.(IDENTIFIER)
-
-        if !is_ident {
-            parser_error(token, QUOTED_ELEMENT_IS_NOT_IDENTIFIER, ins.token.text)
+        if _, is_ident := ins.variant.(IDENTIFIER); !is_ident {
+            parser_error(
+                token, QUOTED_ELEMENT_IS_NOT_IDENTIFIER,
+                ins.token.text,
+            )
             return
         }
 

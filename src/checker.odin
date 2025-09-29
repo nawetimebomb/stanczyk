@@ -95,8 +95,7 @@ can_this_proc_be_called :: proc(token: Token, procedure: ^Procedure, report_erro
         arg_type := procedure.arguments[index].type
         stack_value_type := pop(&stack_copy)
 
-        // TODO(nawe) better check for this
-        if arg_type != stack_value_type {
+        if !types_equal(arg_type, stack_value_type) {
             if report_error {
                 checker_error(
                     token, MISMATCHED_TYPES_ARG,
@@ -124,6 +123,10 @@ check_program_bytecode :: proc() {
     }
 
     for procedure in bytecode {
+        check_procedure_arguments_results(procedure)
+    }
+
+    for procedure in bytecode {
         compiler.error_reported = false
         check_procedure(procedure)
     }
@@ -133,11 +136,19 @@ check_program_bytecode :: proc() {
     }
 }
 
-check_procedure :: proc(procedure: ^Procedure) {
+check_procedure_arguments_results :: proc(procedure: ^Procedure) {
     _type_parameters :: proc(params: ^[]Parameter) {
         for &p in params {
             if p.type == nil {
-                p.type = compiler.types[p.type_token.text]
+                type: ^Type
+
+                if p.quoted {
+                    type = type_pointer_to(compiler.types_by_name[p.type_token.text])
+                } else {
+                    type = compiler.types_by_name[p.type_token.text]
+                }
+
+                p.type = type
 
                 if p.type == nil {
                     checker_error(p.type_token, FAILED_TO_PARSE_TYPE)
@@ -150,7 +161,9 @@ check_procedure :: proc(procedure: ^Procedure) {
     // make sure parameters and results are typed
     _type_parameters(&procedure.arguments)
     _type_parameters(&procedure.results)
+}
 
+check_procedure :: proc(procedure: ^Procedure) {
     push_procedure(procedure)
     procedure.stack = new(Stack, context.temp_allocator)
 
@@ -676,10 +689,18 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
         push_stack(type_uint)
 
     case PUSH_VAR_GLOBAL:
-        push_stack(v.type)
+        if ins.quoted {
+            push_stack(type_pointer_to(v.type))
+        } else {
+            push_stack(v.type)
+        }
 
     case PUSH_VAR_LOCAL:
-        push_stack(v.type)
+        if ins.quoted {
+            push_stack(type_pointer_to(v.type))
+        } else {
+            push_stack(v.type)
+        }
 
     case RETURN:
         stack_is_valid_for_return(ins)
@@ -722,11 +743,11 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
             return
         }
 
-        type2 := pop_stack()
-        type1 := pop_stack()
+        ptr := pop_stack()
+        value_t := pop_stack()
 
-        if type1 != type2 {
-            checker_error(ins.token, MISMATCHED_TYPES_BINARY_EXPR, type1.name, type2.name)
+        if !type_is_pointer_of(ptr, value_t) {
+            checker_error(ins.token, MISMATCHED_POINTER_TYPE, ptr.name, value_t.name)
             return
         }
 

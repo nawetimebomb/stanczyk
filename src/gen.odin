@@ -78,12 +78,13 @@ gen_bootstrap :: proc(gen: ^Generator) {
     gen_print (gen, "ret_stack_ptr:      resb 64\n")
     gen_print (gen, "ret_stack:          resb 65535\n")
     gen_print (gen, "ret_stack_ptr_end:\n")
+
     if compiler.global_proc.stack_frame_size > 0 {
         gen_printf(gen, "stanczyk_static:    resb {}\n", compiler.global_proc.stack_frame_size)
     }
     gen_print (gen, "TEMP_QWORD:         resq 0\n")
 
-    gen_print (gen, "section .rodata\n")
+    gen_print (gen, "section .data\n")
     gen_print (gen, "EMPTY_STRING: db \"\",0\n")
     gen_print (gen, "FORMAT_BOOL:  db \"%s\",10,0\n")
     gen_print (gen, "FORMAT_BYTE:  db \"%c\",10,0\n")
