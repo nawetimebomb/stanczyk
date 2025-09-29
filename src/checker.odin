@@ -115,6 +115,7 @@ check_program_bytecode :: proc() {
     assert(compiler.current_proc == compiler.global_proc)
 
     compiler.global_proc.stack = new(Stack, context.temp_allocator)
+
     for instruction in compiler.global_proc.code {
         if compiler.error_reported {
             break
@@ -125,6 +126,8 @@ check_program_bytecode :: proc() {
     for procedure in bytecode {
         check_procedure_arguments_results(procedure)
     }
+
+    check_procedures_with_same_signature()
 
     for procedure in bytecode {
         compiler.error_reported = false
@@ -162,11 +165,38 @@ check_procedure_arguments_results :: proc(procedure: ^Procedure) {
     _type_parameters(&procedure.arguments)
     _type_parameters(&procedure.results)
 
-    type, is_new := type_proc_create(procedure.arguments, procedure.results)
-    procedure.type = type
+    procedure.type = type_proc_create(procedure.arguments, procedure.results)
+}
 
-    if !is_new {
+check_procedures_with_same_signature :: proc() {
+    for procedure in bytecode {
         matches := find_entity(procedure.name)
+        proc_with_same_signature_found := false
+
+        if len(matches) == 1 {
+            continue
+        }
+
+        check_for_signature: for i1 := 0; i1 < len(matches); i1 += 1 {
+            for i2 := 1; i2 < len(matches); i2 += 1 {
+                if i1 == i2 {
+                    continue
+                }
+
+                a := matches[i1].variant.(Entity_Proc).procedure
+                b := matches[i2].variant.(Entity_Proc).procedure
+
+                if types_equal(a.type, b.type) {
+                    proc_with_same_signature_found = true
+                    break check_for_signature
+                }
+            }
+        }
+
+        if !proc_with_same_signature_found {
+            continue
+        }
+
         message := strings.builder_make(context.temp_allocator)
 
         for entity in matches {

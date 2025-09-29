@@ -123,7 +123,7 @@ type_pointer_to :: proc(type: ^Type) -> ^Type {
     return t
 }
 
-type_proc_create :: proc(arguments: []Parameter, results: []Parameter) -> (^Type, bool) {
+type_proc_create :: proc(arguments: []Parameter, results: []Parameter) -> ^Type {
     _get_type_proc_name :: proc(args, ress: []^Type ) -> string {
         name := strings.builder_make()
         fmt.sbprint(&name, "proc(")
@@ -165,7 +165,7 @@ type_proc_create :: proc(arguments: []Parameter, results: []Parameter) -> (^Type
     for t in compiler.types_array {
         if v, ok := t.variant.(Type_Proc); ok {
             if slice.equal(v.arguments, args_t[:]) && slice.equal(v.results, ress_t[:]) {
-                return t, false
+                return t
             }
         }
     }
@@ -180,7 +180,7 @@ type_proc_create :: proc(arguments: []Parameter, results: []Parameter) -> (^Type
 
     append(&compiler.types_array, t)
 
-    return t, true
+    return t
 }
 
 type_one_of :: proc(type: ^Type, test_procs: ..proc(^Type) -> bool) -> bool {
