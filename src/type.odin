@@ -1,6 +1,8 @@
 package main
 
 import "core:fmt"
+import "core:slice"
+import "core:strings"
 
 Type :: struct {
     size_in_bytes: int,
@@ -103,16 +105,6 @@ register_global_type :: proc(type: ^Type) {
     create_entity(make_token(type.name), Entity_Type{type})
 }
 
-type_one_of :: proc(type: ^Type, test_procs: ..proc(^Type) -> bool) -> bool {
-    for cb in test_procs {
-        if cb(type) {
-            return true
-        }
-    }
-
-    return false
-}
-
 type_pointer_to :: proc(type: ^Type) -> ^Type {
     for t in compiler.types_array {
         #partial switch v in t.variant {
@@ -129,6 +121,74 @@ type_pointer_to :: proc(type: ^Type) -> ^Type {
     t.variant = Type_Pointer{type}
 
     return t
+}
+
+type_proc_create :: proc(arguments: []Parameter, results: []Parameter) -> ^Type {
+    _get_type_proc_name :: proc(args, ress: []^Type ) -> string {
+        name := strings.builder_make()
+        fmt.sbprint(&name, "proc(")
+        for arg, index in args {
+            fmt.sbprintf(
+                &name, "{}{}", arg.name, index < len(args)-1 ? " " : "",
+            )
+        }
+
+        if len(ress) > 0 {
+            if len(args) > 0 {
+                fmt.sbprint(&name, " ")
+            }
+
+            fmt.sbprint(&name, "--- ")
+
+            for arg, index in ress {
+                fmt.sbprintf(
+                    &name, "{}{}", arg.name, index < len(args)-1 ? " " : "",
+                )
+            }
+        }
+
+        fmt.sbprint(&name, ")")
+        return strings.to_string(name)
+    }
+
+    args_t := make([dynamic]^Type, context.temp_allocator)
+    ress_t := make([dynamic]^Type, context.temp_allocator)
+
+    for arg in arguments {
+        append(&args_t, arg.type)
+    }
+
+    for res in results {
+        append(&ress_t, res.type)
+    }
+
+    for t in compiler.types_array {
+        if v, ok := t.variant.(Type_Procedure); ok {
+            if slice.equal(v.arguments, args_t[:]) && slice.equal(v.results, ress_t[:]) {
+                return t
+            }
+        }
+    }
+
+    t := new(Type)
+    t.size_in_bytes = 8 // a pointer
+    t.name = _get_type_proc_name(args_t[:], ress_t[:])
+    t.variant = Type_Procedure{
+        arguments = slice.clone(args_t[:]),
+        results   = slice.clone(ress_t[:]),
+    }
+
+    return t
+}
+
+type_one_of :: proc(type: ^Type, test_procs: ..proc(^Type) -> bool) -> bool {
+    for cb in test_procs {
+        if cb(type) {
+            return true
+        }
+    }
+
+    return false
 }
 
 type_is_boolean :: proc(type: ^Type) -> bool {

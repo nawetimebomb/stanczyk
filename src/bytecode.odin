@@ -35,6 +35,7 @@ Procedure :: struct {
     is_global:        bool,
     file_info:        ^File_Info,
     entity:           ^Entity,
+    type:             ^Type,
     scope:            ^Scope,
     parent:           ^Procedure,
 
@@ -357,29 +358,6 @@ add_to_constants :: proc(value: Constant_Value) -> int {
 }
 
 debug_print_bytecode :: proc() {
-    _print_params :: proc(params: []Parameter) {
-        for p, index in params {
-            if p.type != nil {
-                fmt.printf("{}", p.type.name)
-            } else {
-                fmt.printf("TBD({})", p.type_token.text)
-            }
-
-            if index < len(params)-1 {
-                fmt.printf(" ")
-            }
-        }
-    }
-
-    _signature :: proc(procedure: ^Procedure) {
-        _print_params(procedure.arguments)
-
-        if len(procedure.results) > 0 {
-            fmt.printf(" --- ")
-            _print_params(procedure.results)
-        }
-    }
-
     _name :: proc(name: string) {
         fmt.printf("%-20s", name)
     }
@@ -393,9 +371,7 @@ debug_print_bytecode :: proc() {
         fmt.print(CYAN_BOLD)
         fmt.print("===")
         fmt.printf(" {}", procedure.name)
-        fmt.print(" (")
-        _signature(procedure)
-        fmt.printfln(") ===")
+        fmt.printfln(" {} ===", procedure.type.name)
         fmt.print(RESET)
 
         for instruction, index in procedure.code {

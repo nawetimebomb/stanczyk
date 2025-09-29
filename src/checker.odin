@@ -161,6 +161,8 @@ check_procedure_arguments_results :: proc(procedure: ^Procedure) {
     // make sure parameters and results are typed
     _type_parameters(&procedure.arguments)
     _type_parameters(&procedure.results)
+
+    procedure.type = type_proc_create(procedure.arguments, procedure.results)
 }
 
 check_procedure :: proc(procedure: ^Procedure) {
@@ -413,6 +415,11 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
         push_stack(type_bool)
 
     case DROP:
+        if len(stack) == 0 {
+            checker_error(ins.token, STACK_EMPTY_EXPECT, 1, 0)
+            return
+        }
+
         pop_stack()
 
     case DUP:
@@ -475,11 +482,31 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
                 if can_this_proc_be_called(ins.token, variant.procedure, report_error = false) {
                     ins.variant = INVOKE_PROC{procedure=variant.procedure}
                     found = true
+                    break
                 }
             }
 
             if !found {
-                checker_error(ins.token, NO_MATCHING_POLY_PROC)
+                message := strings.builder_make(context.temp_allocator)
+
+                for entity, index in matches {
+                    that_proc := entity.variant.(Entity_Proc).procedure
+                    token := that_proc.token
+
+                    fmt.sbprint(&message, "\t- ", CYAN)
+                    fmt.sbprint(&message, that_proc.type.name)
+                    fmt.sbprint(&message, RESET, ITALIC)
+                    fmt.sbprintf(
+                        &message, " found at {}({}:{})",
+                        token.file_info.fullpath, token.l0, token.c0,
+                    )
+                    fmt.sbprintf(&message, "{}\n", RESET)
+                }
+
+                checker_error(
+                    ins.token, NO_MATCHING_POLY_PROC,
+                    v.value, strings.to_string(message),
+                )
                 return
             }
         }

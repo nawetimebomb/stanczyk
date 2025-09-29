@@ -66,7 +66,7 @@ MISMATCHED_MULTI :: "Mismatched type in operation '{}'; Expected {}, got '{}'."
 
 MODULO_ONLY_INT :: "Modulo operator '%%' can only be used while operating with 'int'. Used '{}'."
 
-NO_MATCHING_POLY_PROC :: "No matching polymorphic procedure was found."
+NO_MATCHING_POLY_PROC :: "No matching polymorphic procedure was found. Here's a list of procedures called '{}':\n{}"
 
 NOT_A_MUTABLE_VAR :: "Element in stack was not a mutable var."
 
@@ -104,6 +104,7 @@ CYAN       :: "\e[0;96m"
 CYAN_BOLD  :: "\e[1;96m"
 RED        :: "\e[1;91m"
 RESET      :: "\e[0m"
+ITALIC     :: "\e[2;3m"
 
 print_cyan :: proc(format: string, args: ..any) {
     message := fmt.tprintf(format, ..args)
@@ -125,14 +126,14 @@ fatalf :: proc(error: Fatal_Error_Kind, format: string, args: ..any) {
     os2.exit(int(error))
 }
 
+line_number_to_string :: proc(number: int) -> string {
+    number_str := fmt.tprintf("{}", number)
+    return strings.right_justify(number_str, 4, " ")
+}
+
 report_all_errors :: proc() {
     if switch_silent {
         return
-    }
-
-    line_number_to_string :: proc(number: int) -> string {
-        number_str := fmt.tprintf("{}", number)
-        return strings.right_justify(number_str, 4, " ")
     }
 
     for error in compiler.errors {
@@ -145,7 +146,6 @@ report_all_errors :: proc() {
             "\e[1m{}({}:{})\e[1;91m Error:\e[0m {}",
             fullpath, token.l0, token.c0, error.message,
         )
-
 
         line_index := max(token.l0-2, 0)
         count_of_chars := 0
