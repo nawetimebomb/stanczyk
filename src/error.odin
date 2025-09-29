@@ -85,6 +85,8 @@ VAR_DECL_MULTI_VALUE :: "Only one value should be stored in a var declaration, y
 // Entity Errors
 REDECLARATION_FOUND :: "Redeclaration of '{}' not allowed in this scope."
 
+REDECLARATION_SAME_SIGNATURE_FOUND :: "Redeclaration of '{}' with the same signature found. These are the current parsed procedures:\n{}"
+
 REDECLARATION_OF_MAIN :: "A symbol named 'main' was already declared at {}({}:{})."
 
 Fatal_Error_Kind :: enum u8 {
@@ -100,11 +102,11 @@ Compiler_Error :: struct {
     token:       Token,
 }
 
-CYAN       :: "\e[0;96m"
-CYAN_BOLD  :: "\e[1;96m"
-RED        :: "\e[1;91m"
-RESET      :: "\e[0m"
-ITALIC     :: "\e[2;3m"
+CYAN   :: "\e[96m"
+RED    :: "\e[91m"
+BOLD   :: "\e[1m"
+RESET  :: "\e[0m"
+ITALIC :: "\e[2;3m"
 
 print_cyan :: proc(format: string, args: ..any) {
     message := fmt.tprintf(format, ..args)
@@ -164,7 +166,7 @@ report_all_errors :: proc() {
         for r, index in text {
             offset := index + start
             if error.token.start <= offset && offset <= error.token.end {
-                fmt.eprint(RED)
+                fmt.eprintf("{}{}", RED, BOLD)
             } else {
                 fmt.eprint(CYAN)
             }

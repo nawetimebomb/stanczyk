@@ -142,7 +142,7 @@ check_procedure_arguments_results :: proc(procedure: ^Procedure) {
             if p.type == nil {
                 type: ^Type
 
-                if p.quoted {
+                if p.is_quoted {
                     type = type_pointer_to(compiler.types_by_name[p.type_token.text])
                 } else {
                     type = compiler.types_by_name[p.type_token.text]
@@ -162,7 +162,46 @@ check_procedure_arguments_results :: proc(procedure: ^Procedure) {
     _type_parameters(&procedure.arguments)
     _type_parameters(&procedure.results)
 
-    procedure.type = type_proc_create(procedure.arguments, procedure.results)
+    type, is_new := type_proc_create(procedure.arguments, procedure.results)
+    procedure.type = type
+
+    if !is_new {
+        matches := find_entity(procedure.name)
+        message := strings.builder_make(context.temp_allocator)
+
+        for entity in matches {
+            that_proc := entity.variant.(Entity_Proc).procedure
+            token := that_proc.token
+            matching_types := types_equal(that_proc.type, procedure.type)
+
+            fmt.sbprint(&message, "\t- ", CYAN)
+
+            if matching_types {
+                fmt.sbprint(&message, RED, BOLD)
+            }
+
+            fmt.sbprint(&message, that_proc.type.name)
+            fmt.sbprint(&message, RESET, ITALIC)
+
+            if matching_types {
+                fmt.sbprint(&message, RED, ITALIC)
+            }
+
+            fmt.sbprintf(
+                &message, " found at {}({}:{})",
+                token.file_info.fullpath, token.l0, token.c0,
+            )
+            fmt.sbprintf(&message, "{}\n", RESET)
+        }
+
+        checker_error(
+            procedure.token,
+            REDECLARATION_SAME_SIGNATURE_FOUND,
+            procedure.token.text,
+            strings.to_string(message),
+        )
+        checker_fatal_error()
+    }
 }
 
 check_procedure :: proc(procedure: ^Procedure) {
@@ -489,7 +528,7 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
             if !found {
                 message := strings.builder_make(context.temp_allocator)
 
-                for entity, index in matches {
+                for entity in matches {
                     that_proc := entity.variant.(Entity_Proc).procedure
                     token := that_proc.token
 

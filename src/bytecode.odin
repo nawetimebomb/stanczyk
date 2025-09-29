@@ -22,9 +22,9 @@ Constant_Value :: union {
 
 Parameter :: struct {
     is_named:   bool, // for named parameters only
+    is_quoted:  bool, // wants pointer
     name_token: Token,
     type_token: Token,
-    quoted:     bool, // wants pointer
     type:       ^Type,
 }
 
@@ -368,7 +368,7 @@ debug_print_bytecode :: proc() {
     }
 
     for procedure in bytecode {
-        fmt.print(CYAN_BOLD)
+        fmt.printf("{}{}", CYAN, BOLD)
         fmt.print("===")
         fmt.printf(" {}", procedure.name)
         fmt.printfln(" {} ===", procedure.type.name)

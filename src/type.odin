@@ -12,7 +12,7 @@ Type :: struct {
         Type_Array,
         Type_Basic,
         Type_Pointer,
-        Type_Procedure,
+        Type_Proc,
         Type_Struct,
     },
 }
@@ -34,7 +34,7 @@ Type_Pointer :: struct {
     type: ^Type,
 }
 
-Type_Procedure :: struct {
+Type_Proc :: struct {
     arguments: []^Type,
     results:   []^Type,
 }
@@ -123,7 +123,7 @@ type_pointer_to :: proc(type: ^Type) -> ^Type {
     return t
 }
 
-type_proc_create :: proc(arguments: []Parameter, results: []Parameter) -> ^Type {
+type_proc_create :: proc(arguments: []Parameter, results: []Parameter) -> (^Type, bool) {
     _get_type_proc_name :: proc(args, ress: []^Type ) -> string {
         name := strings.builder_make()
         fmt.sbprint(&name, "proc(")
@@ -163,9 +163,9 @@ type_proc_create :: proc(arguments: []Parameter, results: []Parameter) -> ^Type 
     }
 
     for t in compiler.types_array {
-        if v, ok := t.variant.(Type_Procedure); ok {
+        if v, ok := t.variant.(Type_Proc); ok {
             if slice.equal(v.arguments, args_t[:]) && slice.equal(v.results, ress_t[:]) {
-                return t
+                return t, false
             }
         }
     }
@@ -173,12 +173,14 @@ type_proc_create :: proc(arguments: []Parameter, results: []Parameter) -> ^Type 
     t := new(Type)
     t.size_in_bytes = 8 // a pointer
     t.name = _get_type_proc_name(args_t[:], ress_t[:])
-    t.variant = Type_Procedure{
+    t.variant = Type_Proc{
         arguments = slice.clone(args_t[:]),
         results   = slice.clone(ress_t[:]),
     }
 
-    return t
+    append(&compiler.types_array, t)
+
+    return t, true
 }
 
 type_one_of :: proc(type: ^Type, test_procs: ..proc(^Type) -> bool) -> bool {
@@ -298,13 +300,21 @@ types_equal :: proc(test_a, test_b: ^Type) -> bool {
 
     case Type_Basic:
         vb := b.variant.(Type_Basic) or_return
-        if va.kind != vb.kind do return false
+        if va.kind != vb.kind {
+            return false
+        }
 
     case Type_Pointer:
         vb := b.variant.(Type_Pointer) or_return
-        if !types_equal(va.type, vb.type) do return false
-    case Type_Procedure:
-        unimplemented()
+        if !types_equal(va.type, vb.type) {
+            return false
+        }
+    case Type_Proc:
+        vb := b.variant.(Type_Proc) or_return
+        if !slice.equal(va.arguments[:], vb.arguments[:]) ||
+            !slice.equal(va.results[:], vb.results[:]) {
+            return false
+        }
 
     case Type_Struct:
         unimplemented()

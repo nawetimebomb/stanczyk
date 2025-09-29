@@ -336,7 +336,7 @@ parse_proc_declaration :: proc() {
                     name_token = name_token,
                     type_token = type_token,
                     is_named   = name_token != type_token,
-                    quoted     = was_quoted,
+                    is_quoted  = was_quoted,
                     type       = nil,
                 })
 
