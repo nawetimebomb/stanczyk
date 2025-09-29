@@ -177,7 +177,7 @@ check_procedures_with_same_signature :: proc() {
             continue
         }
 
-        check_for_signature: for i1 := 0; i1 < len(matches); i1 += 1 {
+        check_loop: for i1 := 0; i1 < len(matches); i1 += 1 {
             for i2 := 1; i2 < len(matches); i2 += 1 {
                 if i1 == i2 {
                     continue
@@ -188,7 +188,7 @@ check_procedures_with_same_signature :: proc() {
 
                 if types_equal(a.type, b.type) {
                     proc_with_same_signature_found = true
-                    break check_for_signature
+                    break check_loop
                 }
             }
         }
