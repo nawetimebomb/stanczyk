@@ -63,13 +63,13 @@ Type_Basic_Kind :: enum {
 BASIC_TYPES := [Type_Basic_Kind]Type{
     .Bool = {
         name          = "bool",
-        size_in_bytes = 8, // alignment
+        size_in_bytes = 1, // alignment
         variant       = Type_Basic{kind=.Bool},
     },
 
     .Byte = {
         name          = "byte",
-        size_in_bytes = 8,
+        size_in_bytes = 1,
         variant       = Type_Basic{kind=.Byte},
     },
 

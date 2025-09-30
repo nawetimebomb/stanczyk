@@ -8,6 +8,12 @@ import "core:strconv"
 import "core:strings"
 import "core:unicode/utf8"
 
+BYTE_SIZE  :: 1
+WORD_SIZE  :: 2
+DWORD_SIZE :: 4
+QWORD_SIZE :: 8
+
+
 Generator :: struct {
     bss_segment:   strings.Builder,
     data_segment:  strings.Builder,
@@ -455,7 +461,7 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
         gen_printf(gen, "    mov     rdx, [rax+{}]\n", iteratee_offset)
         gen_print (gen, "    xor     ecx, ecx\n")
         gen_print (gen, "    mov     cl, [rdx+rbx]\n")
-        gen_printf(gen, "    mov     QWORD [rax+{}], rcx\n", curr_value_offset)
+        gen_printf(gen, "    mov     BYTE [rax+{}], cl\n", curr_value_offset)
 
         // start of loop
         gen_printf(gen, "proc{}.ip{}.loop:\n", this_proc.id, v.id)
@@ -534,8 +540,9 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
             case .Bool:
                 gen_print(gen, "    mov     rdx, TRUE_STR\n")
                 gen_print(gen, "    mov     rdi, FALSE_STR\n")
+                gen_print(gen, "    xor     rbx, rbx\n")
                 gen_print(gen, "    pop     rbx\n")
-                gen_print(gen, "    cmp     rbx, 1\n")
+                gen_print(gen, "    cmp     bl, 1\n")
                 gen_print(gen, "    cmove   rdi, rdx\n")
                 gen_print(gen, "    call    puts\n")
             case .Byte:
@@ -570,11 +577,20 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
         gen_ip_label(gen, this_proc, ins)
         gen_print (gen, "    mov     rax, [ret_stack_ptr]\n")
         gen_printf(gen, "    add     rax, {}\n", v.offset)
-        gen_print (gen, "    push    QWORD [rax]\n")
+        gen_print (gen, "    xor     rbx, rbx\n")
+        switch v.type.size_in_bytes {
+        case BYTE_SIZE:  gen_print(gen, "    mov     bl, [rax]\n")
+        case WORD_SIZE:  gen_print(gen, "    mov     bx, [rax]\n")
+        case DWORD_SIZE: gen_print(gen, "    mov     ebx, [rax]\n")
+        case QWORD_SIZE: gen_print(gen, "    mov     rbx, [rax]\n")
+        case: assert(false)
+        }
+        gen_print (gen, "    push    rbx\n")
 
     case PUSH_BOOL:
         gen_ip_label(gen, this_proc, ins)
-        gen_printf(gen, "    mov     rax, {}\n", v.value ? 1 : 0)
+        gen_print (gen, "    xor     rax, rax\n")
+        gen_printf(gen, "    mov     al, {}\n", v.value ? 1 : 0)
         gen_print (gen, "    push    rax\n")
 
     case PUSH_BYTE:
