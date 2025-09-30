@@ -13,16 +13,12 @@ WORD_SIZE  :: 2
 DWORD_SIZE :: 4
 QWORD_SIZE :: 8
 
-
 Generator :: struct {
     bss_segment:   strings.Builder,
     data_segment:  strings.Builder,
     text_segment:  strings.Builder,
 
-    indent:        int,
-
     source:        ^strings.Builder,
-    multi_results: [dynamic]string,
 }
 
 REGISTERS :: []string{

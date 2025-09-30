@@ -89,7 +89,7 @@ stanczyk_number_to_c_number :: proc(s: string) -> string {
 
 parse_byte_value :: proc(token: Token) -> byte {
     result: byte
-    bytes := token.text[2:len(token.text)-1]
+    bytes := token.text[1:len(token.text)-2]
 
     if len(bytes) > 2 {
         parser_error(token, INVALID_BYTE_LITERAL, token.text)

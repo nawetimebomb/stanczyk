@@ -1,8 +1,8 @@
 proc main
   3 plus-one-with-a-loop print
-  "Stanczyk" b"c" find-index print
-  "Stanczyk" b"k" find-index print
-  "Stanczyk" b"l" find-index print
+  "Stanczyk" "c"b find-index print
+  "Stanczyk" "k"b find-index print
+  "Stanczyk" "l"b find-index print
 
   3 count-to print
 ;

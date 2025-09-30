@@ -63,37 +63,37 @@ Type_Basic_Kind :: enum {
 BASIC_TYPES := [Type_Basic_Kind]Type{
     .Bool = {
         name          = "bool",
-        size_in_bytes = 1, // alignment
+        size_in_bytes = BYTE_SIZE,
         variant       = Type_Basic{kind=.Bool},
     },
 
     .Byte = {
         name          = "byte",
-        size_in_bytes = 1,
+        size_in_bytes = BYTE_SIZE,
         variant       = Type_Basic{kind=.Byte},
     },
 
     .Float = {
         name          = "float",
-        size_in_bytes = 8,
+        size_in_bytes = QWORD_SIZE,
         variant       = Type_Basic{kind=.Float},
     },
 
     .Int = {
         name          = "int",
-        size_in_bytes = 8,
+        size_in_bytes = QWORD_SIZE,
         variant       = Type_Basic{kind=.Int},
     },
 
     .String = {
         name          = "string",
-        size_in_bytes = 8,
+        size_in_bytes = QWORD_SIZE, // pointer
         variant       = Type_Basic{kind=.String},
     },
 
     .Uint = {
         name          = "uint",
-        size_in_bytes = 8,
+        size_in_bytes = QWORD_SIZE,
         variant       = Type_Basic{kind=.Uint},
     },
 }
@@ -122,7 +122,7 @@ type_pointer_to :: proc(type: ^Type) -> ^Type {
     }
 
     t := new(Type)
-    t.size_in_bytes = 8
+    t.size_in_bytes = QWORD_SIZE
     t.name = fmt.aprintf("'{}", type.name)
     t.variant = Type_Pointer{type}
 
@@ -130,7 +130,7 @@ type_pointer_to :: proc(type: ^Type) -> ^Type {
 }
 
 type_proc_create :: proc(arguments: []Parameter, results: []Parameter) -> ^Type {
-    _get_type_proc_name :: proc(args, ress: []^Type ) -> string {
+    _create_type_proc_name :: proc(args, ress: []^Type) -> string {
         name := strings.builder_make()
         fmt.sbprint(&name, "proc(")
         for arg, index in args {
@@ -177,8 +177,8 @@ type_proc_create :: proc(arguments: []Parameter, results: []Parameter) -> ^Type 
     }
 
     t := new(Type)
-    t.size_in_bytes = 8 // a pointer
-    t.name = _get_type_proc_name(args_t[:], ress_t[:])
+    t.size_in_bytes = QWORD_SIZE // a pointer
+    t.name = _create_type_proc_name(args_t[:], ress_t[:])
     t.variant = Type_Proc{
         arguments = slice.clone(args_t[:]),
         results   = slice.clone(ress_t[:]),

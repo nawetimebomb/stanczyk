@@ -279,16 +279,7 @@ get_next_token :: proc(l: ^Lexer) -> (token: Token) {
     }
 
     tokenize_string :: proc(l: ^Lexer, token: ^Token) {
-        if get_byte(l) == 'b' {
-            token.kind = .Byte
-            advance(l)
-        } else if get_byte(l) == 'f' {
-            token.kind = .Format_String
-            advance(l)
-        } else {
-            token.kind = .String
-        }
-
+        token.kind = .String
         escape_found := false
         advance(l)
         for !is_eof(l) {
@@ -300,6 +291,14 @@ get_next_token :: proc(l: ^Lexer) -> (token: Token) {
         }
 
         advance(l)
+
+        if get_byte(l) == 'b' {
+            token.kind = .Byte
+            advance(l)
+        } else if get_byte(l) == 'f' {
+            token.kind = .Format_String
+            advance(l)
+        }
     }
 
 
@@ -401,22 +400,6 @@ get_next_token :: proc(l: ^Lexer) -> (token: Token) {
         } else if curr_byte == '-' && peek_byte(l, 1) == '-' {
             token.kind = .Dash_Dash_Dash
             advance(l, 2)
-        }
-    case 'f':
-        next_byte := peek_byte(l, 1)
-
-        if next_byte == '"' {
-            tokenize_string(l, &token)
-        } else {
-            tokenize_identifier(l, &token)
-        }
-    case 'b':
-        next_byte := peek_byte(l, 1)
-
-        if next_byte == '"' {
-            tokenize_string(l, &token)
-        } else {
-            tokenize_identifier(l, &token)
         }
     case '"':
         tokenize_string(l, &token)
