@@ -24,12 +24,12 @@ REGISTERS :: []string{
     "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15",
 }
 
-string_to_bytes :: proc(s: string) -> []byte {
-    result := make([dynamic]byte, 0, len(s), context.temp_allocator)
+string_to_bytes :: proc(s: string) -> []int {
+    result := make([dynamic]int, 0, len(s), context.temp_allocator)
 
     for index := 0; index < len(s); index += 1 {
         char := s[index]
-        byte_value: byte
+        byte_value: int
 
         if char == '\\' {
             index += 1
@@ -46,10 +46,10 @@ string_to_bytes :: proc(s: string) -> []byte {
             case 'e':  byte_value = 27
             case '"':  byte_value = 34
             case '\'': byte_value = 39
-            case:      byte_value = byte(char)
+            case:      byte_value = int(char)
             }
         } else {
-            byte_value = byte(char)
+            byte_value = int(char)
         }
 
         append(&result, byte_value)
@@ -82,12 +82,11 @@ gen_bootstrap :: proc(gen: ^Generator) {
     if compiler.global_proc.stack_frame_size > 0 {
         gen_printf(gen, "stanczyk_static:    resb {}\n", compiler.global_proc.stack_frame_size)
     }
-    gen_print (gen, "TEMP_QWORD:         resq 0\n")
+    gen_print (gen, "TEMP_QWORD:         resb 64\n")
 
     gen_print (gen, "section .data\n")
     gen_print (gen, "EMPTY_STRING: db \"\",0\n")
     gen_print (gen, "FORMAT_BOOL:  db \"%s\",10,0\n")
-    gen_print (gen, "FORMAT_BYTE:  db \"%c\",10,0\n")
     gen_print (gen, "FORMAT_FLOAT: db \"%g\",10,0\n")
     gen_print (gen, "FORMAT_INT:   db \"%d\",10,0\n")
     gen_print (gen, "FORMAT_UINT:  db \"%u\",10,0\n")
@@ -619,6 +618,8 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
         gen_print (gen, "    add     rax, 8\n")
         gen_print (gen, "    push    rax\n")
 
+    case PUSH_STRUCT_FIELD:
+
     case PUSH_TYPE:
 
     case PUSH_UINT:
@@ -700,15 +701,19 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
 
     case STORE_VAR_GLOBAL:
         gen_ip_label(gen, this_proc, ins)
-        gen_print (gen, "    lea     rax, [stanczyk_static]\n")
-        gen_print (gen, "    pop     rbx\n")
-        gen_printf(gen, "    mov     [rax+{}], rbx\n", v.offset)
+        if v.is_initialized {
+            gen_print (gen, "    lea     rax, [stanczyk_static]\n")
+            gen_print (gen, "    pop     rbx\n")
+            gen_printf(gen, "    mov     [rax+{}], rbx\n", v.offset)
+        }
 
     case STORE_VAR_LOCAL:
         gen_ip_label(gen, this_proc, ins)
-        gen_print (gen, "    mov     rax, [ret_stack_ptr]\n")
-        gen_print (gen, "    pop     rbx\n")
-        gen_printf(gen, "    mov     [rax+{}], rbx\n", v.offset)
+        if v.is_initialized {
+            gen_print (gen, "    mov     rax, [ret_stack_ptr]\n")
+            gen_print (gen, "    pop     rbx\n")
+            gen_printf(gen, "    mov     [rax+{}], rbx\n", v.offset)
+        }
 
     case SWAP:
         gen_ip_label(gen, this_proc, ins)

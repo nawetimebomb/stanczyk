@@ -92,6 +92,7 @@ Instruction_Variant :: union {
     PUSH_FLOAT,
     PUSH_INT,
     PUSH_STRING,
+    PUSH_STRUCT_FIELD,
     PUSH_TYPE,
     PUSH_UINT,
     PUSH_VAR_GLOBAL,
@@ -265,6 +266,11 @@ PUSH_STRING :: struct {
     index: int,
 }
 
+PUSH_STRUCT_FIELD :: struct {
+    struct_name: string,
+    field_name:  string,
+}
+
 PUSH_TYPE :: struct {
     value: ^Type,
 }
@@ -313,13 +319,19 @@ STORE_BIND :: struct {
 }
 
 STORE_VAR_GLOBAL :: struct {
-    offset: int,
-    token:  Token,
+    offset:         int,
+    name_token:     Token,
+    type_token:     Token,
+    use_type_token: bool,
+    is_initialized: bool,
 }
 
 STORE_VAR_LOCAL :: struct {
-    offset: int,
-    token:  Token,
+    offset:         int,
+    name_token:     Token,
+    type_token:     Token,
+    use_type_token: bool,
+    is_initialized: bool,
 }
 
 SWAP :: struct {
@@ -515,6 +527,10 @@ debug_print_bytecode :: proc() {
             case PUSH_STRING:
                 _name("PUSH_STRING")
                 _value("{}", v.index)
+
+            case PUSH_STRUCT_FIELD:
+                _name("PUSH_STRUCT_FIELD")
+                _value("{} {}", v.struct_name, v.field_name)
 
             case PUSH_TYPE:
                 _name("PUSH_TYPE")

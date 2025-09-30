@@ -41,8 +41,10 @@ Entity_Type :: struct {
 }
 
 Entity_Var :: struct {
-    offset: int,
-    type:   ^Type,
+    offset:     int,
+    type:       ^Type,
+    type_decl:  bool,
+    type_token: Token,
 }
 
 Scope :: struct {

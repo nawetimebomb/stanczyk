@@ -40,9 +40,15 @@ Type_Proc :: struct {
 }
 
 Type_Struct :: struct {
-    names:        []string,
-    types:        []^Type,
-    fields_count: int,
+    fields: []Type_Struct_Field,
+}
+
+Type_Struct_Field :: struct {
+    offset:     int,
+    name:       string,
+    type:       ^Type,
+    name_token: Token,
+    type_token: Token,
 }
 
 Type_Basic_Kind :: enum {

@@ -1,0 +1,17 @@
+struct Entity
+  x: int
+  y: int
+  name: string
+;
+
+proc main
+  var player: Entity ;
+
+  "Stanczyk" 'player.name set
+  13 'player.x set
+  26 'player.y set
+
+  player.x print
+  player.y print
+  player.name print
+;

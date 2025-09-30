@@ -182,11 +182,6 @@ find_closest_loop_scope :: proc() -> ^Scope {
     return scope
 }
 
-parse_array_literal :: proc() {
-    // This is something like: [1 2 3]
-
-}
-
 parse_const_declaration :: proc() {
     name_token := expect(.Identifier)
     const := Entity_Const{}
@@ -276,6 +271,14 @@ parse_let_declaration :: proc() {
 
 parse_var_declaration :: proc() {
     name_token := expect(.Identifier)
+    type_token: Token
+    use_type_token: bool
+    expressions_count := 0
+
+    if allow(.Colon) {
+        type_token = expect(.Identifier)
+        use_type_token = true
+    }
 
     for can_continue_parsing() && !check(.Semicolon) {
         next_token := compiler.parser.curr_token
@@ -285,6 +288,7 @@ parse_var_declaration :: proc() {
             .Format_String, .Byte, .True, .False, .Minus, .Plus, .Star, .Percent, .Equal,
             .Not_Equal,  .Greater, .Greater_Equal, .Less, .Less_Equal:
             parse_expression()
+            expressions_count += 1
         case:
             parser_error(next_token, INVALID_TOKEN_VAR_BODY, next_token.text)
             return
@@ -294,10 +298,25 @@ parse_var_declaration :: proc() {
 
     end_token := expect(.Semicolon)
 
+    if !use_type_token && expressions_count == 0 {
+        parser_error(name_token, EMPTY_VAR_DECL)
+        return
+    }
+
     if is_in_global_scope() {
-        write_chunk(end_token, STORE_VAR_GLOBAL{token=name_token})
+        write_chunk(end_token, STORE_VAR_GLOBAL{
+            name_token     = name_token,
+            type_token     = type_token,
+            use_type_token = use_type_token,
+            is_initialized = expressions_count > 0,
+        })
     } else {
-        write_chunk(end_token, STORE_VAR_LOCAL{token=name_token})
+        write_chunk(end_token, STORE_VAR_LOCAL{
+            name_token     = name_token,
+            type_token     = type_token,
+            use_type_token = use_type_token,
+            is_initialized = expressions_count > 0,
+        })
     }
 }
 
@@ -396,6 +415,40 @@ parse_proc_declaration :: proc() {
     append(&bytecode, procedure)
 }
 
+parse_struct_declaration :: proc() {
+    name_token := expect(.Identifier)
+    fields := make([dynamic]Type_Struct_Field, context.temp_allocator)
+
+    for can_continue_parsing() && !check(.Semicolon) {
+        field: Type_Struct_Field
+        field.name_token = expect(.Identifier)
+        field.name = field.name_token.text
+
+        expect(.Colon)
+
+        field.type_token = expect(.Identifier)
+        append(&fields, field)
+    }
+
+    expect(.Semicolon)
+
+    if len(fields) == 0 {
+        parser_error(name_token, EMPTY_STRUCT_DECL)
+    }
+
+    type := new(Type)
+    type.name = name_token.text
+    type.variant = Type_Struct{
+        fields = slice.clone(fields[:]),
+    }
+
+    if is_in_global_scope() {
+        register_global_type(type)
+    } else {
+        create_entity(name_token, Entity_Type{type})
+    }
+}
+
 parse_type_declaration :: proc() {
     name_token := expect(.Identifier)
     maybe_type_token := next()
@@ -441,6 +494,15 @@ parse_type_declaration :: proc() {
 
 
 
+parse_array_literal :: proc() {
+    // This is something like: [1 2 3]
+    unimplemented()
+}
+
+parse_struct_literal :: proc() {
+    unimplemented()
+}
+
 parse_file :: proc(file_info: ^File_Info) {
     compiler.parser = new(Parser)
     compiler.parser.file_info = file_info
@@ -466,11 +528,12 @@ parse_expression_in_global_scope :: proc() {
     token := next()
 
     #partial switch token.kind {
-    case .Const: parse_const_declaration()
-    case .Proc:  parse_proc_declaration()
-    case .Type:  parse_type_declaration()
-    case .Var:   parse_var_declaration()
-    case:        parser_error(token, IMPERATIVE_EXPR_GLOBAL)
+    case .Const:  parse_const_declaration()
+    case .Proc:   parse_proc_declaration()
+    case .Type:   parse_type_declaration()
+    case .Var:    parse_var_declaration()
+    case .Struct: parse_struct_declaration()
+    case:         parser_error(token, IMPERATIVE_EXPR_GLOBAL)
     }
 }
 
@@ -488,7 +551,18 @@ parse_expression :: proc() {
         parser_error(token, INVALID_TOKEN, token.text)
 
     case .Identifier:
-        write_chunk(token, IDENTIFIER{token.text})
+        if allow(.Period) {
+            subscript := next()
+
+            if subscript.kind == .Identifier {
+                write_chunk(token, PUSH_STRUCT_FIELD{
+                    struct_name = token.text,
+                    field_name  = subscript.text,
+                })
+            }
+        } else {
+            write_chunk(token, IDENTIFIER{token.text})
+        }
 
     case .Integer:
         value, ok := strconv.parse_i64(stanczyk_number_to_c_number(token.text))
@@ -527,9 +601,14 @@ parse_expression :: proc() {
     case .False:
         write_chunk(token, PUSH_BOOL{false})
 
+    case .Period:
+
     case .Semicolon:
     case .Brace_Left:
+        parse_struct_literal()
+
     case .Brace_Right:
+
     case .Bracket_Left:
         parse_array_literal()
 
@@ -580,13 +659,6 @@ parse_expression :: proc() {
         parse_expression()
         ins := this_proc.code[current_ip]
         ins.quoted = true
-        if _, is_ident := ins.variant.(IDENTIFIER); !is_ident {
-            parser_error(
-                token, QUOTED_ELEMENT_IS_NOT_IDENTIFIER,
-                ins.token.text,
-            )
-            return
-        }
 
     case .Autorange_Less, .Autorange_Greater:
         if !check(.For) && !check(.For_Star) {
@@ -661,6 +733,9 @@ parse_expression :: proc() {
 
     case .Var:
         parse_var_declaration()
+
+    case .Struct:
+        parse_struct_declaration()
 
     case .Set:
         write_chunk(token, SET{})

@@ -11,7 +11,11 @@ CONST_MISMATCHED_TYPES :: "Mismatched types in const declaration '{}' vs '{}'."
 
 EMPTY_LET_DECL :: "Empty let declarations are not allowed."
 
-FAILED_TO_PARSE_TYPE :: "Failed to parse this as a valid type"
+EMPTY_STRUCT_DECL :: "Empty struct declarations are not allowed."
+
+EMPTY_VAR_DECL :: "Cannot have uninitialized var with no type definition."
+
+FAILED_TO_PARSE_TYPE :: "Failed to parse this as a valid type."
 
 FOR_STATEMENT_AFTER_AUTORANGE_REQUIRED :: "Autorange expression needs to be followed by a 'for' statement."
 

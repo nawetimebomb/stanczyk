@@ -114,6 +114,23 @@ can_this_proc_be_called :: proc(token: Token, procedure: ^Procedure, report_erro
 check_program_bytecode :: proc() {
     assert(compiler.current_proc == compiler.global_proc)
 
+    for &entity in compiler.current_scope.entities {
+        switch &variant in entity.variant {
+        case Entity_Binding:
+        case Entity_Const:
+        case Entity_Proc:
+        case Entity_Type:
+            if v, ok := &variant.type.variant.(Type_Struct); ok {
+                for &field in v.fields {
+                    field.offset = variant.type.size_in_bytes
+                    field.type = compiler.types_by_name[field.type_token.text]
+                    variant.type.size_in_bytes += field.type.size_in_bytes
+                }
+            }
+        case Entity_Var:
+        }
+    }
+
     compiler.global_proc.stack = new(Stack, context.temp_allocator)
 
     for instruction in compiler.global_proc.code {
@@ -778,6 +795,29 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
     case PUSH_STRING:
         push_stack(type_string)
 
+    case PUSH_STRUCT_FIELD:
+        matches := find_entity(v.struct_name)
+        assert(len(matches) == 1)
+        entity := matches[0]
+        variant, _ := entity.variant.(Entity_Var)
+        struct_data := variant.type.variant.(Type_Struct)
+        offset_of_struct := 0
+        type: ^Type
+        for field in struct_data.fields {
+            if field.name == v.field_name {
+                type = field.type
+                offset_of_struct = field.offset
+                break
+            }
+        }
+
+        ins.variant = PUSH_VAR_LOCAL{
+            offset = variant.offset + offset_of_struct,
+            type   = type,
+        }
+
+        check_instruction(this_proc, ins)
+
     case PUSH_TYPE:
         unimplemented()
 
@@ -859,25 +899,67 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
         this_proc.stack_frame_size += type.size_in_bytes
 
     case STORE_VAR_GLOBAL:
-        if len(stack) == 0 {
-            checker_error(ins.token, STACK_EMPTY_EXPECT, 1, 0)
-            return
+        type: ^Type
+
+        if v.is_initialized {
+            if len(stack) == 0 {
+                checker_error(ins.token, STACK_EMPTY_EXPECT, 1, 0)
+                return
+            }
+
+            type = pop_stack()
         }
 
-        type := pop_stack()
+        if v.use_type_token {
+            asking_type := compiler.types_by_name[v.type_token.text]
+
+            if asking_type == nil {
+                checker_error(v.type_token, UNEXPECTED_TOKEN_PROC_TYPE, v.type_token.text)
+                return
+            }
+
+            if v.is_initialized && !types_equal(type, asking_type) {
+                checker_error(v.type_token, MISMATCHED_MULTI, asking_type.name, type.name)
+                return
+            }
+
+            type = asking_type
+        }
+
         v.offset = this_proc.stack_frame_size
-        create_entity(v.token, Entity_Var{offset=this_proc.stack_frame_size, type=type})
+        create_entity(v.name_token, Entity_Var{offset=this_proc.stack_frame_size, type=type})
         this_proc.stack_frame_size += type.size_in_bytes
 
     case STORE_VAR_LOCAL:
-        if len(stack) == 0 {
-            checker_error(ins.token, STACK_EMPTY_EXPECT, 1, 0)
-            return
+        type: ^Type
+
+        if v.is_initialized {
+            if len(stack) == 0 {
+                checker_error(ins.token, STACK_EMPTY_EXPECT, 1, 0)
+                return
+            }
+
+            type = pop_stack()
         }
 
-        type := pop_stack()
+        if v.use_type_token {
+            asking_type := compiler.types_by_name[v.type_token.text]
+
+            if asking_type == nil {
+                checker_error(v.type_token, UNEXPECTED_TOKEN_PROC_TYPE, v.type_token.text)
+                return
+            }
+
+            if v.is_initialized && !types_equal(type, asking_type) {
+                checker_error(v.type_token, MISMATCHED_MULTI, asking_type.name, type.name)
+                return
+            }
+
+            type = asking_type
+        }
+
         v.offset = this_proc.stack_frame_size
-        create_entity(v.token, Entity_Var{offset=this_proc.stack_frame_size, type=type})
+        create_entity(v.name_token, Entity_Var{offset=this_proc.stack_frame_size, type=type})
         this_proc.stack_frame_size += type.size_in_bytes
 
     case SWAP:

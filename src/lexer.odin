@@ -51,6 +51,7 @@ Token_Kind :: enum u8 {
 
 
     // Single(ish) character tokens
+    Period            =  29,
     Semicolon         =  30,
     Brace_Left        =  31,
     Brace_Right       =  32,
@@ -91,11 +92,13 @@ Token_Kind :: enum u8 {
     // Keywords
     Using             = 100,
     Foreign           = 101,
-    Proc              = 120,
-    Type              = 121,
-    Const             = 122,
-    Let               = 123,
-    Var               = 124,
+    Proc              = 110,
+    Type              = 111,
+    Const             = 112,
+    Let               = 113,
+    Var               = 114,
+    Struct            = 115,
+
     Len               = 125,
     Set               = 126,
     If                = 127,
@@ -327,7 +330,21 @@ get_next_token :: proc(l: ^Lexer) -> (token: Token) {
 
     switch l.data[l.offset] {
     case '0'..='9': tokenize_number(l, &token)
-    case '.':
+    case '#' :      tokenize_directive(l, &token)
+    case '{' :      token.kind = .Brace_Left;    advance(l)
+    case '}' :      token.kind = .Brace_Right;   advance(l)
+    case '[' :      token.kind = .Bracket_Left;  advance(l)
+    case ']' :      token.kind = .Bracket_Right; advance(l)
+    case '(' :      token.kind = .Paren_Left;    advance(l)
+    case ')' :      token.kind = .Paren_Right;   advance(l)
+    case ';' :      token.kind = .Semicolon;     advance(l)
+    case '+' :      token.kind = .Plus;          advance(l)
+    case '*' :      token.kind = .Star;          advance(l)
+    case '%' :      token.kind = .Percent;       advance(l)
+    case ':' :      token.kind = .Colon;         advance(l)
+    case '=' :      token.kind = .Equal;         advance(l)
+    case '\'':      token.kind = .Quote;         advance(l)
+    case '.' :
         next_byte := peek_byte(l, 1)
         if next_byte >= '0' && next_byte <= '9' {
             tokenize_number(l, &token)
@@ -341,6 +358,9 @@ get_next_token :: proc(l: ^Lexer) -> (token: Token) {
                 token.kind = .Autorange_Less
                 advance(l)
             }
+        } else {
+            token.kind = .Period
+            advance(l)
         }
     case '/':
         token.kind = .Slash
@@ -349,21 +369,7 @@ get_next_token :: proc(l: ^Lexer) -> (token: Token) {
             for !is_eof(l) && get_byte(l) != '\n' do advance(l)
             return get_next_token(l)
         }
-    case '#':       tokenize_directive(l, &token)
-    case '{':       token.kind = .Brace_Left;    advance(l)
-    case '}':       token.kind = .Brace_Right;   advance(l)
-    case '[':       token.kind = .Bracket_Left;  advance(l)
-    case ']':       token.kind = .Bracket_Right; advance(l)
-    case '(':       token.kind = .Paren_Left;    advance(l)
-    case ')':       token.kind = .Paren_Right;   advance(l)
-    case ';':       token.kind = .Semicolon;     advance(l)
-    case '+':       token.kind = .Plus;          advance(l)
-    case '*':       token.kind = .Star;          advance(l)
-    case '%':       token.kind = .Percent;       advance(l)
-    case ':':       token.kind = .Colon;         advance(l)
-    case '=':       token.kind = .Equal;         advance(l)
-    case '\'':      token.kind = .Quote;         advance(l)
-    case '!':
+    case '!' :
         advance(l)
         if get_byte(l) == '=' {
             token.kind = .Not_Equal
@@ -447,6 +453,7 @@ get_token_kind_from_string :: proc(s: string) -> (Token_Kind) {
     case "const":    return .Const
     case "let":      return .Let
     case "var":      return .Var
+    case "struct":   return .Struct
     case "set":      return .Set
     case "len":      return .Len
     case "if":       return .If
