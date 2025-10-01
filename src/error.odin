@@ -13,6 +13,8 @@ EMPTY_LET_DECL :: "Empty let declarations are not allowed."
 
 EMPTY_STRUCT_DECL :: "Empty struct declarations are not allowed."
 
+EMPTY_TYPE_DECL :: "Empty type declarations are not allowed."
+
 EMPTY_VAR_DECL :: "Cannot have uninitialized var with no type definition."
 
 FAILED_TO_PARSE_TYPE :: "Failed to parse this as a valid type."
@@ -37,11 +39,13 @@ UNATTACHED_TO_IF :: "'{}' statement unattached to 'if' statement."
 
 UNATTACHED_TO_LOOP :: "'{}' statement unattached to 'for' statement."
 
+UNBALANCED_SCOPE :: "This procedure is not ending in the correct scope, maybe you forgot to end the scope for a conditional or loop statement?"
+
+UNDECLARED_NAME :: "Undeclared name in struct '{}'."
+
 UNEXPECTED_TOKEN_PROC_TYPE :: "'{}' is not a type."
 
 UNEXPECTED_TOKEN_LET_BIND :: "'{}' is not an identifier."
-
-UNBALANCED_SCOPE :: "This procedure is not ending in the correct scope, maybe you forgot to end the scope for a conditional or loop statement?"
 
 UP_TO_MAX_BOUND_VALUES :: "Attempt to bind more values than the ones available in this context. The maximum is {} and correspond to {}."
 

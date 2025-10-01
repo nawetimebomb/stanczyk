@@ -32,13 +32,9 @@ Entity_Const :: struct {
     value: Constant_Value,
 }
 
-Entity_Proc :: struct {
-    procedure: ^Procedure,
-}
+Entity_Proc :: ^Procedure
 
-Entity_Type :: struct {
-    type: ^Type,
-}
+Entity_Type :: ^Type
 
 Entity_Var :: struct {
     offset:     int,

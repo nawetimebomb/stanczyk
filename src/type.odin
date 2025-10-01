@@ -19,6 +19,7 @@ Type :: struct {
 
 Type_Alias :: struct {
     derived: ^Type,
+    token:   Token,
 }
 
 Type_Array :: struct {
@@ -108,7 +109,7 @@ type_uint   := &BASIC_TYPES[.Uint]
 register_global_type :: proc(type: ^Type) {
     compiler.types_by_name[type.name] = type
     append(&compiler.types_array, type)
-    create_entity(make_token(type.name), Entity_Type{type})
+    create_entity(make_token(type.name), type)
 }
 
 type_pointer_to :: proc(type: ^Type) -> ^Type {
@@ -278,7 +279,9 @@ type_is_byte :: proc(type: ^Type) -> bool {
 
 type_is_pointer_of :: proc(type: ^Type, of: ^Type) -> bool {
     if variant, ok := type.variant.(Type_Pointer); ok {
-        if variant.type == of {
+        test_type := type_get_derived_type(variant.type)
+
+        if test_type == of {
             return true
         }
     }

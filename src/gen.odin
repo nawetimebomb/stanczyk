@@ -529,8 +529,9 @@ gen_instruction :: proc(gen: ^Generator, this_proc: ^Procedure, ins: ^Instructio
 
     case PRINT:
         gen_ip_label(gen, this_proc, ins)
+        type := type_get_derived_type(v.type)
 
-        #partial switch variant in v.type.variant {
+        #partial switch variant in type.variant {
         case Type_Basic:
             switch variant.kind {
             case .Bool:

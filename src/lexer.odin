@@ -97,7 +97,6 @@ Token_Kind :: enum u8 {
     Const             = 112,
     Let               = 113,
     Var               = 114,
-    Struct            = 115,
 
     Len               = 125,
     Set               = 126,
@@ -436,7 +435,6 @@ get_token_kind_from_string :: proc(s: string) -> (Token_Kind) {
     case "const":    return .Const
     case "let":      return .Let
     case "var":      return .Var
-    case "struct":   return .Struct
     case "set":      return .Set
     case "len":      return .Len
     case "if":       return .If

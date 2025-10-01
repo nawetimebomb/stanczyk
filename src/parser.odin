@@ -59,7 +59,7 @@ make_procedure :: proc(token: Token) -> ^Procedure {
     result.name         = token.text
     result.id           = compiler.procedure_uid
     result.file_info    = token.file_info
-    result.entity       = create_entity(token, Entity_Proc{ procedure = result })
+    result.entity       = create_entity(token, result)
     result.scope        = create_scope(.Procedure)
     result.code         = make([dynamic]^Instruction)
 
@@ -415,78 +415,63 @@ parse_proc_declaration :: proc() {
     append(&bytecode, procedure)
 }
 
-parse_struct_declaration :: proc() {
+parse_type_declaration :: proc() {
     name_token := expect(.Identifier)
+    is_struct := false
     fields := make([dynamic]Type_Struct_Field, context.temp_allocator)
+    alias_type_token: Token
+    count_of_processed_tokens := 0
 
     for can_continue_parsing() && !check(.Semicolon) {
-        field: Type_Struct_Field
-        field.name_token = expect(.Identifier)
-        field.name = field.name_token.text
+        maybe_type_token := next()
+        count_of_processed_tokens += 1
 
-        expect(.Colon)
+        if allow(.Colon) {
+            is_struct = true
+            field: Type_Struct_Field
+            field.name_token = maybe_type_token
+            field.name = maybe_type_token.text
+            field.type_token = expect(.Identifier)
+            append(&fields, field)
+        } else {
+            if is_struct {
+                parser_error(maybe_type_token, UNDECLARED_NAME, name_token.text)
+                return
+            }
 
-        field.type_token = expect(.Identifier)
-        append(&fields, field)
-    }
-
-    expect(.Semicolon)
-
-    if len(fields) == 0 {
-        parser_error(name_token, EMPTY_STRUCT_DECL)
+            alias_type_token = maybe_type_token
+            break
+        }
     }
 
     type := new(Type)
-    type.name = name_token.text
-    type.variant = Type_Struct{
-        fields = slice.clone(fields[:]),
+
+    if is_struct {
+        if len(fields) == 0 {
+            parser_error(name_token, EMPTY_STRUCT_DECL)
+            return
+        }
+
+        type.name = name_token.text
+        type.variant = Type_Struct{
+            fields = slice.clone(fields[:]),
+        }
+    } else {
+        if count_of_processed_tokens == 0 {
+            parser_error(name_token, EMPTY_TYPE_DECL)
+            return
+        }
+
+        type.name = name_token.text
+        type.variant = Type_Alias{
+            token = alias_type_token,
+        }
     }
 
     if is_in_global_scope() {
         register_global_type(type)
     } else {
-        create_entity(name_token, Entity_Type{type})
-    }
-}
-
-parse_type_declaration :: proc() {
-    name_token := expect(.Identifier)
-    maybe_type_token := next()
-
-    #partial switch maybe_type_token.kind {
-    case .Proc:       unimplemented("Allow to define procedure types")
-    case .Identifier:
-        derived_type := compiler.types_by_name[maybe_type_token.text]
-
-        if derived_type == nil {
-            matches := find_entity(maybe_type_token.text)
-
-            if len(matches) == 0 || len(matches) > 1 {
-                parser_error(maybe_type_token, FAILED_TO_PARSE_TYPE)
-                parser_fatal_error()
-            }
-
-            entity := matches[0]
-
-            #partial switch v in entity.variant {
-            case Entity_Type: derived_type = v.type
-            case:
-                parser_error(maybe_type_token, FAILED_TO_PARSE_TYPE)
-                parser_fatal_error()
-            }
-        }
-
-        type := new(Type)
-        type.name = name_token.text
-        type.variant = Type_Alias{
-            derived = derived_type,
-        }
-
-        if is_in_global_scope() {
-            register_global_type(type)
-        } else {
-            create_entity(name_token, Entity_Type{type})
-        }
+        create_entity(name_token, type)
     }
 
     expect(.Semicolon)
@@ -532,7 +517,6 @@ parse_expression_in_global_scope :: proc() {
     case .Proc:   parse_proc_declaration()
     case .Type:   parse_type_declaration()
     case .Var:    parse_var_declaration()
-    case .Struct: parse_struct_declaration()
     case:         parser_error(token, IMPERATIVE_EXPR_GLOBAL)
     }
 }
@@ -733,9 +717,6 @@ parse_expression :: proc() {
 
     case .Var:
         parse_var_declaration()
-
-    case .Struct:
-        parse_struct_declaration()
 
     case .Set:
         write_chunk(token, SET{})

@@ -114,22 +114,7 @@ can_this_proc_be_called :: proc(token: Token, procedure: ^Procedure, report_erro
 check_program_bytecode :: proc() {
     assert(compiler.current_proc == compiler.global_proc)
 
-    for &entity in compiler.current_scope.entities {
-        switch &variant in entity.variant {
-        case Entity_Binding:
-        case Entity_Const:
-        case Entity_Proc:
-        case Entity_Type:
-            if v, ok := &variant.type.variant.(Type_Struct); ok {
-                for &field in v.fields {
-                    field.offset = variant.type.size_in_bytes
-                    field.type = compiler.types_by_name[field.type_token.text]
-                    variant.type.size_in_bytes += field.type.size_in_bytes
-                }
-            }
-        case Entity_Var:
-        }
-    }
+    check_entities()
 
     compiler.global_proc.stack = new(Stack, context.temp_allocator)
 
@@ -153,6 +138,42 @@ check_program_bytecode :: proc() {
 
     if len(compiler.errors) > 0 {
         checker_fatal_error()
+    }
+}
+
+check_entities :: proc() {
+    NUMBER_OF_PASSES :: 3
+
+    for passes := 0; passes < NUMBER_OF_PASSES; passes += 1 {
+        for &entity in compiler.current_scope.entities {
+            switch &variant in entity.variant {
+            case Entity_Binding:
+            case Entity_Const:
+
+            case Entity_Proc:
+            case Entity_Type:
+                type := variant
+
+                switch &v in type.variant {
+                case Type_Array:   // noop
+                case Type_Basic:   // noop
+                case Type_Pointer: // noop
+                case Type_Proc:    // noop
+
+                case Type_Alias:
+                    v.derived = compiler.types_by_name[v.token.text]
+                    type.size_in_bytes = v.derived.size_in_bytes
+
+                case Type_Struct:
+                    for &field in v.fields {
+                        field.offset = type.size_in_bytes
+                        field.type = compiler.types_by_name[field.type_token.text]
+                        type.size_in_bytes += field.type.size_in_bytes
+                    }
+                }
+            case Entity_Var:
+            }
+        }
     }
 }
 
@@ -200,8 +221,8 @@ check_procedures_with_same_signature :: proc() {
                     continue
                 }
 
-                a := matches[i1].variant.(Entity_Proc).procedure
-                b := matches[i2].variant.(Entity_Proc).procedure
+                a := matches[i1].variant.(Entity_Proc)
+                b := matches[i2].variant.(Entity_Proc)
 
                 if types_equal(a.type, b.type) {
                     proc_with_same_signature_found = true
@@ -217,7 +238,7 @@ check_procedures_with_same_signature :: proc() {
         message := strings.builder_make(context.temp_allocator)
 
         for entity in matches {
-            that_proc := entity.variant.(Entity_Proc).procedure
+            that_proc := entity.variant.(Entity_Proc)
             token := that_proc.token
             matching_types := types_equal(that_proc.type, procedure.type)
 
@@ -545,10 +566,10 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
                 ins.variant = PUSH_CONST{variant}
 
             case Entity_Proc:
-                ins.variant = INVOKE_PROC{procedure=variant.procedure}
+                ins.variant = INVOKE_PROC{procedure=variant}
 
             case Entity_Type:
-                ins.variant = PUSH_TYPE{variant.type}
+                ins.variant = PUSH_TYPE{variant}
 
             case Entity_Var:
                 if entity.is_global {
@@ -563,10 +584,10 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
             found := false
 
             for entity in matches {
-                variant := entity.variant.(Entity_Proc)
+                that_proc := entity.variant.(Entity_Proc)
 
-                if can_this_proc_be_called(ins.token, variant.procedure, report_error = false) {
-                    ins.variant = INVOKE_PROC{procedure=variant.procedure}
+                if can_this_proc_be_called(ins.token, that_proc, report_error = false) {
+                    ins.variant = INVOKE_PROC{procedure=that_proc}
                     found = true
                     break
                 }
@@ -576,7 +597,7 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
                 message := strings.builder_make(context.temp_allocator)
 
                 for entity in matches {
-                    that_proc := entity.variant.(Entity_Proc).procedure
+                    that_proc := entity.variant.(Entity_Proc)
                     token := that_proc.token
 
                     fmt.sbprint(&message, "\t- ", CYAN)

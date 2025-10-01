@@ -1,4 +1,4 @@
-struct Entity
+type Entity
   x: int
   y: int
   name: string
