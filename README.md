@@ -20,10 +20,8 @@ Website: https://stanczyk-lang.org
 [Stańczyk]: https://stanczyk-lang.org
 
 ```stanczyk
-using core.io ;
-
-fn main
-  "Hello, Stańczyk" println
+proc main
+  "Hello, Stańczyk" print
 ;
 ```
 

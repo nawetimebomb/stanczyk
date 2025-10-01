@@ -149,7 +149,6 @@ check_entities :: proc() {
             switch &variant in entity.variant {
             case Entity_Binding:
             case Entity_Const:
-
             case Entity_Proc:
             case Entity_Type:
                 type := variant
