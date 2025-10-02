@@ -143,8 +143,11 @@ check_program_bytecode :: proc() {
 
 check_entities :: proc() {
     NUMBER_OF_PASSES :: 3
+    missing_tokens := make([dynamic]Token, context.temp_allocator)
 
     for passes := 0; passes < NUMBER_OF_PASSES; passes += 1 {
+        clear(&missing_tokens)
+
         for &entity in compiler.current_scope.entities {
             switch &variant in entity.variant {
             case Entity_Binding:
@@ -160,19 +163,48 @@ check_entities :: proc() {
                 case Type_Proc:    // noop
 
                 case Type_Alias:
-                    v.derived = compiler.types_by_name[v.token.text]
-                    type.size_in_bytes = v.derived.size_in_bytes
+                    fmt.println(v.token.text)
+                    t := compiler.types_by_name[v.token.text]
+
+                    if t == nil {
+                        append(&missing_tokens, v.token)
+                        continue
+                    }
+
+                    v.derived = t
+                    type.size_in_bytes = t.size_in_bytes
 
                 case Type_Struct:
+                    // Reset the sizing
+                    type.size_in_bytes = 0
+
                     for &field in v.fields {
                         field.offset = type.size_in_bytes
-                        field.type = compiler.types_by_name[field.type_token.text]
+                        t := compiler.types_by_name[field.type_token.text]
+
+                        if t == nil {
+                            append(&missing_tokens, field.type_token)
+                            continue
+                        }
+
+                        field.type = t
                         type.size_in_bytes += field.type.size_in_bytes
                     }
                 }
             case Entity_Var:
             }
         }
+
+        if len(missing_tokens) == 0 {
+            break
+        }
+    }
+
+    if len(missing_tokens) > 0 {
+        for token in missing_tokens {
+            checker_error(token, NOT_A_TYPE, token.text)
+        }
+        return
     }
 }
 
@@ -191,7 +223,7 @@ check_procedure_arguments_results :: proc(procedure: ^Procedure) {
                 p.type = type
 
                 if p.type == nil {
-                    checker_error(p.type_token, FAILED_TO_PARSE_TYPE)
+                    checker_error(p.type_token, NOT_A_TYPE, p.type_token.text)
                     checker_fatal_error()
                 }
             }
@@ -934,7 +966,7 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
             asking_type := compiler.types_by_name[v.type_token.text]
 
             if asking_type == nil {
-                checker_error(v.type_token, UNEXPECTED_TOKEN_PROC_TYPE, v.type_token.text)
+                checker_error(v.type_token, NOT_A_TYPE, v.type_token.text)
                 return
             }
 
@@ -966,7 +998,7 @@ check_instruction :: proc(this_proc: ^Procedure, ins: ^Instruction) {
             asking_type := compiler.types_by_name[v.type_token.text]
 
             if asking_type == nil {
-                checker_error(v.type_token, UNEXPECTED_TOKEN_PROC_TYPE, v.type_token.text)
+                checker_error(v.type_token, NOT_A_TYPE, v.type_token.text)
                 return
             }
 

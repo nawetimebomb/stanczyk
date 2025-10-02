@@ -17,8 +17,6 @@ EMPTY_TYPE_DECL :: "Empty type declarations are not allowed."
 
 EMPTY_VAR_DECL :: "Cannot have uninitialized var with no type definition."
 
-FAILED_TO_PARSE_TYPE :: "Failed to parse this as a valid type."
-
 FOR_STATEMENT_AFTER_AUTORANGE_REQUIRED :: "Autorange expression needs to be followed by a 'for' statement."
 
 IMPERATIVE_EXPR_GLOBAL :: "Attemp to use an imperative expression while in global scope."
@@ -42,6 +40,8 @@ UNATTACHED_TO_LOOP :: "'{}' statement unattached to 'for' statement."
 UNBALANCED_SCOPE :: "This procedure is not ending in the correct scope, maybe you forgot to end the scope for a conditional or loop statement?"
 
 UNDECLARED_NAME :: "Undeclared name in struct '{}'."
+
+NOT_A_TYPE :: "'{}' is not a type."
 
 UNEXPECTED_TOKEN_PROC_TYPE :: "'{}' is not a type."
 
@@ -75,8 +75,6 @@ MISMATCHED_MULTI :: "Mismatched type in operation '{}'; Expected {}, got '{}'."
 MODULO_ONLY_INT :: "Modulo operator '%%' can only be used while operating with 'int'. Used '{}'."
 
 NO_MATCHING_POLY_PROC :: "No matching polymorphic procedure was found. Here's a list of procedures called '{}':\n{}"
-
-NOT_A_MUTABLE_VAR :: "Element in stack was not a mutable var."
 
 STACK_EMPTY :: "There are not enough stack values to make this operation."
 
